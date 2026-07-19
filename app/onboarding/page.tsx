@@ -46,10 +46,20 @@ export default function OnboardingPage() {
       return
     }
 
-    // 2) Owner membership (bootstrap policy) + default settings + starter tables.
+    // 2) Owner membership FIRST and awaited — the settings/tables policies check
+    //    is_cafe_member(), so the membership must be committed before those writes.
+    const { error: memberErr } = await supabase
+      .from('cafe_members')
+      .insert({ cafe_id: cafe.id, user_id: user.id, role: 'owner' })
+    if (memberErr) {
+      setError(memberErr.message)
+      setLoading(false)
+      return
+    }
+
+    // 3) Now membership exists — settings + starter tables can run together.
     const n = Math.max(1, Math.min(50, parseInt(form.tables) || 6))
-    const [{ error: memberErr }] = await Promise.all([
-      supabase.from('cafe_members').insert({ cafe_id: cafe.id, user_id: user.id, role: 'owner' }),
+    const [{ error: settingsErr }, { error: tablesErr }] = await Promise.all([
       supabase.from('cafe_settings').insert({ cafe_id: cafe.id }),
       supabase.from('cafe_tables').insert(
         Array.from({ length: n }, (_, i) => ({
@@ -59,8 +69,8 @@ export default function OnboardingPage() {
         })),
       ),
     ])
-    if (memberErr) {
-      setError(memberErr.message)
+    if (settingsErr || tablesErr) {
+      setError((settingsErr ?? tablesErr)!.message)
       setLoading(false)
       return
     }
