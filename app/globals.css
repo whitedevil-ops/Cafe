@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   counter — design tokens (spec §26). Warm-neutral foundation, one café-tech
+   brand color (terracotta), semantic colors reserved for status only.
+   Light is primary; dark is fully defined so the architecture is ready.
+   ============================================================================ */
+:root {
+  --background:        #FAF9F7;  /* warm off-white page */
+  --surface:           #FFFFFF;  /* cards, panels */
+  --surface-subtle:    #F4F2EE;  /* hover, inset */
+  --foreground:        #1C1917;  /* near-black text */
+  --muted-foreground:  #78716C;  /* secondary text */
+  --border:            #E7E5E1;  /* hairline */
+  --border-strong:     #D6D3CE;
+
+  --primary:           #C2410C;  /* terracotta — the one brand color */
+  --primary-hover:     #9A3412;
+  --primary-foreground:#FFFFFF;
+  --primary-subtle:    #FDF3EE;  /* tinted fill behind primary content */
+
+  --success:           #15803D;
+  --success-subtle:    #ECFDF3;
+  --warning:           #B45309;
+  --warning-subtle:    #FFFBEB;
+  --destructive:       #B91C1C;
+  --destructive-subtle:#FEF2F2;
+  --info:              #1D4ED8;
+  --info-subtle:       #EFF6FF;
+
+  --radius: 8px;
+  --ring: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+
+:root[data-theme="dark"], .dark {
+  --background:        #0C0A09;
+  --surface:           #1C1917;
+  --surface-subtle:    #292524;
+  --foreground:        #FAFAF9;
+  --muted-foreground:  #A8A29E;
+  --border:            #292524;
+  --border-strong:     #44403C;
+
+  --primary:           #F97316;
+  --primary-hover:     #FB923C;
+  --primary-foreground:#1C1917;
+  --primary-subtle:    #2A1710;
+
+  --success:           #4ADE80;
+  --success-subtle:    #10231A;
+  --warning:           #FBBF24;
+  --warning-subtle:    #241C0C;
+  --destructive:       #F87171;
+  --destructive-subtle:#2A1414;
+  --info:              #60A5FA;
+  --info-subtle:       #0F1B2E;
+}
+
+@theme inline {
+  --color-background:       var(--background);
+  --color-surface:          var(--surface);
+  --color-surface-subtle:   var(--surface-subtle);
+  --color-foreground:       var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border:           var(--border);
+  --color-border-strong:    var(--border-strong);
+  --color-primary:          var(--primary);
+  --color-primary-hover:    var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle:   var(--primary-subtle);
+  --color-success:          var(--success);
+  --color-success-subtle:   var(--success-subtle);
+  --color-warning:          var(--warning);
+  --color-warning-subtle:   var(--warning-subtle);
+  --color-destructive:      var(--destructive);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-info:             var(--info);
+  --color-info-subtle:      var(--info-subtle);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius: var(--radius);
+}
+
+* { border-color: var(--border); }
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: color-mix(in srgb, var(--primary) 22%, transparent); }
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Respect reduced-motion globally (spec §29). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
