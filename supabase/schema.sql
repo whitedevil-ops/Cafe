@@ -428,6 +428,9 @@ create policy "owner update"  on cafes for update using (has_cafe_role(id, array
 -- Registration: an authenticated user creates a café they own. No prior membership
 -- needed (that's the chicken-and-egg the bootstrap policy below resolves).
 create policy "create own" on cafes for insert to authenticated with check (owner_id = auth.uid());
+-- And they can read a café they own even before membership exists — needed for the
+-- insert().select() read-back during onboarding, and for the owner generally.
+create policy "owner read" on cafes for select to authenticated using (owner_id = auth.uid());
 
 -- cafe_members: you see rows for cafes you belong to.
 create policy "member read"   on cafe_members for select using (is_cafe_member(cafe_id));
