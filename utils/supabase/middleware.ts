@@ -6,9 +6,15 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // If Supabase isn't configured (e.g. env vars not set on the host), never crash the
+  // whole site — just serve pages without a session. Auth routes will handle it.
+  if (!url || !key) return response
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
