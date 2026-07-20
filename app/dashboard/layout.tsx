@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 const nav = [
   ['Overview', '/dashboard'],
   ['Menu', '/dashboard/menu'],
+  ['Tables', '/dashboard/tables'],
   ['Kitchen', '/dashboard/kitchen'],
 ]
 
