@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 const nav = [
   ['Overview', '/dashboard'],
   ['Menu', '/dashboard/menu'],
+  ['Kitchen', '/dashboard/kitchen'],
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
