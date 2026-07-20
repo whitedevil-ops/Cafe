@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { uploadMenuImage } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { MenuCategory, MenuItemRow } from './types'
@@ -15,6 +16,7 @@ type ItemDraft = {
   description: string
   category_id: string | null
   price: string
+  image_url: string | null
   available: boolean
   is_veg: boolean | null
   is_bestseller: boolean
@@ -27,6 +29,7 @@ const emptyDraft: ItemDraft = {
   description: '',
   category_id: null,
   price: '',
+  image_url: null,
   available: true,
   is_veg: null,
   is_bestseller: false,
@@ -55,6 +58,7 @@ export default function MenuManager({
   const [manageCats, setManageCats] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorised'
@@ -117,6 +121,7 @@ export default function MenuManager({
       name,
       description: draft.description.trim() || null,
       price,
+      image_url: draft.image_url,
       available: draft.available,
       is_veg: draft.is_veg,
       is_bestseller: draft.is_bestseller,
@@ -187,6 +192,7 @@ export default function MenuManager({
       description: item.description ?? '',
       category_id: item.category_id,
       price: String(item.price),
+      image_url: item.image_url,
       available: item.available,
       is_veg: item.is_veg,
       is_bestseller: item.is_bestseller,
@@ -206,6 +212,16 @@ export default function MenuManager({
           }
         : d,
     )
+  }
+
+  async function onPickImage(file: File | undefined) {
+    if (!file || !draft) return
+    setUploading(true)
+    setError(null)
+    const result = await uploadMenuImage(cafeId, file)
+    setUploading(false)
+    if ('error' in result) return setError(result.error)
+    setDraft((d) => (d ? { ...d, image_url: result.url } : d))
   }
 
   async function toggleAvailable(item: MenuItemRow) {
@@ -332,6 +348,10 @@ export default function MenuManager({
         <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border">
           {visible.map((item) => (
             <li key={item.id} className="flex items-center gap-4 bg-surface px-4 py-3">
+              {item.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg border border-border object-cover" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{item.name}</span>
@@ -385,6 +405,39 @@ export default function MenuManager({
             </h2>
 
             <div className="mt-5 space-y-4">
+              {/* Photo */}
+              <div className="flex items-center gap-3">
+                {draft.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={draft.image_url} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                ) : (
+                  <div className="grid h-16 w-16 place-items-center rounded-lg border border-dashed border-border-strong text-[11px] text-muted-foreground">
+                    No photo
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="inline-block cursor-pointer rounded-[var(--radius)] border border-border-strong px-3 py-1.5 text-[13px] text-foreground hover:bg-surface-subtle">
+                    {uploading ? 'Uploading…' : draft.image_url ? 'Change photo' : 'Add photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => onPickImage(e.target.files?.[0])}
+                    />
+                  </label>
+                  {draft.image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setDraft({ ...draft, image_url: null })}
+                      className="block text-[12px] text-muted-foreground hover:text-destructive"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <Input
                 label="Name"
                 value={draft.name}

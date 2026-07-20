@@ -13,6 +13,7 @@ export type MenuItemRow = {
   name: string
   description: string | null
   price: number
+  image_url: string | null
   available: boolean
   is_veg: boolean | null
   is_bestseller: boolean

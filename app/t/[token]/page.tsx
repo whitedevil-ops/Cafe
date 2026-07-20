@@ -20,7 +20,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', table.cafe_id).order('sort'),
     supabase
       .from('menu_items')
-      .select('id, name, description, price, category_id, is_veg, is_bestseller, is_upsell, upsell_pitch')
+      .select('id, name, description, price, image_url, category_id, is_veg, is_bestseller, is_upsell, upsell_pitch')
       .eq('cafe_id', table.cafe_id)
       .eq('available', true)
       .eq('archived', false)

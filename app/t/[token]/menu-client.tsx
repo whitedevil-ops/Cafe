@@ -8,6 +8,7 @@ export type PublicItem = {
   name: string
   description: string | null
   price: number
+  image_url: string | null
   category_id: string | null
   is_veg: boolean | null
   is_bestseller: boolean
@@ -198,7 +199,16 @@ export default function MenuClient({
                   const opt = hasOptions(item.id)
                   return (
                     <li key={item.id} className="flex items-center justify-between gap-4 border-b border-border bg-surface px-5 py-4">
-                      <div className="min-w-0">
+                      {item.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          loading="lazy"
+                          className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-foreground">{item.name}</p>
                           {item.is_bestseller && <span className="rounded bg-warning-subtle px-1.5 py-0.5 text-[11px] font-medium text-warning">Bestseller</span>}
