@@ -1,53 +1,60 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { Button } from '@/components/ui/button'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
+  const cafe = await getCurrentCafe()
+  if (!cafe) redirect('/onboarding')
+
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const [{ count: itemCount }, { count: categoryCount }] = await Promise.all([
+    supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafe.cafeId),
+    supabase.from('menu_categories').select('*', { count: 'exact', head: true }).eq('cafe_id', cafe.cafeId),
+  ])
 
-  // RLS scopes this to the caller's own memberships — tenant isolation, enforced by DB.
-  const { data: memberships } = await supabase
-    .from('cafe_members')
-    .select('role, cafes(id, name, slug, city)')
-    .eq('user_id', user.id)
-
-  if (!memberships || memberships.length === 0) redirect('/onboarding')
-
-  const first = memberships[0]
-  const cafe = Array.isArray(first.cafes) ? first.cafes[0] : first.cafes
+  const hasMenu = (itemCount ?? 0) > 0
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[13px] text-muted-foreground">Signed in as {user.email}</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">
-            {cafe?.name ?? 'Your café'}
-          </h1>
-        </div>
-        <form action="/auth/signout" method="post">
-          <Button variant="secondary" size="sm" type="submit">
-            Sign out
-          </Button>
-        </form>
-      </div>
+    <div className="mx-auto max-w-5xl px-6 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">{cafe.name}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Your workspace · role <span className="font-medium text-foreground">{cafe.role}</span>
+      </p>
 
-      <div className="mt-8 rounded-xl border border-border bg-surface p-6">
-        <p className="text-sm text-muted-foreground">
-          Your workspace is live. Dashboard metrics, POS, orders, and menu management wire in
-          next — each reading only this café&apos;s data through row-level security.
-        </p>
-        <p className="mt-4 text-[13px] text-muted-foreground">
-          Role: <span className="font-medium text-foreground">{first.role}</span>
-          {cafe?.city ? ` · ${cafe.city}` : ''}
-        </p>
-      </div>
+      {!hasMenu ? (
+        <div className="mt-8 rounded-xl border border-border bg-surface p-8 text-center">
+          <h2 className="text-base font-medium text-foreground">Add your first menu item</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            Your café has no menu yet. Add items so customers can start ordering from the QR menu.
+          </p>
+          <Link
+            href="/dashboard/menu"
+            className="mt-5 inline-block rounded-[var(--radius)] bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
+          >
+            Open menu manager
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          {[
+            ['Menu items', itemCount ?? 0],
+            ['Categories', categoryCount ?? 0],
+            ['Today’s orders', '—'],
+          ].map(([label, value]) => (
+            <div key={label as string} className="rounded-xl border border-border bg-surface p-5">
+              <p className="text-[13px] text-muted-foreground">{label}</p>
+              <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-6 text-[13px] text-muted-foreground">
+        Live sales metrics appear here once orders start flowing through your QR menu.
+      </p>
     </div>
   )
 }
