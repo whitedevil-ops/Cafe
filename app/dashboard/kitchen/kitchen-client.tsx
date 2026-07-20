@@ -13,7 +13,7 @@ type Order = {
   payment_method: string | null
   created_at: string
 }
-type Item = { id: string; order_id: string; name: string; qty: number }
+type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
 
 const NEXT: Record<Order['status'], { label: string; to: string }> = {
   placed: { label: 'Start', to: 'preparing' },
@@ -77,7 +77,7 @@ export default function KitchenClient({
       if (ords.length) {
         const { data: its } = await supabase
           .from('order_items')
-          .select('id, order_id, name, qty')
+          .select('id, order_id, name, qty, modifiers')
           .in('order_id', ords.map((o) => o.id))
         if (alive && its) setItems(its as Item[])
       } else {
@@ -138,7 +138,14 @@ export default function KitchenClient({
                   {its.map((i) => (
                     <li key={i.id} className="flex gap-3 text-2xl">
                       <span className="w-8 shrink-0 font-medium text-amber-400">{i.qty}×</span>
-                      <span>{i.name}</span>
+                      <span>
+                        {i.name}
+                        {i.modifiers && i.modifiers.length > 0 && (
+                          <span className="block text-base text-stone-400">
+                            {i.modifiers.map((m) => m.name).join(', ')}
+                          </span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

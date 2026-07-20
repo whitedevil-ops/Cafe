@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { MenuCategory, MenuItemRow } from './types'
 
+type VariantDraft = { id?: string; name: string; price_delta: string }
+type AddonDraft = { id?: string; name: string; price: string }
+
 type ItemDraft = {
   id?: string
   name: string
@@ -15,6 +18,8 @@ type ItemDraft = {
   available: boolean
   is_veg: boolean | null
   is_bestseller: boolean
+  variants: VariantDraft[]
+  addons: AddonDraft[]
 }
 
 const emptyDraft: ItemDraft = {
@@ -25,6 +30,8 @@ const emptyDraft: ItemDraft = {
   available: true,
   is_veg: null,
   is_bestseller: false,
+  variants: [],
+  addons: [],
 }
 
 export default function MenuManager({
@@ -115,6 +122,7 @@ export default function MenuManager({
       is_bestseller: draft.is_bestseller,
     }
 
+    let itemId = draft.id
     if (draft.id) {
       const { data, error } = await supabase
         .from('menu_items')
@@ -122,8 +130,10 @@ export default function MenuManager({
         .eq('id', draft.id)
         .select()
         .single()
-      setBusy(false)
-      if (error) return setError(error.message)
+      if (error) {
+        setBusy(false)
+        return setError(error.message)
+      }
       setItems((list) => list.map((i) => (i.id === draft.id ? (data as MenuItemRow) : i)))
     } else {
       const sort = items.length
@@ -132,11 +142,70 @@ export default function MenuManager({
         .insert({ ...payload, sort })
         .select()
         .single()
-      setBusy(false)
-      if (error) return setError(error.message)
+      if (error) {
+        setBusy(false)
+        return setError(error.message)
+      }
+      itemId = (data as MenuItemRow).id
       setItems((list) => [...list, data as MenuItemRow])
     }
+
+    // Sync variants + add-ons: simplest correct approach at this scale is
+    // replace-all (delete then insert the current set).
+    const err = await syncModifiers(itemId!, draft)
+    setBusy(false)
+    if (err) return setError(err)
     setDraft(null)
+  }
+
+  async function syncModifiers(itemId: string, d: ItemDraft): Promise<string | null> {
+    await supabase.from('menu_item_variants').delete().eq('menu_item_id', itemId)
+    await supabase.from('menu_item_addons').delete().eq('menu_item_id', itemId)
+
+    const variants = d.variants
+      .filter((v) => v.name.trim())
+      .map((v, i) => ({ menu_item_id: itemId, name: v.name.trim(), price_delta: Math.round(Number(v.price_delta) || 0), sort: i }))
+    const addons = d.addons
+      .filter((a) => a.name.trim())
+      .map((a, i) => ({ menu_item_id: itemId, name: a.name.trim(), price: Math.max(0, Math.round(Number(a.price) || 0)), sort: i }))
+
+    if (variants.length) {
+      const { error } = await supabase.from('menu_item_variants').insert(variants)
+      if (error) return error.message
+    }
+    if (addons.length) {
+      const { error } = await supabase.from('menu_item_addons').insert(addons)
+      if (error) return error.message
+    }
+    return null
+  }
+
+  async function openEdit(item: MenuItemRow) {
+    setDraft({
+      id: item.id,
+      name: item.name,
+      description: item.description ?? '',
+      category_id: item.category_id,
+      price: String(item.price),
+      available: item.available,
+      is_veg: item.is_veg,
+      is_bestseller: item.is_bestseller,
+      variants: [],
+      addons: [],
+    })
+    const [{ data: vs }, { data: as }] = await Promise.all([
+      supabase.from('menu_item_variants').select('id, name, price_delta').eq('menu_item_id', item.id).order('sort'),
+      supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
+    ])
+    setDraft((d) =>
+      d && d.id === item.id
+        ? {
+            ...d,
+            variants: (vs ?? []).map((v) => ({ id: v.id, name: v.name, price_delta: String(v.price_delta) })),
+            addons: (as ?? []).map((a) => ({ id: a.id, name: a.name, price: String(a.price) })),
+          }
+        : d,
+    )
   }
 
   async function toggleAvailable(item: MenuItemRow) {
@@ -290,18 +359,7 @@ export default function MenuManager({
                 {item.available ? 'Mark sold out' : 'Mark available'}
               </button>
               <button
-                onClick={() =>
-                  setDraft({
-                    id: item.id,
-                    name: item.name,
-                    description: item.description ?? '',
-                    category_id: item.category_id,
-                    price: String(item.price),
-                    available: item.available,
-                    is_veg: item.is_veg,
-                    is_bestseller: item.is_bestseller,
-                  })
-                }
+                onClick={() => openEdit(item)}
                 className="shrink-0 rounded-[var(--radius)] px-2 py-1.5 text-[13px] text-primary hover:underline"
               >
                 Edit
@@ -396,6 +454,75 @@ export default function MenuManager({
                   <option value="veg">Veg</option>
                   <option value="nonveg">Non-veg</option>
                 </select>
+              </div>
+
+              {/* Variants */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-foreground">Variants</span>
+                  <button
+                    type="button"
+                    onClick={() => setDraft({ ...draft, variants: [...draft.variants, { name: '', price_delta: '0' }] })}
+                    className="text-[13px] text-primary hover:underline"
+                  >
+                    + Add
+                  </button>
+                </div>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  Sizes/options. Final price is base {draft.price ? `(₹${draft.price})` : ''} plus this amount. Leave empty for none.
+                </p>
+                {draft.variants.map((v, idx) => (
+                  <div key={idx} className="mt-2 flex gap-2">
+                    <input
+                      value={v.name}
+                      onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
+                      placeholder="e.g. Large"
+                      className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                    />
+                    <input
+                      value={v.price_delta}
+                      type="number"
+                      onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price_delta: e.target.value } : x)) })}
+                      placeholder="+₹"
+                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                    />
+                    <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove variant" className="px-2 text-muted-foreground hover:text-destructive">×</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add-ons */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-foreground">Add-ons</span>
+                  <button
+                    type="button"
+                    onClick={() => setDraft({ ...draft, addons: [...draft.addons, { name: '', price: '0' }] })}
+                    className="text-[13px] text-primary hover:underline"
+                  >
+                    + Add
+                  </button>
+                </div>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">Optional extras customers can add (e.g. Oat milk +₹50).</p>
+                {draft.addons.map((a, idx) => (
+                  <div key={idx} className="mt-2 flex gap-2">
+                    <input
+                      value={a.name}
+                      onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
+                      placeholder="e.g. Extra shot"
+                      className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                    />
+                    <input
+                      value={a.price}
+                      type="number"
+                      min={0}
+                      onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
+                      placeholder="₹"
+                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                    />
+                    <button type="button" onClick={() => setDraft({ ...draft, addons: draft.addons.filter((_, i) => i !== idx) })} aria-label="Remove add-on" className="px-2 text-muted-foreground hover:text-destructive">×</button>
+                  </div>
+                ))}
               </div>
             </div>
 

@@ -60,6 +60,12 @@ export default function TablesClient({
 
   const urlFor = (token: string) => `${origin}/t/${token}`
 
+  // Natural sort so "2" comes before "10" (and named tables still sort sensibly).
+  const sorted = useMemo(
+    () => [...tables].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })),
+    [tables],
+  )
+
   async function addTable() {
     const label = newLabel.trim()
     if (!label) return
@@ -131,7 +137,7 @@ export default function TablesClient({
         </div>
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {tables.map((t) => (
+          {sorted.map((t) => (
             <div key={t.id} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-foreground">Table {t.label}</span>

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import MenuClient, { type PublicItem } from './menu-client'
+import MenuClient, { type PublicItem, type Variant, type Addon } from './menu-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +28,16 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   ])
   if (!cafe) notFound()
 
+  const itemIds = (items ?? []).map((i) => i.id)
+  const [{ data: variants }, { data: addons }] = await Promise.all([
+    itemIds.length
+      ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
+      : Promise.resolve({ data: [] }),
+    itemIds.length
+      ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
+      : Promise.resolve({ data: [] }),
+  ])
+
   return (
     <MenuClient
       token={token}
@@ -36,6 +46,8 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}
+      variants={(variants ?? []) as Variant[]}
+      addons={(addons ?? []) as Addon[]}
     />
   )
 }
