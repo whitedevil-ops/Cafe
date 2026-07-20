@@ -9,6 +9,7 @@ const nav = [
   ['Menu', '/dashboard/menu'],
   ['Tables', '/dashboard/tables'],
   ['Kitchen', '/dashboard/kitchen'],
+  ['Settings', '/dashboard/settings'],
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

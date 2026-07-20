@@ -16,7 +16,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   if (!table) notFound()
 
   const [{ data: cafe }, { data: categories }, { data: items }] = await Promise.all([
-    supabase.from('cafes').select('name, upsell_threshold').eq('id', table.cafe_id).maybeSingle(),
+    supabase.from('cafes').select('name, upsell_threshold, upi_id, upi_name').eq('id', table.cafe_id).maybeSingle(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', table.cafe_id).order('sort'),
     supabase
       .from('menu_items')
@@ -43,6 +43,8 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       token={token}
       cafeName={cafe.name}
       tableLabel={table.label}
+      upiId={cafe.upi_id}
+      upiName={cafe.upi_name}
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}

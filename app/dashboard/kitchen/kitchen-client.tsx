@@ -11,6 +11,7 @@ type Order = {
   status: 'placed' | 'preparing' | 'ready'
   total: number
   payment_method: string | null
+  payment_status: 'unpaid' | 'paid' | 'partial' | 'refunded'
   created_at: string
 }
 type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
@@ -63,7 +64,7 @@ export default function KitchenClient({
     async function poll() {
       const { data: ords } = await supabase
         .from('orders')
-        .select('id, short_code, table_id, type, status, total, payment_method, created_at')
+        .select('id, short_code, table_id, type, status, total, payment_method, payment_status, created_at')
         .eq('cafe_id', cafeId)
         .in('status', ['placed', 'preparing', 'ready'])
         .order('created_at', { ascending: true })
@@ -93,6 +94,22 @@ export default function KitchenClient({
       clearInterval(t)
     }
   }, [supabase, cafeId, ding])
+
+  async function markPaid(o: Order) {
+    setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
+    // Record the money, then flip the order — the payments row is the audit trail.
+    const { error } = await supabase.from('payments').insert({
+      cafe_id: cafeId,
+      order_id: o.id,
+      method: o.payment_method === 'upi' ? 'upi' : 'cash',
+      amount: o.total,
+    })
+    if (error) {
+      setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'unpaid' } : x)))
+      return
+    }
+    await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', o.id)
+  }
 
   async function advance(o: Order) {
     const to = NEXT[o.status].to
@@ -131,8 +148,15 @@ export default function KitchenClient({
                   <span className={`text-xl ${late ? 'text-red-400' : 'text-stone-400'}`}>{age}m</span>
                 </div>
                 <p className="mt-1 text-lg text-stone-400">
-                  Table {o.table_id ? tableLabels[o.table_id] ?? '—' : '—'} · {o.payment_method === 'upi' ? 'Paid' : 'Counter'}
-                  {o.status !== 'placed' && <span className="ml-2 text-amber-400">· {o.status}</span>}
+                  Table {o.table_id ? tableLabels[o.table_id] ?? '—' : '—'}
+                  {o.payment_status === 'paid' ? (
+                    <span className="ml-2 text-emerald-400">· Paid</span>
+                  ) : (
+                    <span className="ml-2 text-amber-400">
+                      · {o.payment_method === 'upi' ? 'UPI pending' : 'Pay at counter'}
+                    </span>
+                  )}
+                  {o.status !== 'placed' && <span className="ml-2 text-stone-500">· {o.status}</span>}
                 </p>
                 <ul className="my-4 space-y-2 border-y border-stone-800 py-4">
                   {its.map((i) => (
@@ -149,9 +173,16 @@ export default function KitchenClient({
                     </li>
                   ))}
                 </ul>
-                <button onClick={() => advance(o)} className="w-full rounded-lg bg-emerald-600 py-4 text-xl font-medium">
-                  {NEXT[o.status].label}
-                </button>
+                <div className="flex gap-2">
+                  {o.payment_status !== 'paid' && (
+                    <button onClick={() => markPaid(o)} className="flex-1 rounded-lg border border-amber-500 py-4 text-lg font-medium text-amber-400">
+                      ₹{o.total} paid
+                    </button>
+                  )}
+                  <button onClick={() => advance(o)} className="flex-1 rounded-lg bg-emerald-600 py-4 text-xl font-medium">
+                    {NEXT[o.status].label}
+                  </button>
+                </div>
               </section>
             )
           })}

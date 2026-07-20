@@ -33,6 +33,8 @@ export default function MenuClient({
   token,
   cafeName,
   tableLabel,
+  upiId,
+  upiName,
   upsellThreshold,
   categories,
   items,
@@ -42,6 +44,8 @@ export default function MenuClient({
   token: string
   cafeName: string
   tableLabel: string
+  upiId: string | null
+  upiName: string | null
   upsellThreshold: number
   categories: { id: string; name: string }[]
   items: PublicItem[]
@@ -54,7 +58,7 @@ export default function MenuClient({
   const [phone, setPhone] = useState('')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [placed, setPlaced] = useState<{ code: string; total: number } | null>(null)
+  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter' } | null>(null)
   const [customizing, setCustomizing] = useState<PublicItem | null>(null)
 
   const upsellShown = useRef(false)
@@ -158,8 +162,22 @@ export default function MenuClient({
     setPlacing(false)
     if (error) return setError(error.message)
     const r = data as { short_code: string; total: number }
-    setPlaced({ code: r.short_code, total: r.total })
+    setPlaced({ code: r.short_code, total: r.total, method })
     setStep('done')
+    if (method === 'upi' && upiId) {
+      window.location.href = upiLink(r.short_code, r.total)
+    }
+  }
+
+  function upiLink(code: string, total: number) {
+    const params = new URLSearchParams({
+      pa: upiId ?? '',
+      pn: upiName || cafeName,
+      am: String(total),
+      cu: 'INR',
+      tn: `Order ${code} · Table ${tableLabel}`,
+    })
+    return `upi://pay?${params.toString()}`
   }
 
   if (step === 'done' && placed) {
@@ -175,6 +193,21 @@ export default function MenuClient({
           <p className="mt-1 text-4xl font-semibold text-foreground">{placed.code}</p>
           <p className="mt-4 border-t border-border pt-4 text-lg text-foreground">₹{placed.total}</p>
         </div>
+        {placed.method === 'upi' && upiId ? (
+          <div className="w-full space-y-2">
+            <a
+              href={upiLink(placed.code, placed.total)}
+              className="block w-full rounded-[var(--radius)] bg-foreground py-4 text-center font-medium text-background"
+            >
+              Open UPI app to pay ₹{placed.total}
+            </a>
+            <p className="text-[13px] text-muted-foreground">
+              Complete the payment in your UPI app — the café confirms it on their screen.
+            </p>
+          </div>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">Pay ₹{placed.total} at the counter.</p>
+        )}
       </main>
     )
   }
@@ -282,11 +315,13 @@ export default function MenuClient({
           </div>
 
           <div className="mt-4 space-y-3">
-            <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
-              {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
-            </button>
+            {upiId && (
+              <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
+                {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
+              </button>
+            )}
             <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] border border-border-strong bg-surface py-4 font-medium text-foreground disabled:opacity-40">
-              Pay at the counter
+              {placing ? 'Placing…' : 'Pay at the counter'}
             </button>
           </div>
         </div>
