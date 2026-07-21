@@ -8,14 +8,15 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   const { token } = await params
   const supabase = await createClient() // anon context — public read policies apply
 
-  const { data: table } = await supabase
+  const { data: table, error: tableErr } = await supabase
     .from('cafe_tables')
     .select('id, label, cafe_id')
     .eq('token', token)
     .maybeSingle()
+  if (tableErr) console.error('[qr] cafe_tables lookup failed:', tableErr.message, 'token=', token)
   if (!table) notFound()
 
-  const [{ data: cafe }, { data: categories }, { data: items }] = await Promise.all([
+  const [{ data: cafe, error: cafeErr }, { data: categories }, { data: items }] = await Promise.all([
     supabase.from('cafes').select('name, upsell_threshold, upi_id, upi_name').eq('id', table.cafe_id).maybeSingle(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', table.cafe_id).order('sort'),
     supabase
@@ -26,6 +27,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       .eq('archived', false)
       .order('sort'),
   ])
+  if (cafeErr) console.error('[qr] cafes lookup failed:', cafeErr.message, 'cafe_id=', table.cafe_id)
   if (!cafe) notFound()
 
   const itemIds = (items ?? []).map((i) => i.id)

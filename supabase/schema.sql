@@ -67,6 +67,8 @@ create table cafes (
   service_charge numeric(5,2) not null default 0.00,
   plan           text not null default 'trial',
   upsell_threshold integer not null default 150,
+  upi_id           text,                          -- café's UPI VPA for QR payments
+  upi_name         text,
   created_at     timestamptz not null default now()
 );
 
