@@ -253,8 +253,8 @@ begin
                         payment_method, subtotal, total, created_at)
     values (v_cafe, v_table, v_cust, v_seq::text, 'dine_in',
             (array['placed','placed','preparing','ready'])[i]::order_status,
-            case when i = 3 then 'paid' else 'unpaid' end,
-            case when i = 3 then 'upi' else 'counter' end, 0, 0, v_ts)
+            (case when i = 3 then 'paid' else 'unpaid' end)::payment_status,
+            (case when i = 3 then 'upi' else 'counter' end)::payment_method, 0, 0, v_ts)
     returning id into v_order;
 
     v_sub := 0;
