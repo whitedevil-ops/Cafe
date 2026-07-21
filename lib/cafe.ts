@@ -17,10 +17,14 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
   } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Newest membership wins (deterministic; previously unordered). This also means
+  // seeding the demo café makes it your active workspace — reset-demo-cafe.sql
+  // deletes that membership and your original café comes back.
   const { data } = await supabase
     .from('cafe_members')
-    .select('role, cafe_id, cafes(name, slug)')
+    .select('role, cafe_id, created_at, cafes(name, slug)')
     .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 

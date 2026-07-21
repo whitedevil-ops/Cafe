@@ -8,18 +8,32 @@ type Row = {
   slug: string
   city: string | null
   plan: string
+  is_demo: boolean
   created_at: string
   owner: { full_name: string | null; email: string | null } | null
 }
 
 export default async function AllCafes() {
   const supabase = await createClient()
+  let rows: unknown[] = []
   const { data } = await supabase
     .from('cafes')
-    .select('id, name, slug, city, plan, created_at, owner:profiles!cafes_owner_id_fkey(full_name, email)')
+    .select('id, name, slug, city, plan, is_demo, created_at, owner:profiles!cafes_owner_id_fkey(full_name, email)')
     .order('created_at', { ascending: false })
 
-  const cafes = (data ?? []) as unknown as Row[]
+  if (data) {
+    rows = data
+  } else {
+    // Deploys land before hand-run migrations: if 0005 (is_demo) isn't applied yet,
+    // fall back to the pre-0005 shape instead of breaking the page.
+    const fallback = await supabase
+      .from('cafes')
+      .select('id, name, slug, city, plan, created_at, owner:profiles!cafes_owner_id_fkey(full_name, email)')
+      .order('created_at', { ascending: false })
+    rows = (fallback.data ?? []).map((c) => ({ ...c, is_demo: false }))
+  }
+
+  const cafes = rows as Row[]
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -50,7 +64,14 @@ export default async function AllCafes() {
               {cafes.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface-subtle">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">{c.name}</p>
+                    <p className="flex items-center gap-2 font-medium text-foreground">
+                      {c.name}
+                      {c.is_demo && (
+                        <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-[11px] font-medium text-warning">
+                          Demo
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[12px] text-muted-foreground">/{c.slug}</p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
