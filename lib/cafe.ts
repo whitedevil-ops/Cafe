@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 
@@ -21,21 +22,41 @@ type MembershipRow = {
 }
 
 // All cafés the signed-in user belongs to (RLS-scoped), newest first.
-async function getMemberships(): Promise<{ userId: string; rows: MembershipRow[] } | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+// Wrapped in React cache() so layout + page share ONE auth check and ONE
+// membership query per request instead of re-fetching independently.
+const getMemberships = cache(
+  async (): Promise<{ userId: string; rows: MembershipRow[] } | null> => {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return null
 
-  const { data } = await supabase
-    .from('cafe_members')
-    .select('role, cafe_id, created_at, cafes(name, slug)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+    const { data } = await supabase
+      .from('cafe_members')
+      .select('role, cafe_id, created_at, cafes(name, slug)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
 
-  return { userId: user.id, rows: (data ?? []) as MembershipRow[] }
-}
+    let rows = (data ?? []) as MembershipRow[]
+
+    // No memberships? The user may have been invited by a café before signing
+    // up — claim any invites matching their email, then re-read.
+    if (rows.length === 0) {
+      const { data: claimed } = await supabase.rpc('claim_my_invites')
+      if (claimed && claimed > 0) {
+        const { data: refetched } = await supabase
+          .from('cafe_members')
+          .select('role, cafe_id, created_at, cafes(name, slug)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        rows = (refetched ?? []) as MembershipRow[]
+      }
+    }
+
+    return { userId: user.id, rows }
+  },
+)
 
 function toOption(row: MembershipRow): CafeOption | null {
   const cafe = Array.isArray(row.cafes) ? row.cafes[0] : row.cafes

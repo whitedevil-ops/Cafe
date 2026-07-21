@@ -12,18 +12,78 @@ type Settings = {
   upsell_threshold: number
 }
 
+export type StaffMember = {
+  userId: string
+  role: string
+  status: string
+  name: string | null
+  email: string | null
+}
+export type StaffInvite = { id: string; email: string; role: string }
+
+const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
+
 export default function SettingsClient({
   cafeId,
+  myUserId,
+  myRole,
   initial,
+  initialStaff,
+  initialInvites,
 }: {
   cafeId: string
+  myUserId: string
+  myRole: string
   initial: Settings
+  initialStaff: StaffMember[]
+  initialInvites: StaffInvite[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [staff, setStaff] = useState(initialStaff)
+  const [invites, setInvites] = useState(initialInvites)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<string>('waiter')
+  const [staffBusy, setStaffBusy] = useState(false)
+  const [staffError, setStaffError] = useState<string | null>(null)
+  const isAdmin = myRole === 'owner' || myRole === 'manager'
+
+  async function invite() {
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) return setStaffError('Enter a valid email.')
+    setStaffBusy(true)
+    setStaffError(null)
+    const { data, error } = await supabase
+      .from('cafe_invites')
+      .insert({ cafe_id: cafeId, email, role: inviteRole })
+      .select('id, email, role')
+      .single()
+    setStaffBusy(false)
+    if (error) return setStaffError(error.message)
+    setInvites((list) => [...list, data as StaffInvite])
+    setInviteEmail('')
+  }
+
+  async function removeInvite(id: string) {
+    const { error } = await supabase.from('cafe_invites').delete().eq('id', id)
+    if (error) return setStaffError(error.message)
+    setInvites((list) => list.filter((i) => i.id !== id))
+  }
+
+  async function removeMember(m: StaffMember) {
+    if (!confirm(`Remove ${m.name ?? m.email ?? 'this member'} from the café?`)) return
+    const { error } = await supabase
+      .from('cafe_members')
+      .delete()
+      .eq('cafe_id', cafeId)
+      .eq('user_id', m.userId)
+    if (error) return setStaffError(error.message)
+    setStaff((list) => list.filter((x) => x.userId !== m.userId))
+  }
 
   async function save() {
     setBusy(true)
@@ -96,6 +156,89 @@ export default function SettingsClient({
         )}
 
         <Button onClick={save} loading={busy}>Save settings</Button>
+
+        {/* Staff — per-café logins */}
+        <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+          <p className="text-sm font-medium text-foreground">Staff</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Invite staff by email. When they sign up (or log in) with that email, they join this
+            café automatically with the role you set. They create their own password — you never
+            handle it.
+          </p>
+
+          <ul className="mt-4 divide-y divide-border">
+            {staff.map((m) => (
+              <li key={m.userId} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-foreground">{m.name ?? m.email ?? '—'}</p>
+                  <p className="truncate text-[12px] text-muted-foreground">{m.email}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">
+                    {m.role}
+                  </span>
+                  {isAdmin && m.userId !== myUserId && m.role !== 'owner' && (
+                    <button
+                      onClick={() => removeMember(m)}
+                      className="text-[13px] text-muted-foreground hover:text-destructive"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+            {invites.map((iv) => (
+              <li key={iv.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-foreground">{iv.email}</p>
+                  <p className="text-[12px] text-warning">Invited — waiting for signup</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">
+                    {iv.role}
+                  </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => removeInvite(iv.id)}
+                      className="text-[13px] text-muted-foreground hover:text-destructive"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {isAdmin && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-4">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="staff@email.com"
+                className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+                aria-label="Role"
+                className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
+              >
+                {INVITE_ROLES.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <Button size="sm" onClick={invite} loading={staffBusy}>Invite</Button>
+            </div>
+          )}
+          {staffError && (
+            <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
+              {staffError}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

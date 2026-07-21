@@ -68,7 +68,10 @@ export default function TablesClient({
 
   async function addTable() {
     const label = newLabel.trim()
-    if (!label) return
+    if (!label) {
+      setError('Type a table name or number first — e.g. 13 or Patio.')
+      return
+    }
     setBusy(true)
     setError(null)
     const { data, error } = await supabase
