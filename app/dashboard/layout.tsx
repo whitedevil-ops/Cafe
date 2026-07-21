@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getCurrentCafe } from '@/lib/cafe'
+import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
+import { CafeSwitcher } from '@/components/cafe-switcher'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ const nav = [
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const cafe = await getCurrentCafe()
+  const [cafe, myCafes] = await Promise.all([getCurrentCafe(), getMyCafes()])
   if (!cafe) redirect('/onboarding')
 
   return (
@@ -22,6 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="px-2">
           <p className="text-lg font-semibold tracking-tight text-foreground">counter</p>
           <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{cafe.name}</p>
+          <CafeSwitcher cafes={myCafes} activeCafeId={cafe.cafeId} />
         </div>
         <nav className="mt-8 space-y-0.5">
           {nav.map(([label, href]) => (
@@ -41,15 +43,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Mobile top bar */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border bg-surface px-5 py-3 md:hidden">
-          <span className="font-semibold tracking-tight text-foreground">counter</span>
-          <nav className="flex gap-3 text-[13px]">
-            {nav.map(([label, href]) => (
-              <Link key={href} href={href} className="text-muted-foreground hover:text-foreground">
-                {label}
-              </Link>
-            ))}
-          </nav>
+        <header className="border-b border-border bg-surface px-5 py-3 md:hidden">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold tracking-tight text-foreground">counter</span>
+            <nav className="flex gap-3 text-[13px]">
+              {nav.map(([label, href]) => (
+                <Link key={href} href={href} className="text-muted-foreground hover:text-foreground">
+                  {label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <CafeSwitcher cafes={myCafes} activeCafeId={cafe.cafeId} />
         </header>
         <main className="min-w-0 flex-1">{children}</main>
       </div>
