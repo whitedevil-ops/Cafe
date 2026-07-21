@@ -39,6 +39,7 @@ type Line = {
 export default function MenuClient({
   token,
   cafeName,
+  cafeLogo,
   tableLabel,
   upiId,
   upiName,
@@ -50,6 +51,7 @@ export default function MenuClient({
 }: {
   token: string
   cafeName: string
+  cafeLogo: string | null
   tableLabel: string
   upiId: string | null
   upiName: string | null
@@ -65,7 +67,7 @@ export default function MenuClient({
   const [phone, setPhone] = useState('')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter' } | null>(null)
+  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter'; receiptToken: string | null } | null>(null)
   const [customizing, setCustomizing] = useState<PublicItem | null>(null)
 
   const upsellShown = useRef(false)
@@ -172,8 +174,8 @@ export default function MenuClient({
     })
     setPlacing(false)
     if (error) return setError(error.message)
-    const r = data as { short_code: string; total: number }
-    setPlaced({ code: r.short_code, total: r.total, method })
+    const r = data as { short_code: string; total: number; receipt_token?: string }
+    setPlaced({ code: r.short_code, total: r.total, method, receiptToken: r.receipt_token ?? null })
     setStep('done')
     if (method === 'upi' && upiId) {
       window.location.href = upiLink(r.short_code, r.total)
@@ -204,6 +206,14 @@ export default function MenuClient({
           <p className="mt-1 text-4xl font-semibold text-foreground">{placed.code}</p>
           <p className="mt-4 border-t border-border pt-4 text-lg text-foreground">₹{placed.total}</p>
         </div>
+        {placed.receiptToken && (
+          <a
+            href={`/r/${placed.receiptToken}`}
+            className="w-full rounded-[var(--radius)] border border-border-strong bg-surface py-3.5 text-center font-medium text-foreground"
+          >
+            View your bill →
+          </a>
+        )}
         {placed.method === 'upi' && upiId ? (
           <div className="w-full space-y-2">
             <a
@@ -225,9 +235,15 @@ export default function MenuClient({
 
   return (
     <main className="mx-auto min-h-dvh max-w-md bg-background pb-28">
-      <header className="sticky top-0 z-10 border-b border-border bg-surface px-5 py-4">
-        <h1 className="text-lg font-semibold text-foreground">{cafeName}</h1>
-        <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface px-5 py-4">
+        {cafeLogo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={cafeLogo} alt="" className="h-9 w-9 rounded-lg object-cover" />
+        )}
+        <div>
+          <h1 className="text-lg font-semibold text-foreground">{cafeName}</h1>
+          <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
+        </div>
       </header>
 
       {step === 'menu' &&

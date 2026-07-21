@@ -29,14 +29,15 @@ async function compress(file: File): Promise<Blob | null> {
 
 // Uploads under the café's folder (RLS checks the first path segment) and
 // returns the public URL, or an error message.
-export async function uploadMenuImage(
+async function uploadToCafeFolder(
   cafeId: string,
   file: File,
+  prefix: string,
 ): Promise<{ url: string } | { error: string }> {
   const blob = await compress(file)
   if (!blob) return { error: 'Please choose an image file (max 2MB after compression).' }
 
-  const path = `${cafeId}/${crypto.randomUUID()}.webp`
+  const path = `${cafeId}/${prefix}-${crypto.randomUUID()}.webp`
   const supabase = createClient()
   const { error } = await supabase.storage
     .from('menu-images')
@@ -45,4 +46,12 @@ export async function uploadMenuImage(
 
   const { data } = supabase.storage.from('menu-images').getPublicUrl(path)
   return { url: data.publicUrl }
+}
+
+export function uploadMenuImage(cafeId: string, file: File) {
+  return uploadToCafeFolder(cafeId, file, 'item')
+}
+
+export function uploadCafeLogo(cafeId: string, file: File) {
+  return uploadToCafeFolder(cafeId, file, 'logo')
 }

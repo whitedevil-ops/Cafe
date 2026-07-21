@@ -40,7 +40,12 @@ with expected(kind, name, fix) as (values
   ('column',   'orders.receipt_token', '0010'),
   ('table',    'sms_logs',             '0010'),
   ('function', 'get_receipt',          '0010'),
-  ('function', 'enqueue_bill_sms',     '0010')
+  ('function', 'enqueue_bill_sms',     '0010'),
+  -- café profile + bill link (0011)
+  ('column',   'cafes.description',    '0011'),
+  ('column',   'cafes.email',          '0011'),
+  ('column',   'cafes.website',        '0011'),
+  ('column',   'cafe_settings.hours',  '0011')
 )
 select
   e.kind,

@@ -10,6 +10,7 @@ const nav = [
   ['Menu', '/dashboard/menu'],
   ['Tables', '/dashboard/tables'],
   ['Kitchen', '/dashboard/kitchen'],
+  ['Café profile', '/dashboard/profile'],
   ['Settings', '/dashboard/settings'],
 ]
 
