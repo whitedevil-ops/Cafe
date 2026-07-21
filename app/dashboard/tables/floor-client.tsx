@@ -55,12 +55,14 @@ export default function FloorClient({
   const [selected, setSelected] = useState<string | null>(null)
   const [done, setDone] = useState<DoneOrder[]>([])
   const [sms, setSms] = useState<SmsLog[]>([])
+  const [pollError, setPollError] = useState<string | null>(null)
+  const [lastPollAt, setLastPollAt] = useState<Date | null>(null)
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
   selectedRef.current = selected
 
   const poll = useCallback(async () => {
-    const [{ data: tbls }, { data: ords }] = await Promise.all([
+    const [{ data: tbls, error: tblErr }, { data: ords, error: ordErr }] = await Promise.all([
       supabase.from('cafe_tables').select('id, label, capacity, status').eq('cafe_id', cafeId),
       supabase
         .from('orders')
@@ -69,6 +71,14 @@ export default function FloorClient({
         .in('status', ACTIVE)
         .order('created_at', { ascending: true }),
     ])
+    // A failed poll must be VISIBLE, never a floor that quietly shows everything
+    // as Available while orders pile up.
+    if (tblErr || ordErr) {
+      setPollError((tblErr ?? ordErr)!.message)
+      return
+    }
+    setPollError(null)
+    setLastPollAt(new Date())
     if (tbls) setTables(tbls as FloorTable[])
     if (!ords) return
     setOrders(ords as ActiveOrder[])
@@ -188,13 +198,26 @@ export default function FloorClient({
             Live floor view — {byTable.size} of {tables.length} occupied
           </p>
         </div>
-        <Link
-          href="/dashboard/tables/manage"
-          className="rounded-[var(--radius)] border border-border-strong bg-surface px-4 py-2 text-sm text-foreground hover:bg-surface-subtle"
-        >
-          Manage tables &amp; QR
-        </Link>
+        <div className="flex items-center gap-3">
+          {!pollError && lastPollAt && (
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-success">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> Live
+            </span>
+          )}
+          <Link
+            href="/dashboard/tables/manage"
+            className="rounded-[var(--radius)] border border-border-strong bg-surface px-4 py-2 text-sm text-foreground hover:bg-surface-subtle"
+          >
+            Manage tables &amp; QR
+          </Link>
+        </div>
       </div>
+
+      {pollError && (
+        <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
+          Live updates failing: {pollError} — orders may not appear until this is resolved.
+        </p>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {sorted.map((t) => {
