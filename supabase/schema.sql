@@ -203,6 +203,8 @@ create table orders (
   type           order_type not null default 'dine_in',
   status         order_status not null default 'placed',
   payment_status payment_status not null default 'unpaid',
+  payment_method payment_method,
+  phone          text,                           -- anonymous QR customer's number
   subtotal       integer not null default 0,
   discount       integer not null default 0,
   tax            integer not null default 0,
