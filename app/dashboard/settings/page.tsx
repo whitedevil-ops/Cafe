@@ -13,7 +13,7 @@ export default async function SettingsPage() {
   const [{ data }, { data: members }, { data: invites }] = await Promise.all([
     supabase
       .from('cafes')
-      .select('name, upi_id, upi_name, upsell_threshold')
+      .select('name, upsell_threshold')
       .eq('id', cafe.cafeId)
       .single(),
     supabase
@@ -41,8 +41,6 @@ export default async function SettingsPage() {
       myRole={cafe.role}
       initial={{
         name: data?.name ?? cafe.name,
-        upi_id: data?.upi_id ?? '',
-        upi_name: data?.upi_name ?? '',
         upsell_threshold: data?.upsell_threshold ?? 150,
       }}
       initialStaff={staff}

@@ -18,6 +18,13 @@ export type PublicItem = {
 export type Variant = { id: string; menu_item_id: string; name: string; price_delta: number }
 export type Addon = { id: string; menu_item_id: string; name: string; price: number }
 
+// UPI collection is not enabled yet — no gateway is configured, and we don't
+// show payment options that can't actually complete. Flip when UPI integration
+// lands properly (architecture retained: place() still accepts the method).
+const UPI_ENABLED = false
+
+const PHONE_RE = /^[6-9]\d{9}$/
+
 type Line = {
   key: string
   itemId: string
@@ -144,6 +151,10 @@ export default function MenuClient({
   }
 
   async function place(method: 'upi' | 'counter') {
+    if (!PHONE_RE.test(phone)) {
+      setError('Enter a valid 10-digit mobile number — we send your bill there.')
+      return
+    }
     setPlacing(true)
     setError(null)
     const { data, error } = await supabase.rpc('place_order', {
@@ -300,11 +311,16 @@ export default function MenuClient({
           )}
 
           <div className="mt-6">
-            <label htmlFor="phone" className="text-sm text-muted-foreground">Phone number <span className="text-muted-foreground">— for your bill</span></label>
-            <input id="phone" type="tel" inputMode="numeric" value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="98XXXXXXXX"
-              className="mt-2 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-foreground placeholder:text-muted-foreground" />
+            <label htmlFor="phone" className="text-sm text-muted-foreground">
+              Mobile number <span className="text-muted-foreground">— your bill is sent here</span>
+            </label>
+            <div className="mt-2 flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
+              <span className="pl-4 pr-2 text-muted-foreground">+91</span>
+              <input id="phone" type="tel" inputMode="numeric" required value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="98765 43210"
+                className="h-11 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none" />
+            </div>
           </div>
 
           {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
@@ -315,13 +331,13 @@ export default function MenuClient({
           </div>
 
           <div className="mt-4 space-y-3">
-            {upiId && (
+            {UPI_ENABLED && upiId && (
               <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
                 {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
               </button>
             )}
-            <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] border border-border-strong bg-surface py-4 font-medium text-foreground disabled:opacity-40">
-              {placing ? 'Placing…' : 'Pay at the counter'}
+            <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
+              {placing ? 'Placing…' : 'Place order — pay at the counter'}
             </button>
           </div>
         </div>

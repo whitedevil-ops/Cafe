@@ -36,7 +36,7 @@ declare
   v_ts timestamptz; v_seq int; v_order uuid; v_cust uuid; v_table uuid;
   v_type order_type; v_status order_status; v_sub int; v_disc int; v_code text;
   v_item record; v_var record; v_qty int; v_unit int; v_name text; v_mods jsonb;
-  v_method payment_method; v_lines int; v_roll float;
+  v_method payment_method; v_lines int; v_roll float; v_phone text;
   i int; j int;
 begin
   select id into v_owner from auth.users where email = v_owner_email;
@@ -186,7 +186,10 @@ begin
             + interval '9 hours' + (random()*13*3600)::int * interval '1 second';
     if v_ts > now() then v_ts := now() - interval '2 hours'; end if;
 
-    select id into v_cust from customers where cafe_id = v_cafe and random() < 0.7 order by random() limit 1;
+    v_cust := null; v_phone := null;
+    if random() < 0.7 then
+      select id, phone into v_cust, v_phone from customers where cafe_id = v_cafe order by random() limit 1;
+    end if;
     select id into v_table from cafe_tables where cafe_id = v_cafe order by random() limit 1;
     v_type := case when random() < 0.65 then 'dine_in' else 'takeaway' end;
     v_status := case when random() < 0.93 then 'completed' else 'cancelled' end;
@@ -194,9 +197,9 @@ begin
     select count(*) + 1 into v_seq from orders where cafe_id = v_cafe and created_at::date = v_ts::date;
 
     insert into orders (cafe_id, table_id, customer_id, short_code, type, status, payment_status,
-                        subtotal, discount, total, created_at)
+                        phone, subtotal, discount, total, created_at)
     values (v_cafe, case when v_type = 'dine_in' then v_table end, v_cust, v_seq::text, v_type,
-            v_status, 'unpaid', 0, 0, 0, v_ts)
+            v_status, 'unpaid', v_phone, 0, 0, 0, v_ts)
     returning id into v_order;
 
     v_sub := 0;
@@ -228,8 +231,9 @@ begin
     end if;
 
     if v_status = 'completed' then
+      -- NO UPI: it is not enabled in the product, so demo data must not show it.
       v_roll := random();
-      v_method := case when v_roll < 0.5 then 'upi' when v_roll < 0.85 then 'cash' else 'card' end;
+      v_method := case when v_roll < 0.65 then 'cash' else 'card' end;
       update orders set subtotal = v_sub, discount = v_disc, total = v_sub - v_disc,
                         coupon_code = v_code, payment_status = 'paid', payment_method = v_method,
                         done_at = v_ts + interval '25 minutes'
@@ -245,16 +249,16 @@ begin
   -- ── 4 ACTIVE orders for the live KDS ───────────────────────────────────────
   for i in 1..4 loop
     v_ts := now() - ((array[2, 6, 11, 16])[i] || ' minutes')::interval;
-    select id into v_cust from customers where cafe_id = v_cafe order by random() limit 1;
+    select id, phone into v_cust, v_phone from customers where cafe_id = v_cafe order by random() limit 1;
     select id into v_table from cafe_tables where cafe_id = v_cafe order by random() limit 1;
     select count(*) + 1 into v_seq from orders where cafe_id = v_cafe and created_at::date = v_ts::date;
 
     insert into orders (cafe_id, table_id, customer_id, short_code, type, status, payment_status,
-                        payment_method, subtotal, total, created_at)
+                        payment_method, phone, subtotal, total, created_at)
     values (v_cafe, v_table, v_cust, v_seq::text, 'dine_in',
             (array['placed','placed','preparing','ready'])[i]::order_status,
             (case when i = 3 then 'paid' else 'unpaid' end)::payment_status,
-            (case when i = 3 then 'upi' else 'counter' end)::payment_method, 0, 0, v_ts)
+            (case when i = 3 then 'cash' else 'counter' end)::payment_method, v_phone, 0, 0, v_ts)
     returning id into v_order;
 
     v_sub := 0;
@@ -267,7 +271,7 @@ begin
     update orders set subtotal = v_sub, total = v_sub where id = v_order;
     if i = 3 then
       insert into payments (cafe_id, order_id, method, amount, created_at)
-      values (v_cafe, v_order, 'upi', v_sub, v_ts + interval '1 minute');
+      values (v_cafe, v_order, 'cash', v_sub, v_ts + interval '1 minute');
     end if;
   end loop;
 
@@ -300,6 +304,26 @@ begin
   (v_cafe, 'COFFEE10',  'Coffee lovers — 10% off',  'percent', 10, 199,  80, now() - interval '10 days', now() + interval '80 days', 1000, 5, true),
   (v_cafe, 'SAVE100',   'Flat ₹100 off big orders', 'flat',   100, 599, 100, now() - interval '10 days', now() + interval '80 days', 200, 2, true),
   (v_cafe, 'WEEKEND15', 'Weekend special — 15%',    'percent', 15, 499, 200, now() + interval '2 days',  now() + interval '90 days', 300, 3, true);
+
+  -- ── Reserved table example (floor view amber state) ────────────────────────
+  update cafe_tables set status = 'reserved' where cafe_id = v_cafe and label = 'T09';
+
+  -- ── SMS delivery examples (requires migration 0010; skipped gracefully) ────
+  -- One simulated success (clearly provider 'mock') and one honest failure.
+  begin
+    insert into sms_logs (cafe_id, order_id, customer_id, phone_masked, type, provider, status, sent_at)
+    select v_cafe, o.id, o.customer_id, '******' || right(o.phone, 4), 'bill', 'mock', 'sent', o.created_at + interval '30 minutes'
+    from orders o where o.cafe_id = v_cafe and o.status = 'completed' and o.phone is not null
+    order by o.created_at desc limit 1;
+
+    insert into sms_logs (cafe_id, order_id, customer_id, phone_masked, type, provider, status, error, failed_at)
+    select v_cafe, o.id, o.customer_id, '******' || right(o.phone, 4), 'bill', 'none', 'failed',
+           'SMS provider not configured', o.created_at + interval '30 minutes'
+    from orders o where o.cafe_id = v_cafe and o.status = 'completed' and o.phone is not null
+    order by o.created_at desc offset 1 limit 1;
+  exception when undefined_table then
+    raise notice 'sms_logs not found — run migration 0010, then reseed for SMS examples';
+  end;
 
   raise notice 'Brewora Café seeded. Owner: % · QR test: /t/brewora-t01', v_owner_email;
 end $$;

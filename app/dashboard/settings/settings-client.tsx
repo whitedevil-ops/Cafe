@@ -7,8 +7,6 @@ import { Input } from '@/components/ui/input'
 
 type Settings = {
   name: string
-  upi_id: string
-  upi_name: string
   upsell_threshold: number
 }
 
@@ -93,8 +91,6 @@ export default function SettingsClient({
       .from('cafes')
       .update({
         name: form.name.trim() || initial.name,
-        upi_id: form.upi_id.trim() || null,
-        upi_name: form.upi_name.trim() || null,
         upsell_threshold: Math.max(0, Math.round(Number(form.upsell_threshold) || 0)),
       })
       .eq('id', cafeId)
@@ -116,27 +112,13 @@ export default function SettingsClient({
         />
 
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm font-medium text-foreground">UPI payments</p>
+          <p className="text-sm font-medium text-foreground">Payments</p>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            When set, customers get a &ldquo;Pay by UPI&rdquo; button that opens their UPI app with
-            the exact amount and order number prefilled. Staff confirm receipt on the kitchen
-            screen. Leave blank to accept counter payments only.
+            Customers place orders and pay at the counter — staff record <span className="font-medium text-foreground">cash</span> or{' '}
+            <span className="font-medium text-foreground">card</span> on the Tables or Kitchen screen.
+            Online UPI collection is <span className="font-medium text-foreground">not enabled yet</span>;
+            it will appear here once a payment provider is configured.
           </p>
-          <div className="mt-4 space-y-4">
-            <Input
-              label="UPI ID (VPA)"
-              placeholder="yourcafe@okhdfcbank"
-              value={form.upi_id}
-              onChange={(e) => setForm({ ...form, upi_id: e.target.value })}
-              hint="The UPI ID payments should go to — from your bank or payments app."
-            />
-            <Input
-              label="Payee name"
-              placeholder="Shown in the customer's UPI app"
-              value={form.upi_name}
-              onChange={(e) => setForm({ ...form, upi_name: e.target.value })}
-            />
-          </div>
         </div>
 
         <Input
