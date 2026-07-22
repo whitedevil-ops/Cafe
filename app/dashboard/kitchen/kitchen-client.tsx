@@ -123,18 +123,18 @@ export default function KitchenClient({
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
   return (
-    <div className="w-full min-h-dvh bg-stone-950 p-5 text-white">
+    <div className="w-full min-h-dvh bg-background p-5 text-foreground">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-medium text-stone-400">Kitchen</h1>
+        <h1 className="text-xl font-semibold text-foreground">Kitchen</h1>
         {!armed && (
-          <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-lg bg-amber-500 px-5 font-medium text-stone-950">
+          <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
             Tap to enable sound
           </button>
         )}
       </header>
 
       {orders.length === 0 ? (
-        <p className="py-32 text-center text-2xl text-stone-600">No open orders</p>
+        <p className="py-32 text-center text-2xl text-muted-foreground">No open orders</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {orders.map((o) => {
@@ -142,30 +142,35 @@ export default function KitchenClient({
             const late = age >= 8
             const its = items.filter((i) => i.order_id === o.id)
             return (
-              <section key={o.id} className={`rounded-xl border-2 bg-stone-900 p-5 ${late ? 'border-red-500' : 'border-stone-700'}`}>
+              <section
+                key={o.id}
+                className={`rounded-[var(--radius-lg)] border bg-surface p-5 shadow-[var(--shadow-sm)] ${
+                  late ? 'border-destructive bg-destructive-subtle' : 'border-border'
+                }`}
+              >
                 <div className="flex items-baseline justify-between">
-                  <span className="text-4xl font-medium">{o.short_code}</span>
-                  <span className={`text-xl ${late ? 'text-red-400' : 'text-stone-400'}`}>{age}m</span>
+                  <span className="text-4xl font-semibold text-foreground">{o.short_code}</span>
+                  <span className={`text-xl ${late ? 'font-semibold text-destructive' : 'text-muted-foreground'}`}>{age}m</span>
                 </div>
-                <p className="mt-1 text-lg text-stone-400">
+                <p className="mt-1 text-lg text-muted-foreground">
                   Table {o.table_id ? tableLabels[o.table_id] ?? '—' : '—'}
                   {o.payment_status === 'paid' ? (
-                    <span className="ml-2 text-emerald-400">· Paid</span>
+                    <span className="ml-2 font-medium text-success">· Paid</span>
                   ) : (
-                    <span className="ml-2 text-amber-400">
+                    <span className="ml-2 font-medium text-warning">
                       · {o.payment_method === 'upi' ? 'UPI pending' : 'Pay at counter'}
                     </span>
                   )}
-                  {o.status !== 'placed' && <span className="ml-2 text-stone-500">· {o.status}</span>}
+                  {o.status !== 'placed' && <span className="ml-2 text-muted-foreground">· {o.status}</span>}
                 </p>
-                <ul className="my-4 space-y-2 border-y border-stone-800 py-4">
+                <ul className="my-4 space-y-2 border-y border-border py-4">
                   {its.map((i) => (
-                    <li key={i.id} className="flex gap-3 text-2xl">
-                      <span className="w-8 shrink-0 font-medium text-amber-400">{i.qty}×</span>
+                    <li key={i.id} className="flex gap-3 text-2xl text-foreground">
+                      <span className="w-8 shrink-0 font-semibold text-primary">{i.qty}×</span>
                       <span>
                         {i.name}
                         {i.modifiers && i.modifiers.length > 0 && (
-                          <span className="block text-base text-stone-400">
+                          <span className="block text-base text-muted-foreground">
                             {i.modifiers.map((m) => m.name).join(', ')}
                           </span>
                         )}
@@ -175,11 +180,11 @@ export default function KitchenClient({
                 </ul>
                 <div className="flex gap-2">
                   {o.payment_status !== 'paid' && (
-                    <button onClick={() => markPaid(o)} className="flex-1 rounded-lg border border-amber-500 py-4 text-lg font-medium text-amber-400">
+                    <button onClick={() => markPaid(o)} className="flex-1 rounded-[var(--radius)] border border-warning py-4 text-lg font-medium text-warning">
                       ₹{o.total} paid
                     </button>
                   )}
-                  <button onClick={() => advance(o)} className="flex-1 rounded-lg bg-emerald-600 py-4 text-xl font-medium">
+                  <button onClick={() => advance(o)} className="flex-1 rounded-[var(--radius)] bg-primary py-4 text-xl font-semibold text-primary-foreground">
                     {NEXT[o.status].label}
                   </button>
                 </div>
