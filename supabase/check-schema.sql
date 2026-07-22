@@ -55,7 +55,10 @@ with expected(kind, name, fix) as (values
   ('function', 'request_bill',         '0012'),
   ('function', 'call_waiter',          '0012'),
   ('function', 'move_session',         '0012'),
-  ('function', 'close_session',        '0012')
+  ('function', 'close_session',        '0012'),
+  -- staff cashier POS order creation (0013)
+  ('column',   'orders.staff_id',      '0013'),
+  ('function', 'staff_place_order',    '0013')
 )
 select
   e.kind,

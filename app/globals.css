@@ -1,26 +1,27 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   counter — design tokens (spec §26). Warm-neutral foundation, one café-tech
-   brand color (terracotta), semantic colors reserved for status only.
+   counter — design tokens. "Market Fresh": white/off-white surfaces, one
+   confident green operational accent, soft single-direction shadows, 10-14px
+   radii. Semantic colors stay separate from the accent (spec §26).
    Light is primary; dark is fully defined so the architecture is ready.
    ============================================================================ */
 :root {
-  --background:        #FAF9F7;  /* warm off-white page */
+  --background:        #F7F8F6;  /* soft neutral page, faint green bias */
   --surface:           #FFFFFF;  /* cards, panels */
-  --surface-subtle:    #F4F2EE;  /* hover, inset */
-  --foreground:        #1C1917;  /* near-black text */
-  --muted-foreground:  #78716C;  /* secondary text */
-  --border:            #E7E5E1;  /* hairline */
-  --border-strong:     #D6D3CE;
+  --surface-subtle:    #F1F3EF;  /* hover, inset */
+  --foreground:        #1B1F1C;  /* near-black text, faint green bias */
+  --muted-foreground:  #6B7268;  /* secondary text */
+  --border:            #E6E9E3;  /* hairline */
+  --border-strong:     #D3D8CE;
 
-  --primary:           #C2410C;  /* terracotta — the one brand color */
-  --primary-hover:     #9A3412;
+  --primary:           #15803D;  /* green — the one operational accent */
+  --primary-hover:     #106B32;
   --primary-foreground:#FFFFFF;
-  --primary-subtle:    #FDF3EE;  /* tinted fill behind primary content */
+  --primary-subtle:    #EAF6EE;  /* tinted fill behind primary content */
 
   --success:           #15803D;
-  --success-subtle:    #ECFDF3;
+  --success-subtle:    #EAF6EE;
   --warning:           #B45309;
   --warning-subtle:    #FFFBEB;
   --destructive:       #B91C1C;
@@ -28,32 +29,43 @@
   --info:              #1D4ED8;
   --info-subtle:       #EFF6FF;
 
-  --radius: 8px;
+  --radius: 12px;
+  --radius-sm: 10px;
+  --radius-lg: 14px;
   --ring: color-mix(in srgb, var(--primary) 45%, transparent);
+
+  /* Very subtle single-direction shadows — never a glow, never on all sides. */
+  --shadow-sm: 0 1px 2px rgba(20, 24, 21, 0.05);
+  --shadow-md: 0 2px 8px rgba(20, 24, 21, 0.06);
+  --shadow-lg: 0 8px 24px rgba(20, 24, 21, 0.08);
 }
 
 :root[data-theme="dark"], .dark {
-  --background:        #0C0A09;
-  --surface:           #1C1917;
-  --surface-subtle:    #292524;
-  --foreground:        #FAFAF9;
-  --muted-foreground:  #A8A29E;
-  --border:            #292524;
-  --border-strong:     #44403C;
+  --background:        #101210;
+  --surface:           #191C19;
+  --surface-subtle:    #232622;
+  --foreground:        #F2F4F1;
+  --muted-foreground:  #9AA396;
+  --border:            #262A25;
+  --border-strong:     #363B34;
 
-  --primary:           #F97316;
-  --primary-hover:     #FB923C;
-  --primary-foreground:#1C1917;
-  --primary-subtle:    #2A1710;
+  --primary:           #34C25F;
+  --primary-hover:     #4ADE80;
+  --primary-foreground:#0A1F12;
+  --primary-subtle:    #122A1B;
 
-  --success:           #4ADE80;
-  --success-subtle:    #10231A;
+  --success:           #34C25F;
+  --success-subtle:    #122A1B;
   --warning:           #FBBF24;
   --warning-subtle:    #241C0C;
   --destructive:       #F87171;
   --destructive-subtle:#2A1414;
   --info:              #60A5FA;
   --info-subtle:       #0F1B2E;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 @theme inline {
@@ -79,6 +91,11 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --radius: var(--radius);
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-lg);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
 * { border-color: var(--border); }

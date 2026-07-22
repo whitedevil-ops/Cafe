@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
 const groups: [string, [string, string][]][] = [
   ['Overview', [
     ['Dashboard', '/dashboard'],
+    ['POS', '/dashboard/pos'],
     ['Live tables', '/dashboard/tables'],
     ['Kitchen', '/dashboard/kitchen'],
   ]],
