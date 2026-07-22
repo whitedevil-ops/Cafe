@@ -5,6 +5,8 @@ import QRCode from 'qrcode'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export type TableRow = {
   id: string
@@ -28,6 +30,8 @@ export default function TablesClient({
   initialTables: TableRow[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
+  const confirm = useConfirm()
   const [tables, setTables] = useState(initialTables)
   const [origin, setOrigin] = useState('')
   const [qr, setQr] = useState<Record<string, string>>({})
@@ -86,10 +90,17 @@ export default function TablesClient({
   }
 
   async function deleteTable(t: TableRow) {
-    if (!confirm(`Delete table ${t.label}? Its QR code will stop working.`)) return
+    const ok = await confirm({
+      title: `Delete table ${t.label}?`,
+      description: 'Its QR code stops working immediately — any printed copy becomes useless.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     const { error } = await supabase.from('cafe_tables').delete().eq('id', t.id)
     if (error) return setError(error.message)
     setTables((list) => list.filter((x) => x.id !== t.id))
+    toast(`Table ${t.label} deleted.`)
   }
 
   function download(t: TableRow) {

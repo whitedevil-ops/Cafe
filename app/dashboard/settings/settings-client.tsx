@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 type Settings = {
   name: string
@@ -37,9 +39,10 @@ export default function SettingsClient({
   initialInvites: StaffInvite[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
+  const confirm = useConfirm()
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [staff, setStaff] = useState(initialStaff)
@@ -73,7 +76,14 @@ export default function SettingsClient({
   }
 
   async function removeMember(m: StaffMember) {
-    if (!confirm(`Remove ${m.name ?? m.email ?? 'this member'} from the café?`)) return
+    const label = m.name ?? m.email ?? 'this member'
+    const ok = await confirm({
+      title: `Remove ${label}?`,
+      description: 'They lose access to this café immediately.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
     const { error } = await supabase
       .from('cafe_members')
       .delete()
@@ -81,12 +91,12 @@ export default function SettingsClient({
       .eq('user_id', m.userId)
     if (error) return setStaffError(error.message)
     setStaff((list) => list.filter((x) => x.userId !== m.userId))
+    toast(`${label} removed.`)
   }
 
   async function save() {
     setBusy(true)
     setError(null)
-    setSaved(false)
     const { error } = await supabase
       .from('cafes')
       .update({
@@ -96,7 +106,7 @@ export default function SettingsClient({
       .eq('id', cafeId)
     setBusy(false)
     if (error) return setError(error.message)
-    setSaved(true)
+    toast('Settings saved.')
   }
 
   return (
@@ -132,9 +142,6 @@ export default function SettingsClient({
 
         {error && (
           <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>
-        )}
-        {saved && (
-          <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Saved.</p>
         )}
 
         <Button onClick={save} loading={busy}>Save settings</Button>

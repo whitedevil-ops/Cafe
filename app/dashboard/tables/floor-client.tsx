@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
+import { useToast } from '@/components/ui/toast'
 
 export type FloorTable = {
   id: string
@@ -55,6 +56,7 @@ export default function FloorClient({
   initialTables: FloorTable[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
   const [tables, setTables] = useState(initialTables)
   const [sessions, setSessions] = useState<Session[]>([])
   const [orders, setOrders] = useState<SessionOrder[]>([])
@@ -224,20 +226,24 @@ export default function FloorClient({
     const session = selected ? sessionByTable.get(selected) : null
     if (!session) return
     setActionError(null)
+    const destLabel = tables.find((t) => t.id === destTableId)?.label ?? destTableId
     const { error } = await supabase.rpc('move_session', { p_session_id: session.id, p_to_table_id: destTableId })
     if (error) return setActionError(error.message)
     setMoving(false)
     setSelected(destTableId)
+    toast(`Moved to table ${destLabel}.`)
     void poll()
   }
 
   async function closeTable() {
     const session = selected ? sessionByTable.get(selected) : null
     if (!session) return
+    const label = selTable?.label
     setActionError(null)
     const { error } = await supabase.rpc('close_session', { p_session_id: session.id })
     if (error) return setActionError(error.message)
     setSelected(null)
+    toast(label ? `Table ${label} closed.` : 'Table closed.')
     void poll()
   }
 
@@ -254,6 +260,7 @@ export default function FloorClient({
     const { error } = await supabase.from('payments').insert(rows)
     if (error) return setActionError(error.message)
     setSplitting(false)
+    toast(`Split payment recorded — ${shares.length} ways.`)
     void poll()
   }
 

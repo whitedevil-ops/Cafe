@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { uploadCafeLogo } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
 
 export type CafeProfile = {
   name: string
@@ -48,11 +49,11 @@ export default function ProfileClient({
   initialHours: Hours
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
   const [form, setForm] = useState(initial)
   const [hours, setHours] = useState(initialHours)
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isAdmin = myRole === 'owner' || myRole === 'manager'
 
@@ -77,7 +78,6 @@ export default function ProfileClient({
     }
     setBusy(true)
     setError(null)
-    setSaved(false)
 
     const cafeUpdate = {
       name: form.name.trim() || initial.name,
@@ -133,7 +133,7 @@ export default function ProfileClient({
     }
 
     setBusy(false)
-    setSaved(true)
+    toast('Café profile saved.')
   }
 
   const dis = !isAdmin
@@ -284,7 +284,6 @@ export default function ProfileClient({
         </section>
 
         {error && <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
-        {saved && <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Profile saved.</p>}
 
         {isAdmin && <Button onClick={save} loading={busy}>Save profile</Button>}
       </div>

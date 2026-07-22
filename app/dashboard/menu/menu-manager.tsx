@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { uploadMenuImage } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import type { MenuCategory, MenuItemRow } from './types'
 
 type VariantDraft = { id?: string; name: string; price_delta: string }
@@ -47,6 +49,8 @@ export default function MenuManager({
   initialItems: MenuItemRow[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
+  const confirm = useConfirm()
   const [categories, setCategories] = useState(initialCategories)
   const [items, setItems] = useState(initialItems)
 
@@ -97,7 +101,14 @@ export default function MenuManager({
   }
 
   async function deleteCategory(id: string) {
-    if (!confirm('Delete this category? Items in it become uncategorised.')) return
+    const name = categories.find((c) => c.id === id)?.name ?? 'this category'
+    const ok = await confirm({
+      title: `Delete "${name}"?`,
+      description: 'Items in it become uncategorised. This can\'t be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     const { error } = await supabase.from('menu_categories').delete().eq('id', id)
     if (error) return setError(error.message)
     setCategories((c) => c.filter((x) => x.id !== id))
@@ -160,6 +171,7 @@ export default function MenuManager({
     const err = await syncModifiers(itemId!, draft)
     setBusy(false)
     if (err) return setError(err)
+    toast(draft.id ? 'Item updated.' : 'Item added to menu.')
     setDraft(null)
   }
 
@@ -237,10 +249,17 @@ export default function MenuManager({
   }
 
   async function deleteItem(item: MenuItemRow) {
-    if (!confirm(`Delete “${item.name}”?`)) return
+    const ok = await confirm({
+      title: `Delete "${item.name}"?`,
+      description: 'It will disappear from the QR menu and menu manager immediately. This can\'t be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     const { error } = await supabase.from('menu_items').delete().eq('id', item.id)
     if (error) return setError(error.message)
     setItems((list) => list.filter((i) => i.id !== item.id))
+    toast(`"${item.name}" deleted.`)
   }
 
   return (
