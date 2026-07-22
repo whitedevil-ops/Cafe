@@ -45,7 +45,17 @@ with expected(kind, name, fix) as (values
   ('column',   'cafes.description',    '0011'),
   ('column',   'cafes.email',          '0011'),
   ('column',   'cafes.website',        '0011'),
-  ('column',   'cafe_settings.hours',  '0011')
+  ('column',   'cafe_settings.hours',  '0011'),
+  -- table sessions, notifications, request bill/call waiter, move table (0012)
+  ('table',    'table_sessions',       '0012'),
+  ('table',    'notifications',        '0012'),
+  ('column',   'orders.session_id',    '0012'),
+  ('column',   'payments.session_id',  '0012'),
+  ('function', 'get_or_create_session','0012'),
+  ('function', 'request_bill',         '0012'),
+  ('function', 'call_waiter',          '0012'),
+  ('function', 'move_session',         '0012'),
+  ('function', 'close_session',        '0012')
 )
 select
   e.kind,

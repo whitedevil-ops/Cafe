@@ -68,6 +68,8 @@ export default function MenuClient({
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter'; receiptToken: string | null } | null>(null)
+  const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
+  const [assistBusy, setAssistBusy] = useState(false)
   const [customizing, setCustomizing] = useState<PublicItem | null>(null)
 
   const upsellShown = useRef(false)
@@ -182,6 +184,25 @@ export default function MenuClient({
     }
   }
 
+  async function callWaiter() {
+    setAssistBusy(true)
+    const { error } = await supabase.rpc('call_waiter', { p_token: token })
+    setAssistBusy(false)
+    if (error) return
+    setAssist('waiter')
+    setTimeout(() => setAssist(null), 4000)
+  }
+
+  async function requestBill() {
+    setAssistBusy(true)
+    const { data, error } = await supabase.rpc('request_bill', { p_token: token })
+    setAssistBusy(false)
+    if (error) return
+    void data
+    setAssist('bill')
+    setTimeout(() => setAssist(null), 4000)
+  }
+
   function upiLink(code: string, total: number) {
     const params = new URLSearchParams({
       pa: upiId ?? '',
@@ -235,16 +256,42 @@ export default function MenuClient({
 
   return (
     <main className="mx-auto min-h-dvh max-w-md bg-background pb-28">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface px-5 py-4">
-        {cafeLogo && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={cafeLogo} alt="" className="h-9 w-9 rounded-lg object-cover" />
-        )}
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">{cafeName}</h1>
-          <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface px-5 py-4">
+        <div className="flex items-center gap-3">
+          {cafeLogo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cafeLogo} alt="" className="h-9 w-9 rounded-lg object-cover" />
+          )}
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">{cafeName}</h1>
+            <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={callWaiter}
+            disabled={assistBusy}
+            className="rounded-full border border-border-strong px-3 py-1.5 text-[12px] font-medium text-foreground disabled:opacity-50"
+          >
+            Call waiter
+          </button>
+          <button
+            onClick={requestBill}
+            disabled={assistBusy}
+            className="rounded-full border border-border-strong px-3 py-1.5 text-[12px] font-medium text-foreground disabled:opacity-50"
+          >
+            Request bill
+          </button>
         </div>
       </header>
+
+      {assist && (
+        <div className="fixed inset-x-0 top-16 z-20 mx-auto max-w-md px-5">
+          <div className="rounded-[var(--radius)] bg-foreground px-4 py-2.5 text-center text-[13px] font-medium text-background shadow-lg">
+            {assist === 'waiter' ? "We've notified the staff — someone's on the way." : 'Bill requested — your bill is being prepared.'}
+          </div>
+        </div>
+      )}
 
       {step === 'menu' &&
         cats.map((cat) => {

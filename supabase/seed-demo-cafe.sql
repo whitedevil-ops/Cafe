@@ -3,7 +3,10 @@
 -- recreates ONLY the demo café; every row hangs off the fixed demo cafe_id and
 -- cascades on delete, so no other café is ever touched).
 --
--- REQUIRES: migrations 0001–0005 applied first (0005 adds cafes.is_demo).
+-- REQUIRES: migrations 0001–0012 applied first (0012 adds table_sessions,
+-- notifications, request_bill/call_waiter/move_session/close_session — the
+-- seed's active-orders block creates real sessions and will fail loudly,
+-- not silently, if 0012 is missing; run supabase/check-schema.sql to confirm).
 -- EDIT ONE LINE: the owner email below must be YOUR login email.
 --
 -- Honest notes on what this seed does NOT fake (schema doesn't support it yet):
@@ -42,6 +45,10 @@ begin
   select id into v_owner from auth.users where email = v_owner_email;
   if v_owner is null then
     raise exception 'Owner account % not found — edit v_owner_email at the top', v_owner_email;
+  end if;
+
+  if to_regclass('public.table_sessions') is null then
+    raise exception 'table_sessions not found — run migrations/0012_table_sessions_notifications.sql first, then reseed';
   end if;
 
   -- ── WIPE previous demo (cascade cleans menu/orders/payments/loyalty/etc.) ──
@@ -246,34 +253,67 @@ begin
     end if;
   end loop;
 
-  -- ── 4 ACTIVE orders for the live KDS ───────────────────────────────────────
-  for i in 1..4 loop
-    v_ts := now() - ((array[2, 6, 11, 16])[i] || ' minutes')::interval;
-    select id, phone into v_cust, v_phone from customers where cafe_id = v_cafe order by random() limit 1;
-    select id into v_table from cafe_tables where cafe_id = v_cafe order by random() limit 1;
-    select count(*) + 1 into v_seq from orders where cafe_id = v_cafe and created_at::date = v_ts::date;
+  -- ── 4 ACTIVE table sessions for the live floor view + KDS ──────────────────
+  -- Distinct tables (not T09, which stays reserved above) so the floor view
+  -- shows four genuinely different occupied cards, including one bill-
+  -- requested (purple) and one flagged for assistance (red) per spec §3/§37.
+  declare
+    v_demo_tables uuid[];
+    v_session_id uuid;
+  begin
+    select array_agg(id) into v_demo_tables from (
+      select id from cafe_tables where cafe_id = v_cafe and label <> 'T09' order by random() limit 4
+    ) x;
 
-    insert into orders (cafe_id, table_id, customer_id, short_code, type, status, payment_status,
-                        payment_method, phone, subtotal, total, created_at)
-    values (v_cafe, v_table, v_cust, v_seq::text, 'dine_in',
-            (array['placed','placed','preparing','ready'])[i]::order_status,
-            (case when i = 3 then 'paid' else 'unpaid' end)::payment_status,
-            (case when i = 3 then 'cash' else 'counter' end)::payment_method, v_phone, 0, 0, v_ts)
-    returning id into v_order;
+    for i in 1..4 loop
+      v_table := v_demo_tables[i];
+      v_ts := now() - ((array[2, 6, 11, 16])[i] || ' minutes')::interval;
 
-    v_sub := 0;
-    for j in 1..2 loop
-      select id, name, price into v_item from menu_items where cafe_id = v_cafe order by random() limit 1;
-      insert into order_items (order_id, menu_item_id, name, price, qty, modifiers)
-      values (v_order, v_item.id, v_item.name, v_item.price, 1, '[]');
-      v_sub := v_sub + v_item.price;
+      insert into table_sessions (cafe_id, table_id, status, guest_count, started_at)
+      values (v_cafe, v_table, case when i = 4 then 'bill_requested' else 'active' end,
+              2 + (random()*2)::int, v_ts)
+      returning id into v_session_id;
+      update cafe_tables set status = 'occupied' where id = v_table;
+
+      select id, phone into v_cust, v_phone from customers where cafe_id = v_cafe order by random() limit 1;
+      select count(*) + 1 into v_seq from orders where cafe_id = v_cafe and created_at::date = v_ts::date;
+
+      insert into orders (cafe_id, table_id, session_id, customer_id, short_code, type, status, payment_status,
+                          payment_method, phone, subtotal, total, created_at)
+      values (v_cafe, v_table, v_session_id, v_cust, v_seq::text, 'dine_in',
+              (array['placed','placed','preparing','ready'])[i]::order_status,
+              (case when i = 3 then 'paid' else 'unpaid' end)::payment_status,
+              (case when i = 3 then 'cash' else 'counter' end)::payment_method, v_phone, 0, 0, v_ts)
+      returning id into v_order;
+
+      v_sub := 0;
+      for j in 1..2 loop
+        select id, name, price into v_item from menu_items where cafe_id = v_cafe order by random() limit 1;
+        insert into order_items (order_id, menu_item_id, name, price, qty, modifiers)
+        values (v_order, v_item.id, v_item.name, v_item.price, 1, '[]');
+        v_sub := v_sub + v_item.price;
+      end loop;
+      update orders set subtotal = v_sub, total = v_sub where id = v_order;
+      if i = 3 then
+        insert into payments (cafe_id, session_id, order_id, method, amount, created_at)
+        values (v_cafe, v_session_id, v_order, 'cash', v_sub, v_ts + interval '1 minute');
+      end if;
+
+      if i = 4 then
+        insert into notifications (cafe_id, type, message, table_id, session_id)
+        select v_cafe, 'bill_requested', 'Table ' || t.label || ' requested the bill.', v_table, v_session_id
+        from cafe_tables t where t.id = v_table;
+      end if;
+      if i = 2 then
+        insert into notifications (cafe_id, type, message, table_id, session_id)
+        select v_cafe, 'call_waiter', 'Table ' || t.label || ' requires assistance.', v_table, v_session_id
+        from cafe_tables t where t.id = v_table;
+      end if;
+      insert into notifications (cafe_id, type, message, table_id, session_id)
+      select v_cafe, 'new_order', 'Table ' || t.label || ' placed a new order — #' || v_seq, v_table, v_session_id
+      from cafe_tables t where t.id = v_table;
     end loop;
-    update orders set subtotal = v_sub, total = v_sub where id = v_order;
-    if i = 3 then
-      insert into payments (cafe_id, order_id, method, amount, created_at)
-      values (v_cafe, v_order, 'cash', v_sub, v_ts + interval '1 minute');
-    end if;
-  end loop;
+  end;
 
   -- ── LOYALTY: Brewora Rewards — earn 1 pt per ₹10 on completed orders ───────
   insert into loyalty_accounts (cafe_id, customer_id)
