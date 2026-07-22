@@ -38,7 +38,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
   })
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-background px-5 py-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-5 py-8">
       <div className="rounded-2xl border border-border bg-surface p-6">
         <header className="border-b border-border pb-4 text-center">
           {r.cafe.logo_url && (

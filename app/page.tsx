@@ -38,7 +38,7 @@ const steps = [
 
 export default function Home() {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="flex w-full min-h-dvh flex-col bg-background">
       {/* Nav */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">

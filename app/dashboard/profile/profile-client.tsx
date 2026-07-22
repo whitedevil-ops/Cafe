@@ -166,12 +166,12 @@ export default function ProfileClient({
             )}
             {isAdmin && (
               <div className="space-y-1">
-                <label className="inline-block cursor-pointer rounded-[var(--radius)] border border-border-strong px-3 py-1.5 text-[13px] text-foreground hover:bg-surface-subtle">
+                <label className="inline-flex min-h-11 cursor-pointer items-center rounded-[var(--radius)] border border-border-strong px-3 text-[13px] text-foreground hover:bg-surface-subtle">
                   {uploading ? 'Uploading…' : form.logo_url ? 'Change logo' : 'Upload logo'}
                   <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => pickLogo(e.target.files?.[0])} />
                 </label>
                 {form.logo_url && (
-                  <button type="button" onClick={() => setForm((f) => ({ ...f, logo_url: null }))} className="block text-[12px] text-muted-foreground hover:text-destructive">
+                  <button type="button" onClick={() => setForm((f) => ({ ...f, logo_url: null }))} className="mt-1 min-h-11 px-1 text-[12px] text-muted-foreground hover:text-destructive">
                     Remove
                   </button>
                 )}
@@ -252,11 +252,11 @@ export default function ProfileClient({
                     <>
                       <input type="time" value={d.open} disabled={dis}
                         onChange={(e) => setHours((h) => ({ ...h, [key]: { ...d, open: e.target.value } }))}
-                        className="rounded-[var(--radius)] border border-border-strong bg-surface px-2 py-1 text-[13px] text-foreground" />
+                        className="min-h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
                       <span className="text-muted-foreground">–</span>
                       <input type="time" value={d.close} disabled={dis}
                         onChange={(e) => setHours((h) => ({ ...h, [key]: { ...d, close: e.target.value } }))}
-                        className="rounded-[var(--radius)] border border-border-strong bg-surface px-2 py-1 text-[13px] text-foreground" />
+                        className="min-h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
                     </>
                   )}
                   {d.closed && <span className="text-[13px] text-muted-foreground">Closed</span>}

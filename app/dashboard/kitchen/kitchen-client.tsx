@@ -123,11 +123,11 @@ export default function KitchenClient({
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
   return (
-    <div className="min-h-dvh bg-stone-950 p-5 text-white">
-      <header className="mb-5 flex items-center justify-between">
+    <div className="w-full min-h-dvh bg-stone-950 p-5 text-white">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-medium text-stone-400">Kitchen</h1>
         {!armed && (
-          <button onClick={() => { ding(); setArmed(true) }} className="rounded-lg bg-amber-500 px-5 py-2.5 font-medium text-stone-950">
+          <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-lg bg-amber-500 px-5 font-medium text-stone-950">
             Tap to enable sound
           </button>
         )}

@@ -43,29 +43,37 @@ export function NotificationBell({ cafeId }: { cafeId: string }) {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
-        className="relative rounded-[var(--radius)] p-2 text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
+        className="relative grid h-11 w-11 place-items-center rounded-[var(--radius)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-medium text-white">
+          <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-medium text-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] rounded-xl border border-border bg-surface shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          {/* Fixed to the viewport (not the trigger's own narrow column) so the
+              panel can never be wider than the screen and clip off the left
+              edge — the exact bug this replaces. Anchored near the top-right
+              corner regardless of whether the bell sits in a 240px sidebar or
+              a full-width mobile header. */}
+          <div
+            className="fixed right-3 top-16 z-50 rounded-xl border border-border bg-surface shadow-lg sm:right-4"
+            style={{ width: 'min(320px, calc(100vw - 1.5rem))' }}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="text-sm font-medium text-foreground">Notifications</span>
               {unread > 0 && (
-                <button onClick={markAll} className="text-[12px] text-primary hover:underline">Mark all read</button>
+                <button onClick={markAll} className="min-h-[32px] text-[12px] text-primary hover:underline">Mark all read</button>
               )}
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-[60dvh] overflow-y-auto sm:max-h-80">
               {notices.length === 0 ? (
                 <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">Nothing yet.</p>
               ) : (
@@ -73,7 +81,7 @@ export function NotificationBell({ cafeId }: { cafeId: string }) {
                   <button
                     key={n.id}
                     onClick={() => markOne(n.id)}
-                    className={`block w-full border-b border-border px-4 py-2.5 text-left text-[13px] last:border-0 hover:bg-surface-subtle ${
+                    className={`block min-h-[44px] w-full border-b border-border px-4 py-3 text-left text-[13px] last:border-0 hover:bg-surface-subtle ${
                       n.read ? 'text-muted-foreground' : 'font-medium text-foreground'
                     }`}
                   >

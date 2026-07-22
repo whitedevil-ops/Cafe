@@ -9,9 +9,12 @@ const variants: Record<Variant, string> = {
   ghost: 'text-foreground hover:bg-surface-subtle',
   destructive: 'bg-destructive text-white hover:opacity-90',
 }
+// All three floors sit at or above the 44px touch-target minimum. "sm" keeps
+// its compact padding/font (visual density unchanged) but the tap height
+// itself is never allowed below the accessibility floor.
 const sizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-[13px]',
-  md: 'h-10 px-4 text-sm',
+  sm: 'h-11 px-3 text-[13px]',
+  md: 'h-11 px-4 text-sm',
   lg: 'h-11 px-5 text-sm',
 }
 

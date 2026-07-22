@@ -22,7 +22,7 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
         ref={ref}
         id={inputId}
         aria-invalid={Boolean(error)}
-        className={`h-10 w-full rounded-[var(--radius)] border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors ${
+        className={`h-11 w-full rounded-[var(--radius)] border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors ${
           error ? 'border-destructive' : 'border-border-strong'
         } ${className}`}
         {...rest}

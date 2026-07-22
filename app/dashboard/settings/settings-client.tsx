@@ -162,7 +162,7 @@ export default function SettingsClient({
                   {isAdmin && m.userId !== myUserId && m.role !== 'owner' && (
                     <button
                       onClick={() => removeMember(m)}
-                      className="text-[13px] text-muted-foreground hover:text-destructive"
+                      className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive"
                     >
                       Remove
                     </button>
@@ -183,7 +183,7 @@ export default function SettingsClient({
                   {isAdmin && (
                     <button
                       onClick={() => removeInvite(iv.id)}
-                      className="text-[13px] text-muted-foreground hover:text-destructive"
+                      className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive"
                     >
                       Cancel
                     </button>
@@ -200,13 +200,13 @@ export default function SettingsClient({
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 placeholder="staff@email.com"
-                className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
               />
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
                 aria-label="Role"
-                className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
+                className="h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
               >
                 {INVITE_ROLES.map((r) => (
                   <option key={r} value={r}>{r}</option>

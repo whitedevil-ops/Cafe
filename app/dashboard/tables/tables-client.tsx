@@ -144,7 +144,7 @@ export default function TablesClient({
             <div key={t.id} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-foreground">Table {t.label}</span>
-                <button onClick={() => deleteTable(t)} aria-label={`Delete table ${t.label}`} className="text-[13px] text-muted-foreground hover:text-destructive">Delete</button>
+                <button onClick={() => deleteTable(t)} aria-label={`Delete table ${t.label}`} className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive">Delete</button>
               </div>
               <button
                 onClick={() => setZoom(t)}

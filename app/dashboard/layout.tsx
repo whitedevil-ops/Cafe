@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!cafe) redirect('/onboarding')
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="flex w-full min-h-dvh bg-background">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
         <div className="flex items-start justify-between px-2">
           <div className="min-w-0">

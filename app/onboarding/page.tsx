@@ -80,7 +80,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-6 py-16">
+    <div className="mx-auto w-full max-w-md px-6 py-16">
       <p className="text-[13px] font-medium text-primary">Step 2</p>
       <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
         Set up your café

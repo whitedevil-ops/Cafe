@@ -280,7 +280,7 @@ export default function FloorClient({
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> Live
             </span>
           )}
-          <Link href="/dashboard/tables/manage" className="rounded-[var(--radius)] border border-border-strong bg-surface px-4 py-2 text-sm text-foreground hover:bg-surface-subtle">
+          <Link href="/dashboard/tables/manage" className="flex min-h-11 items-center rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-sm text-foreground hover:bg-surface-subtle">
             Manage tables &amp; QR
           </Link>
         </div>
@@ -356,13 +356,13 @@ export default function FloorClient({
                     : selTable.status === 'reserved' ? 'Reserved' : 'Available'}
                 </p>
               </div>
-              <button onClick={() => setSelected(null)} aria-label="Close" className="px-2 text-xl text-muted-foreground">×</button>
+              <button onClick={() => setSelected(null)} aria-label="Close" className="grid h-11 w-11 shrink-0 place-items-center text-xl text-muted-foreground">×</button>
             </div>
 
             {attention.has(selTable.id) && (
               <div className="mt-3 flex items-center justify-between rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
                 <span>Assistance requested</span>
-                <button onClick={() => acknowledgeAttention(selTable.id)} className="font-medium hover:underline">Acknowledge</button>
+                <button onClick={() => acknowledgeAttention(selTable.id)} className="min-h-11 px-2 font-medium hover:underline">Acknowledge</button>
               </div>
             )}
 
@@ -371,17 +371,17 @@ export default function FloorClient({
             )}
 
             {!selSession && (
-              <button onClick={() => toggleReserve(selTable)} className="mt-4 w-full rounded-[var(--radius)] border border-border-strong py-2.5 text-sm font-medium text-foreground hover:bg-surface-subtle">
+              <button onClick={() => toggleReserve(selTable)} className="mt-4 min-h-11 w-full rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground hover:bg-surface-subtle">
                 {selTable.status === 'reserved' ? 'Remove reservation' : 'Mark reserved'}
               </button>
             )}
 
             {selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => setMoving((v) => !v)} className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
+                <button onClick={() => setMoving((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">
                   Move table
                 </button>
-                <button onClick={() => setSplitting((v) => !v)} className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
+                <button onClick={() => setSplitting((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">
                   Split bill
                 </button>
               </div>
@@ -393,7 +393,7 @@ export default function FloorClient({
                 <div className="mt-2 flex flex-wrap gap-2">
                   {emptyTables.length === 0 && <p className="text-[13px] text-muted-foreground">No empty tables right now.</p>}
                   {emptyTables.map((t) => (
-                    <button key={t.id} onClick={() => moveTo(t.id)} className="rounded-full border border-border-strong px-3 py-1 text-[13px] text-foreground hover:bg-surface-subtle">
+                    <button key={t.id} onClick={() => moveTo(t.id)} className="min-h-11 rounded-full border border-border-strong px-4 text-[13px] text-foreground hover:bg-surface-subtle">
                       {t.label}
                     </button>
                   ))}
@@ -405,9 +405,9 @@ export default function FloorClient({
               <div className="mt-3 rounded-[var(--radius)] border border-border p-3">
                 <p className="text-[13px] font-medium text-foreground">Equal split — remaining ₹{selRemaining}</p>
                 <div className="mt-2 flex items-center gap-2">
-                  <button onClick={() => setSplitN((n) => Math.max(2, n - 1))} className="h-8 w-8 rounded-[var(--radius)] border border-border-strong text-foreground">−</button>
-                  <span className="w-10 text-center text-sm text-foreground">{splitN} people</span>
-                  <button onClick={() => setSplitN((n) => Math.min(12, n + 1))} className="h-8 w-8 rounded-[var(--radius)] border border-border-strong text-foreground">+</button>
+                  <button onClick={() => setSplitN((n) => Math.max(2, n - 1))} aria-label="Fewer people" className="h-11 w-11 shrink-0 rounded-[var(--radius)] border border-border-strong text-lg text-foreground">−</button>
+                  <span className="min-w-11 flex-1 text-center text-sm text-foreground">{splitN} people</span>
+                  <button onClick={() => setSplitN((n) => Math.min(12, n + 1))} aria-label="More people" className="h-11 w-11 shrink-0 rounded-[var(--radius)] border border-border-strong text-lg text-foreground">+</button>
                 </div>
                 {(() => {
                   const base = Math.floor(selRemaining / splitN)
@@ -417,8 +417,8 @@ export default function FloorClient({
                     <>
                       <p className="mt-2 text-[13px] text-muted-foreground">{shares.map((s) => `₹${s}`).join(' + ')} = ₹{shares.reduce((a, b) => a + b, 0)}</p>
                       <div className="mt-2 flex gap-2">
-                        <button onClick={() => recordSplit('cash', shares)} className="flex-1 rounded-[var(--radius)] bg-primary py-2 text-[13px] font-medium text-primary-foreground">Record — cash</button>
-                        <button onClick={() => recordSplit('card', shares)} className="flex-1 rounded-[var(--radius)] bg-primary py-2 text-[13px] font-medium text-primary-foreground">Record — card</button>
+                        <button onClick={() => recordSplit('cash', shares)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">Record — cash</button>
+                        <button onClick={() => recordSplit('card', shares)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">Record — card</button>
                       </div>
                     </>
                   )
@@ -457,12 +457,12 @@ export default function FloorClient({
                   <div className="mt-3 flex flex-wrap gap-2">
                     {o.payment_status !== 'paid' && (
                       <>
-                        <button onClick={() => markPaid(o, 'cash')} className="flex-1 rounded-[var(--radius)] border border-warning py-2 text-[13px] font-medium text-warning">Paid — cash</button>
-                        <button onClick={() => markPaid(o, 'card')} className="flex-1 rounded-[var(--radius)] border border-warning py-2 text-[13px] font-medium text-warning">Paid — card</button>
+                        <button onClick={() => markPaid(o, 'cash')} className="min-h-11 flex-1 rounded-[var(--radius)] border border-warning text-[13px] font-medium text-warning">Paid — cash</button>
+                        <button onClick={() => markPaid(o, 'card')} className="min-h-11 flex-1 rounded-[var(--radius)] border border-warning text-[13px] font-medium text-warning">Paid — card</button>
                       </>
                     )}
                     {NEXT[o.status] && (
-                      <button onClick={() => advance(o)} className="flex-1 rounded-[var(--radius)] bg-primary py-2 text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
+                      <button onClick={() => advance(o)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
                     )}
                   </div>
                 </section>

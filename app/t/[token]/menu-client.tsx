@@ -216,7 +216,7 @@ export default function MenuClient({
 
   if (step === 'done' && placed) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+      <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-full bg-success-subtle text-2xl text-success">✓</div>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Order placed</h1>
@@ -255,30 +255,33 @@ export default function MenuClient({
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-background pb-28">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface px-5 py-4">
-        <div className="flex items-center gap-3">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-background pb-28">
+      {/* Two fixed rows rather than one flex row that only fits at wider widths
+          — the title + two pill buttons together are wider than a 320-374px
+          phone screen, which was overflowing the viewport at that breakpoint. */}
+      <header className="sticky top-0 z-10 border-b border-border bg-surface px-5 py-3">
+        <div className="flex min-w-0 items-center gap-3">
           {cafeLogo && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={cafeLogo} alt="" className="h-9 w-9 rounded-lg object-cover" />
+            <img src={cafeLogo} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
           )}
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">{cafeName}</h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold text-foreground">{cafeName}</h1>
             <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="mt-2.5 flex gap-2">
           <button
             onClick={callWaiter}
             disabled={assistBusy}
-            className="rounded-full border border-border-strong px-3 py-1.5 text-[12px] font-medium text-foreground disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground disabled:opacity-50 sm:flex-none"
           >
             Call waiter
           </button>
           <button
             onClick={requestBill}
             disabled={assistBusy}
-            className="rounded-full border border-border-strong px-3 py-1.5 text-[12px] font-medium text-foreground disabled:opacity-50"
+            className="min-h-11 flex-1 rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground disabled:opacity-50 sm:flex-none"
           >
             Request bill
           </button>
@@ -324,14 +327,14 @@ export default function MenuClient({
                         <p className="text-sm text-muted-foreground">₹{item.price}{opt ? '+' : ''}</p>
                       </div>
                       {opt || plainQty === 0 ? (
-                        <button onClick={() => (opt ? setCustomizing(item) : addPlain(item))} className="shrink-0 rounded-[var(--radius)] border border-primary bg-primary-subtle px-5 py-2 text-sm font-medium text-primary">
+                        <button onClick={() => (opt ? setCustomizing(item) : addPlain(item))} className="min-h-11 shrink-0 rounded-[var(--radius)] border border-primary bg-primary-subtle px-5 text-sm font-medium text-primary">
                           Add
                         </button>
                       ) : (
-                        <div className="flex shrink-0 items-center gap-3 rounded-[var(--radius)] border border-primary bg-primary-subtle px-2 py-1">
-                          <button onClick={() => changeQty(item.id, -1)} aria-label={`Remove one ${item.name}`} className="px-2 text-lg text-primary">−</button>
+                        <div className="flex shrink-0 items-center gap-1 rounded-[var(--radius)] border border-primary bg-primary-subtle px-1">
+                          <button onClick={() => changeQty(item.id, -1)} aria-label={`Remove one ${item.name}`} className="grid h-11 w-11 place-items-center text-lg text-primary">−</button>
                           <span className="w-4 text-center text-sm font-medium text-primary">{plainQty}</span>
-                          <button onClick={() => addPlain(item)} aria-label={`Add one ${item.name}`} className="px-2 text-lg text-primary">+</button>
+                          <button onClick={() => addPlain(item)} aria-label={`Add one ${item.name}`} className="grid h-11 w-11 place-items-center text-lg text-primary">+</button>
                         </div>
                       )}
                     </li>
@@ -353,10 +356,10 @@ export default function MenuClient({
                   {l.modLabel && <p className="truncate text-[12px] text-muted-foreground">{l.modLabel}</p>}
                   <p className="text-sm text-muted-foreground">₹{l.unitPrice} × {l.qty}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button onClick={() => changeQty(l.key, -1)} aria-label="Remove one" className="px-2 text-lg text-muted-foreground">−</button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => changeQty(l.key, -1)} aria-label="Remove one" className="grid h-11 w-11 place-items-center text-lg text-muted-foreground">−</button>
                   <span className="w-4 text-center text-sm">{l.qty}</span>
-                  <button onClick={() => changeQty(l.key, 1)} aria-label="Add one" className="px-2 text-lg text-muted-foreground">+</button>
+                  <button onClick={() => changeQty(l.key, 1)} aria-label="Add one" className="grid h-11 w-11 place-items-center text-lg text-muted-foreground">+</button>
                   <span className="w-14 text-right text-foreground">₹{l.unitPrice * l.qty}</span>
                 </div>
               </li>
@@ -450,50 +453,55 @@ function Customizer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6">
-      <div className="w-full max-w-md rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
-        <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
+      {/* max-h + overflow-y-auto: an item with several variants and add-ons can
+          get taller than a small phone's viewport — without this the Add
+          button could be pushed off-screen with no way to scroll to it. */}
+      <div className="flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-2xl">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
 
-        {variants.length > 0 && (
-          <div className="mt-4">
-            <p className="text-[13px] font-medium text-foreground">Choose one</p>
-            <div className="mt-2 space-y-2">
-              {variants.map((vr) => (
-                <label key={vr.id} className="flex items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 py-2.5 text-sm text-foreground">
-                  <span className="flex items-center gap-2">
-                    <input type="radio" name="variant" checked={variantId === vr.id} onChange={() => setVariantId(vr.id)} />
-                    {vr.name}
-                  </span>
-                  <span className="text-muted-foreground">₹{item.price + vr.price_delta}</span>
-                </label>
-              ))}
+          {variants.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[13px] font-medium text-foreground">Choose one</p>
+              <div className="mt-2 space-y-2">
+                {variants.map((vr) => (
+                  <label key={vr.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
+                    <span className="flex items-center gap-2">
+                      <input type="radio" name="variant" checked={variantId === vr.id} onChange={() => setVariantId(vr.id)} />
+                      {vr.name}
+                    </span>
+                    <span className="text-muted-foreground">₹{item.price + vr.price_delta}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {addons.length > 0 && (
-          <div className="mt-4">
-            <p className="text-[13px] font-medium text-foreground">Add-ons</p>
-            <div className="mt-2 space-y-2">
-              {addons.map((a) => (
-                <label key={a.id} className="flex items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 py-2.5 text-sm text-foreground">
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={addonIds.includes(a.id)}
-                      onChange={(e) => setAddonIds((ids) => (e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id)))}
-                    />
-                    {a.name}
-                  </span>
-                  <span className="text-muted-foreground">+₹{a.price}</span>
-                </label>
-              ))}
+          {addons.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[13px] font-medium text-foreground">Add-ons</p>
+              <div className="mt-2 space-y-2">
+                {addons.map((a) => (
+                  <label key={a.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={addonIds.includes(a.id)}
+                        onChange={(e) => setAddonIds((ids) => (e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id)))}
+                      />
+                      {a.name}
+                    </span>
+                    <span className="text-muted-foreground">+₹{a.price}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        <div className="mt-6 flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-[var(--radius)] border border-border-strong py-3 text-sm font-medium text-foreground">Cancel</button>
-          <button onClick={() => onAdd(item, variantId, addonIds)} className="flex-1 rounded-[var(--radius)] bg-primary py-3 text-sm font-medium text-primary-foreground">
+        <div className="flex shrink-0 gap-2 border-t border-border p-6">
+          <button onClick={onCancel} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground">Cancel</button>
+          <button onClick={() => onAdd(item, variantId, addonIds)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground">
             Add · ₹{price}
           </button>
         </div>

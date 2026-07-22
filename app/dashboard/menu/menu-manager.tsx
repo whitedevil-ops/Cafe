@@ -347,12 +347,15 @@ export default function MenuManager({
       ) : (
         <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border">
           {visible.map((item) => (
-            <li key={item.id} className="flex items-center gap-4 bg-surface px-4 py-3">
+            <li key={item.id} className="flex flex-wrap items-center gap-3 bg-surface px-4 py-3 sm:flex-nowrap">
               {item.image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg border border-border object-cover" />
               )}
-              <div className="min-w-0 flex-1">
+              {/* basis-full forces this onto its own row on narrow phones so the
+                  three action buttons below never crush the name down to a few
+                  visible characters; at sm+ it shares the row as before. */}
+              <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{item.name}</span>
                   {item.is_veg === true && (
@@ -372,34 +375,39 @@ export default function MenuManager({
                   ₹{item.price} · {catName(item.category_id)}
                 </p>
               </div>
-              <button
-                onClick={() => toggleAvailable(item)}
-                className="shrink-0 rounded-[var(--radius)] border border-border-strong px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground"
-              >
-                {item.available ? 'Mark sold out' : 'Mark available'}
-              </button>
-              <button
-                onClick={() => openEdit(item)}
-                className="shrink-0 rounded-[var(--radius)] px-2 py-1.5 text-[13px] text-primary hover:underline"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => deleteItem(item)}
-                aria-label={`Delete ${item.name}`}
-                className="shrink-0 rounded-[var(--radius)] px-2 py-1.5 text-[13px] text-muted-foreground hover:text-destructive"
-              >
-                Delete
-              </button>
+              <div className="flex shrink-0 gap-1">
+                <button
+                  onClick={() => toggleAvailable(item)}
+                  className="min-h-11 shrink-0 rounded-[var(--radius)] border border-border-strong px-3 text-[13px] text-muted-foreground hover:text-foreground"
+                >
+                  {item.available ? 'Mark sold out' : 'Mark available'}
+                </button>
+                <button
+                  onClick={() => openEdit(item)}
+                  className="min-h-11 shrink-0 rounded-[var(--radius)] px-3 text-[13px] text-primary hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => deleteItem(item)}
+                  aria-label={`Delete ${item.name}`}
+                  className="min-h-11 shrink-0 rounded-[var(--radius)] px-3 text-[13px] text-muted-foreground hover:text-destructive"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      {/* Item editor modal */}
+      {/* Item editor modal. This form can get taller than a phone's viewport
+          once variants/add-ons are added, so the panel itself scrolls
+          (max-h + overflow-y-auto) — without this, Save could become
+          physically unreachable on a small screen. */}
       {draft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-          <div className="w-full max-w-md rounded-t-2xl bg-surface p-6 sm:rounded-2xl">
+          <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 sm:max-h-[85dvh] sm:rounded-2xl">
             <h2 className="text-lg font-semibold text-foreground">
               {draft.id ? 'Edit item' : 'Add item'}
             </h2>
@@ -416,7 +424,7 @@ export default function MenuManager({
                   </div>
                 )}
                 <div className="space-y-1">
-                  <label className="inline-block cursor-pointer rounded-[var(--radius)] border border-border-strong px-3 py-1.5 text-[13px] text-foreground hover:bg-surface-subtle">
+                  <label className="inline-flex min-h-11 cursor-pointer items-center rounded-[var(--radius)] border border-border-strong px-3 text-[13px] text-foreground hover:bg-surface-subtle">
                     {uploading ? 'Uploading…' : draft.image_url ? 'Change photo' : 'Add photo'}
                     <input
                       type="file"
@@ -430,7 +438,7 @@ export default function MenuManager({
                     <button
                       type="button"
                       onClick={() => setDraft({ ...draft, image_url: null })}
-                      className="block text-[12px] text-muted-foreground hover:text-destructive"
+                      className="mt-1 min-h-11 px-1 text-[12px] text-muted-foreground hover:text-destructive"
                     >
                       Remove
                     </button>
