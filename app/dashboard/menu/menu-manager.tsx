@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import BulkImportPanel from './bulk-import-panel'
 import type { MenuCategory, MenuItemRow } from './types'
 
 type VariantDraft = { id?: string; name: string; price_delta: string }
@@ -41,10 +42,12 @@ const emptyDraft: ItemDraft = {
 
 export default function MenuManager({
   cafeId,
+  cafeName,
   initialCategories,
   initialItems,
 }: {
   cafeId: string
+  cafeName: string
   initialCategories: MenuCategory[]
   initialItems: MenuItemRow[]
 }) {
@@ -60,12 +63,24 @@ export default function MenuManager({
 
   const [draft, setDraft] = useState<ItemDraft | null>(null)
   const [manageCats, setManageCats] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorised'
+
+  // Bulk import can create many categories/items at once — a full refetch is
+  // simpler and safer here than trying to merge an unbounded batch into state.
+  async function refetchMenu() {
+    const [{ data: cats }, { data: its }] = await Promise.all([
+      supabase.from('menu_categories').select('*').eq('cafe_id', cafeId).order('sort'),
+      supabase.from('menu_items').select('*').eq('cafe_id', cafeId).order('sort'),
+    ])
+    if (cats) setCategories(cats as MenuCategory[])
+    if (its) setItems(its as MenuItemRow[])
+  }
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -271,7 +286,10 @@ export default function MenuManager({
             {items.filter((i) => !i.archived).length} items · {categories.length} categories
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="md" onClick={() => setBulkOpen(true)}>
+            Import / export
+          </Button>
           <Button variant="secondary" size="md" onClick={() => setManageCats((v) => !v)}>
             Categories
           </Button>
@@ -616,6 +634,17 @@ export default function MenuManager({
             </div>
           </div>
         </div>
+      )}
+
+      {bulkOpen && (
+        <BulkImportPanel
+          cafeId={cafeId}
+          cafeName={cafeName}
+          categories={categories}
+          items={items}
+          onClose={() => setBulkOpen(false)}
+          onImported={refetchMenu}
+        />
       )}
     </div>
   )
