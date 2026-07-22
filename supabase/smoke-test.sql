@@ -115,6 +115,42 @@ begin
             case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
             sqlerrm);
   end;
+  -- Customer history must REFUSE a token it never issued. A row back here
+  -- instead of an exception would mean anyone could read anyone's orders.
+  begin
+    perform customer_order_history(repeat('f', 64), 5, 0);
+    insert into smoke_results (check_name, status, detail)
+    values ('customer_order_history (forged token)', 'FAIL',
+            'DANGER: returned data for a token that was never issued');
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('customer_order_history (forged token)',
+            case when sqlerrm ilike '%session expired%' then 'PASS' else 'FAIL' end,
+            sqlerrm);
+  end;
+
+  begin
+    perform customer_reorder_payload(repeat('f', 64), gen_random_uuid());
+    insert into smoke_results (check_name, status, detail)
+    values ('customer_reorder_payload (forged token)', 'FAIL',
+            'DANGER: accepted a token that was never issued');
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('customer_reorder_payload (forged token)',
+            case when sqlerrm ilike '%session expired%' then 'PASS' else 'FAIL' end,
+            sqlerrm);
+  end;
+
+  -- Visit counting: orders sharing a table session must collapse to one visit.
+  begin
+    select count(*) into v_n from v_customer_stats where visits > 0;
+    insert into smoke_results (check_name, status, detail)
+    values ('v_customer_stats (session-based visits)', 'PASS',
+            format('%s customer(s) with at least one visit', v_n));
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('v_customer_stats (session-based visits)', 'FAIL', sqlerrm);
+  end;
 end $$;
 
 select check_name, status, detail from smoke_results order by seq;

@@ -93,7 +93,15 @@ with expected(kind, name, fix) as (values
   ('function', 'op_list_cafes',          '0020'),
   ('function', 'op_get_cafe_detail',     '0020'),
   ('function', 'op_cafe_health',         '0020'),
-  ('function', 'op_log_password_reset',  '0021')
+  ('function', 'op_log_password_reset',  '0021'),
+  -- customer order history + phone verification (0023)
+  ('table',    'customer_otp_challenges', '0023'),
+  ('table',    'customer_sessions',       '0023'),
+  ('function', 'customer_issue_otp',      '0023'),
+  ('function', 'customer_verify_otp',     '0023'),
+  ('function', 'customer_session_identity', '0023'),
+  ('function', 'customer_order_history',  '0023'),
+  ('function', 'customer_reorder_payload', '0023')
 )
 select
   e.kind,

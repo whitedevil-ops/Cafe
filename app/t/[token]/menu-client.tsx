@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 
 export type PublicItem = {
@@ -71,8 +72,53 @@ export default function MenuClient({
   const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [customizing, setCustomizing] = useState<PublicItem | null>(null)
+  const [reorderNote, setReorderNote] = useState<string | null>(null)
 
   const upsellShown = useRef(false)
+
+  // A reorder handed over from "My orders". It arrives as item ids only —
+  // prices come from the live menu here and are re-validated again by
+  // place_order, so an old order can never lock in an old price.
+  useEffect(() => {
+    const raw = sessionStorage.getItem(`kp_reorder_${token}`)
+    if (!raw) return
+    sessionStorage.removeItem(`kp_reorder_${token}`)
+    try {
+      const payload = JSON.parse(raw) as {
+        items: { item_id: string; qty: number; variant_id: string | null; addon_ids: string[]; available: boolean }[]
+        unavailable: string[]
+      }
+      const lines: Line[] = []
+      for (const entry of payload.items) {
+        const item = items.find((i) => i.id === entry.item_id)
+        if (!item || !entry.available) continue
+        const variant = entry.variant_id ? variants.find((v) => v.id === entry.variant_id) : null
+        const chosen = addons.filter((a) => (entry.addon_ids ?? []).includes(a.id))
+        const unitPrice = item.price + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+        lines.push({
+          key: `${item.id}|${variant?.id ?? ''}|${chosen.map((a) => a.id).sort().join(',')}`,
+          itemId: item.id,
+          name: item.name,
+          variantId: variant?.id ?? null,
+          addonIds: chosen.map((a) => a.id),
+          modLabel: [variant?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', '),
+          unitPrice,
+          qty: entry.qty,
+        })
+      }
+      if (lines.length) setCart(lines)
+      const skipped = payload.unavailable ?? []
+      setReorderNote(
+        lines.length === 0
+          ? 'None of those items are available right now.'
+          : skipped.length
+            ? `Added to your cart. ${skipped.join(', ')} ${skipped.length === 1 ? 'is' : 'are'} unavailable today.`
+            : 'Your previous order has been added to the cart.',
+      )
+    } catch {
+      // A corrupt payload should never break the menu — just ignore it.
+    }
+  }, [token, items, variants, addons])
   const upsellTaken = useRef<string | null>(null)
 
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
@@ -285,8 +331,20 @@ export default function MenuClient({
           >
             Request bill
           </button>
+          <Link
+            href={`/t/${token}/orders`}
+            className="flex min-h-11 flex-1 items-center justify-center rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground sm:flex-none"
+          >
+            My orders
+          </Link>
         </div>
       </header>
+
+      {reorderNote && (
+        <div className="mx-auto max-w-md px-5 pt-3">
+          <p className="rounded-[var(--radius)] bg-primary-subtle px-3 py-2 text-[12.5px] text-primary">{reorderNote}</p>
+        </div>
+      )}
 
       {assist && (
         <div className="fixed inset-x-0 top-16 z-20 mx-auto max-w-md px-5">
