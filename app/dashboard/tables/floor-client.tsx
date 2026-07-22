@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 
 export type FloorTable = {
   id: string
@@ -73,6 +74,9 @@ export default function FloorClient({
   const [splitting, setSplitting] = useState(false)
   const [splitN, setSplitN] = useState(2)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState<SessionOrder | null>(null)
+  const [cancelSubmitting, setCancelSubmitting] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
   selectedRef.current = selected
@@ -202,6 +206,18 @@ export default function FloorClient({
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
     const { error } = await supabase.from('payments').insert({ cafe_id: cafeId, order_id: o.id, method, amount: o.total })
     if (!error) await supabase.from('orders').update({ payment_status: 'paid', payment_method: method }).eq('id', o.id)
+    void poll()
+  }
+
+  async function confirmCancel(reason: string) {
+    if (!cancelling) return
+    setCancelSubmitting(true)
+    setCancelError(null)
+    const { error } = await supabase.rpc('cancel_order', { p_order_id: cancelling.id, p_reason: reason })
+    setCancelSubmitting(false)
+    if (error) return setCancelError(error.message)
+    toast(`Order #${cancelling.short_code} cancelled.`)
+    setCancelling(null)
     void poll()
   }
 
@@ -472,6 +488,14 @@ export default function FloorClient({
                       <button onClick={() => advance(o)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
                     )}
                   </div>
+                  {o.status !== 'completed' && (
+                    <button
+                      onClick={() => { setCancelError(null); setCancelling(o) }}
+                      className="mt-2 min-h-9 w-full rounded-[var(--radius)] border border-border-strong text-[12.5px] font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+                    >
+                      Cancel order
+                    </button>
+                  )}
                 </section>
               )
             })}
@@ -516,6 +540,16 @@ export default function FloorClient({
             )}
           </div>
         </div>
+      )}
+
+      {cancelling && (
+        <CancelOrderDialog
+          orderLabel={`#${cancelling.short_code}`}
+          submitting={cancelSubmitting}
+          error={cancelError}
+          onClose={() => setCancelling(null)}
+          onConfirm={confirmCancel}
+        />
       )}
     </div>
   )

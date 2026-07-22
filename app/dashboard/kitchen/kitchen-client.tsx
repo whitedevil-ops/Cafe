@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useToast } from '@/components/ui/toast'
+import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 
 type Order = {
   id: string
@@ -52,12 +54,16 @@ export default function KitchenClient({
   tableLabels: Record<string, string>
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [armed, setArmed] = useState(false)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
   const ding = useDing()
+  const [cancelling, setCancelling] = useState<Order | null>(null)
+  const [cancelSubmitting, setCancelSubmitting] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -118,6 +124,18 @@ export default function KitchenClient({
       .from('orders')
       .update({ status: to, done_at: to === 'completed' ? new Date().toISOString() : null })
       .eq('id', o.id)
+  }
+
+  async function confirmCancel(reason: string) {
+    if (!cancelling) return
+    setCancelSubmitting(true)
+    setCancelError(null)
+    const { error } = await supabase.rpc('cancel_order', { p_order_id: cancelling.id, p_reason: reason })
+    setCancelSubmitting(false)
+    if (error) return setCancelError(error.message)
+    setOrders((list) => list.filter((x) => x.id !== cancelling.id))
+    toast(`Order ${cancelling.short_code} cancelled.`)
+    setCancelling(null)
   }
 
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -188,10 +206,26 @@ export default function KitchenClient({
                     {NEXT[o.status].label}
                   </button>
                 </div>
+                <button
+                  onClick={() => { setCancelError(null); setCancelling(o) }}
+                  className="mt-2 w-full rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+                >
+                  Cancel order
+                </button>
               </section>
             )
           })}
         </div>
+      )}
+
+      {cancelling && (
+        <CancelOrderDialog
+          orderLabel={cancelling.short_code}
+          submitting={cancelSubmitting}
+          error={cancelError}
+          onClose={() => setCancelling(null)}
+          onConfirm={confirmCancel}
+        />
       )}
     </div>
   )

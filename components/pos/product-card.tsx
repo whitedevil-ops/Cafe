@@ -10,6 +10,7 @@ export type PosItem = {
   is_veg: boolean | null
   is_bestseller: boolean
   hasOptions: boolean
+  available: boolean
 }
 
 export function ProductCard({
@@ -22,7 +23,11 @@ export function ProductCard({
   onAdd: () => void
 }) {
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]">
+    <div
+      className={`group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow ${
+        item.available ? 'hover:shadow-[var(--shadow-md)]' : 'opacity-60'
+      }`}
+    >
       <div className="relative aspect-[4/3] w-full bg-surface-subtle">
         {item.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -30,9 +35,14 @@ export function ProductCard({
         ) : (
           <div className="grid h-full w-full place-items-center text-[11px] text-muted-foreground">No photo</div>
         )}
-        {item.is_bestseller && (
+        {item.is_bestseller && item.available && (
           <span className="absolute left-2 top-2 rounded-full bg-warning-subtle px-2 py-0.5 text-[10px] font-medium text-warning">
             Bestseller
+          </span>
+        )}
+        {!item.available && (
+          <span className="absolute left-2 top-2 rounded-full bg-destructive-subtle px-2 py-0.5 text-[10px] font-medium text-destructive">
+            Sold out
           </span>
         )}
         {qty > 0 && (
@@ -62,8 +72,9 @@ export function ProductCard({
           </span>
           <button
             onClick={onAdd}
-            aria-label={`Add ${item.name}`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-subtle text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+            disabled={!item.available}
+            aria-label={item.available ? `Add ${item.name}` : `${item.name} is sold out`}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-subtle text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-muted-foreground disabled:hover:bg-surface-subtle disabled:hover:text-muted-foreground"
           >
             <Plus size={16} strokeWidth={2.5} />
           </button>

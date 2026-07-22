@@ -1,18 +1,32 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
-import { CartPanel, type CartLine, type PosTable } from '@/components/pos/cart-panel'
+import { CartPanel, type CartLine, type PosTable, type CustomerLookup } from '@/components/pos/cart-panel'
+import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
+import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import type { PosVariant, PosAddon } from './page'
 
 type FullItem = PosItem & { category_id: string | null }
 type Line = CartLine & { itemId: string; variantId: string | null; addonIds: string[] }
+type HeldRow = {
+  id: string
+  order_type: 'dine_in' | 'takeaway'
+  table_id: string | null
+  customer_phone: string | null
+  customer_name: string | null
+  cart: Line[]
+  created_at: string
+}
 
 export default function PosClient({
   cafeId,
+  role,
   taxPercent,
   serviceChargePercent,
   categories,
@@ -22,6 +36,7 @@ export default function PosClient({
   tables,
 }: {
   cafeId: string
+  role: string
   taxPercent: number
   serviceChargePercent: number
   categories: PosCategory[]
@@ -31,6 +46,9 @@ export default function PosClient({
   tables: PosTable[]
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const confirm = useConfirm()
+  const { toast } = useToast()
+
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState<Line[]>([])
@@ -42,6 +60,23 @@ export default function PosClient({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ code: string; total: number; token: string } | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
+
+  const [tableSelectorOpen, setTableSelectorOpen] = useState(false)
+  const [liveTables, setLiveTables] = useState<LiveTable[]>(() =>
+    tables.map((t) => ({ id: t.id, label: t.label, status: t.occupied ? 'occupied' : 'available', sessionId: null, bill: 0, itemCount: 0, items: [] })),
+  )
+
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerLookup, setCustomerLookup] = useState<CustomerLookup | null>(null)
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false)
+
+  const [discountType, setDiscountType] = useState<'percent' | 'flat' | null>(null)
+  const [discountValue, setDiscountValue] = useState('')
+
+  const [heldRows, setHeldRows] = useState<HeldRow[]>([])
+  const [heldOrdersOpen, setHeldOrdersOpen] = useState(false)
+  const [holding, setHolding] = useState(false)
 
   const variantsByItem = useMemo(() => {
     const m = new Map<string, PosVariant[]>()
@@ -95,28 +130,228 @@ export default function PosClient({
   function removeLine(key: string) {
     setCart((c) => c.filter((l) => l.key !== key))
   }
+  function noteLine(key: string, note: string) {
+    setCart((c) => c.map((l) => (l.key === key ? { ...l, note } : l)))
+  }
+
+  // ── Live table status + running bill, for the visual table selector ──────
+  const pollTables = useCallback(async () => {
+    const [{ data: tbls }, { data: sess }] = await Promise.all([
+      supabase.from('cafe_tables').select('id, label, status').eq('cafe_id', cafeId),
+      supabase.from('table_sessions').select('id, table_id, status').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
+    ])
+    const sessions = (sess ?? []) as { id: string; table_id: string; status: string }[]
+    const sessionIds = sessions.map((s) => s.id)
+
+    let orders: { id: string; session_id: string; total: number }[] = []
+    let orderItems: { order_id: string; name: string; qty: number }[] = []
+    if (sessionIds.length) {
+      const { data: ords } = await supabase
+        .from('orders')
+        .select('id, session_id, total')
+        .eq('cafe_id', cafeId)
+        .in('session_id', sessionIds)
+        .neq('status', 'cancelled')
+      orders = (ords ?? []) as typeof orders
+      if (orders.length) {
+        const { data: its } = await supabase.from('order_items').select('order_id, name, qty').in('order_id', orders.map((o) => o.id))
+        orderItems = (its ?? []) as typeof orderItems
+      }
+    }
+
+    const sessionByTable = new Map(sessions.map((s) => [s.table_id, s]))
+    const ordersBySession = new Map<string, typeof orders>()
+    for (const o of orders) ordersBySession.set(o.session_id, [...(ordersBySession.get(o.session_id) ?? []), o])
+    const itemsByOrder = new Map<string, typeof orderItems>()
+    for (const i of orderItems) itemsByOrder.set(i.order_id, [...(itemsByOrder.get(i.order_id) ?? []), i])
+
+    const next: LiveTable[] = (tbls ?? []).map((t) => {
+      const s = sessionByTable.get(t.id)
+      const ords = s ? (ordersBySession.get(s.id) ?? []) : []
+      const bill = ords.reduce((sum, o) => sum + o.total, 0)
+      const its = ords.flatMap((o) => itemsByOrder.get(o.id) ?? [])
+      const itemCount = its.reduce((sum, i) => sum + i.qty, 0)
+      return {
+        id: t.id,
+        label: t.label,
+        status: t.status as LiveTable['status'],
+        sessionId: s?.id ?? null,
+        bill,
+        itemCount,
+        items: its.map((i) => ({ name: i.name, qty: i.qty })),
+      }
+    })
+    setLiveTables(next)
+  }, [supabase, cafeId])
+
+  useEffect(() => {
+    void pollTables()
+    const p = setInterval(pollTables, 5000)
+    return () => clearInterval(p)
+  }, [pollTables])
+
+  async function pickTable(t: LiveTable) {
+    if (t.status === 'occupied' && t.sessionId) {
+      const ok = await confirm({
+        title: `Add to ${t.label}'s existing order?`,
+        description: `This table has an active order — ₹${t.bill} (${t.itemCount} item${t.itemCount === 1 ? '' : 's'}). Your new items will join the same table session.`,
+        confirmLabel: 'Add to this table',
+      })
+      if (!ok) return
+    }
+    setSelectedTableId(t.id)
+    setTableSelectorOpen(false)
+  }
+
+  const existingSession = useMemo(() => {
+    const t = liveTables.find((lt) => lt.id === selectedTableId)
+    if (!t || !t.sessionId) return null
+    return { total: t.bill, itemCount: t.itemCount }
+  }, [liveTables, selectedTableId])
+
+  // ── Customer phone lookup: name/visits/points suggestion ─────────────────
+  useEffect(() => {
+    if (customerPhone.length !== 10) {
+      setCustomerLookup(null)
+      return
+    }
+    let cancelled = false
+    setLookingUpCustomer(true)
+    supabase.rpc('pos_lookup_customer', { p_cafe_id: cafeId, p_phone: customerPhone }).then(({ data }) => {
+      if (cancelled) return
+      setLookingUpCustomer(false)
+      setCustomerLookup(data as CustomerLookup)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [customerPhone, cafeId, supabase])
+
+  // ── Held orders ────────────────────────────────────────────────────────
+  const fetchHeld = useCallback(async () => {
+    const { data } = await supabase
+      .from('held_orders')
+      .select('id, order_type, table_id, customer_phone, customer_name, cart, created_at')
+      .eq('cafe_id', cafeId)
+      .order('created_at', { ascending: false })
+    setHeldRows((data ?? []) as HeldRow[])
+  }, [supabase, cafeId])
+
+  useEffect(() => {
+    void fetchHeld()
+  }, [fetchHeld])
+
+  const heldViewModels: HeldOrder[] = useMemo(
+    () =>
+      heldRows.map((h) => {
+        const itemCount = h.cart.reduce((s, l) => s + l.qty, 0)
+        const total = h.cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
+        const tableLabel = h.table_id ? (tables.find((t) => t.id === h.table_id)?.label ?? null) : null
+        return {
+          id: h.id,
+          order_type: h.order_type,
+          table_id: h.table_id,
+          table_label: tableLabel,
+          customer_name: h.customer_name,
+          customer_phone: h.customer_phone,
+          label: null,
+          created_at: h.created_at,
+          itemCount,
+          total,
+        }
+      }),
+    [heldRows, tables],
+  )
+
+  async function holdOrder() {
+    if (cart.length === 0) return
+    setHolding(true)
+    const { error: holdErr } = await supabase.from('held_orders').insert({
+      cafe_id: cafeId,
+      order_type: orderType,
+      table_id: orderType === 'dine_in' ? selectedTableId : null,
+      customer_phone: customerPhone || null,
+      customer_name: customerName || null,
+      cart,
+    })
+    setHolding(false)
+    if (holdErr) {
+      toast(holdErr.message, 'error')
+      return
+    }
+    toast('Order held.')
+    setCart([])
+    setCustomerPhone('')
+    setCustomerName('')
+    setDiscountType(null)
+    setDiscountValue('')
+    setCartOpen(false)
+    void fetchHeld()
+  }
+
+  function resumeHeld(id: string) {
+    const row = heldRows.find((h) => h.id === id)
+    if (!row) return
+    setCart(row.cart ?? [])
+    setOrderType(row.order_type)
+    setSelectedTableId(row.table_id)
+    setCustomerPhone(row.customer_phone ?? '')
+    setCustomerName(row.customer_name ?? '')
+    setHeldOrdersOpen(false)
+    void supabase.from('held_orders').delete().eq('id', id).then(() => fetchHeld())
+  }
+
+  async function discardHeld(id: string) {
+    const ok = await confirm({ title: 'Discard held order?', description: 'This cannot be undone.', confirmLabel: 'Discard', destructive: true })
+    if (!ok) return
+    await supabase.from('held_orders').delete().eq('id', id)
+    void fetchHeld()
+  }
+
+  // ── Escape closes whichever overlay is open, topmost first ───────────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      if (customizing) return setCustomizing(null)
+      if (tableSelectorOpen) return setTableSelectorOpen(false)
+      if (heldOrdersOpen) return setHeldOrdersOpen(false)
+      if (cartOpen) return setCartOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [customizing, tableSelectorOpen, heldOrdersOpen, cartOpen])
 
   async function placeOrder() {
     if (orderType === 'dine_in' && !selectedTableId) return
     setPlacing(true)
     setError(null)
-    const { data, error } = await supabase.rpc('staff_place_order', {
+    const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
-      p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds })),
+      p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null })),
       p_order_type: orderType,
       p_table_id: orderType === 'dine_in' ? selectedTableId : null,
       p_payment_method: paymentMethod,
+      p_customer_phone: customerPhone || null,
+      p_customer_name: customerName || null,
+      p_discount_type: discountType,
+      p_discount_value: Number(discountValue) || 0,
     })
     setPlacing(false)
-    if (error) return setError(error.message)
+    if (rpcError) return setError(rpcError.message)
     const r = data as { short_code: string; total: number; receipt_token: string }
     setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token })
     setCart([])
     setCartOpen(false)
+    setCustomerPhone('')
+    setCustomerName('')
+    setCustomerLookup(null)
+    setDiscountType(null)
+    setDiscountValue('')
+    void pollTables()
     setTimeout(() => setSuccess(null), 6000)
   }
 
-  const selectedTable = tables.find((t) => t.id === selectedTableId) ?? null
+  const selectedTable = liveTables.find((t) => t.id === selectedTableId) ?? null
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
   const cartTotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
 
@@ -124,19 +359,34 @@ export default function PosClient({
     tableLabel: selectedTable?.label ?? null,
     orderType,
     onOrderType: setOrderType,
-    tables,
-    selectedTableId,
-    onSelectTable: setSelectedTableId,
+    onOpenTableSelector: () => setTableSelectorOpen(true),
+    existingSession,
     lines: cart,
     onQty: changeQty,
     onRemove: removeLine,
+    onNote: noteLine,
     taxPercent,
     serviceChargePercent,
     paymentMethod,
     onPaymentMethod: setPaymentMethod,
+    customerPhone,
+    onCustomerPhone: setCustomerPhone,
+    customerName,
+    onCustomerName: setCustomerName,
+    customerLookup,
+    lookingUpCustomer,
+    role,
+    discountType,
+    discountValue,
+    onDiscountType: setDiscountType,
+    onDiscountValue: setDiscountValue,
     onPlaceOrder: placeOrder,
     placing,
     error,
+    onHold: holdOrder,
+    holding,
+    heldCount: heldRows.length,
+    onOpenHeld: () => setHeldOrdersOpen(true),
   }
 
   return (
@@ -210,6 +460,19 @@ export default function PosClient({
             </div>
           </div>
         </div>
+      )}
+
+      {tableSelectorOpen && (
+        <TableSelector tables={liveTables} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />
+      )}
+
+      {heldOrdersOpen && (
+        <HeldOrdersDrawer
+          orders={heldViewModels}
+          onResume={resumeHeld}
+          onDiscard={discardHeld}
+          onClose={() => setHeldOrdersOpen(false)}
+        />
       )}
 
       {customizing && (

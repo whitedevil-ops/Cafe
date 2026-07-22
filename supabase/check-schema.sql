@@ -23,7 +23,7 @@ with expected(kind, name, fix) as (values
   ('function', 'has_cafe_role',        '0001'),
   ('function', 'handle_new_user',      '0001'),
   -- ordering (0002/0003/0009/0010)
-  ('function', 'place_order',          '0002..0010 (latest: 0010)'),
+  ('function', 'place_order',          '0002..0016 (latest: 0016)'),
   -- platform admin
   ('table',    'platform_admins',      'platform-admin.sql'),
   ('function', 'is_platform_admin',    'platform-admin.sql'),
@@ -58,7 +58,20 @@ with expected(kind, name, fix) as (values
   ('function', 'close_session',        '0012'),
   -- staff cashier POS order creation (0013)
   ('column',   'orders.staff_id',      '0013'),
-  ('function', 'staff_place_order',    '0013')
+  ('function', 'staff_place_order',    '0013..0016 (latest: 0016)'),
+  -- counter POS billing engine: source tagging, discounts, held orders,
+  -- customer lookup, audit logging (0016)
+  ('column',   'orders.source',        '0016'),
+  ('function', 'compute_bill',         '0016'),
+  ('table',    'held_orders',          '0016'),
+  ('function', 'pos_lookup_customer',  '0016'),
+  ('function', 'audit_payment_recorded', '0016'),
+  ('function', 'audit_order_cancelled',  '0016..0017 (latest: 0017)'),
+  -- order cancellation with a required reason (0017)
+  ('column',   'orders.cancel_reason',  '0017'),
+  ('function', 'cancel_order',          '0017'),
+  -- customer CRM segments (0018)
+  ('table',    'v_customer_stats',      '0018')
 )
 select
   e.kind,

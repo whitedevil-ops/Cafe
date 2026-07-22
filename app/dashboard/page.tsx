@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import DashboardClient, { type CommandCenterData } from './dashboard-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,49 +13,76 @@ function istDayStartISO() {
   return new Date(ist.getTime() - offset).toISOString()
 }
 
-export default async function DashboardPage() {
-  const cafe = await getCurrentCafe()
-  if (!cafe) redirect('/onboarding')
-
+export async function loadCommandCenterData(cafeId: string): Promise<CommandCenterData> {
   const supabase = await createClient()
   const dayStart = istDayStartISO()
+  const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
-  const [{ count: itemCount }, todayOrders, active] = await Promise.all([
-    supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafe.cafeId),
-    supabase
-      .from('orders')
-      .select('total, status')
-      .eq('cafe_id', cafe.cafeId)
-      .gte('created_at', dayStart)
-      .neq('status', 'cancelled'),
-    supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('cafe_id', cafe.cafeId)
-      .in('status', ['placed', 'preparing', 'ready']),
+  const [
+    { count: itemCount },
+    todayOrders,
+    cancelledToday,
+    lateTickets,
+    billRequested,
+    callWaiter,
+    occupiedSessions,
+    { count: totalTables },
+    payments,
+    atRisk,
+    { count: newCustomers },
+  ] = await Promise.all([
+    supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
+    supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
+    supabase.from('orders').select('id, short_code, cancel_reason').eq('cafe_id', cafeId).eq('status', 'cancelled').gte('created_at', dayStart),
+    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).in('status', ['placed', 'preparing', 'ready']).lt('created_at', lateThreshold),
+    supabase.from('table_sessions').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).eq('status', 'bill_requested'),
+    supabase.from('notifications').select('table_id').eq('cafe_id', cafeId).eq('type', 'call_waiter').eq('read', false),
+    supabase.from('table_sessions').select('table_id').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
+    supabase.from('cafe_tables').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
+    supabase.from('payments').select('method, amount').eq('cafe_id', cafeId).gte('created_at', dayStart),
+    supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
+    supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
   ])
 
   const orders = todayOrders.data ?? []
   const revenue = orders.reduce((s, o) => s + (o.total ?? 0), 0)
   const orderCount = orders.length
   const aov = orderCount ? Math.round(revenue / orderCount) : 0
-  const hasMenu = (itemCount ?? 0) > 0
 
-  const metrics = [
-    ['Today’s revenue', `₹${revenue.toLocaleString('en-IN')}`],
-    ['Today’s orders', orderCount],
-    ['Avg order value', `₹${aov}`],
-    ['Active in kitchen', active.count ?? 0],
-  ] as const
+  const collectionsByMethod: Record<string, number> = {}
+  for (const p of payments.data ?? []) collectionsByMethod[p.method] = (collectionsByMethod[p.method] ?? 0) + p.amount
 
-  return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">{cafe.name}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Today at a glance · role <span className="font-medium text-foreground">{cafe.role}</span>
-      </p>
+  const attentionTables = new Set((callWaiter.data ?? []).map((n) => n.table_id).filter(Boolean))
+  const occupiedTables = new Set((occupiedSessions.data ?? []).map((s) => s.table_id)).size
 
-      {!hasMenu ? (
+  return {
+    hasMenu: (itemCount ?? 0) > 0,
+    revenue,
+    orderCount,
+    aov,
+    cancelledToday: (cancelledToday.data ?? []).length,
+    cancelledReasons: (cancelledToday.data ?? []).map((o) => o.cancel_reason).filter((r): r is string => !!r),
+    lateTickets: lateTickets.count ?? 0,
+    billRequestedTables: billRequested.count ?? 0,
+    attentionTables: attentionTables.size,
+    occupiedTables,
+    totalTables: totalTables ?? 0,
+    collectionsByMethod,
+    atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
+    newCustomersToday: newCustomers ?? 0,
+  }
+}
+
+export default async function DashboardPage() {
+  const cafe = await getCurrentCafe()
+  if (!cafe) redirect('/onboarding')
+
+  const data = await loadCommandCenterData(cafe.cafeId)
+
+  if (!data.hasMenu) {
+    return (
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{cafe.name}</h1>
         <div className="mt-8 rounded-xl border border-border bg-surface p-8 text-center">
           <h2 className="text-base font-medium text-foreground">Add your first menu item</h2>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
@@ -64,16 +92,9 @@ export default async function DashboardPage() {
             Open menu manager
           </Link>
         </div>
-      ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {metrics.map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-border bg-surface p-5">
-              <p className="text-[13px] text-muted-foreground">{label}</p>
-              <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  return <DashboardClient cafeId={cafe.cafeId} cafeName={cafe.name} role={cafe.role} initialData={data} />
 }

@@ -33,7 +33,7 @@ declare
   v_s jsonb;
 
   -- category ids
-  c_hot uuid; c_cold uuid; c_tea uuid; c_bur uuid; c_piz uuid; c_san uuid; c_sna uuid; c_des uuid;
+  c_bur uuid; c_piz uuid; c_cof uuid; c_drk uuid; c_fri uuid; c_san uuid; c_des uuid;
 
   -- order-generation working vars
   v_ts timestamptz; v_seq int; v_order uuid; v_cust uuid; v_table uuid;
@@ -107,69 +107,62 @@ begin
   end loop;
 
   -- ── MENU ───────────────────────────────────────────────────────────────────
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Hot Coffee', 1)      returning id into c_hot;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Cold Coffee', 2)     returning id into c_cold;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Tea & Beverages', 3) returning id into c_tea;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Burgers', 4)         returning id into c_bur;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Pizza', 5)           returning id into c_piz;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Sandwiches', 6)      returning id into c_san;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Snacks', 7)          returning id into c_sna;
-  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Desserts', 8)        returning id into c_des;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Burgers', 1)      returning id into c_bur;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Pizza', 2)        returning id into c_piz;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Coffee', 3)       returning id into c_cof;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Soft Drinks', 4) returning id into c_drk;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Fries', 5)        returning id into c_fri;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Sandwiches', 6)   returning id into c_san;
+  insert into menu_categories (cafe_id, name, sort) values (v_cafe, 'Desserts', 7)     returning id into c_des;
 
   insert into menu_items (cafe_id, category_id, name, description, price, is_veg, is_bestseller, prep_minutes, sort, is_upsell, upsell_pitch) values
-  (v_cafe, c_hot,  'Espresso',            'Single shot of intense, aromatic espresso',        99, true, false, 4,  1, false, null),
-  (v_cafe, c_hot,  'Americano',           'Espresso lengthened with hot water',              119, true, false, 4,  2, false, null),
-  (v_cafe, c_hot,  'Cappuccino',          'Espresso with steamed milk and thick foam',       149, true, true,  6,  3, false, null),
-  (v_cafe, c_hot,  'Café Latte',          'Smooth espresso with silky steamed milk',         159, true, false, 6,  4, false, null),
-  (v_cafe, c_hot,  'Mocha',               'Espresso, chocolate and steamed milk',            179, true, false, 7,  5, false, null),
-  (v_cafe, c_hot,  'Caramel Latte',       'Latte sweetened with house caramel',              189, true, false, 7,  6, false, null),
-  (v_cafe, c_cold, 'Classic Cold Coffee', 'Chilled, frothy and made with real ice cream',    169, true, true,  6,  7, false, null),
-  (v_cafe, c_cold, 'Hazelnut Cold Coffee','Cold coffee with roasted hazelnut syrup',         199, true, false, 6,  8, false, null),
-  (v_cafe, c_cold, 'Caramel Frappe',      'Blended ice, coffee and caramel drizzle',         219, true, false, 8,  9, false, null),
-  (v_cafe, c_cold, 'Mocha Frappe',        'Chocolate-coffee frappe topped with cream',       229, true, false, 8, 10, false, null),
-  (v_cafe, c_cold, 'Iced Americano',      'Espresso over ice — clean and strong',            139, true, false, 4, 11, false, null),
-  (v_cafe, c_tea,  'Masala Chai',         'Kadak chai brewed with house masala',              79, true, true,  5, 12, false, null),
-  (v_cafe, c_tea,  'Ginger Tea',          'Strong tea with fresh crushed ginger',             79, true, false, 5, 13, false, null),
-  (v_cafe, c_tea,  'Green Tea',           'Light, refreshing whole-leaf green tea',           99, true, false, 4, 14, false, null),
-  (v_cafe, c_tea,  'Lemon Iced Tea',      'Fresh brewed tea, lemon and mint',                129, true, false, 5, 15, false, null),
-  (v_cafe, c_tea,  'Peach Iced Tea',      'Iced tea with real peach purée',                  139, true, false, 5, 16, false, null),
-  (v_cafe, c_tea,  'Fresh Lime Soda',     'Sweet, salted or mixed — you choose',             119, true, false, 4, 17, false, null),
-  (v_cafe, c_tea,  'Hot Chocolate',       'Belgian chocolate melted into steamed milk',      179, true, false, 6, 18, false, null),
-  (v_cafe, c_bur,  'Classic Veg Burger',  'Crisp veg patty, lettuce, house sauce',           149, true, false, 12, 19, false, null),
-  (v_cafe, c_bur,  'Cheese Burger',       'Veg patty with double cheddar',                   179, true, true,  12, 20, false, null),
-  (v_cafe, c_bur,  'Paneer Tikka Burger', 'Char-grilled paneer tikka, mint mayo',            199, true, false, 14, 21, false, null),
-  (v_cafe, c_bur,  'Double Patty Burger', 'Two patties, extra cheese, serious hunger',       229, true, false, 15, 22, false, null),
-  (v_cafe, c_piz,  'Margherita',          'Classic tomato, mozzarella and basil',            199, true, true,  18, 23, false, null),
-  (v_cafe, c_piz,  'Farmhouse',           'Onion, capsicum, tomato and mushroom',            249, true, false, 18, 24, false, null),
-  (v_cafe, c_piz,  'Paneer Tikka Pizza',  'Tandoori paneer, onions, mint drizzle',           269, true, false, 20, 25, false, null),
-  (v_cafe, c_piz,  'Cheese Corn Pizza',   'Sweet corn under a blanket of cheese',            229, true, false, 18, 26, false, null),
-  (v_cafe, c_san,  'Veg Grilled Sandwich','Triple-layer grilled classic',                    149, true, false, 10, 27, false, null),
-  (v_cafe, c_san,  'Cheese Corn Sandwich','Corn, cheese and herbs, grilled golden',          169, true, false, 10, 28, false, null),
-  (v_cafe, c_san,  'Paneer Tikka Sandwich','Spiced paneer tikka filling',                    189, true, false, 12, 29, false, null),
-  (v_cafe, c_san,  'Club Sandwich',       'Triple-decker with fries on the side',            219, true, false, 14, 30, false, null),
-  (v_cafe, c_sna,  'French Fries',        'Crisp golden fries, lightly salted',              129, true, true,  8, 31, false, null),
-  (v_cafe, c_sna,  'Peri Peri Fries',     'Fries tossed in fiery peri peri',                 149, true, false, 8, 32, false, null),
-  (v_cafe, c_sna,  'Cheese Fries',        'Fries drowned in cheese sauce',                   179, true, false, 9, 33, false, null),
-  (v_cafe, c_sna,  'Garlic Bread',        'Toasted baguette, garlic butter',                 129, true, false, 8, 34, false, null),
-  (v_cafe, c_sna,  'Cheese Garlic Bread', 'Garlic bread under melted mozzarella',            169, true, false, 9, 35, false, null),
-  (v_cafe, c_sna,  'Veg Nachos',          'Loaded nachos, salsa and cheese',                 189, true, false, 10, 36, false, null),
-  (v_cafe, c_des,  'Chocolate Brownie',   'Dense, fudgy, baked in-house',                    149, true, true,  3, 37, true,  'Add a warm brownie'),
-  (v_cafe, c_des,  'Brownie with Ice Cream','Warm brownie, vanilla scoop, chocolate sauce',  199, true, false, 5, 38, false, null),
-  (v_cafe, c_des,  'New York Cheesecake', 'Baked cheesecake, berry compote',                 229, true, false, 3, 39, false, null),
-  (v_cafe, c_des,  'Chocolate Lava Cake', 'Molten centre, 100% guilt',                       179, true, false, 8, 40, true,  'Finish with a lava cake');
+  (v_cafe, c_bur,  'Classic Veg Burger',  'Crisp veg patty, lettuce, house sauce',            149, true, false, 12,  1, false, null),
+  (v_cafe, c_bur,  'Cheese Burger',       'Veg patty with double cheddar',                    179, true, true,  12,  2, false, null),
+  (v_cafe, c_bur,  'Paneer Tikka Burger', 'Char-grilled paneer tikka, mint mayo',             199, true, false, 14,  3, false, null),
+  (v_cafe, c_bur,  'Double Patty Burger', 'Two patties, extra cheese, serious hunger',        229, true, false, 15,  4, false, null),
+  (v_cafe, c_piz,  'Margherita',          'Classic tomato, mozzarella and basil',             199, true, true,  18,  5, false, null),
+  (v_cafe, c_piz,  'Farmhouse',           'Onion, capsicum, tomato and mushroom',             249, true, false, 18,  6, false, null),
+  (v_cafe, c_piz,  'Paneer Tikka Pizza',  'Tandoori paneer, onions, mint drizzle',            269, true, false, 20,  7, false, null),
+  (v_cafe, c_piz,  'Cheese Corn Pizza',   'Sweet corn under a blanket of cheese',             229, true, false, 18,  8, false, null),
+  (v_cafe, c_cof,  'Espresso',            'Single shot of intense, aromatic espresso',         99, true, false, 4,   9, false, null),
+  (v_cafe, c_cof,  'Americano',           'Espresso lengthened with hot water',               119, true, false, 4,  10, false, null),
+  (v_cafe, c_cof,  'Cappuccino',          'Espresso with steamed milk and thick foam',        149, true, true,  6,  11, false, null),
+  (v_cafe, c_cof,  'Café Latte',          'Smooth espresso with silky steamed milk',          159, true, false, 6,  12, false, null),
+  (v_cafe, c_cof,  'Mocha',               'Espresso, chocolate and steamed milk',             179, true, false, 7,  13, false, null),
+  (v_cafe, c_cof,  'Caramel Latte',       'Latte sweetened with house caramel',               189, true, false, 7,  14, false, null),
+  (v_cafe, c_cof,  'Classic Cold Coffee', 'Chilled, frothy and made with real ice cream',     169, true, true,  6,  15, false, null),
+  (v_cafe, c_cof,  'Hazelnut Cold Coffee','Cold coffee with roasted hazelnut syrup',          199, true, false, 6,  16, false, null),
+  (v_cafe, c_cof,  'Caramel Frappe',      'Blended ice, coffee and caramel drizzle',          219, true, false, 8,  17, false, null),
+  (v_cafe, c_cof,  'Mocha Frappe',        'Chocolate-coffee frappe topped with cream',        229, true, false, 8,  18, false, null),
+  (v_cafe, c_cof,  'Iced Americano',      'Espresso over ice — clean and strong',             139, true, false, 4,  19, false, null),
+  (v_cafe, c_drk,  'Lemon Iced Tea',      'Fresh brewed tea, lemon and mint',                 129, true, false, 5,  20, false, null),
+  (v_cafe, c_drk,  'Peach Iced Tea',      'Iced tea with real peach purée',                   139, true, false, 5,  21, false, null),
+  (v_cafe, c_drk,  'Fresh Lime Soda',     'Sweet, salted or mixed — you choose',              119, true, false, 4,  22, false, null),
+  (v_cafe, c_drk,  'Coca-Cola',           'Chilled 300ml bottle',                              49, true, false, 1,  23, false, null),
+  (v_cafe, c_drk,  'Sprite',              'Chilled 300ml bottle',                              49, true, false, 1,  24, false, null),
+  (v_cafe, c_fri,  'French Fries',        'Crisp golden fries, lightly salted',               129, true, true,  8,  25, false, null),
+  (v_cafe, c_fri,  'Peri Peri Fries',     'Fries tossed in fiery peri peri',                  149, true, false, 8,  26, false, null),
+  (v_cafe, c_fri,  'Cheese Fries',        'Fries drowned in cheese sauce',                     179, true, false, 9,  27, false, null),
+  (v_cafe, c_san,  'Veg Grilled Sandwich','Triple-layer grilled classic',                      149, true, false, 10, 28, false, null),
+  (v_cafe, c_san,  'Cheese Corn Sandwich','Corn, cheese and herbs, grilled golden',            169, true, false, 10, 29, false, null),
+  (v_cafe, c_san,  'Paneer Tikka Sandwich','Spiced paneer tikka filling',                      189, true, false, 12, 30, false, null),
+  (v_cafe, c_san,  'Club Sandwich',       'Triple-decker with fries on the side',              219, true, false, 14, 31, false, null),
+  (v_cafe, c_des,  'Chocolate Brownie',   'Dense, fudgy, baked in-house',                      149, true, true,  3,  32, true,  'Add a warm brownie'),
+  (v_cafe, c_des,  'Brownie with Ice Cream','Warm brownie, vanilla scoop, chocolate sauce',    199, true, false, 5,  33, false, null),
+  (v_cafe, c_des,  'New York Cheesecake', 'Baked cheesecake, berry compote',                   229, true, false, 3,  34, false, null),
+  (v_cafe, c_des,  'Chocolate Lava Cake', 'Molten centre, 100% guilt',                         179, true, false, 8,  35, true,  'Finish with a lava cake');
 
-  -- Variants: Regular/Large on all coffees (hot +40, cold +50)
+  -- Variants: Regular/Large on all coffees
   insert into menu_item_variants (menu_item_id, name, price_delta, sort)
-  select id, 'Regular', 0, 0 from menu_items where cafe_id = v_cafe and category_id in (c_hot, c_cold);
+  select id, 'Regular', 0, 0 from menu_items where cafe_id = v_cafe and category_id = c_cof;
   insert into menu_item_variants (menu_item_id, name, price_delta, sort)
-  select id, 'Large', case when category_id = c_hot then 40 else 50 end, 1
-  from menu_items where cafe_id = v_cafe and category_id in (c_hot, c_cold);
+  select id, 'Large', 45, 1 from menu_items where cafe_id = v_cafe and category_id = c_cof;
 
   -- Add-ons
   insert into menu_item_addons (menu_item_id, name, price, sort)
   select id, a.name, a.price, a.sort from menu_items mi,
     (values ('Extra Espresso Shot',40,0),('Oat Milk',50,1),('Almond Milk',60,2),('No Sugar',0,3),('Less Sugar',0,4)) as a(name,price,sort)
-  where mi.cafe_id = v_cafe and mi.category_id in (c_hot, c_cold);
+  where mi.cafe_id = v_cafe and mi.category_id = c_cof;
   insert into menu_item_addons (menu_item_id, name, price, sort)
   select id, a.name, a.price, a.sort from menu_items mi,
     (values ('Extra Cheese',30,0),('Jalapeño',30,1),('Olives',30,2)) as a(name,price,sort)
@@ -177,7 +170,7 @@ begin
   insert into menu_item_addons (menu_item_id, name, price, sort)
   select id, 'Extra Patty', 60, 3 from menu_items where cafe_id = v_cafe and category_id = c_bur;
   insert into menu_item_addons (menu_item_id, name, price, sort)
-  select id, 'Peri Peri Sprinkle', 20, 0 from menu_items where cafe_id = v_cafe and category_id = c_sna;
+  select id, 'Peri Peri Sprinkle', 20, 0 from menu_items where cafe_id = v_cafe and category_id = c_fri;
 
   -- ── CUSTOMERS (20; phones are reserved-range style demo numbers) ───────────
   insert into customers (cafe_id, name, phone)

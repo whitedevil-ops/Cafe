@@ -18,6 +18,7 @@ const groups: [string, [string, string][]][] = [
   ]],
   ['Management', [
     ['Menu', '/dashboard/menu'],
+    ['Customers', '/dashboard/customers'],
   ]],
   ['Business', [
     ['Café profile', '/dashboard/profile'],

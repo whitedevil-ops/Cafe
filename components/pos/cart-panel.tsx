@@ -1,6 +1,6 @@
 'use client'
 
-import { Minus, Plus, X, Banknote, CreditCard, Wallet } from 'lucide-react'
+import { Minus, Plus, X, Banknote, CreditCard, Wallet, Tag, PauseCircle, Clock3, StickyNote } from 'lucide-react'
 
 export type CartLine = {
   key: string
@@ -8,49 +8,90 @@ export type CartLine = {
   modLabel: string
   unitPrice: number
   qty: number
+  note?: string
 }
 export type PosTable = { id: string; label: string; occupied: boolean }
+export type CustomerLookup = { found: boolean; name?: string; visits?: number; points?: number }
 
 export function CartPanel({
   tableLabel,
   orderType,
   onOrderType,
-  tables,
-  selectedTableId,
-  onSelectTable,
+  onOpenTableSelector,
+  existingSession,
   lines,
   onQty,
   onRemove,
+  onNote,
   taxPercent,
   serviceChargePercent,
   paymentMethod,
   onPaymentMethod,
+  customerPhone,
+  onCustomerPhone,
+  customerName,
+  onCustomerName,
+  customerLookup,
+  lookingUpCustomer,
+  role,
+  discountType,
+  discountValue,
+  onDiscountType,
+  onDiscountValue,
   onPlaceOrder,
   placing,
   error,
+  onHold,
+  holding,
+  heldCount,
+  onOpenHeld,
 }: {
   tableLabel: string | null
   orderType: 'dine_in' | 'takeaway'
   onOrderType: (t: 'dine_in' | 'takeaway') => void
-  tables: PosTable[]
-  selectedTableId: string | null
-  onSelectTable: (id: string) => void
+  onOpenTableSelector: () => void
+  existingSession: { total: number; itemCount: number } | null
   lines: CartLine[]
   onQty: (key: string, delta: number) => void
   onRemove: (key: string) => void
+  onNote: (key: string, note: string) => void
   taxPercent: number
   serviceChargePercent: number
   paymentMethod: 'cash' | 'card' | 'counter'
   onPaymentMethod: (m: 'cash' | 'card' | 'counter') => void
+  customerPhone: string
+  onCustomerPhone: (v: string) => void
+  customerName: string
+  onCustomerName: (v: string) => void
+  customerLookup: CustomerLookup | null
+  lookingUpCustomer: boolean
+  role: string
+  discountType: 'percent' | 'flat' | null
+  discountValue: string
+  onDiscountType: (t: 'percent' | 'flat' | null) => void
+  onDiscountValue: (v: string) => void
   onPlaceOrder: () => void
   placing: boolean
   error: string | null
+  onHold: () => void
+  holding: boolean
+  heldCount: number
+  onOpenHeld: () => void
 }) {
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0)
-  const tax = Math.round((subtotal * taxPercent) / 100)
-  const svc = Math.round((subtotal * serviceChargePercent) / 100)
-  const total = subtotal + tax + svc
+  const maxPct = role === 'owner' ? null : role === 'manager' ? 15 : 5
+  const parsedDiscount = Number(discountValue) || 0
+  const discount = discountType === 'percent'
+    ? Math.round((subtotal * Math.min(parsedDiscount, maxPct ?? 100)) / 100)
+    : discountType === 'flat'
+      ? Math.min(Math.round(parsedDiscount), subtotal)
+      : 0
+  const base = subtotal - discount
+  const tax = Math.round((base * taxPercent) / 100)
+  const svc = Math.round((base * serviceChargePercent) / 100)
+  const total = base + tax + svc
   const itemCount = lines.reduce((s, l) => s + l.qty, 0)
+  const overCap = discountType === 'percent' && maxPct !== null && parsedDiscount > maxPct
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -64,6 +105,18 @@ export function CartPanel({
               {orderType === 'dine_in' ? (tableLabel ?? 'Select table') : 'Takeaway'}
             </p>
           </div>
+          <button
+            onClick={onOpenHeld}
+            className="relative grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
+            aria-label="Held orders"
+          >
+            <Clock3 size={18} />
+            {heldCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-primary text-[9.5px] font-semibold text-primary-foreground">
+                {heldCount}
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="mt-3 flex gap-1 rounded-[var(--radius)] bg-surface-subtle p-1">
@@ -86,18 +139,42 @@ export function CartPanel({
         </div>
 
         {orderType === 'dine_in' && (
-          <select
-            value={selectedTableId ?? ''}
-            onChange={(e) => onSelectTable(e.target.value)}
-            className="mt-2.5 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+          <button
+            onClick={onOpenTableSelector}
+            className="mt-2.5 flex h-11 w-full items-center justify-between rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
           >
-            <option value="" disabled>Choose a table…</option>
-            {tables.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}{t.occupied ? ' · occupied' : ''}
-              </option>
-            ))}
-          </select>
+            <span>{tableLabel ?? 'Choose a table…'}</span>
+            <span className="text-[12px] text-primary">Change</span>
+          </button>
+        )}
+
+        {orderType === 'dine_in' && existingSession && (
+          <p className="mt-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
+            This table has an active order — ₹{existingSession.total} · {existingSession.itemCount} item
+            {existingSession.itemCount === 1 ? '' : 's'}. New items join the same table session.
+          </p>
+        )}
+
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <input
+            value={customerPhone}
+            onChange={(e) => onCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="Phone (optional)"
+            inputMode="numeric"
+            className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+          />
+          <input
+            value={customerName}
+            onChange={(e) => onCustomerName(e.target.value)}
+            placeholder="Name (optional)"
+            className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+        {lookingUpCustomer && <p className="mt-1.5 text-[11.5px] text-muted-foreground">Looking up customer…</p>}
+        {customerLookup?.found && (
+          <p className="mt-1.5 rounded-[var(--radius)] bg-primary-subtle px-3 py-1.5 text-[12px] font-medium text-primary">
+            {customerLookup.name ?? 'Returning customer'} · {customerLookup.visits} visit{customerLookup.visits === 1 ? '' : 's'} · {customerLookup.points} points
+          </p>
         )}
       </div>
 
@@ -107,25 +184,36 @@ export function CartPanel({
         ) : (
           <ul className="divide-y divide-border">
             {lines.map((l) => (
-              <li key={l.key} className="flex items-center gap-2 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
-                  {l.modLabel && <p className="truncate text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
-                  <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong px-1">
-                  <button onClick={() => onQty(l.key, -1)} aria-label="Decrease" className="grid h-8 w-8 place-items-center text-muted-foreground">
-                    <Minus size={13} />
+              <li key={l.key} className="py-3">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
+                    {l.modLabel && <p className="truncate text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
+                    <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong px-1">
+                    <button onClick={() => onQty(l.key, -1)} aria-label="Decrease" className="grid h-8 w-8 place-items-center text-muted-foreground">
+                      <Minus size={13} />
+                    </button>
+                    <span className="w-4 text-center text-[13px] font-medium text-foreground">{l.qty}</span>
+                    <button onClick={() => onQty(l.key, 1)} aria-label="Increase" className="grid h-8 w-8 place-items-center text-muted-foreground">
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                  <span className="w-14 shrink-0 text-right text-[13.5px] font-semibold text-foreground">₹{l.unitPrice * l.qty}</span>
+                  <button onClick={() => onRemove(l.key)} aria-label={`Remove ${l.name}`} className="grid h-8 w-8 shrink-0 place-items-center text-muted-foreground hover:text-destructive">
+                    <X size={14} />
                   </button>
-                  <span className="w-4 text-center text-[13px] font-medium text-foreground">{l.qty}</span>
-                  <button onClick={() => onQty(l.key, 1)} aria-label="Increase" className="grid h-8 w-8 place-items-center text-muted-foreground">
-                    <Plus size={13} />
-                  </button>
                 </div>
-                <span className="w-14 shrink-0 text-right text-[13.5px] font-semibold text-foreground">₹{l.unitPrice * l.qty}</span>
-                <button onClick={() => onRemove(l.key)} aria-label={`Remove ${l.name}`} className="grid h-8 w-8 shrink-0 place-items-center text-muted-foreground hover:text-destructive">
-                  <X size={14} />
-                </button>
+                <div className="mt-1 flex items-center gap-1.5 pl-0">
+                  <StickyNote size={12} className="shrink-0 text-muted-foreground" />
+                  <input
+                    value={l.note ?? ''}
+                    onChange={(e) => onNote(l.key, e.target.value)}
+                    placeholder="Note — e.g. no onions"
+                    className="h-7 w-full min-w-0 rounded-[var(--radius-sm)] border border-transparent bg-surface-subtle px-2 text-[11.5px] text-foreground placeholder:text-muted-foreground focus:border-border-strong"
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -133,11 +221,46 @@ export function CartPanel({
       </div>
 
       <div className="border-t border-border p-4">
+        <div className="mb-3">
+          <div className="flex gap-1.5">
+            {(['percent', 'flat'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => onDiscountType(discountType === t ? null : t)}
+                className={`flex items-center gap-1 rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors ${
+                  discountType === t ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground'
+                }`}
+              >
+                <Tag size={12} /> {t === 'percent' ? '% off' : '₹ off'}
+              </button>
+            ))}
+            {discountType && (
+              <input
+                value={discountValue}
+                onChange={(e) => onDiscountValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                placeholder={discountType === 'percent' ? '%' : '₹'}
+                inputMode="decimal"
+                className="h-8 w-20 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12.5px] text-foreground"
+              />
+            )}
+            <span className="self-center text-[11px] text-muted-foreground">
+              {maxPct === null ? 'No cap (owner)' : `Up to ${maxPct}% (${role})`}
+            </span>
+          </div>
+          {overCap && <p className="mt-1 text-[11.5px] text-destructive">Exceeds your role&apos;s discount limit.</p>}
+        </div>
+
         <div className="space-y-1.5 text-[13px]">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
             <span className="text-foreground">₹{subtotal}</span>
           </div>
+          {discount > 0 && (
+            <div className="flex justify-between text-primary">
+              <span>Discount</span>
+              <span>−₹{discount}</span>
+            </div>
+          )}
           {taxPercent > 0 && (
             <div className="flex justify-between text-muted-foreground">
               <span>Tax ({taxPercent}%)</span>
@@ -179,13 +302,22 @@ export function CartPanel({
           <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>
         )}
 
-        <button
-          onClick={onPlaceOrder}
-          disabled={placing || lines.length === 0 || (orderType === 'dine_in' && !selectedTableId)}
-          className="mt-3 min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-40"
-        >
-          {placing ? 'Placing order…' : `Place order · ₹${total}`}
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={onHold}
+            disabled={holding || lines.length === 0}
+            className="flex min-h-12 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-4 text-[13px] font-medium text-foreground disabled:opacity-40"
+          >
+            <PauseCircle size={16} /> Hold
+          </button>
+          <button
+            onClick={onPlaceOrder}
+            disabled={placing || overCap || lines.length === 0 || (orderType === 'dine_in' && !tableLabel)}
+            className="min-h-12 flex-1 rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-40"
+          >
+            {placing ? 'Placing order…' : `Place order · ₹${total}`}
+          </button>
+        </div>
       </div>
     </div>
   )

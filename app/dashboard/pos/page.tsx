@@ -21,9 +21,8 @@ export default async function PosPage() {
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
-      .select('id, name, price, image_url, is_veg, is_bestseller, category_id')
+      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available')
       .eq('cafe_id', cafe.cafeId)
-      .eq('available', true)
       .eq('archived', false)
       .order('sort'),
     supabase.from('cafe_tables').select('id, label, status').eq('cafe_id', cafe.cafeId),
@@ -49,6 +48,7 @@ export default async function PosPage() {
     is_veg: i.is_veg,
     is_bestseller: i.is_bestseller,
     hasOptions: withOptions.has(i.id),
+    available: i.available,
     category_id: i.category_id,
   }))
 
@@ -65,6 +65,7 @@ export default async function PosPage() {
   return (
     <PosClient
       cafeId={cafe.cafeId}
+      role={cafe.role}
       taxPercent={Number(cafeRow?.tax_percent ?? 0)}
       serviceChargePercent={Number(cafeRow?.service_charge ?? 0)}
       categories={posCategories}
