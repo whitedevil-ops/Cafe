@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 const nav = [
   ['Overview', '/platform-admin'],
   ['Cafés', '/platform-admin/cafes'],
+  ['Health', '/platform-admin/health'],
   ['Users', '/platform-admin/users'],
   ['Audit logs', '/platform-admin/audit-logs'],
 ]
@@ -46,37 +47,43 @@ export default async function PlatformAdminLayout({
 
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background md:flex-row">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
+      {/* Deliberately dark, distinct from the light café dashboard — this is
+          the platform's own operations console, never to be mistaken for it. */}
+      <aside className="hidden w-60 shrink-0 flex-col bg-[#0B0D10] px-4 py-6 md:flex">
         <div className="px-2">
-          <p className="text-lg font-semibold tracking-tight text-foreground">counter</p>
-          <p className="mt-0.5 text-[12px] font-medium text-primary">Platform admin</p>
+          <p className="text-lg font-semibold tracking-tight text-white">KhaoPiyo</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator console
+          </p>
         </div>
         <nav className="mt-8 space-y-0.5">
           {nav.map(([label, href]) => (
             <Link
               key={href}
               href={href}
-              className="block rounded-[var(--radius)] px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
+              className="block rounded-[var(--radius)] px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
             >
               {label}
             </Link>
           ))}
         </nav>
         <form action="/auth/signout" method="post" className="mt-auto px-1">
-          <button className="text-[13px] text-muted-foreground hover:text-foreground">Sign out</button>
+          <button className="text-[13px] text-white/50 hover:text-white">Sign out</button>
         </form>
       </aside>
 
       {/* Mobile nav — the sidebar above is md:flex only; without this, a phone
           user had no way to navigate the platform-admin panel at all. */}
-      <header className="border-b border-border bg-surface px-5 py-3 md:hidden">
+      <header className="border-b border-white/10 bg-[#0B0D10] px-5 py-3 md:hidden">
         <div className="flex items-center justify-between">
-          <span className="font-semibold tracking-tight text-foreground">counter</span>
-          <span className="text-[12px] font-medium text-primary">Platform admin</span>
+          <span className="font-semibold tracking-tight text-white">KhaoPiyo</span>
+          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator
+          </span>
         </div>
         <nav className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
           {nav.map(([label, href]) => (
-            <Link key={href} href={href} className="text-muted-foreground hover:text-foreground">
+            <Link key={href} href={href} className="text-white/60 hover:text-white">
               {label}
             </Link>
           ))}

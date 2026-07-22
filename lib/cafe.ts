@@ -8,6 +8,8 @@ export type CurrentCafe = {
   role: string
   name: string
   slug: string
+  status: string
+  statusReason: string | null
 }
 
 export type CafeOption = { cafeId: string; name: string; role: string }
@@ -18,7 +20,10 @@ type MembershipRow = {
   role: string
   cafe_id: string
   created_at: string
-  cafes: { name: string; slug: string } | { name: string; slug: string }[] | null
+  cafes:
+    | { name: string; slug: string; status: string; status_reason: string | null }
+    | { name: string; slug: string; status: string; status_reason: string | null }[]
+    | null
 }
 
 // All cafés the signed-in user belongs to (RLS-scoped), newest first.
@@ -34,7 +39,7 @@ const getMemberships = cache(
 
     const { data } = await supabase
       .from('cafe_members')
-      .select('role, cafe_id, created_at, cafes(name, slug)')
+      .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -47,7 +52,7 @@ const getMemberships = cache(
       if (claimed && claimed > 0) {
         const { data: refetched } = await supabase
           .from('cafe_members')
-          .select('role, cafe_id, created_at, cafes(name, slug)')
+          .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
         rows = (refetched ?? []) as MembershipRow[]
@@ -92,5 +97,7 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
     role: row.role,
     name: cafe.name,
     slug: cafe.slug,
+    status: cafe.status,
+    statusReason: cafe.status_reason,
   }
 }

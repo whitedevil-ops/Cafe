@@ -43,7 +43,7 @@ export default function Home() {
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">
-            counter
+            KhaoPiyo
           </Link>
           <div className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
             <a href="#features" className="transition-colors hover:text-foreground">Features</a>
@@ -159,7 +159,7 @@ export default function Home() {
       {/* Features */}
       <section id="features" className="mx-auto w-full max-w-6xl px-6 py-20">
         <h2 className="max-w-xl text-[clamp(1.75rem,4vw,2.5rem)] font-semibold tracking-tight text-foreground">
-          Everything the counter needs, nothing it doesn&apos;t.
+          Everything your café needs, nothing it doesn&apos;t.
         </h2>
         <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (

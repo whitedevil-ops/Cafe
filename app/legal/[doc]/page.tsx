@@ -6,17 +6,17 @@ const docs: Record<string, { title: string; intro: string }> = {
   privacy: {
     title: 'Privacy Policy',
     intro:
-      'How counter collects, uses, and protects café and customer data. We collect only what the product needs to run, and café owners control their customer information.',
+      'How KhaoPiyo collects, uses, and protects café and customer data. We collect only what the product needs to run, and café owners control their customer information.',
   },
   terms: {
     title: 'Terms & Conditions',
     intro:
-      'The terms governing use of counter. By creating a workspace you agree to acceptable use, billing, and account responsibilities described here.',
+      'The terms governing use of KhaoPiyo. By creating a workspace you agree to acceptable use, billing, and account responsibilities described here.',
   },
   cookies: {
     title: 'Cookie Policy',
     intro:
-      'counter uses only essential cookies for authentication and session management. We do not use advertising or cross-site tracking cookies.',
+      'KhaoPiyo uses only essential cookies for authentication and session management. We do not use advertising or cross-site tracking cookies.',
   },
 }
 
@@ -39,7 +39,7 @@ export default async function LegalPage({ params }: { params: Promise<{ doc: str
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-3xl items-center px-6">
           <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">
-            counter
+            KhaoPiyo
           </Link>
         </div>
       </header>

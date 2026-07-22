@@ -1,4 +1,4 @@
-# Deploying counter
+# Deploying KhaoPiyo
 
 Production host: **Vercel** (Next.js 16 App Router, server components, `proxy.ts`,
 Supabase SSR auth). Database: **Supabase** (already cloud-hosted, independent of the host).

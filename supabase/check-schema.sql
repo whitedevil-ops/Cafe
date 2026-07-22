@@ -71,7 +71,29 @@ with expected(kind, name, fix) as (values
   ('column',   'orders.cancel_reason',  '0017'),
   ('function', 'cancel_order',          '0017'),
   -- customer CRM segments (0018)
-  ('table',    'v_customer_stats',      '0018')
+  ('table',    'v_customer_stats',      '0018'),
+  -- platform operator panel (0019/0020)
+  ('column',   'cafes.verified',         '0019'),
+  ('column',   'cafes.status',           '0019'),
+  ('column',   'cafes.subscription_ends_at', '0019'),
+  ('function', 'is_cafe_member_any_status', '0019'),
+  ('table',    'platform_plans',         '0019'),
+  ('table',    'cafe_feature_overrides', '0019'),
+  ('function', 'cafe_has_feature',       '0019'),
+  ('table',    'operator_notes',         '0019'),
+  ('table',    'password_reset_log',     '0019'),
+  ('table',    'v_cafe_onboarding',      '0019'),
+  ('function', 'op_verify_cafe',         '0019'),
+  ('function', 'op_set_cafe_status',     '0019'),
+  ('function', 'op_change_plan',         '0019'),
+  ('function', 'op_extend_subscription', '0019'),
+  ('function', 'op_set_feature_override', '0019'),
+  ('function', 'op_add_operator_note',   '0019'),
+  ('function', 'op_platform_overview',   '0020'),
+  ('function', 'op_list_cafes',          '0020'),
+  ('function', 'op_get_cafe_detail',     '0020'),
+  ('function', 'op_cafe_health',         '0020'),
+  ('function', 'op_log_password_reset',  '0021')
 )
 select
   e.kind,

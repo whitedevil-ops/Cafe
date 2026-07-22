@@ -17,13 +17,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   title: {
-    default: "counter — the operating system for modern cafés",
-    template: "%s · counter",
+    default: "KhaoPiyo — the operating system for modern cafés",
+    template: "%s · KhaoPiyo",
   },
   description:
     "POS, QR ordering, customer loyalty, CRM, and café operations in one calm, fast platform. Built for Indian cafés.",
   openGraph: {
-    title: "counter — the operating system for modern cafés",
+    title: "KhaoPiyo — the operating system for modern cafés",
     description:
       "POS, QR ordering, customer loyalty, CRM, and café operations in one calm, fast platform.",
     type: "website",

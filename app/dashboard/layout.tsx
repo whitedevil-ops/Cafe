@@ -28,16 +28,44 @@ const groups: [string, [string, string][]][] = [
 ]
 const flatNav = groups.flatMap(([, items]) => items)
 
+const STATUS_MESSAGE: Record<string, string> = {
+  suspended: 'This café account has been suspended.',
+  disabled: 'This café account has been disabled.',
+  archived: 'This café account has been archived.',
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [cafe, myCafes] = await Promise.all([getCurrentCafe(), getMyCafes()])
   if (!cafe) redirect('/onboarding')
+
+  if (cafe.status !== 'active') {
+    return (
+      <div className="grid w-full min-h-dvh place-items-center bg-background px-6 text-center">
+        <div>
+          <p className="text-sm font-medium text-destructive">Account access paused</p>
+          <h1 className="mt-2 text-xl font-semibold text-foreground">
+            {STATUS_MESSAGE[cafe.status] ?? 'This café account is not currently active.'}
+          </h1>
+          {cafe.statusReason && (
+            <p className="mt-2 text-sm text-muted-foreground">Reason: {cafe.statusReason}</p>
+          )}
+          <p className="mt-2 text-sm text-muted-foreground">
+            Orders, POS, and staff access are paused until this is resolved. Contact support to continue.
+          </p>
+          <form action="/auth/signout" method="post" className="mt-6">
+            <button className="text-sm font-medium text-primary hover:underline">Sign out</button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex w-full min-h-dvh bg-background">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
         <div className="flex items-start justify-between px-2">
           <div className="min-w-0">
-            <p className="text-lg font-semibold tracking-tight text-foreground">counter</p>
+            <p className="text-lg font-semibold tracking-tight text-foreground">KhaoPiyo</p>
             <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{cafe.name}</p>
           </div>
           <NotificationBell cafeId={cafe.cafeId} />
@@ -72,7 +100,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-b border-border bg-surface px-5 py-3 md:hidden">
           <div className="flex items-center justify-between">
-            <span className="font-semibold tracking-tight text-foreground">counter</span>
+            <span className="font-semibold tracking-tight text-foreground">KhaoPiyo</span>
             <div className="flex items-center gap-1">
               <NotificationBell cafeId={cafe.cafeId} />
             </div>
