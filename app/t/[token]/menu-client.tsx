@@ -1,23 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { FoodCard, type QrItem } from '@/components/qr/food-card'
+import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
 
-export type PublicItem = {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  image_url: string | null
-  category_id: string | null
-  is_veg: boolean | null
-  is_bestseller: boolean
-  is_upsell: boolean
-  upsell_pitch: string | null
-}
-export type Variant = { id: string; menu_item_id: string; name: string; price_delta: number }
-export type Addon = { id: string; menu_item_id: string; name: string; price: number }
+export type PublicItem = QrItem
+export type Variant = QrVariant
+export type Addon = QrAddon
 
 // UPI collection is not enabled yet — no gateway is configured, and we don't
 // show payment options that can't actually complete. Flip when UPI integration
@@ -25,6 +17,8 @@ export type Addon = { id: string; menu_item_id: string; name: string; price: num
 const UPI_ENABLED = false
 
 const PHONE_RE = /^[6-9]\d{9}$/
+const NEW_ITEM_DAYS = 14
+const POPULAR = '__popular'
 
 type Line = {
   key: string
@@ -33,6 +27,7 @@ type Line = {
   variantId: string | null
   addonIds: string[]
   modLabel: string
+  note: string
   unitPrice: number
   qty: number
 }
@@ -49,6 +44,7 @@ export default function MenuClient({
   items,
   variants,
   addons,
+  popularIds,
 }: {
   token: string
   cafeName: string
@@ -61,6 +57,7 @@ export default function MenuClient({
   items: PublicItem[]
   variants: Variant[]
   addons: Addon[]
+  popularIds: string[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [cart, setCart] = useState<Line[]>([])
@@ -71,10 +68,41 @@ export default function MenuClient({
   const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter'; receiptToken: string | null } | null>(null)
   const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
-  const [customizing, setCustomizing] = useState<PublicItem | null>(null)
+  const [detail, setDetail] = useState<PublicItem | null>(null)
   const [reorderNote, setReorderNote] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [activeCat, setActiveCat] = useState<string>('__all')
 
   const upsellShown = useRef(false)
+  const upsellTaken = useRef<string | null>(null)
+
+  const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
+  const variantsByItem = useMemo(() => {
+    const m = new Map<string, Variant[]>()
+    variants.forEach((v) => m.set(v.menu_item_id, [...(m.get(v.menu_item_id) ?? []), v]))
+    return m
+  }, [variants])
+  const addonsByItem = useMemo(() => {
+    const m = new Map<string, Addon[]>()
+    addons.forEach((a) => m.set(a.menu_item_id, [...(m.get(a.menu_item_id) ?? []), a]))
+    return m
+  }, [addons])
+
+  const hasOptions = useCallback(
+    (id: string) => variantsByItem.has(id) || addonsByItem.has(id),
+    [variantsByItem, addonsByItem],
+  )
+
+  // "New" is only meaningful as a minority signal. When a café first onboards
+  // it bulk-imports its whole menu at once, which would otherwise badge every
+  // single item as new for two weeks — pure noise. If most of the menu would
+  // qualify, nothing is genuinely new, so the badge switches itself off.
+  const newItemIds = useMemo(() => {
+    const cutoff = Date.now() - NEW_ITEM_DAYS * 86400000
+    const fresh = items.filter((i) => new Date(i.created_at).getTime() > cutoff)
+    if (items.length === 0 || fresh.length / items.length > 0.3) return new Set<string>()
+    return new Set(fresh.map((i) => i.id))
+  }, [items])
 
   // A reorder handed over from "My orders". It arrives as item ids only —
   // prices come from the live menu here and are re-validated again by
@@ -96,12 +124,13 @@ export default function MenuClient({
         const chosen = addons.filter((a) => (entry.addon_ids ?? []).includes(a.id))
         const unitPrice = item.price + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
         lines.push({
-          key: `${item.id}|${variant?.id ?? ''}|${chosen.map((a) => a.id).sort().join(',')}`,
+          key: `${item.id}|${variant?.id ?? ''}|${chosen.map((a) => a.id).sort().join(',')}|`,
           itemId: item.id,
           name: item.name,
           variantId: variant?.id ?? null,
           addonIds: chosen.map((a) => a.id),
           modLabel: [variant?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', '),
+          note: '',
           unitPrice,
           qty: entry.qty,
         })
@@ -119,38 +148,59 @@ export default function MenuClient({
       // A corrupt payload should never break the menu — just ignore it.
     }
   }, [token, items, variants, addons])
-  const upsellTaken = useRef<string | null>(null)
-
-  const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
-  const variantsByItem = useMemo(() => {
-    const m = new Map<string, Variant[]>()
-    variants.forEach((v) => m.set(v.menu_item_id, [...(m.get(v.menu_item_id) ?? []), v]))
-    return m
-  }, [variants])
-  const addonsByItem = useMemo(() => {
-    const m = new Map<string, Addon[]>()
-    addons.forEach((a) => m.set(a.menu_item_id, [...(m.get(a.menu_item_id) ?? []), a]))
-    return m
-  }, [addons])
-
-  const hasOptions = (id: string) => variantsByItem.has(id) || addonsByItem.has(id)
 
   const cats = useMemo(() => {
     const withItems = categories.filter((c) => items.some((i) => i.category_id === c.id))
     const uncategorised = items.some((i) => !i.category_id)
-    return uncategorised ? [...withItems, { id: '__none', name: 'Other' }] : withItems
-  }, [categories, items])
+    const base = uncategorised ? [...withItems, { id: '__none', name: 'Other' }] : withItems
+    return popularIds.length >= 3 ? [{ id: POPULAR, name: 'Popular' }, ...base] : base
+  }, [categories, items, popularIds])
+
+  const searching = search.trim().length > 0
+  const catNameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name.toLowerCase()])), [categories])
+
+  // Search spans name, description and category name so "coffee" finds the
+  // whole section even when no single item is literally called coffee.
+  const searchResults = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return items.filter((i) => {
+      const cat = i.category_id ? (catNameById.get(i.category_id) ?? '') : ''
+      return (
+        i.name.toLowerCase().includes(q) ||
+        (i.description ?? '').toLowerCase().includes(q) ||
+        cat.includes(q)
+      )
+    })
+  }, [search, items, catNameById])
+
+  const sections = useMemo(() => {
+    if (searching) return []
+    const visible = activeCat === '__all' ? cats : cats.filter((c) => c.id === activeCat)
+    return visible
+      .map((cat) => ({
+        cat,
+        items:
+          cat.id === POPULAR
+            ? popularIds.map((id) => byId.get(id)).filter((i): i is PublicItem => Boolean(i))
+            : items.filter((i) => (cat.id === '__none' ? !i.category_id : i.category_id === cat.id)),
+      }))
+      .filter((s) => s.items.length > 0)
+  }, [searching, activeCat, cats, items, popularIds, byId])
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const count = cart.reduce((s, l) => s + l.qty, 0)
 
+  // Plain (no variant/add-on/note) quantity for a given item, which is what the
+  // card's inline stepper controls.
+  const plainQty = useCallback((id: string) => cart.find((l) => l.key === `${id}|||`)?.qty ?? 0, [cart])
+
   const upsell = useMemo(() => {
     if (count === 0 || subtotal < upsellThreshold) return null
     if (cart.some((l) => byId.get(l.itemId)?.is_upsell)) return null
-    const cand = items.filter((i) => i.is_upsell && !hasOptions(i.id))
+    const cand = items.filter((i) => i.is_upsell && i.available && !hasOptions(i.id))
     return cand.length ? cand.reduce((a, b) => (a.price <= b.price ? a : b)) : null
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count, subtotal, upsellThreshold, cart, items, byId])
+  }, [count, subtotal, upsellThreshold, cart, items, byId, hasOptions])
   if (upsell && step === 'cart') upsellShown.current = true
 
   function addLine(line: Line) {
@@ -161,43 +211,53 @@ export default function MenuClient({
     })
   }
   function changeQty(key: string, delta: number) {
-    setCart((c) =>
-      c
-        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
-        .filter((l) => l.qty > 0),
-    )
+    setCart((c) => c.map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0))
   }
 
   function addPlain(item: PublicItem, isUpsell = false) {
     if (isUpsell) upsellTaken.current = item.id
     addLine({
-      key: item.id,
+      key: `${item.id}|||`,
       itemId: item.id,
       name: item.name,
       variantId: null,
       addonIds: [],
       modLabel: '',
+      note: '',
       unitPrice: item.price,
       qty: 1,
     })
   }
 
-  function confirmCustom(item: PublicItem, variantId: string | null, addonIds: string[]) {
+  // Tapping Add on a card: straight in when there's nothing to choose,
+  // otherwise open the sheet. Tapping the card itself always opens the sheet.
+  function onCardAdd(item: PublicItem) {
+    if (hasOptions(item.id)) setDetail(item)
+    else addPlain(item)
+  }
+
+  function confirmDetail(
+    item: PublicItem,
+    { variantId, addonIds, note, qty }: { variantId: string | null; addonIds: string[]; note: string; qty: number },
+  ) {
     const v = variantId ? variantsByItem.get(item.id)?.find((x) => x.id === variantId) : null
     const chosen = (addonsByItem.get(item.id) ?? []).filter((a) => addonIds.includes(a.id))
     const unit = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
     const label = [v?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', ')
     addLine({
-      key: `${item.id}|${variantId ?? ''}|${[...addonIds].sort().join(',')}`,
+      // Note is part of the key so "no onions" and "extra spicy" stay separate
+      // lines instead of silently merging into one.
+      key: `${item.id}|${variantId ?? ''}|${[...addonIds].sort().join(',')}|${note}`,
       itemId: item.id,
       name: item.name,
       variantId,
       addonIds,
       modLabel: label,
+      note,
       unitPrice: unit,
-      qty: 1,
+      qty,
     })
-    setCustomizing(null)
+    setDetail(null)
   }
 
   async function place(method: 'upi' | 'counter') {
@@ -214,6 +274,7 @@ export default function MenuClient({
         qty: l.qty,
         variant_id: l.variantId,
         addon_ids: l.addonIds,
+        note: l.note || null,
       })),
       p_phone: phone || null,
       p_payment_method: method,
@@ -225,9 +286,7 @@ export default function MenuClient({
     const r = data as { short_code: string; total: number; receipt_token?: string }
     setPlaced({ code: r.short_code, total: r.total, method, receiptToken: r.receipt_token ?? null })
     setStep('done')
-    if (method === 'upi' && upiId) {
-      window.location.href = upiLink(r.short_code, r.total)
-    }
+    if (method === 'upi' && upiId) window.location.href = upiLink(r.short_code, r.total)
   }
 
   async function callWaiter() {
@@ -260,15 +319,16 @@ export default function MenuClient({
     return `upi://pay?${params.toString()}`
   }
 
+  // ── Confirmation ─────────────────────────────────────────────────────────
   if (step === 'done' && placed) {
     return (
-      <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+      <main className="mx-auto flex w-full min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-full bg-success-subtle text-2xl text-success">✓</div>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Order placed</h1>
           <p className="mt-1 text-muted-foreground">The kitchen has it. Table {tableLabel}.</p>
         </div>
-        <div className="w-full rounded-xl border border-border bg-surface p-6">
+        <div className="w-full rounded-2xl border border-border bg-surface p-6">
           <p className="text-sm text-muted-foreground">Order number</p>
           <p className="mt-1 text-4xl font-semibold text-foreground">{placed.code}</p>
           <p className="mt-4 border-t border-border pt-4 text-lg text-foreground">₹{placed.total}</p>
@@ -300,270 +360,258 @@ export default function MenuClient({
     )
   }
 
-  return (
-    <main className="mx-auto w-full min-h-dvh max-w-md bg-background pb-28">
-      {/* Two fixed rows rather than one flex row that only fits at wider widths
-          — the title + two pill buttons together are wider than a 320-374px
-          phone screen, which was overflowing the viewport at that breakpoint. */}
-      <header className="sticky top-0 z-10 border-b border-border bg-surface px-5 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          {cafeLogo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cafeLogo} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-          )}
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-foreground">{cafeName}</h1>
-            <p className="text-sm text-muted-foreground">Table {tableLabel}</p>
+  // ── Cart ─────────────────────────────────────────────────────────────────
+  if (step === 'cart') {
+    return (
+      <main className="mx-auto w-full min-h-dvh max-w-md bg-background p-5">
+        <button
+          onClick={() => setStep('menu')}
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+        >
+          <ArrowLeft size={15} /> Add more items
+        </button>
+
+        <ul className="overflow-hidden rounded-2xl border border-border bg-surface">
+          {cart.map((l) => (
+            <li key={l.key} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] text-foreground">{l.name}</p>
+                {l.modLabel && <p className="truncate text-[12px] text-muted-foreground">{l.modLabel}</p>}
+                {l.note && <p className="truncate text-[12px] italic text-muted-foreground">“{l.note}”</p>}
+                <p className="text-[13px] text-muted-foreground">₹{l.unitPrice} × {l.qty}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => changeQty(l.key, -1)} aria-label="Remove one" className="grid h-10 w-10 place-items-center text-lg text-muted-foreground">−</button>
+                <span className="w-4 text-center text-sm tabular-nums">{l.qty}</span>
+                <button onClick={() => changeQty(l.key, 1)} aria-label="Add one" className="grid h-10 w-10 place-items-center text-lg text-muted-foreground">+</button>
+                <span className="w-14 text-right text-[14px] font-medium text-foreground">₹{l.unitPrice * l.qty}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {upsell && (
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary bg-primary-subtle p-4">
+            <div className="min-w-0">
+              <p className="font-medium text-primary">{upsell.upsell_pitch ?? `Add ${upsell.name}`}</p>
+              <p className="text-sm text-primary">{upsell.name} · ₹{upsell.price}</p>
+            </div>
+            <button onClick={() => addPlain(upsell, true)} className="shrink-0 rounded-[var(--radius)] bg-primary px-5 py-2 text-sm font-medium text-primary-foreground">Add</button>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <label htmlFor="phone" className="text-sm text-muted-foreground">
+            Mobile number <span className="text-muted-foreground">— your bill is sent here</span>
+          </label>
+          <div className="mt-2 flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
+            <span className="pl-4 pr-2 text-muted-foreground">+91</span>
+            <input
+              id="phone" type="tel" inputMode="numeric" required value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="98765 43210"
+              className="h-12 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none"
+            />
           </div>
         </div>
-        <div className="mt-2.5 flex gap-2">
-          <button
-            onClick={callWaiter}
-            disabled={assistBusy}
-            className="min-h-11 flex-1 rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground disabled:opacity-50 sm:flex-none"
-          >
-            Call waiter
-          </button>
-          <button
-            onClick={requestBill}
-            disabled={assistBusy}
-            className="min-h-11 flex-1 rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground disabled:opacity-50 sm:flex-none"
-          >
-            Request bill
-          </button>
-          <Link
-            href={`/t/${token}/orders`}
-            className="flex min-h-11 flex-1 items-center justify-center rounded-full border border-border-strong px-3 text-[13px] font-medium text-foreground sm:flex-none"
-          >
-            My orders
-          </Link>
+
+        {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
+
+        <div className="mt-6 flex items-baseline justify-between border-t border-border pt-4">
+          <span className="text-muted-foreground">Total</span>
+          <span className="text-2xl font-semibold text-foreground">₹{subtotal}</span>
         </div>
-      </header>
+
+        <div className="mt-4 space-y-3">
+          {UPI_ENABLED && upiId && (
+            <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
+              {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
+            </button>
+          )}
+          <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
+            {placing ? 'Placing…' : 'Place order — pay at the counter'}
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  // ── Menu ─────────────────────────────────────────────────────────────────
+  return (
+    <main className="w-full min-h-dvh bg-background pb-28">
+      {/* Café identity scrolls away so the sticky strip below stays short —
+          on a 640px-tall phone every sticky pixel is menu you can't see. */}
+      <div className="mx-auto w-full max-w-6xl px-4 pb-3 pt-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          {cafeLogo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cafeLogo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[19px] font-semibold leading-tight tracking-tight text-foreground">{cafeName}</h1>
+            <p className="text-[13px] text-muted-foreground">Table {tableLabel}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button onClick={callWaiter} disabled={assistBusy} aria-label="Call waiter" title="Call waiter" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-50">
+              <BellRing size={16} />
+            </button>
+            <button onClick={requestBill} disabled={assistBusy} aria-label="Request bill" title="Request bill" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-50">
+              <ReceiptText size={16} />
+            </button>
+            <Link href={`/t/${token}/orders`} aria-label="My orders" title="My orders" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground">
+              <ClipboardList size={16} />
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky: search + categories only. */}
+      <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-2.5 sm:px-6">
+          <div className="relative">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search dishes…"
+              aria-label="Search dishes"
+              className="h-11 w-full rounded-full border border-border-strong bg-surface pl-10 pr-10 text-[14px] text-foreground placeholder:text-muted-foreground"
+            />
+            {searching && (
+              <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {!searching && cats.length > 1 && (
+            <div className="-mx-4 mt-2.5 flex gap-2 overflow-x-auto px-4 pb-2.5 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <CatChip label="All" active={activeCat === '__all'} onClick={() => setActiveCat('__all')} />
+              {cats.map((c) => (
+                <CatChip key={c.id} label={c.name} active={activeCat === c.id} onClick={() => setActiveCat(c.id)} />
+              ))}
+            </div>
+          )}
+          {(searching || cats.length <= 1) && <div className="h-2.5" />}
+        </div>
+      </div>
 
       {reorderNote && (
-        <div className="mx-auto max-w-md px-5 pt-3">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
           <p className="rounded-[var(--radius)] bg-primary-subtle px-3 py-2 text-[12.5px] text-primary">{reorderNote}</p>
         </div>
       )}
 
       {assist && (
-        <div className="fixed inset-x-0 top-16 z-20 mx-auto max-w-md px-5">
+        <div className="fixed inset-x-0 top-16 z-30 mx-auto max-w-md px-5">
           <div className="rounded-[var(--radius)] bg-foreground px-4 py-2.5 text-center text-[13px] font-medium text-background shadow-lg">
             {assist === 'waiter' ? "We've notified the staff — someone's on the way." : 'Bill requested — your bill is being prepared.'}
           </div>
         </div>
       )}
 
-      {step === 'menu' &&
-        cats.map((cat) => {
-          const catItems = items.filter((i) => (cat.id === '__none' ? !i.category_id : i.category_id === cat.id))
-          if (!catItems.length) return null
-          return (
-            <section key={cat.id}>
-              <h2 className="px-5 pt-6 pb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">{cat.name}</h2>
-              <ul>
-                {catItems.map((item) => {
-                  const plainQty = cart.find((l) => l.key === item.id)?.qty ?? 0
-                  const opt = hasOptions(item.id)
-                  return (
-                    <li key={item.id} className="flex items-center justify-between gap-4 border-b border-border bg-surface px-5 py-4">
-                      {item.image_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          loading="lazy"
-                          className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-foreground">{item.name}</p>
-                          {item.is_bestseller && <span className="rounded bg-warning-subtle px-1.5 py-0.5 text-[11px] font-medium text-warning">Bestseller</span>}
-                        </div>
-                        {item.description && <p className="truncate text-[13px] text-muted-foreground">{item.description}</p>}
-                        <p className="text-sm text-muted-foreground">₹{item.price}{opt ? '+' : ''}</p>
-                      </div>
-                      {opt || plainQty === 0 ? (
-                        <button onClick={() => (opt ? setCustomizing(item) : addPlain(item))} className="min-h-11 shrink-0 rounded-[var(--radius)] border border-primary bg-primary-subtle px-5 text-sm font-medium text-primary">
-                          Add
-                        </button>
-                      ) : (
-                        <div className="flex shrink-0 items-center gap-1 rounded-[var(--radius)] border border-primary bg-primary-subtle px-1">
-                          <button onClick={() => changeQty(item.id, -1)} aria-label={`Remove one ${item.name}`} className="grid h-11 w-11 place-items-center text-lg text-primary">−</button>
-                          <span className="w-4 text-center text-sm font-medium text-primary">{plainQty}</span>
-                          <button onClick={() => addPlain(item)} aria-label={`Add one ${item.name}`} className="grid h-11 w-11 place-items-center text-lg text-primary">+</button>
-                        </div>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        {searching ? (
+          searchResults.length === 0 ? (
+            <div className="py-20 text-center">
+              <p className="text-[15px] font-medium text-foreground">No dishes match “{search.trim()}”</p>
+              <p className="mt-1 text-[13.5px] text-muted-foreground">Try a different word, or browse the categories.</p>
+            </div>
+          ) : (
+            <section className="pt-5">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+              </h2>
+              <Grid>
+                {searchResults.map((item, i) => (
+                  <FoodCard
+                    key={item.id}
+                    item={item}
+                    qty={plainQty(item.id)}
+                    isNew={newItemIds.has(item.id)}
+                    priority={i < 4}
+                    onOpen={() => setDetail(item)}
+                    onAdd={() => onCardAdd(item)}
+                    onDecrement={() => changeQty(`${item.id}|||`, -1)}
+                  />
+                ))}
+              </Grid>
             </section>
           )
-        })}
+        ) : (
+          sections.map(({ cat, items: catItems }) => (
+            <section key={cat.id} className="pt-6">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{cat.name}</h2>
+              <Grid>
+                {catItems.map((item, i) => (
+                  <FoodCard
+                    key={item.id}
+                    item={item}
+                    qty={plainQty(item.id)}
+                    isNew={newItemIds.has(item.id)}
+                    priority={i < 4}
+                    onOpen={() => setDetail(item)}
+                    onAdd={() => onCardAdd(item)}
+                    onDecrement={() => changeQty(`${item.id}|||`, -1)}
+                  />
+                ))}
+              </Grid>
+            </section>
+          ))
+        )}
+      </div>
 
-      {step === 'cart' && (
-        <div className="p-5">
-          <button onClick={() => setStep('menu')} className="mb-4 text-sm text-muted-foreground">← Add more items</button>
-          <ul className="overflow-hidden rounded-xl border border-border bg-surface">
-            {cart.map((l) => (
-              <li key={l.key} className="flex items-center justify-between gap-4 border-b border-border px-4 py-3 last:border-0">
-                <div className="min-w-0">
-                  <p className="truncate text-foreground">{l.name}</p>
-                  {l.modLabel && <p className="truncate text-[12px] text-muted-foreground">{l.modLabel}</p>}
-                  <p className="text-sm text-muted-foreground">₹{l.unitPrice} × {l.qty}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button onClick={() => changeQty(l.key, -1)} aria-label="Remove one" className="grid h-11 w-11 place-items-center text-lg text-muted-foreground">−</button>
-                  <span className="w-4 text-center text-sm">{l.qty}</span>
-                  <button onClick={() => changeQty(l.key, 1)} aria-label="Add one" className="grid h-11 w-11 place-items-center text-lg text-muted-foreground">+</button>
-                  <span className="w-14 text-right text-foreground">₹{l.unitPrice * l.qty}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {upsell && (
-            <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-primary bg-primary-subtle p-4">
-              <div className="min-w-0">
-                <p className="font-medium text-primary">{upsell.upsell_pitch ?? `Add ${upsell.name}`}</p>
-                <p className="text-sm text-primary">{upsell.name} · ₹{upsell.price}</p>
-              </div>
-              <button onClick={() => addPlain(upsell, true)} className="shrink-0 rounded-[var(--radius)] bg-primary px-5 py-2 text-sm font-medium text-primary-foreground">Add</button>
-            </div>
-          )}
-
-          <div className="mt-6">
-            <label htmlFor="phone" className="text-sm text-muted-foreground">
-              Mobile number <span className="text-muted-foreground">— your bill is sent here</span>
-            </label>
-            <div className="mt-2 flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
-              <span className="pl-4 pr-2 text-muted-foreground">+91</span>
-              <input id="phone" type="tel" inputMode="numeric" required value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="98765 43210"
-                className="h-11 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none" />
-            </div>
-          </div>
-
-          {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
-
-          <div className="mt-6 flex items-baseline justify-between border-t border-border pt-4">
-            <span className="text-muted-foreground">Total</span>
-            <span className="text-2xl font-semibold text-foreground">₹{subtotal}</span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {UPI_ENABLED && upiId && (
-              <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
-                {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
-              </button>
-            )}
-            <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
-              {placing ? 'Placing…' : 'Place order — pay at the counter'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 'menu' && count > 0 && (
-        <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md border-t border-border bg-surface p-4">
-          <button onClick={() => setStep('cart')} className="flex w-full items-center justify-between rounded-[var(--radius)] bg-foreground px-5 py-4 font-medium text-background">
-            <span>{count} item{count > 1 ? 's' : ''} · ₹{subtotal}</span>
-            <span>View cart →</span>
+      {/* Sticky cart — appears the moment something is added, so nobody has to
+          hunt for a cart icon. */}
+      {count > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:px-6">
+          <button
+            onClick={() => setStep('cart')}
+            className="mx-auto flex w-full max-w-md items-center justify-between rounded-full bg-primary px-5 py-3.5 text-primary-foreground shadow-[var(--shadow-lg)] transition-transform active:scale-[0.99]"
+          >
+            <span className="text-[13.5px] font-medium">
+              {count} item{count > 1 ? 's' : ''} · ₹{subtotal}
+            </span>
+            <span className="text-[14px] font-semibold">View cart →</span>
           </button>
         </div>
       )}
 
-      {customizing && (
-        <Customizer
-          item={customizing}
-          variants={variantsByItem.get(customizing.id) ?? []}
-          addons={addonsByItem.get(customizing.id) ?? []}
-          onCancel={() => setCustomizing(null)}
-          onAdd={confirmCustom}
+      {detail && (
+        <ItemSheet
+          item={detail}
+          variants={variantsByItem.get(detail.id) ?? []}
+          addons={addonsByItem.get(detail.id) ?? []}
+          onClose={() => setDetail(null)}
+          onAdd={(args) => confirmDetail(detail, args)}
         />
       )}
     </main>
   )
 }
 
-function Customizer({
-  item,
-  variants,
-  addons,
-  onCancel,
-  onAdd,
-}: {
-  item: PublicItem
-  variants: Variant[]
-  addons: Addon[]
-  onCancel: () => void
-  onAdd: (item: PublicItem, variantId: string | null, addonIds: string[]) => void
-}) {
-  const [variantId, setVariantId] = useState<string | null>(variants[0]?.id ?? null)
-  const [addonIds, setAddonIds] = useState<string[]>([])
-
-  const v = variants.find((x) => x.id === variantId)
-  const chosen = addons.filter((a) => addonIds.includes(a.id))
-  const price = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
-
+function Grid({ children }: { children: React.ReactNode }) {
+  // Single column below 380px: at 360px a 2-up grid leaves ~160px per card,
+  // which crushes the name, price and Add button together. Everywhere else
+  // scales up to 5 columns rather than stretching phone cards across a desktop.
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6">
-      {/* max-h + overflow-y-auto: an item with several variants and add-ons can
-          get taller than a small phone's viewport — without this the Add
-          button could be pushed off-screen with no way to scroll to it. */}
-      <div className="flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-2xl">
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
-
-          {variants.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[13px] font-medium text-foreground">Choose one</p>
-              <div className="mt-2 space-y-2">
-                {variants.map((vr) => (
-                  <label key={vr.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
-                    <span className="flex items-center gap-2">
-                      <input type="radio" name="variant" checked={variantId === vr.id} onChange={() => setVariantId(vr.id)} />
-                      {vr.name}
-                    </span>
-                    <span className="text-muted-foreground">₹{item.price + vr.price_delta}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {addons.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[13px] font-medium text-foreground">Add-ons</p>
-              <div className="mt-2 space-y-2">
-                {addons.map((a) => (
-                  <label key={a.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={addonIds.includes(a.id)}
-                        onChange={(e) => setAddonIds((ids) => (e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id)))}
-                      />
-                      {a.name}
-                    </span>
-                    <span className="text-muted-foreground">+₹{a.price}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex shrink-0 gap-2 border-t border-border p-6">
-          <button onClick={onCancel} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground">Cancel</button>
-          <button onClick={() => onAdd(item, variantId, addonIds)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground">
-            Add · ₹{price}
-          </button>
-        </div>
-      </div>
+    <div className="mt-3 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {children}
     </div>
+  )
+}
+
+function CatChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`h-9 shrink-0 whitespace-nowrap rounded-full border px-4 text-[13px] font-medium transition-colors ${
+        active
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-border-strong bg-surface text-foreground'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
