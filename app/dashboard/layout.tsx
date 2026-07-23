@@ -14,6 +14,7 @@ const groups: [string, [string, string][]][] = [
     ['Dashboard', '/dashboard'],
     ['POS', '/dashboard/pos'],
     ['Live tables', '/dashboard/tables'],
+    ['Shift & cash', '/dashboard/shift'],
     ['Kitchen', '/dashboard/kitchen'],
   ]],
   ['Management', [

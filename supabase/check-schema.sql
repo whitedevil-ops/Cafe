@@ -121,7 +121,16 @@ with expected(kind, name, fix) as (values
   ('table',    'refund_items',            '0028'),
   ('function', 'refund_order',            '0028'),
   ('function', 'order_refunded_total',    '0028'),
-  ('function', 'order_settlement',        '0028')
+  ('function', 'order_settlement',        '0028'),
+  -- shift + cash register (0029)
+  ('table',    'cash_shifts',             '0029'),
+  ('table',    'cash_movements',          '0029'),
+  ('function', 'open_shift',              '0029'),
+  ('function', 'close_shift',             '0029'),
+  ('function', 'record_cash_movement',    '0029'),
+  ('function', 'shift_summary',           '0029'),
+  ('function', 'current_shift',           '0029'),
+  ('function', 'recent_shifts',           '0029')
 )
 select
   e.kind,
