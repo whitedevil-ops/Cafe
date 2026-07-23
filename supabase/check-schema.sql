@@ -152,7 +152,26 @@ with expected(kind, name, fix) as (values
   ('table',    'recipe_items',                  '0036'),
   ('function', 'menu_item_costs',               '0036'),
   ('column',   'cafes.auto_deduct_stock',       '0036'),
-  ('function', 'deduct_stock_for_order_item',   '0036')
+  ('function', 'deduct_stock_for_order_item',   '0036'),
+  -- GST configuration + per-item tax (0037/0038)
+  ('column',   'cafes.gst_registered',          '0037'),
+  ('column',   'cafes.legal_name',              '0037'),
+  ('column',   'cafes.trade_name',              '0037'),
+  ('column',   'cafes.state_code',              '0037'),
+  ('column',   'cafes.invoice_prefix',          '0037'),
+  ('column',   'cafes.tax_inclusive',           '0037'),
+  ('column',   'menu_items.hsn_sac',            '0037'),
+  ('column',   'order_items.tax_percent',       '0037'),
+  ('column',   'order_items.taxable_value',     '0037'),
+  ('column',   'order_items.tax_amount',        '0037'),
+  ('column',   'order_items.hsn_sac',           '0037'),
+  ('function', 'is_valid_gstin',                '0037'),
+  ('function', 'apply_order_taxes',             '0037'),
+  ('function', 'snapshot_order_item_tax',       '0037'),
+  -- central bills module (0039)
+  ('function', 'bill_status',                   '0039'),
+  ('function', 'list_bills',                    '0039'),
+  ('function', 'bill_detail',                   '0039')
 )
 select
   e.kind,

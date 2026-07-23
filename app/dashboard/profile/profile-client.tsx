@@ -6,6 +6,7 @@ import { uploadCafeLogo } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { GstPanel } from './gst-panel'
 
 export type CafeProfile = {
   name: string
@@ -16,6 +17,12 @@ export type CafeProfile = {
   website: string
   gstin: string
   gst_sac_code: string
+  gst_registered: boolean
+  legal_name: string
+  trade_name: string
+  state_code: string
+  invoice_prefix: string
+  tax_inclusive: boolean
   tax_percent: number
   service_charge: number
   address: string
@@ -73,9 +80,21 @@ export default function ProfileClient({
 
   async function save() {
     const gstin = form.gstin.trim().toUpperCase()
-    if (gstin && !GSTIN_RE.test(gstin)) {
-      setError('GSTIN format looks invalid (e.g. 06AABCB1234F1Z5). Format check only — it does not verify official registration.')
-      return
+    // Only enforced when the café says it IS registered — an unregistered
+    // café must not be blocked by a field that doesn't apply to it.
+    if (form.gst_registered) {
+      if (!gstin) {
+        setError('A GSTIN is required for a GST-registered café. Choose "Not registered" if you are not.')
+        return
+      }
+      if (!GSTIN_RE.test(gstin)) {
+        setError('GSTIN format looks invalid (e.g. 06AABCB1234F1Z5). Format check only — it does not verify official registration.')
+        return
+      }
+      if (!form.legal_name.trim()) {
+        setError('Legal business name is required on a GST tax invoice.')
+        return
+      }
     }
     setBusy(true)
     setError(null)
@@ -89,6 +108,12 @@ export default function ProfileClient({
       website: form.website.trim() || null,
       gstin: gstin || null,
       gst_sac_code: form.gst_sac_code.trim() || '996331',
+      gst_registered: form.gst_registered,
+      legal_name: form.legal_name.trim() || null,
+      trade_name: form.trade_name.trim() || null,
+      state_code: form.state_code.trim() || (gstin ? gstin.slice(0, 2) : null),
+      invoice_prefix: form.invoice_prefix.trim() || 'INV',
+      tax_inclusive: form.tax_inclusive,
       tax_percent: Math.min(100, Math.max(0, Number(form.tax_percent) || 0)),
       service_charge: Math.min(100, Math.max(0, Number(form.service_charge) || 0)),
       address: form.address.trim() || null,
@@ -200,35 +225,18 @@ export default function ProfileClient({
           </div>
         </section>
 
-        {/* Business & bills */}
+        {/* Business & GST — its own section so tax config is discoverable
+            instead of buried among unrelated profile fields. */}
+        <GstPanel
+          value={form}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+          disabled={dis}
+        />
+
+        {/* Billing settings */}
         <section className="rounded-xl border border-border bg-surface p-5">
-          <h2 className="text-sm font-medium text-foreground">Business &amp; bills</h2>
-          <div className="mt-4 space-y-4">
-            <Input
-              label="GSTIN"
-              placeholder="06AABCB1234F1Z5"
-              value={form.gstin}
-              onChange={set('gstin')}
-              disabled={dis}
-              hint="Format check only. Set this to turn on GST tax invoices (invoice number, CGST/SGST split) on the customer bill — leave blank for a plain receipt."
-            />
-            {form.gstin && (
-              <Input
-                label="SAC code"
-                placeholder="996331"
-                value={form.gst_sac_code}
-                onChange={set('gst_sac_code')}
-                disabled={dis}
-                hint="996331 (restaurant/café service) is correct for almost every café — only change this if your accountant tells you to."
-              />
-            )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Tax %" type="number" min={0} max={100} value={String(form.tax_percent)}
-                onChange={(e) => setForm((f) => ({ ...f, tax_percent: Number(e.target.value) }))} disabled={dis}
-                hint="Applied to every order's subtotal, computed server-side." />
-              <Input label="Service charge %" type="number" min={0} max={100} value={String(form.service_charge)}
-                onChange={(e) => setForm((f) => ({ ...f, service_charge: Number(e.target.value) }))} disabled={dis} />
-            </div>
+          <h2 className="text-sm font-medium text-foreground">Billing settings</h2>
+          <div className="mt-4">
             <Input label="Receipt footer" placeholder="Thank you for visiting!" value={form.receipt_footer} onChange={set('receipt_footer')} disabled={dis} />
           </div>
         </section>

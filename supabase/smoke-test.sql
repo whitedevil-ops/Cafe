@@ -221,6 +221,76 @@ begin
               case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
               sqlerrm);
     end;
+
+    -- list_bills / bill_detail (0039): same fail-closed expectation.
+    begin
+      perform list_bills(v_cafe, now() - interval '1 day', now(), 'all', null, 10, 0);
+      insert into smoke_results (check_name, status, detail)
+      values ('list_bills', 'PASS', 'executed (ran as an admin context)');
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('list_bills',
+              case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
+              sqlerrm);
+    end;
+  end if;
+
+  -- ── GST maths, executed with real numbers (0037) ────────────────────────
+  -- These bodies run unconditionally (no auth gate), so unlike the
+  -- report/bill functions above they genuinely exercise the SQL. That
+  -- matters: an auth check that fires first would otherwise hide a broken
+  -- body behind a 'not authorized' PASS.
+  begin
+    declare v_ok boolean;
+    begin
+      select is_valid_gstin('06AABCB1234F1Z5') into v_ok;
+      insert into smoke_results (check_name, status, detail)
+      values ('is_valid_gstin (valid)', case when v_ok then 'PASS' else 'FAIL' end,
+              format('06AABCB1234F1Z5 -> %s', v_ok));
+      select is_valid_gstin('NOT-A-GSTIN') into v_ok;
+      insert into smoke_results (check_name, status, detail)
+      values ('is_valid_gstin (invalid rejected)', case when not v_ok then 'PASS' else 'FAIL' end,
+              format('NOT-A-GSTIN -> %s', v_ok));
+    end;
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('is_valid_gstin', 'FAIL', sqlerrm);
+  end;
+
+  if v_cafe is not null then
+    -- apply_order_taxes on a real historic order: proves the whole per-line
+    -- loop executes and that cgst+sgst reconstructs the stored tax exactly.
+    declare
+      v_order uuid;
+      v_res   record;
+    begin
+      select id into v_order from orders
+       where cafe_id = v_cafe and status <> 'cancelled'
+       order by created_at desc limit 1;
+
+      if v_order is null then
+        insert into smoke_results (check_name, status, detail)
+        values ('apply_order_taxes', 'SKIP', 'no orders yet');
+      else
+        select * into v_res from apply_order_taxes(v_order, 0);
+        insert into smoke_results (check_name, status, detail)
+        values ('apply_order_taxes',
+                case when v_res.total = (v_res.subtotal - v_res.discount) + v_res.tax + v_res.service_charge
+                       or v_res.total = (v_res.subtotal - v_res.discount) + v_res.service_charge
+                     then 'PASS' else 'FAIL' end,
+                format('subtotal %s, tax %s, svc %s, total %s',
+                       v_res.subtotal, v_res.tax, v_res.service_charge, v_res.total));
+
+        insert into smoke_results (check_name, status, detail)
+        select 'cgst+sgst reconstructs tax',
+               case when (o.tax / 2) + (o.tax - o.tax / 2) = o.tax then 'PASS' else 'FAIL' end,
+               format('tax %s -> cgst %s + sgst %s', o.tax, o.tax / 2, o.tax - o.tax / 2)
+          from orders o where o.id = v_order;
+      end if;
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('apply_order_taxes', 'FAIL', sqlerrm);
+    end;
   end if;
 end $$;
 

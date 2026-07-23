@@ -205,10 +205,10 @@ export default function DashboardClient({
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border bg-surface p-5">
+          <Link key={label} href="/dashboard/bills" className="rounded-xl border border-border bg-surface p-5 transition-colors hover:bg-surface-subtle">
             <p className="text-[13px] text-muted-foreground">{label}</p>
             <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-          </div>
+          </Link>
         ))}
       </div>
 

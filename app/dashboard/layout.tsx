@@ -18,6 +18,7 @@ function buildGroups(cashEnabled: boolean): [string, [string, string][]][] {
       ['Dashboard', '/dashboard'],
       ['POS', '/dashboard/pos'],
       ['Live tables', '/dashboard/tables'],
+      ['Bills', '/dashboard/bills'],
       ...(cashEnabled ? ([['Shift & cash', '/dashboard/shift']] as [string, string][]) : []),
       ['Kitchen', '/dashboard/kitchen'],
     ]],

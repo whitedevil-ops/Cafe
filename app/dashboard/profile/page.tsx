@@ -20,7 +20,7 @@ export default async function CafeProfilePage() {
   const [{ data }, { data: settings }] = await Promise.all([
     supabase
       .from('cafes')
-      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, tax_percent, service_charge, address, city, state, pincode, dine_in, takeaway')
+      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, address, city, state, pincode, dine_in, takeaway')
       .eq('id', cafe.cafeId)
       .single(),
     supabase.from('cafe_settings').select('hours, receipt').eq('cafe_id', cafe.cafeId).maybeSingle(),
@@ -35,6 +35,12 @@ export default async function CafeProfilePage() {
     website: data?.website ?? '',
     gstin: data?.gstin ?? '',
     gst_sac_code: data?.gst_sac_code ?? '996331',
+    gst_registered: data?.gst_registered ?? false,
+    legal_name: data?.legal_name ?? '',
+    trade_name: data?.trade_name ?? '',
+    state_code: data?.state_code ?? '',
+    invoice_prefix: data?.invoice_prefix ?? 'INV',
+    tax_inclusive: data?.tax_inclusive ?? false,
     tax_percent: Number(data?.tax_percent ?? 0),
     service_charge: Number(data?.service_charge ?? 0),
     address: data?.address ?? '',
