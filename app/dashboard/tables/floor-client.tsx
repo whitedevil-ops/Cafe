@@ -8,6 +8,8 @@ import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 import { RefundDialog, type RefundableItem } from '@/components/orders/refund-dialog'
 import { businessDayStart } from '@/lib/datetime'
 import { byTableLabel } from '@/lib/table-sort'
+import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
+import { QuickAddSheet, type MenuCategory, type MenuItem, type MenuVariant, type MenuAddon } from '@/components/waiter/quick-add-sheet'
 
 export type FloorTable = {
   id: string
@@ -56,10 +58,12 @@ export default function FloorClient({
   cafeId,
   timezone,
   initialTables,
+  menu,
 }: {
   cafeId: string
   timezone: string
   initialTables: FloorTable[]
+  menu: { categories: MenuCategory[]; items: MenuItem[]; variants: MenuVariant[]; addons: MenuAddon[] }
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -93,6 +97,9 @@ export default function FloorClient({
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
   selectedRef.current = selected
+  const [quickAdding, setQuickAdding] = useState(false)
+  const [quickAddSubmitting, setQuickAddSubmitting] = useState(false)
+  const [quickAddError, setQuickAddError] = useState<string | null>(null)
 
   const poll = useCallback(async () => {
     const [{ data: tbls, error: tblErr }, { data: sess, error: sessErr }] = await Promise.all([
@@ -181,7 +188,18 @@ export default function FloorClient({
     }
   }, [supabase, cafeId, timezone])
 
+  // Realtime is a supplement, not a replacement: a new order, a call-waiter,
+  // or a bill request from another device shows up instantly instead of
+  // waiting up to 4s. The interval below keeps running underneath it as the
+  // backstop that guarantees the floor is never silently stale.
+  useRealtimeRefresh(supabase, 'orders', cafeId, poll)
+  useRealtimeRefresh(supabase, 'table_sessions', cafeId, poll)
+  useRealtimeRefresh(supabase, 'notifications', cafeId, poll)
+
   useEffect(() => {
+    // poll() is async and only calls setState after its own network
+    // round-trip completes — not a synchronous render-phase update.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll()
     const p = setInterval(poll, 4000)
     const t = setInterval(() => tick((n) => n + 1), 30000)
@@ -306,6 +324,28 @@ export default function FloorClient({
     const to = t.status === 'reserved' ? 'available' : 'reserved'
     setTables((list) => list.map((x) => (x.id === t.id ? { ...x, status: to } : x)))
     await supabase.from('cafe_tables').update({ status: to }).eq('id', t.id)
+  }
+
+  async function submitQuickAdd(
+    tableId: string,
+    lines: { item_id: string; qty: number; variant_id: string | null; addon_ids: string[] }[],
+  ) {
+    setQuickAddSubmitting(true)
+    setQuickAddError(null)
+    // Same canonical write path as the POS and the customer QR menu — a
+    // waiter adding items tableside is not a separate order engine, just a
+    // third caller of the one that already exists.
+    const { error } = await supabase.rpc('staff_place_order', {
+      p_cafe_id: cafeId,
+      p_items: lines,
+      p_order_type: 'dine_in',
+      p_table_id: tableId,
+    })
+    setQuickAddSubmitting(false)
+    if (error) return setQuickAddError(error.message)
+    setQuickAdding(false)
+    toast('Added to the kitchen.')
+    void poll()
   }
 
   async function acknowledgeAttention(tableId: string) {
@@ -475,13 +515,21 @@ export default function FloorClient({
             )}
 
             {!selSession && (
-              <button onClick={() => toggleReserve(selTable)} className="mt-4 min-h-11 w-full rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground hover:bg-surface-subtle">
-                {selTable.status === 'reserved' ? 'Remove reservation' : 'Mark reserved'}
-              </button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => { setQuickAddError(null); setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+                  Take order
+                </button>
+                <button onClick={() => toggleReserve(selTable)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground hover:bg-surface-subtle">
+                  {selTable.status === 'reserved' ? 'Remove reservation' : 'Mark reserved'}
+                </button>
+              </div>
             )}
 
             {selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => { setQuickAddError(null); setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+                  Add items
+                </button>
                 <button onClick={() => setMoving((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">
                   Move table
                 </button>
@@ -662,6 +710,20 @@ export default function FloorClient({
           error={cancelError}
           onClose={() => setCancelling(null)}
           onConfirm={confirmCancel}
+        />
+      )}
+
+      {quickAdding && selTable && (
+        <QuickAddSheet
+          tableLabel={selTable.label}
+          categories={menu.categories}
+          items={menu.items}
+          variants={menu.variants}
+          addons={menu.addons}
+          submitting={quickAddSubmitting}
+          error={quickAddError}
+          onClose={() => setQuickAdding(false)}
+          onSubmit={(lines) => submitQuickAdd(selTable.id, lines)}
         />
       )}
     </div>
