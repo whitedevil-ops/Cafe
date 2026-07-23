@@ -233,6 +233,18 @@ begin
               case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
               sqlerrm);
     end;
+
+    -- outstanding_summary (0042): same fail-closed expectation.
+    begin
+      perform outstanding_summary(v_cafe, now() - interval '1 day', now());
+      insert into smoke_results (check_name, status, detail)
+      values ('outstanding_summary', 'PASS', 'executed (ran as an admin context)');
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('outstanding_summary',
+              case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
+              sqlerrm);
+    end;
   end if;
 
   -- ── GST maths, executed with real numbers (0037) ────────────────────────

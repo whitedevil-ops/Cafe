@@ -48,6 +48,7 @@ export default function DashboardClient({
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState(initialData)
   const [lastPolledAt, setLastPolledAt] = useState<Date | null>(null)
+  const [money, setMoney] = useState<{ collected: number; outstanding: number; refunded: number; unpaid_orders: number } | null>(null)
 
   const poll = useCallback(async () => {
     const dayStart = businessDayStartISO(timezone)
@@ -114,6 +115,22 @@ export default function DashboardClient({
     const p = setInterval(poll, 30000)
     return () => clearInterval(p)
   }, [poll])
+
+  // Money today: collected vs still-outstanding vs refunded. Its own fetch so
+  // a payments RPC hiccup can never take down the rest of the command centre.
+  useEffect(() => {
+    let alive = true
+    const run = async () => {
+      const dayStart = businessDayStartISO(timezone)
+      const { data: sum } = await supabase.rpc('outstanding_summary', {
+        p_cafe_id: cafeId, p_from: dayStart, p_to: new Date().toISOString(),
+      })
+      if (alive && sum) setMoney(sum as typeof money)
+    }
+    void run()
+    const id = setInterval(run, 30000)
+    return () => { alive = false; clearInterval(id) }
+  }, [supabase, cafeId, timezone])
 
   const topCancelReason = useMemo(() => {
     if (data.cancelledReasons.length === 0) return null
@@ -211,6 +228,24 @@ export default function DashboardClient({
           </Link>
         ))}
       </div>
+
+      {money && (
+        <div className="mt-4 grid grid-cols-3 gap-4">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-[12.5px] text-muted-foreground">Collected today</p>
+            <p className="mt-0.5 text-xl font-semibold text-success">₹{money.collected.toLocaleString('en-IN')}</p>
+          </div>
+          <Link href="/dashboard/bills?payment=unpaid" className="rounded-xl border border-border bg-surface p-4 transition-colors hover:bg-surface-subtle">
+            <p className="text-[12.5px] text-muted-foreground">Outstanding</p>
+            <p className={`mt-0.5 text-xl font-semibold ${money.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>₹{money.outstanding.toLocaleString('en-IN')}</p>
+            {money.unpaid_orders > 0 && <p className="text-[11px] text-muted-foreground">{money.unpaid_orders} unpaid order{money.unpaid_orders === 1 ? '' : 's'}</p>}
+          </Link>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-[12.5px] text-muted-foreground">Refunded today</p>
+            <p className={`mt-0.5 text-xl font-semibold ${money.refunded > 0 ? 'text-warning' : 'text-foreground'}`}>₹{money.refunded.toLocaleString('en-IN')}</p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Needs attention</p>

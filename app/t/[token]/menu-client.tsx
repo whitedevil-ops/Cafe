@@ -12,11 +12,6 @@ export type PublicItem = QrItem
 export type Variant = QrVariant
 export type Addon = QrAddon
 
-// UPI collection is not enabled yet — no gateway is configured, and we don't
-// show payment options that can't actually complete. Flip when UPI integration
-// lands properly (architecture retained: place() still accepts the method).
-const UPI_ENABLED = false
-
 const PHONE_RE = /^[6-9]\d{9}$/
 const NEW_ITEM_DAYS = 14
 const POPULAR = '__popular'
@@ -38,8 +33,8 @@ export default function MenuClient({
   cafeName,
   cafeLogo,
   tableLabel,
-  upiId,
-  upiName,
+  upiEnabled,
+  qrPaymentMode,
   upsellThreshold,
   categories,
   items,
@@ -51,8 +46,8 @@ export default function MenuClient({
   cafeName: string
   cafeLogo: string | null
   tableLabel: string
-  upiId: string | null
-  upiName: string | null
+  upiEnabled: boolean
+  qrPaymentMode: 'pay_later' | 'prepaid' | 'both'
   upsellThreshold: number
   categories: { id: string; name: string }[]
   items: PublicItem[]
@@ -67,6 +62,10 @@ export default function MenuClient({
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [placed, setPlaced] = useState<{ code: string; total: number; method: 'upi' | 'counter'; receiptToken: string | null } | null>(null)
+  const [upiIntent, setUpiIntent] = useState<{ attempt_id: string; amount: number; upi_uri: string; upi_id: string; payee_name: string; qr_url: string | null } | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle')
+  const [utr, setUtr] = useState('')
   const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
@@ -261,11 +260,15 @@ export default function MenuClient({
     setDetail(null)
   }
 
-  async function place(method: 'upi' | 'counter') {
+  // mode 'now' → pay by UPI immediately; 'later' → pay at the counter. Both
+  // place the order first (the server computes the total); the UPI amount is
+  // never taken from this browser.
+  async function place(mode: 'now' | 'later') {
     if (!PHONE_RE.test(phone)) {
       setError('Enter a valid 10-digit mobile number — we send your bill there.')
       return
     }
+    const method = mode === 'now' ? 'upi' : 'counter'
     setPlacing(true)
     setError(null)
     const { data, error } = await supabase.rpc('place_order', {
@@ -282,12 +285,44 @@ export default function MenuClient({
       p_upsell_item_id: upsellTaken.current,
       p_upsell_shown: upsellShown.current,
     })
-    setPlacing(false)
-    if (error) return setError(error.message)
+    if (error) { setPlacing(false); return setError(error.message) }
     const r = data as { short_code: string; total: number; receipt_token?: string }
     setPlaced({ code: r.short_code, total: r.total, method, receiptToken: r.receipt_token ?? null })
     setStep('done')
-    if (method === 'upi' && upiId) window.location.href = upiLink(r.short_code, r.total)
+
+    if (mode === 'now' && r.receipt_token) {
+      // Ask the server to open a UPI attempt with ITS amount. If it can't
+      // (config changed), the order is already placed — the customer just
+      // pays at the counter instead.
+      const { data: intent } = await supabase.rpc('qr_start_upi_payment', { p_receipt_token: r.receipt_token })
+      if (intent) setUpiIntent(intent as typeof upiIntent)
+    }
+    setPlacing(false)
+  }
+
+  // Render a QR of the exact-amount UPI intent so desktop / other-phone
+  // customers can scan it. Generated client-side; falls back to the café's
+  // uploaded static QR if generation fails.
+  useEffect(() => {
+    if (!upiIntent) { setQrDataUrl(null); return }
+    let alive = true
+    import('qrcode')
+      .then((m) => m.toDataURL(upiIntent.upi_uri, { margin: 1, width: 240 }))
+      .then((url) => { if (alive) setQrDataUrl(url) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [upiIntent])
+
+  // "I have paid" only records a CLAIM. It never marks the order paid — a
+  // staff member confirms receipt on their screen.
+  async function claimPaid() {
+    if (!upiIntent) return
+    setClaimStatus('claiming')
+    await supabase.rpc('qr_claim_payment', {
+      p_attempt_id: upiIntent.attempt_id,
+      p_reference: utr.trim() || null,
+    })
+    setClaimStatus('claimed')
   }
 
   async function callWaiter() {
@@ -307,17 +342,6 @@ export default function MenuClient({
     void data
     setAssist('bill')
     setTimeout(() => setAssist(null), 4000)
-  }
-
-  function upiLink(code: string, total: number) {
-    const params = new URLSearchParams({
-      pa: upiId ?? '',
-      pn: upiName || cafeName,
-      am: String(total),
-      cu: 'INR',
-      tn: `Order ${code} · Table ${tableLabel}`,
-    })
-    return `upi://pay?${params.toString()}`
   }
 
   // ── Confirmation ─────────────────────────────────────────────────────────
@@ -342,16 +366,60 @@ export default function MenuClient({
             View your bill →
           </a>
         )}
-        {placed.method === 'upi' && upiId ? (
-          <div className="w-full space-y-2">
-            <a
-              href={upiLink(placed.code, placed.total)}
-              className="block w-full rounded-[var(--radius)] bg-foreground py-4 text-center font-medium text-background"
+        {claimStatus === 'claimed' ? (
+          <div className="w-full rounded-2xl border border-warning bg-warning-subtle p-5 text-center">
+            <p className="text-[15px] font-medium text-warning">Payment awaiting confirmation</p>
+            <p className="mt-1 text-[13px] text-warning">The café will confirm your ₹{upiIntent?.amount ?? placed.total} UPI payment on their screen shortly.</p>
+          </div>
+        ) : placed.method === 'upi' && upiIntent ? (
+          <div className="w-full space-y-3 rounded-2xl border border-border bg-surface p-5">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">Pay by UPI</p>
+              <p className="mt-0.5 text-3xl font-semibold text-foreground">₹{upiIntent.amount}</p>
+            </div>
+
+            {/* Tapping any of these opens the phone's UPI app with the café's
+                ID and the exact amount already filled in. All resolve through
+                the standard upi:// intent so they work across UPI apps. */}
+            <div className="space-y-2">
+              {['Google Pay', 'PhonePe', 'Other UPI app'].map((label) => (
+                <a
+                  key={label}
+                  href={upiIntent.upi_uri}
+                  className="flex w-full items-center justify-center rounded-[var(--radius)] bg-primary py-3.5 text-center font-medium text-primary-foreground"
+                >
+                  {label}
+                </a>
+              ))}
+            </div>
+
+            {(qrDataUrl || upiIntent.qr_url) && (
+              <div className="flex flex-col items-center gap-2 border-t border-border pt-3">
+                <p className="text-[12px] text-muted-foreground">— or scan to pay —</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl ?? upiIntent.qr_url ?? ''} alt="Scan to pay by UPI" className="h-40 w-40 rounded-[var(--radius)] border border-border bg-white p-2" />
+              </div>
+            )}
+
+            <div className="border-t border-border pt-3">
+              <label className="text-[12px] text-muted-foreground">UPI reference / UTR (optional)</label>
+              <input
+                value={utr}
+                onChange={(e) => setUtr(e.target.value.slice(0, 40))}
+                placeholder="12-digit transaction ID"
+                className="mt-1 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <button
+              onClick={claimPaid}
+              disabled={claimStatus === 'claiming'}
+              className="w-full rounded-[var(--radius)] border border-border-strong bg-surface py-3.5 font-medium text-foreground disabled:opacity-50"
             >
-              Open UPI app to pay ₹{placed.total}
-            </a>
-            <p className="text-[13px] text-muted-foreground">
-              Complete the payment in your UPI app — the café confirms it on their screen.
+              {claimStatus === 'claiming' ? 'Sending…' : 'I have paid'}
+            </button>
+            <p className="text-center text-[12px] text-muted-foreground">
+              Opening a UPI app doesn’t confirm payment on its own — tap “I have paid” once you’ve completed it, and the café will verify.
             </p>
           </div>
         ) : (
@@ -424,14 +492,16 @@ export default function MenuClient({
         </div>
 
         <div className="mt-4 space-y-3">
-          {UPI_ENABLED && upiId && (
-            <button disabled={placing || count === 0} onClick={() => place('upi')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
-              {placing ? 'Placing…' : `Pay ₹${subtotal} by UPI`}
+          {upiEnabled && (qrPaymentMode === 'prepaid' || qrPaymentMode === 'both') && (
+            <button disabled={placing || count === 0} onClick={() => place('now')} className="w-full rounded-[var(--radius)] bg-primary py-4 font-medium text-primary-foreground disabled:opacity-40">
+              {placing ? 'Placing…' : `Pay now via UPI · ₹${subtotal}`}
             </button>
           )}
-          <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
-            {placing ? 'Placing…' : 'Place order — pay at the counter'}
-          </button>
+          {qrPaymentMode !== 'prepaid' && (
+            <button disabled={placing || count === 0} onClick={() => place('later')} className={`w-full rounded-[var(--radius)] py-4 font-medium disabled:opacity-40 ${upiEnabled && qrPaymentMode === 'both' ? 'border border-border-strong bg-surface text-foreground' : 'bg-foreground text-background'}`}>
+              {placing ? 'Placing…' : 'Place order — pay at the counter'}
+            </button>
+          )}
         </div>
       </main>
     )

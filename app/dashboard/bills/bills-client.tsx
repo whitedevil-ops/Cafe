@@ -21,7 +21,8 @@ export type Bill = {
   payment_method: string | null
   staff_name: string | null
   receipt_token: string
-  bill_status: 'OPEN' | 'PAYMENT_PENDING' | 'PAID' | 'PARTIALLY_REFUNDED' | 'REFUNDED' | 'CANCELLED'
+  outstanding?: number
+  bill_status: 'OPEN' | 'PAYMENT_PENDING' | 'PAID' | 'PARTIALLY_PAID' | 'UNPAID' | 'PARTIALLY_REFUNDED' | 'REFUNDED' | 'CANCELLED'
 }
 
 export type BillsPayload = {
@@ -34,6 +35,8 @@ type Range = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
 const STATUS_STYLE: Record<Bill['bill_status'], string> = {
   PAID: 'border-success bg-success-subtle text-success',
   OPEN: 'border-border-strong bg-surface-subtle text-muted-foreground',
+  UNPAID: 'border-destructive bg-destructive-subtle text-destructive',
+  PARTIALLY_PAID: 'border-warning bg-warning-subtle text-warning',
   PAYMENT_PENDING: 'border-warning bg-warning-subtle text-warning',
   PARTIALLY_REFUNDED: 'border-warning bg-warning-subtle text-warning',
   REFUNDED: 'border-destructive bg-destructive-subtle text-destructive',
@@ -42,6 +45,8 @@ const STATUS_STYLE: Record<Bill['bill_status'], string> = {
 const STATUS_LABEL: Record<Bill['bill_status'], string> = {
   PAID: 'Paid',
   OPEN: 'Open',
+  UNPAID: 'Unpaid',
+  PARTIALLY_PAID: 'Partly paid',
   PAYMENT_PENDING: 'Payment pending',
   PARTIALLY_REFUNDED: 'Partly refunded',
   REFUNDED: 'Refunded',
@@ -70,6 +75,7 @@ export default function BillsClient({
   const supabase = useMemo(() => createClient(), [])
   const [payload, setPayload] = useState<BillsPayload | null>(initial)
   const [type, setType] = useState(initialType)
+  const [payment, setPayment] = useState<'all' | 'paid' | 'partial' | 'unpaid' | 'refunded'>('all')
   const [range, setRange] = useState<Range>(initialRange)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -96,7 +102,7 @@ export default function BillsClient({
   )
 
   const load = useCallback(
-    async (r: Range, t: typeof type, q: string) => {
+    async (r: Range, t: typeof type, q: string, pay: typeof payment = payment) => {
       setLoading(true)
       setError(null)
       const { from, to } = bounds(r)
@@ -108,12 +114,13 @@ export default function BillsClient({
         p_search: q.trim() || null,
         p_limit: 200,
         p_offset: 0,
+        p_payment: pay,
       })
       setLoading(false)
       if (err) return setError(err.message)
       setPayload(data as BillsPayload)
     },
-    [supabase, cafeId, bounds],
+    [supabase, cafeId, bounds, payment],
   )
 
   const bills = payload?.bills ?? []
@@ -159,6 +166,20 @@ export default function BillsClient({
             }`}
           >
             {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {([['all', 'All'], ['paid', 'Paid'], ['partial', 'Partly paid'], ['unpaid', 'Unpaid'], ['refunded', 'Refunded']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => { setPayment(key); void load(range, type, search, key) }}
+            className={`min-h-9 rounded-full border px-3.5 text-[12.5px] font-medium transition-colors ${
+              payment === key ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
+            }`}
+          >
+            {label}
           </button>
         ))}
       </div>
@@ -235,7 +256,12 @@ export default function BillsClient({
                         #{b.short_code} · {formatDateTime(b.created_at, timezone)}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[15px] font-semibold text-foreground">{money(b.total)}</span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-[15px] font-semibold text-foreground">{money(b.total)}</span>
+                      {(b.outstanding ?? 0) > 0 && b.bill_status !== 'CANCELLED' && (
+                        <span className="block text-[11px] font-medium text-destructive">{money(b.outstanding ?? 0)} due</span>
+                      )}
+                    </span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Tag>{b.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in'}</Tag>
@@ -286,7 +312,12 @@ export default function BillsClient({
                     <td className="px-3 py-2.5 text-muted-foreground">
                       {[b.customer_name, mask(b.phone)].filter(Boolean).join(' • ') || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-medium text-foreground">{money(b.total)}</td>
+                    <td className="px-3 py-2.5 text-right font-medium text-foreground">
+                      {money(b.total)}
+                      {(b.outstanding ?? 0) > 0 && b.bill_status !== 'CANCELLED' && (
+                        <span className="block text-[11px] font-normal text-destructive">{money(b.outstanding ?? 0)} due</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5">
                       <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_STYLE[b.bill_status]}`}>
                         {STATUS_LABEL[b.bill_status]}

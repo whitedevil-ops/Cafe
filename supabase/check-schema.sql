@@ -171,7 +171,22 @@ with expected(kind, name, fix) as (values
   -- central bills module (0039)
   ('function', 'bill_status',                   '0039'),
   ('function', 'list_bills',                    '0039'),
-  ('function', 'bill_detail',                   '0039')
+  ('function', 'bill_detail',                   '0039'),
+  -- payment config + attempts + RPCs (0040/0041/0042)
+  ('column',   'cafes.upi_enabled',             '0040'),
+  ('column',   'cafes.qr_payment_mode',         '0040'),
+  ('column',   'cafes.payment_qr_url',          '0040'),
+  ('column',   'payments.reference',            '0040'),
+  ('column',   'payments.confirmed_by',         '0040'),
+  ('column',   'payments.source',               '0040'),
+  ('table',    'payment_attempts',              '0040'),
+  ('function', 'order_outstanding',             '0041'),
+  ('function', 'recompute_order_payment_status','0041'),
+  ('function', 'record_payment',                '0041'),
+  ('function', 'qr_start_upi_payment',          '0041'),
+  ('function', 'qr_claim_payment',              '0041'),
+  ('function', 'pending_payment_claims',        '0041'),
+  ('function', 'outstanding_summary',           '0042')
 )
 select
   e.kind,

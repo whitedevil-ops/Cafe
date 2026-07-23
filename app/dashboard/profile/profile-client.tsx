@@ -15,6 +15,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardHeader } from '@/components/ui/card'
 import { SectionNav, type SectionItem } from '@/components/ui/section-nav'
 import { GstPanel } from './gst-panel'
+import { PaymentsPanel } from './payments-panel'
 
 export type CafeProfile = {
   name: string
@@ -33,6 +34,11 @@ export type CafeProfile = {
   tax_inclusive: boolean
   tax_percent: number
   service_charge: number
+  upi_enabled: boolean
+  upi_id: string
+  upi_name: string
+  payment_qr_url: string | null
+  qr_payment_mode: 'pay_later' | 'prepaid' | 'both'
   address: string
   city: string
   state: string
@@ -137,6 +143,11 @@ export default function ProfileClient({
       tax_inclusive: form.tax_inclusive,
       tax_percent: Math.min(100, Math.max(0, Number(form.tax_percent) || 0)),
       service_charge: Math.min(100, Math.max(0, Number(form.service_charge) || 0)),
+      upi_enabled: form.upi_enabled,
+      upi_id: form.upi_id.trim() || null,
+      upi_name: form.upi_name.trim() || null,
+      payment_qr_url: form.payment_qr_url,
+      qr_payment_mode: form.qr_payment_mode,
       address: form.address.trim() || null,
       city: form.city.trim() || null,
       state: form.state.trim() || null,
@@ -302,31 +313,7 @@ export default function ProfileClient({
           )}
 
           {section === 'payments' && (
-            <Card>
-              <CardHeader title="Payments" description="Methods you accept and record at the counter." />
-              <ul className="mt-5 divide-y divide-border rounded-[var(--radius)] border border-border">
-                {[
-                  ['Cash', 'Recorded at the counter'],
-                  ['Card', 'Recorded at the counter'],
-                  ['UPI', 'Recorded manually — see note below'],
-                  ['Pay at counter', 'Unpaid until settled'],
-                ].map(([m, sub]) => (
-                  <li key={m} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div>
-                      <p className="text-[13.5px] font-medium text-foreground">{m}</p>
-                      <p className="text-[12px] text-muted-foreground">{sub}</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-success-subtle px-2 py-0.5 text-[11px] font-medium text-success">
-                      <Check size={12} /> Enabled
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 flex items-start gap-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2.5 text-[12.5px] text-warning">
-                <Info size={15} className="mt-0.5 shrink-0" />
-                <span>KhaoPiyo <strong>records</strong> a UPI payment your customer makes elsewhere — it does not process online UPI itself. An online payment gateway is not configured.</span>
-              </div>
-            </Card>
+            <PaymentsPanel cafeId={cafeId} value={form} onChange={patch} disabled={dis} />
           )}
 
           {section === 'branding' && (

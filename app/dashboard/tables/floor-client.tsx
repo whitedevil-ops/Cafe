@@ -42,6 +42,7 @@ type SessionOrder = {
 type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
 type SmsLog = { id: string; order_id: string; status: string; error: string | null }
 type Payment = { session_id: string | null; order_id: string | null; amount: number }
+type PaymentClaim = { attempt_id: string; order_id: string; short_code: string; table_label: string | null; amount: number; reference: string | null; claimed_at: string }
 
 const NEXT: Record<string, { label: string; to: string }> = {
   placed: { label: 'Start preparing', to: 'preparing' },
@@ -72,6 +73,8 @@ export default function FloorClient({
   const [orders, setOrders] = useState<SessionOrder[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
+  const [claims, setClaims] = useState<PaymentClaim[]>([])
+  const [payingOrder, setPayingOrder] = useState<string | null>(null)
   const [names, setNames] = useState<Record<string, string>>({})
   const [attention, setAttention] = useState<Set<string>>(new Set()) // table ids with unacked call_waiter
   const [selected, setSelected] = useState<string | null>(null)
@@ -136,11 +139,18 @@ export default function FloorClient({
       const orderRows = (ords ?? []) as SessionOrder[]
       setOrders(orderRows)
 
+      // Payments attach to a session (split payments) OR a single order
+      // (a settled order) — fetch both dimensions so a table's paid amount is
+      // never understated by missing the order-level rows.
+      const orderIds = orderRows.map((o) => o.id)
+      const payFilter = orderIds.length
+        ? `session_id.in.(${sessionIds.join(',')}),order_id.in.(${orderIds.join(',')})`
+        : `session_id.in.(${sessionIds.join(',')})`
       const [{ data: its }, { data: pays }, custRes] = await Promise.all([
         orderRows.length
-          ? supabase.from('order_items').select('id, order_id, name, qty, modifiers').in('order_id', orderRows.map((o) => o.id))
+          ? supabase.from('order_items').select('id, order_id, name, qty, modifiers').in('order_id', orderIds)
           : Promise.resolve({ data: [] as Item[] }),
-        supabase.from('payments').select('session_id, order_id, amount').in('session_id', sessionIds),
+        supabase.from('payments').select('session_id, order_id, amount').or(payFilter),
         (async () => {
           const ids = [...new Set(orderRows.map((o) => o.customer_id).filter(Boolean))] as string[]
           if (!ids.length) return { data: [] as { id: string; name: string | null }[] }
@@ -152,6 +162,13 @@ export default function FloorClient({
       const map: Record<string, string> = {}
       for (const c of custRes.data ?? []) if (c.name) map[c.id] = c.name
       setNames(map)
+    }
+
+    // Pending UPI claims — customers who tapped "I have paid", awaiting staff
+    // confirmation. Tolerates the RPC not existing yet (pre-migration).
+    {
+      const { data: claimRows } = await supabase.rpc('pending_payment_claims', { p_cafe_id: cafeId })
+      setClaims((claimRows ?? []) as PaymentClaim[])
     }
 
     // Unacknowledged call-waiter flags.
@@ -195,6 +212,8 @@ export default function FloorClient({
   useRealtimeRefresh(supabase, 'orders', cafeId, poll)
   useRealtimeRefresh(supabase, 'table_sessions', cafeId, poll)
   useRealtimeRefresh(supabase, 'notifications', cafeId, poll)
+  useRealtimeRefresh(supabase, 'payments', cafeId, poll)
+  useRealtimeRefresh(supabase, 'payment_attempts', cafeId, poll)
 
   useEffect(() => {
     // poll() is async and only calls setState after its own network
@@ -215,11 +234,41 @@ export default function FloorClient({
     for (const o of orders) if (o.session_id) m.set(o.session_id, [...(m.get(o.session_id) ?? []), o])
     return m
   }, [orders])
-  const paidBySession = useMemo(() => {
+  // Which session an order belongs to — lets an order-level payment count
+  // toward its table's running bill, not just session-level split payments.
+  const orderToSession = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const o of orders) if (o.session_id) m.set(o.id, o.session_id)
+    return m
+  }, [orders])
+  const paidByOrder = useMemo(() => {
     const m = new Map<string, number>()
-    for (const p of payments) if (p.session_id) m.set(p.session_id, (m.get(p.session_id) ?? 0) + p.amount)
+    for (const p of payments) if (p.order_id) m.set(p.order_id, (m.get(p.order_id) ?? 0) + p.amount)
     return m
   }, [payments])
+  const paidBySession = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const p of payments) {
+      const sid = p.session_id ?? (p.order_id ? orderToSession.get(p.order_id) : undefined)
+      if (sid) m.set(sid, (m.get(sid) ?? 0) + p.amount)
+    }
+    return m
+  }, [payments, orderToSession])
+
+  // Per-table payment state, computed against the whole running bill so one
+  // paid order never marks the table paid while others are still due.
+  const payStateByTable = useMemo(() => {
+    const m = new Map<string, { total: number; paid: number; due: number; state: 'paid' | 'partial' | 'unpaid' }>()
+    for (const s of sessions) {
+      const os = ordersBySession.get(s.id) ?? []
+      const total = os.reduce((sum, o) => sum + o.total, 0)
+      const paid = Math.min(total, paidBySession.get(s.id) ?? 0)
+      const due = Math.max(0, total - paid)
+      const state = total > 0 && paid >= total ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
+      m.set(s.table_id, { total, paid, due, state })
+    }
+    return m
+  }, [sessions, ordersBySession, paidBySession])
 
   const sorted = useMemo(
     () => [...tables].sort(byTableLabel),
@@ -235,10 +284,25 @@ export default function FloorClient({
     void poll()
   }
 
-  async function markPaid(o: SessionOrder, method: 'cash' | 'card') {
-    setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
-    const { error } = await supabase.from('payments').insert({ cafe_id: cafeId, order_id: o.id, method, amount: o.total })
-    if (!error) await supabase.from('orders').update({ payment_status: 'paid', payment_method: method }).eq('id', o.id)
+  // Record a payment through the server RPC, which validates the amount
+  // against the order's real outstanding (rejecting overpayment) and writes
+  // the immutable, audited payment row. Records the full outstanding for this
+  // order. `claim` links a confirmed customer UPI claim.
+  async function markPaid(o: SessionOrder, method: 'cash' | 'card' | 'upi', claim?: PaymentClaim) {
+    const due = Math.max(0, o.total - (paidByOrder.get(o.id) ?? 0))
+    if (due <= 0) return
+    setPayingOrder(o.id)
+    const { error } = await supabase.rpc('record_payment', {
+      p_order_id: o.id,
+      p_amount: due,
+      p_method: method,
+      p_reference: claim?.reference ?? null,
+      p_source: method === 'upi' ? 'upi_manual' : 'manual',
+      p_attempt_id: claim?.attempt_id ?? null,
+    })
+    setPayingOrder(null)
+    if (error) return toast(error.message, 'error')
+    toast(`₹${due} recorded${method === 'upi' ? ' by UPI' : ''}.`)
     void poll()
   }
 
@@ -405,7 +469,10 @@ export default function FloorClient({
   const selSession = selected ? sessionByTable.get(selected) : null
   const selOrders = selSession ? (ordersBySession.get(selSession.id) ?? []) : []
   const selTotal = selOrders.reduce((s, o) => s + o.total, 0)
-  const selPaid = selSession ? (paidBySession.get(selSession.id) ?? 0) + selOrders.filter((o) => o.payment_status === 'paid').reduce((s, o) => s + o.total, 0) : 0
+  // paidBySession already counts both session-level and order-level payments,
+  // so this is the whole running-bill paid amount — clamped so it can never
+  // show more paid than the bill.
+  const selPaid = selSession ? Math.min(selTotal, paidBySession.get(selSession.id) ?? 0) : 0
   const selRemaining = Math.max(0, selTotal - selPaid)
   const allCompleted = selOrders.length > 0 && selOrders.every((o) => o.status === 'completed')
 
@@ -445,29 +512,48 @@ export default function FloorClient({
           const billRequested = session?.status === 'bill_requested'
           const flagged = attention.has(t.id)
           const reserved = !session && t.status === 'reserved'
+          const ps = session ? payStateByTable.get(t.id) : undefined
 
+          // Base tint follows PAYMENT state (green paid / amber part / red
+          // due). Operational states (waiter called, bill requested) ride on
+          // top as badges + text, so status never lives in colour alone.
           let border = 'border-border bg-surface hover:border-border-strong'
-          if (flagged) border = 'border-destructive bg-destructive-subtle'
-          else if (billRequested) border = 'border-[#8B5CF6] bg-[#F3F0FF]'
-          else if (session) border = 'border-success bg-success-subtle'
-          else if (reserved) border = 'border-warning bg-warning-subtle'
+          if (reserved) border = 'border-warning bg-warning-subtle'
+          else if (session) {
+            border = ps?.state === 'paid' ? 'border-success bg-success-subtle'
+              : ps?.state === 'partial' ? 'border-warning bg-warning-subtle'
+              : 'border-destructive bg-destructive-subtle'
+          }
+
+          const payBadge = ps && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              ps.state === 'paid' ? 'bg-success text-white' : ps.state === 'partial' ? 'bg-warning text-white' : 'bg-destructive text-white'
+            }`}>
+              <span className="h-1 w-1 rounded-full bg-white/90" />
+              {ps.state === 'paid' ? 'PAID' : ps.state === 'partial' ? 'PART' : 'UNPAID'}
+            </span>
+          )
 
           return (
             <button key={t.id} onClick={() => setSelected(t.id)} className={`rounded-xl border-2 p-4 text-left transition-colors ${border}`}>
-              <div className="flex items-baseline justify-between">
+              <div className="flex items-start justify-between gap-2">
                 <span className="text-lg font-semibold text-foreground">{t.label}</span>
-                {t.capacity && <span className="text-[12px] text-muted-foreground">{t.capacity} seats</span>}
+                {session ? payBadge : t.capacity ? <span className="text-[12px] text-muted-foreground">{t.capacity} seats</span> : null}
               </div>
               {session ? (
                 <div className="mt-2 space-y-0.5">
-                  <p className="text-[15px] font-semibold text-foreground">₹{bill}</p>
+                  <p className="text-[15px] font-semibold text-foreground">
+                    ₹{bill}{ps && ps.state !== 'paid' && ps.due > 0 && <span className="text-[12px] font-medium text-destructive"> · ₹{ps.due} due</span>}
+                  </p>
                   <p className="text-[12px] text-muted-foreground">
                     {itemCount} item{itemCount === 1 ? '' : 's'} · {active.length > 1 ? `${active.length} orders · ` : ''}
                     {mins(session.started_at)}m
                   </p>
-                  <p className="text-[12px] font-medium capitalize" style={{ color: billRequested ? '#7C3AED' : flagged ? undefined : undefined }}>
-                    {flagged ? 'Needs assistance' : billRequested ? 'Bill requested' : active[active.length - 1]?.status ?? 'Occupied'}
-                  </p>
+                  {(flagged || billRequested) && (
+                    <p className={`text-[12px] font-medium ${flagged ? 'text-destructive' : 'text-[#7C3AED]'}`}>
+                      {flagged ? '● Waiter called' : '● Bill requested'}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className={`mt-2 text-[13px] font-medium ${reserved ? 'text-warning' : 'text-muted-foreground'}`}>
@@ -580,6 +666,11 @@ export default function FloorClient({
 
             {selOrders.map((o) => {
               const its = items.filter((i) => i.order_id === o.id)
+              const orderPaid = paidByOrder.get(o.id) ?? 0
+              const orderDue = Math.max(0, o.total - orderPaid)
+              const fullyPaid = o.total > 0 && orderDue <= 0
+              const claim = claims.find((c) => c.order_id === o.id)
+              const busy = payingOrder === o.id
               return (
                 <section key={o.id} className="mt-4 rounded-xl border border-border p-4">
                   <div className="flex items-baseline justify-between">
@@ -589,7 +680,11 @@ export default function FloorClient({
                   <p className="mt-0.5 text-[13px] text-muted-foreground">
                     <span className="capitalize">{o.status}</span>
                     {' · '}
-                    {o.payment_status === 'paid' ? <span className="font-medium text-success">Paid</span> : 'Pay at counter'}
+                    {fullyPaid
+                      ? <span className="font-medium text-success">Paid</span>
+                      : orderPaid > 0
+                        ? <span className="font-medium text-warning">Part paid · ₹{orderDue} due</span>
+                        : <span className="font-medium text-destructive">Unpaid · ₹{orderDue} due</span>}
                     {(names[o.customer_id ?? ''] || o.phone) && <> · {names[o.customer_id ?? ''] ?? ''} {mask(o.phone)}</>}
                   </p>
                   <ul className="mt-3 space-y-1.5 border-y border-border py-3">
@@ -606,11 +701,22 @@ export default function FloorClient({
                     <span className="text-base font-semibold text-foreground">₹{o.total}</span>
                     <a href={`/r/${o.receipt_token}`} target="_blank" className="text-[13px] text-primary hover:underline">View bill →</a>
                   </div>
+                  {/* Customer tapped "I have paid" by UPI — confirm receipt. */}
+                  {claim && !fullyPaid && (
+                    <button
+                      onClick={() => markPaid(o, 'upi', claim)}
+                      disabled={busy}
+                      className="mt-3 w-full rounded-[var(--radius)] bg-primary py-3 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+                    >
+                      {busy ? 'Confirming…' : `Confirm ₹${claim.amount} UPI — customer says paid${claim.reference ? ` · ref ${claim.reference}` : ''}`}
+                    </button>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {o.payment_status !== 'paid' && (
+                    {!fullyPaid && (
                       <>
-                        <button onClick={() => markPaid(o, 'cash')} className="min-h-11 flex-1 rounded-[var(--radius)] border border-warning text-[13px] font-medium text-warning">Paid — cash</button>
-                        <button onClick={() => markPaid(o, 'card')} className="min-h-11 flex-1 rounded-[var(--radius)] border border-warning text-[13px] font-medium text-warning">Paid — card</button>
+                        <button onClick={() => markPaid(o, 'cash')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Cash</button>
+                        <button onClick={() => markPaid(o, 'card')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Card</button>
+                        <button onClick={() => markPaid(o, 'upi')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">UPI</button>
                       </>
                     )}
                     {NEXT[o.status] && (
