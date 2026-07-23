@@ -7,13 +7,20 @@
 -- notifications, request_bill/call_waiter/move_session/close_session — the
 -- seed's active-orders block creates real sessions and will fail loudly,
 -- not silently, if 0012 is missing; run supabase/check-schema.sql to confirm).
+-- Compatible through 0030 — tax/service_charge are computed via the real
+-- compute_bill() function (not reimplemented here) so seeded orders match
+-- exactly what place_order/staff_place_order would have produced.
 -- EDIT ONE LINE: the owner email below must be YOUR login email.
 --
--- Honest notes on what this seed does NOT fake (schema doesn't support it yet):
+-- Honest notes on what this seed does NOT fake (schema doesn't support it yet,
+-- or supports it but there's nothing meaningful to pre-populate):
 -- kitchen stations, table areas, opening-hours records, failed-payment states,
 -- verification records, coupon entry at checkout (coupons seed but are dormant),
--- and tax lines on orders (ordering flow doesn't compute tax yet, so seeded
--- orders keep tax = 0 and subtotal − discount = total stays exactly true).
+-- refunds, KOT printer/station config, and cash-shift history (cash management
+-- is left ON for this café — see cafes.cash_management_enabled below — but no
+-- shift is pre-opened; the pilot should open a real one). The order_source
+-- enum's 'staff' value is unused by the app (only 'qr' and 'pos' are ever
+-- written) and is left alone here rather than seeded.
 -- ============================================================================
 
 do $$
@@ -40,6 +47,7 @@ declare
   v_type order_type; v_status order_status; v_sub int; v_disc int; v_code text;
   v_item record; v_var record; v_qty int; v_unit int; v_name text; v_mods jsonb;
   v_method payment_method; v_lines int; v_roll float; v_phone text;
+  v_source order_source; v_staff_pick uuid; v_tax int; v_svc int; v_total int;
   i int; j int;
 begin
   select id into v_owner from auth.users where email = v_owner_email;
@@ -57,11 +65,13 @@ begin
   -- ── CAFÉ ───────────────────────────────────────────────────────────────────
   insert into cafes (id, owner_id, slug, name, business_type, phone, address, city, state,
                      pincode, country, gstin, currency, timezone, dine_in, takeaway, delivery,
-                     tax_percent, service_charge, plan, upsell_threshold, is_demo)
+                     tax_percent, service_charge, plan, upsell_threshold, is_demo,
+                     cash_management_enabled)
   values (v_cafe, v_owner, 'brewora', 'Brewora Café', 'cafe', '9876500001',
           'SCO 12, Sector 14 Market', 'Hisar', 'Haryana', '125001', 'IN',
           '06AABCB1234F1Z5', 'INR', 'Asia/Kolkata', true, true, false,
-          5.00, 0.00, 'pro', 199, true);
+          5.00, 0.00, 'pro', 199, true,
+          true);
 
   insert into cafe_settings (cafe_id, loyalty, receipt, notify) values (v_cafe,
     '{"name":"Brewora Rewards","earn_per_100":10,"min_spend":0,"expiry_days":365,"min_redeem_points":100,"max_redeem_pct":20,"points_to_rupee":0.10}',
@@ -194,12 +204,20 @@ begin
     v_type := case when random() < 0.65 then 'dine_in' else 'takeaway' end;
     v_status := case when random() < 0.93 then 'completed' else 'cancelled' end;
 
+    -- Realistic source mix: most dine-in comes through the table QR, most
+    -- takeaway is a walk-in a cashier rings up at the counter. 'staff' is a
+    -- valid enum value but no code path ever writes it, so it's never rolled.
+    v_source := case when v_type = 'takeaway' or random() < 0.35 then 'pos' else 'qr' end;
+    v_staff_pick := case when v_source = 'pos'
+      then (array['c0ffee00-0000-4000-a000-00000000a002','c0ffee00-0000-4000-a000-00000000a003'])[1 + (random()*2)::int]::uuid
+      else null end;
+
     select count(*) + 1 into v_seq from orders where cafe_id = v_cafe and created_at::date = v_ts::date;
 
     insert into orders (cafe_id, table_id, customer_id, short_code, type, status, payment_status,
-                        phone, subtotal, discount, total, created_at)
+                        phone, subtotal, discount, total, created_at, source, staff_id)
     values (v_cafe, case when v_type = 'dine_in' then v_table end, v_cust, v_seq::text, v_type,
-            v_status, 'unpaid', v_phone, 0, 0, 0, v_ts)
+            v_status, 'unpaid', v_phone, 0, 0, 0, v_ts, v_source, v_staff_pick)
     returning id into v_order;
 
     v_sub := 0;
@@ -230,19 +248,23 @@ begin
       v_disc := least((v_sub * 0.10)::int, 80); v_code := 'COFFEE10';
     end if;
 
+    -- Same compute_bill() the real order engine uses — not reimplemented here,
+    -- so seeded historical orders carry real tax instead of a hardcoded 0.
+    select tax, service_charge, total into v_tax, v_svc, v_total from compute_bill(v_cafe, v_sub, v_disc);
+
     if v_status = 'completed' then
       -- NO UPI: it is not enabled in the product, so demo data must not show it.
       v_roll := random();
       v_method := case when v_roll < 0.65 then 'cash' else 'card' end;
-      update orders set subtotal = v_sub, discount = v_disc, total = v_sub - v_disc,
-                        coupon_code = v_code, payment_status = 'paid', payment_method = v_method,
-                        done_at = v_ts + interval '25 minutes'
+      update orders set subtotal = v_sub, discount = v_disc, tax = v_tax, service_charge = v_svc,
+                        total = v_total, coupon_code = v_code, payment_status = 'paid',
+                        payment_method = v_method, done_at = v_ts + interval '25 minutes'
         where id = v_order;
       insert into payments (cafe_id, order_id, method, amount, created_at)
-      values (v_cafe, v_order, v_method, v_sub - v_disc, v_ts + interval '20 minutes');
+      values (v_cafe, v_order, v_method, v_total, v_ts + interval '20 minutes');
     else
-      update orders set subtotal = v_sub, discount = v_disc, total = v_sub - v_disc,
-                        coupon_code = v_code where id = v_order;
+      update orders set subtotal = v_sub, discount = v_disc, tax = v_tax, service_charge = v_svc,
+                        total = v_total, coupon_code = v_code where id = v_order;
     end if;
   end loop;
 
@@ -286,10 +308,11 @@ begin
         values (v_order, v_item.id, v_item.name, v_item.price, 1, '[]');
         v_sub := v_sub + v_item.price;
       end loop;
-      update orders set subtotal = v_sub, total = v_sub where id = v_order;
+      select tax, service_charge, total into v_tax, v_svc, v_total from compute_bill(v_cafe, v_sub, 0);
+      update orders set subtotal = v_sub, tax = v_tax, service_charge = v_svc, total = v_total where id = v_order;
       if i = 3 then
         insert into payments (cafe_id, session_id, order_id, method, amount, created_at)
-        values (v_cafe, v_session_id, v_order, 'cash', v_sub, v_ts + interval '1 minute');
+        values (v_cafe, v_session_id, v_order, 'cash', v_total, v_ts + interval '1 minute');
       end if;
 
       if i = 4 then

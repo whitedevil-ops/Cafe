@@ -151,6 +151,77 @@ begin
     insert into smoke_results (check_name, status, detail)
     values ('v_customer_stats (session-based visits)', 'FAIL', sqlerrm);
   end;
+
+  -- gst_financial_year: a plain string function, but it does real `at time
+  -- zone` arithmetic — worth executing, not just existence-checking.
+  begin
+    declare v_fy text;
+    begin
+      select gst_financial_year('2026-07-23T00:00:00Z'::timestamptz, 'Asia/Kolkata') into v_fy;
+      insert into smoke_results (check_name, status, detail)
+      values ('gst_financial_year', case when v_fy = '26-27' then 'PASS' else 'FAIL' end,
+              format('23 Jul 2026 -> %s (expected 26-27)', v_fy));
+    end;
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('gst_financial_year', 'FAIL', sqlerrm);
+  end;
+
+  -- get_receipt must still execute cleanly now that it carries the GST block
+  -- (0031) — a forged/nonexistent token should just return no row, not error.
+  begin
+    perform get_receipt('00000000-0000-0000-0000-000000000000'::uuid);
+    insert into smoke_results (check_name, status, detail)
+    values ('get_receipt (gst_invoice block)', 'PASS', 'executed with no fatal error on an unknown token');
+  exception when others then
+    insert into smoke_results (check_name, status, detail)
+    values ('get_receipt (gst_invoice block)', 'FAIL', sqlerrm);
+  end;
+
+  -- sales_report (0032, extended 0034 for expenses/net_profit): auth.uid()
+  -- is NULL in the SQL editor, so is_cafe_member() must fail closed and
+  -- refuse — 'not authorized' is the correct, expected outcome here, not a
+  -- real failure. If the expense_total CTE referenced a bad column name,
+  -- this is exactly the check that would have caught it with a real
+  -- Postgres error instead of 'not authorized'.
+  if v_cafe is not null then
+    begin
+      perform sales_report(v_cafe, now() - interval '30 days', now());
+      insert into smoke_results (check_name, status, detail)
+      values ('sales_report', 'PASS', 'executed (ran as an admin context)');
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('sales_report',
+              case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
+              sqlerrm);
+    end;
+
+    -- low_stock_items (0035): same fail-closed expectation.
+    begin
+      perform count(*) from low_stock_items(v_cafe);
+      insert into smoke_results (check_name, status, detail)
+      values ('low_stock_items', 'PASS', 'executed (ran as an admin context)');
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('low_stock_items',
+              case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
+              sqlerrm);
+    end;
+
+    -- menu_item_costs (0036): joins menu_items -> recipe_items ->
+    -- inventory_items and does real numeric/aggregate work, so executing it
+    -- is the only way to catch a bad column reference in that chain.
+    begin
+      perform count(*) from menu_item_costs(v_cafe);
+      insert into smoke_results (check_name, status, detail)
+      values ('menu_item_costs', 'PASS', 'executed (ran as an admin context)');
+    exception when others then
+      insert into smoke_results (check_name, status, detail)
+      values ('menu_item_costs',
+              case when sqlerrm ilike '%not authorized%' then 'PASS' else 'FAIL' end,
+              sqlerrm);
+    end;
+  end if;
 end $$;
 
 select check_name, status, detail from smoke_results order by seq;

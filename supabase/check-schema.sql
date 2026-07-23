@@ -132,7 +132,27 @@ with expected(kind, name, fix) as (values
   ('function', 'current_shift',           '0029'),
   ('function', 'recent_shifts',           '0029'),
   -- cash management made optional (0030)
-  ('column',   'cafes.cash_management_enabled', '0030')
+  ('column',   'cafes.cash_management_enabled', '0030'),
+  -- GST invoice (0031)
+  ('column',   'cafes.gst_sac_code',            '0031'),
+  ('column',   'orders.gst_invoice_number',     '0031'),
+  ('column',   'orders.gst_invoice_issued_at',  '0031'),
+  ('table',    'gst_invoice_counters',          '0031'),
+  ('function', 'gst_financial_year',            '0031'),
+  ('function', 'claim_gst_invoice_number',      '0031'),
+  ('function', 'assign_gst_invoice_number',     '0031'),
+  -- sales reports (0032; extended 0034 to fold in expenses/net_profit —
+  -- expenses itself is pre-existing base schema, not new here)
+  ('function', 'sales_report',                  '0032'),
+  -- inventory movement + low-stock (0035; inventory_items/inventory_transactions
+  -- themselves are pre-existing base schema, not new here)
+  ('function', 'record_inventory_movement',     '0035'),
+  ('function', 'low_stock_items',               '0035'),
+  -- recipes / bill of materials + food costing (0036)
+  ('table',    'recipe_items',                  '0036'),
+  ('function', 'menu_item_costs',               '0036'),
+  ('column',   'cafes.auto_deduct_stock',       '0036'),
+  ('function', 'deduct_stock_for_order_item',   '0036')
 )
 select
   e.kind,
