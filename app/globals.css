@@ -15,12 +15,13 @@
   --border:            #E6E9E3;  /* hairline */
   --border-strong:     #D3D8CE;
 
-  --primary:           #15803D;  /* green — the one operational accent */
-  --primary-hover:     #106B32;
+  --primary:           #16A34A;  /* brand green — primary actions, active state */
+  --primary-hover:     #15803D;  /* deep green on hover/press */
   --primary-foreground:#FFFFFF;
   --primary-subtle:    #EAF6EE;  /* tinted fill behind primary content */
+  --accent:            #22C55E;  /* fresh accent — positive status, highlights */
 
-  --success:           #15803D;
+  --success:           #16A34A;
   --success-subtle:    #EAF6EE;
   --warning:           #B45309;
   --warning-subtle:    #FFFBEB;
@@ -28,6 +29,17 @@
   --destructive-subtle:#FEF2F2;
   --info:              #1D4ED8;
   --info-subtle:       #EFF6FF;
+
+  /* Sidebar: a deep green-black rail, its own scale so the light content
+     area and the dark navigation never fight over the same tokens. */
+  --sidebar:                  #0F1613;
+  --sidebar-elevated:         #17201B;
+  --sidebar-foreground:       #E7ECE8;
+  --sidebar-muted:            #8A9690;
+  --sidebar-border:           #23302A;
+  --sidebar-hover:            #1B241F;
+  --sidebar-active:           #113C24;  /* deep-green active pill */
+  --sidebar-active-foreground:#5EEA8D;
 
   --radius: 12px;
   --radius-sm: 10px;
@@ -53,6 +65,7 @@
   --primary-hover:     #4ADE80;
   --primary-foreground:#0A1F12;
   --primary-subtle:    #122A1B;
+  --accent:            #4ADE80;
 
   --success:           #34C25F;
   --success-subtle:    #122A1B;
@@ -62,6 +75,16 @@
   --destructive-subtle:#2A1414;
   --info:              #60A5FA;
   --info-subtle:       #0F1B2E;
+
+  /* Sidebar stays near-black in dark mode, one step below the page. */
+  --sidebar:                  #0B0D0B;
+  --sidebar-elevated:         #141714;
+  --sidebar-foreground:       #E7ECE8;
+  --sidebar-muted:            #8A9690;
+  --sidebar-border:           #1E241E;
+  --sidebar-hover:            #171A17;
+  --sidebar-active:           #123120;
+  --sidebar-active-foreground:#5EEA8D;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -80,6 +103,15 @@
   --color-primary-hover:    var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-subtle:   var(--primary-subtle);
+  --color-accent:           var(--accent);
+  --color-sidebar:                  var(--sidebar);
+  --color-sidebar-elevated:         var(--sidebar-elevated);
+  --color-sidebar-foreground:       var(--sidebar-foreground);
+  --color-sidebar-muted:            var(--sidebar-muted);
+  --color-sidebar-border:           var(--sidebar-border);
+  --color-sidebar-hover:            var(--sidebar-hover);
+  --color-sidebar-active:           var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
   --color-success:          var(--success);
   --color-success-subtle:   var(--success-subtle);
   --color-warning:          var(--warning);

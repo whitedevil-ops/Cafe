@@ -34,7 +34,7 @@ export function CafeSwitcher({
       value={activeCafeId}
       disabled={busy}
       onChange={(e) => switchTo(e.target.value)}
-      className="mt-2 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 py-1.5 text-[13px] text-foreground disabled:opacity-50"
+      className="w-full rounded-[var(--radius)] border border-sidebar-border bg-sidebar-elevated px-2.5 py-2 text-[13px] text-sidebar-foreground disabled:opacity-50"
     >
       {cafes.map((c) => (
         <option key={c.cafeId} value={c.cafeId}>

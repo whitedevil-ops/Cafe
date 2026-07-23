@@ -62,6 +62,7 @@ export default async function CafeProfilePage() {
       myRole={cafe.role}
       initial={profile}
       initialHours={hours}
+      timezone={cafe.timezone}
     />
   )
 }

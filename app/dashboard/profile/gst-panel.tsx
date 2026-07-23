@@ -32,9 +32,9 @@ export function GstPanel({
   const gstinValid = GSTIN_RE.test(value.gstin.trim().toUpperCase())
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-5">
-      <h2 className="text-sm font-medium text-foreground">Business &amp; GST</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+    <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
+      <h2 className="text-[15px] font-semibold tracking-tight text-foreground">Business &amp; GST</h2>
+      <p className="mt-0.5 text-[13px] text-muted-foreground">
         Controls what appears on every customer bill, and how tax is calculated on every order.
       </p>
 

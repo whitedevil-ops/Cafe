@@ -1,42 +1,9 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
-import { CafeSwitcher } from '@/components/cafe-switcher'
-import { NotificationBell } from '@/components/notification-bell'
 import { createClient } from '@/utils/supabase/server'
+import { AppShell } from '@/components/shell/app-shell'
 
 export const dynamic = 'force-dynamic'
-
-// Grouped per the target IA. Only sections with a page that actually exists
-// are linked — Reservations/Inventory/etc. join their group once built,
-// rather than shipping dead links now.
-// Cash management is optional per café: a card/UPI-heavy counter shouldn't be
-// shown a drawer-reconciliation workflow it will never use.
-function buildGroups(cashEnabled: boolean): [string, [string, string][]][] {
-  return [
-    ['Overview', [
-      ['Dashboard', '/dashboard'],
-      ['POS', '/dashboard/pos'],
-      ['Live tables', '/dashboard/tables'],
-      ['Bills', '/dashboard/bills'],
-      ...(cashEnabled ? ([['Shift & cash', '/dashboard/shift']] as [string, string][]) : []),
-      ['Kitchen', '/dashboard/kitchen'],
-    ]],
-    ['Management', [
-      ['Menu', '/dashboard/menu'],
-      ['Customers', '/dashboard/customers'],
-      ['Reports', '/dashboard/reports'],
-      ['Expenses', '/dashboard/expenses'],
-      ['Inventory', '/dashboard/inventory'],
-      ['Recipes & cost', '/dashboard/recipes'],
-    ]],
-    ['Business', [
-      ['Café profile', '/dashboard/profile'],
-      ['QR codes', '/dashboard/tables/manage'],
-      ['Settings', '/dashboard/settings'],
-    ]],
-  ]
-}
 
 const STATUS_MESSAGE: Record<string, string> = {
   suspended: 'This café account has been suspended.',
@@ -49,13 +16,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const { data: cafeRow } = await supabase
-    .from('cafes')
-    .select('cash_management_enabled')
-    .eq('id', cafe.cafeId)
-    .maybeSingle()
-  const groups = buildGroups(cafeRow?.cash_management_enabled ?? false)
-  const flatNav = groups.flatMap(([, items]) => items)
+  const [{ data: cafeRow }, { data: profile }] = await Promise.all([
+    supabase.from('cafes').select('cash_management_enabled').eq('id', cafe.cafeId).maybeSingle(),
+    supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
+  ])
 
   if (cafe.status !== 'active') {
     return (
@@ -80,61 +44,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex w-full min-h-dvh bg-background">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface px-4 py-6 md:flex">
-        <div className="flex items-start justify-between px-2">
-          <div className="min-w-0">
-            <p className="text-lg font-semibold tracking-tight text-foreground">KhaoPiyo</p>
-            <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{cafe.name}</p>
-          </div>
-          <NotificationBell cafeId={cafe.cafeId} timezone={cafe.timezone} />
-        </div>
-        <div className="px-2">
-          <CafeSwitcher cafes={myCafes} activeCafeId={cafe.cafeId} />
-        </div>
-        <nav className="mt-6 space-y-5">
-          {groups.map(([section, items]) => (
-            <div key={section}>
-              <p className="px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{section}</p>
-              <div className="mt-1 space-y-0.5">
-                {items.map(([label, href]) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="block rounded-[var(--radius)] px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground"
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
-        <form action="/auth/signout" method="post" className="mt-auto px-1">
-          <button className="text-[13px] text-muted-foreground hover:text-foreground">Sign out</button>
-        </form>
-      </aside>
-
-      {/* Mobile top bar */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-border bg-surface px-5 py-3 md:hidden">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold tracking-tight text-foreground">KhaoPiyo</span>
-            <div className="flex items-center gap-1">
-              <NotificationBell cafeId={cafe.cafeId} timezone={cafe.timezone} />
-            </div>
-          </div>
-          <nav className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
-            {flatNav.map(([label, href]) => (
-              <Link key={href} href={href} className="text-muted-foreground hover:text-foreground">
-                {label}
-              </Link>
-            ))}
-          </nav>
-          <CafeSwitcher cafes={myCafes} activeCafeId={cafe.cafeId} />
-        </header>
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
-    </div>
+    <AppShell
+      cafeName={cafe.name}
+      cafeId={cafe.cafeId}
+      role={cafe.role}
+      timezone={cafe.timezone}
+      cashEnabled={cafeRow?.cash_management_enabled ?? false}
+      cafes={myCafes}
+      userName={profile?.full_name ?? ''}
+    >
+      {children}
+    </AppShell>
   )
 }
