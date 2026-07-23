@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import { formatDateTime } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +53,7 @@ export default async function AuditLogs() {
             <li key={l.id} className="rounded-[var(--radius)] border border-border bg-surface p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[13.5px] font-medium text-foreground">{l.action}</span>
-                <span className="text-[11.5px] text-muted-foreground">{new Date(l.created_at).toLocaleString('en-IN')}</span>
+                <span className="text-[11.5px] text-muted-foreground">{formatDateTime(l.created_at)}</span>
               </div>
               <p className="mt-1 text-[12.5px] text-muted-foreground">
                 by {l.actor_id ? (actorName.get(l.actor_id) ?? 'operator') : 'system'}

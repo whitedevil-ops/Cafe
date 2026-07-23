@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search, X, Star, TrendingDown, Sparkles } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import type { CustomerStat } from './page'
+import { formatDayMonth } from '@/lib/datetime'
 
 type Segment = 'all' | CustomerStat['segment']
 
@@ -15,16 +16,18 @@ const SEGMENT_META: Record<CustomerStat['segment'], { label: string; badge: stri
 }
 
 const mask = (p: string | null) => (p ? `******${p.slice(-4)}` : '—')
-const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Never')
+const fmtDate = (iso: string | null, tz: string) => (iso ? formatDayMonth(iso, tz) : 'Never')
 
 type OrderRow = { id: string; short_code: string; total: number; status: string; created_at: string; receipt_token: string }
 
 export default function CustomersClient({
   cafeId,
+  timezone,
   initialCustomers,
   initialSegment = 'all',
 }: {
   cafeId: string
+  timezone: string
   initialCustomers: CustomerStat[]
   initialSegment?: Segment
 }) {
@@ -122,7 +125,7 @@ export default function CustomersClient({
                     </span>
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                    {mask(c.phone)} · {c.visits} visit{c.visits === 1 ? '' : 's'} · Last {fmtDate(c.last_visit)}
+                    {mask(c.phone)} · {c.visits} visit{c.visits === 1 ? '' : 's'} · Last {fmtDate(c.last_visit, timezone)}
                     {c.favourite_item && <> · Loves {c.favourite_item}</>}
                   </p>
                 </div>
@@ -187,7 +190,7 @@ export default function CustomersClient({
                     <li key={o.id} className="flex items-center justify-between rounded-[var(--radius)] border border-border px-3 py-2 text-[13px]">
                       <div className="min-w-0">
                         <p className="text-foreground">#{o.short_code} · ₹{o.total}</p>
-                        <p className="text-[11.5px] capitalize text-muted-foreground">{o.status} · {fmtDate(o.created_at)}</p>
+                        <p className="text-[11.5px] capitalize text-muted-foreground">{o.status} · {fmtDate(o.created_at, timezone)}</p>
                       </div>
                       {o.status === 'completed' && (
                         <a href={`/r/${o.receipt_token}`} target="_blank" className="shrink-0 text-primary hover:underline">Bill →</a>

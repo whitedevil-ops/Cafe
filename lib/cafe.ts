@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
+import { DEFAULT_TIMEZONE } from '@/lib/datetime'
 
 export type CurrentCafe = {
   userId: string
@@ -10,6 +11,8 @@ export type CurrentCafe = {
   slug: string
   status: string
   statusReason: string | null
+  /** IANA zone used for every date the café sees. Never assume Asia/Kolkata. */
+  timezone: string
 }
 
 export type CafeOption = { cafeId: string; name: string; role: string }
@@ -21,8 +24,8 @@ type MembershipRow = {
   cafe_id: string
   created_at: string
   cafes:
-    | { name: string; slug: string; status: string; status_reason: string | null }
-    | { name: string; slug: string; status: string; status_reason: string | null }[]
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null }
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null }[]
     | null
 }
 
@@ -39,7 +42,7 @@ const getMemberships = cache(
 
     const { data } = await supabase
       .from('cafe_members')
-      .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason)')
+      .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -52,7 +55,7 @@ const getMemberships = cache(
       if (claimed && claimed > 0) {
         const { data: refetched } = await supabase
           .from('cafe_members')
-          .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason)')
+          .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
         rows = (refetched ?? []) as MembershipRow[]
@@ -99,5 +102,6 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
     slug: cafe.slug,
     status: cafe.status,
     statusReason: cafe.status_reason,
+    timezone: cafe.timezone ?? DEFAULT_TIMEZONE,
   }
 }

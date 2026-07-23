@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
+import { formatDate, formatDateTime } from '@/lib/datetime'
 
 export type CafeDetail = {
   business: {
@@ -50,8 +51,8 @@ const STATUS_ACTIONS: { to: string; label: string; destructive: boolean }[] = [
   { to: 'archived', label: 'Archive', destructive: true },
 ]
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—')
-const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('en-IN')
+const fmt = (iso: string | null) => formatDate(iso)
+const fmtDateTime = (iso: string) => formatDateTime(iso)
 
 export default function CafeDetailClient({
   cafeId,

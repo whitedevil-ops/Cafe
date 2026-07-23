@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
 type Receipt = {
-  cafe: { name: string; address: string | null; city: string | null; gstin: string | null; logo_url: string | null; phone: string | null }
+  cafe: { name: string; address: string | null; city: string | null; gstin: string | null; logo_url: string | null; phone: string | null; timezone: string | null }
   order: {
     short_code: string
     created_at: string
@@ -33,9 +34,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
   if (!data) notFound()
   const r = data as Receipt
 
-  const when = new Date(r.order.created_at).toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
+  // This page renders on the server, where the runtime clock is UTC. Formatting
+  // without an explicit zone printed the bill 5h30m early — the reported bug.
+  const when = formatDateTime(r.order.created_at, r.cafe.timezone ?? DEFAULT_TIMEZONE)
 
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-5 py-8">

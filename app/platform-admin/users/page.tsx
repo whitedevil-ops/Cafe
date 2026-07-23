@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { formatDate } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +43,7 @@ export default async function PlatformUsers() {
                   <td className="px-4 py-3 text-muted-foreground">{u.email ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.phone ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {formatDate(u.created_at)}
                   </td>
                 </tr>
               ))}

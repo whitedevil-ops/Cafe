@@ -27,6 +27,7 @@ type HeldRow = {
 export default function PosClient({
   cafeId,
   role,
+  timezone,
   taxPercent,
   serviceChargePercent,
   categories,
@@ -37,6 +38,7 @@ export default function PosClient({
 }: {
   cafeId: string
   role: string
+  timezone: string
   taxPercent: number
   serviceChargePercent: number
   categories: PosCategory[]
@@ -472,6 +474,7 @@ export default function PosClient({
           onResume={resumeHeld}
           onDiscard={discardHeld}
           onClose={() => setHeldOrdersOpen(false)}
+          timezone={timezone}
         />
       )}
 

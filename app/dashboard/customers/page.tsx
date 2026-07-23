@@ -38,5 +38,5 @@ export default async function CustomersPage({
   const { segment } = await searchParams
   const initialSegment = (['new', 'regular', 'vip', 'at_risk'] as const).includes(segment as never) ? (segment as CustomerStat['segment']) : 'all'
 
-  return <CustomersClient cafeId={cafe.cafeId} initialCustomers={(data ?? []) as CustomerStat[]} initialSegment={initialSegment} />
+  return <CustomersClient cafeId={cafe.cafeId} timezone={cafe.timezone} initialCustomers={(data ?? []) as CustomerStat[]} initialSegment={initialSegment} />
 }

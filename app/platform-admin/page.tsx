@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import { formatDateTime } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,7 +153,7 @@ export default async function PlatformOverview() {
             {o.recent_activity.map((a, i) => (
               <li key={i} className="flex items-center justify-between text-[13px]">
                 <span className="text-foreground">{a.action}</span>
-                <span className="text-[12px] text-muted-foreground">{new Date(a.created_at).toLocaleString('en-IN')}</span>
+                <span className="text-[12px] text-muted-foreground">{formatDateTime(a.created_at)}</span>
               </li>
             ))}
           </ul>

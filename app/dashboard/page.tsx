@@ -3,19 +3,16 @@ import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import DashboardClient, { type CommandCenterData } from './dashboard-client'
+import { businessDayStartISO, DEFAULT_TIMEZONE } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
-function istDayStartISO() {
-  const offset = 5.5 * 60 * 60 * 1000
-  const ist = new Date(Date.now() + offset)
-  ist.setUTCHours(0, 0, 0, 0)
-  return new Date(ist.getTime() - offset).toISOString()
-}
-
-export async function loadCommandCenterData(cafeId: string): Promise<CommandCenterData> {
+export async function loadCommandCenterData(
+  cafeId: string,
+  timezone: string = DEFAULT_TIMEZONE,
+): Promise<CommandCenterData> {
   const supabase = await createClient()
-  const dayStart = istDayStartISO()
+  const dayStart = businessDayStartISO(timezone)
   const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
   const [
@@ -77,7 +74,7 @@ export default async function DashboardPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
 
-  const data = await loadCommandCenterData(cafe.cafeId)
+  const data = await loadCommandCenterData(cafe.cafeId, cafe.timezone)
 
   if (!data.hasMenu) {
     return (
@@ -96,5 +93,5 @@ export default async function DashboardPage() {
     )
   }
 
-  return <DashboardClient cafeId={cafe.cafeId} cafeName={cafe.name} role={cafe.role} initialData={data} />
+  return <DashboardClient cafeId={cafe.cafeId} cafeName={cafe.name} role={cafe.role} timezone={cafe.timezone} initialData={data} />
 }

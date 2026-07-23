@@ -15,5 +15,5 @@ export default async function TablesFloorPage() {
     .select('id, label, capacity, status')
     .eq('cafe_id', cafe.cafeId)
 
-  return <FloorClient cafeId={cafe.cafeId} initialTables={(data ?? []) as FloorTable[]} />
+  return <FloorClient cafeId={cafe.cafeId} timezone={cafe.timezone} initialTables={(data ?? []) as FloorTable[]} />
 }

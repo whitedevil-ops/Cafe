@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Receipt, RotateCcw, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { formatDate, formatTime, isToday } from '@/lib/datetime'
 
 type HistoryItem = { name: string; qty: number; price: number; modifiers: { name: string }[] | null }
 type HistoryOrder = {
@@ -41,10 +42,12 @@ export default function MyOrdersClient({
   token,
   cafeName,
   tableLabel,
+  timezone,
 }: {
   token: string
   cafeName: string
   tableLabel: string
+  timezone: string
 }) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -282,7 +285,7 @@ export default function MyOrdersClient({
           <section>
             <h2 className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">Active</h2>
             <div className="mt-2 space-y-3">
-              {active.map((o) => <OrderCard key={o.id} order={o} token={token} onReorder={reorder} reordering={reordering} live />)}
+              {active.map((o) => <OrderCard key={o.id} order={o} token={token} onReorder={reorder} reordering={reordering} timezone={timezone} live />)}
             </div>
           </section>
         )}
@@ -291,7 +294,7 @@ export default function MyOrdersClient({
           <section className={active.length > 0 ? 'mt-7' : ''}>
             <h2 className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">Past orders</h2>
             <div className="mt-2 space-y-3">
-              {past.map((o) => <OrderCard key={o.id} order={o} token={token} onReorder={reorder} reordering={reordering} />)}
+              {past.map((o) => <OrderCard key={o.id} order={o} token={token} onReorder={reorder} reordering={reordering} timezone={timezone} />)}
             </div>
           </section>
         )}
@@ -330,24 +333,25 @@ function OrderCard({
   onReorder,
   reordering,
   live,
+  timezone,
 }: {
   order: HistoryOrder
   token: string
   onReorder: (id: string) => void
   reordering: string | null
   live?: boolean
+  timezone: string
 }) {
-  const when = new Date(order.created_at)
-  const isToday = new Date().toDateString() === when.toDateString()
+  // toDateString() compares in the DEVICE's zone — a customer travelling, or a
+  // phone set to the wrong region, would see "yesterday's" order labelled today.
+  const showTime = isToday(order.created_at, timezone)
 
   return (
     <article className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[14.5px] font-semibold text-foreground">#{order.short_code}</span>
         <span className="text-[12px] text-muted-foreground">
-          {isToday
-            ? when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-            : when.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {showTime ? formatTime(order.created_at, timezone) : formatDate(order.created_at, timezone)}
         </span>
       </div>
 

@@ -94,6 +94,8 @@ with expected(kind, name, fix) as (values
   ('function', 'op_get_cafe_detail',     '0020'),
   ('function', 'op_cafe_health',         '0020'),
   ('function', 'op_log_password_reset',  '0021'),
+  -- per-café business timezone (0026)
+  ('function', 'cafe_day_start',          '0026'),
   -- customer order history + phone verification (0023)
   ('table',    'customer_otp_challenges', '0023'),
   ('table',    'customer_sessions',       '0023'),

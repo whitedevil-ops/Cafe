@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Search, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { formatDate } from '@/lib/datetime'
 
 export type CafeRow = {
   cafe_id: string
@@ -140,7 +141,7 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
                   <td className="px-4 py-3 text-muted-foreground">{c.staff_count}</td>
                   <td className="px-4 py-3 text-muted-foreground">{c.orders_count}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {formatDate(c.created_at)}
                   </td>
                 </tr>
               ))}

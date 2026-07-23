@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
+import { businessDayStart } from '@/lib/datetime'
 
 export type FloorTable = {
   id: string
@@ -51,9 +52,11 @@ const mask = (p: string | null) => (p ? `******${p.slice(-4)}` : null)
 
 export default function FloorClient({
   cafeId,
+  timezone,
   initialTables,
 }: {
   cafeId: string
+  timezone: string
   initialTables: FloorTable[]
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -145,8 +148,10 @@ export default function FloorClient({
 
     const sel = selectedRef.current
     if (sel) {
-      const dayStart = new Date()
-      dayStart.setHours(0, 0, 0, 0)
+      // setHours() would use the DEVICE's timezone — a tablet left on the wrong
+      // zone (or a manager checking from abroad) would show the wrong day's
+      // completed orders. Always resolve against the café's business day.
+      const dayStart = businessDayStart(timezone)
       const { data: done } = await supabase
         .from('orders')
         .select('id, session_id, table_id, customer_id, short_code, status, payment_status, payment_method, phone, total, receipt_token, created_at')
@@ -164,7 +169,7 @@ export default function FloorClient({
         setSms([])
       }
     }
-  }, [supabase, cafeId])
+  }, [supabase, cafeId, timezone])
 
   useEffect(() => {
     void poll()

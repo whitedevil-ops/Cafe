@@ -66,6 +66,7 @@ export default async function PosPage() {
     <PosClient
       cafeId={cafe.cafeId}
       role={cafe.role}
+      timezone={cafe.timezone}
       taxPercent={Number(cafeRow?.tax_percent ?? 0)}
       serviceChargePercent={Number(cafeRow?.service_charge ?? 0)}
       categories={posCategories}

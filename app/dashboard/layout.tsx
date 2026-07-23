@@ -68,7 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <p className="text-lg font-semibold tracking-tight text-foreground">KhaoPiyo</p>
             <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{cafe.name}</p>
           </div>
-          <NotificationBell cafeId={cafe.cafeId} />
+          <NotificationBell cafeId={cafe.cafeId} timezone={cafe.timezone} />
         </div>
         <div className="px-2">
           <CafeSwitcher cafes={myCafes} activeCafeId={cafe.cafeId} />
@@ -102,7 +102,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex items-center justify-between">
             <span className="font-semibold tracking-tight text-foreground">KhaoPiyo</span>
             <div className="flex items-center gap-1">
-              <NotificationBell cafeId={cafe.cafeId} />
+              <NotificationBell cafeId={cafe.cafeId} timezone={cafe.timezone} />
             </div>
           </div>
           <nav className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">

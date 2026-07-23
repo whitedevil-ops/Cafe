@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { formatTime } from '@/lib/datetime'
 
 type Notice = { id: string; type: string; message: string; read: boolean; created_at: string }
 
-export function NotificationBell({ cafeId }: { cafeId: string }) {
+export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezone: string }) {
   const supabase = useMemo(() => createClient(), [])
   const [notices, setNotices] = useState<Notice[]>([])
   const [open, setOpen] = useState(false)
@@ -87,7 +88,7 @@ export function NotificationBell({ cafeId }: { cafeId: string }) {
                   >
                     {n.message}
                     <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                      {new Date(n.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
+                      {formatTime(n.created_at, timezone)}
                     </span>
                   </button>
                 ))

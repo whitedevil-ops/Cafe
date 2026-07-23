@@ -1,6 +1,7 @@
 'use client'
 
 import { X, Clock } from 'lucide-react'
+import { formatTime } from '@/lib/datetime'
 
 export type HeldOrder = {
   id: string
@@ -20,11 +21,13 @@ export function HeldOrdersDrawer({
   onResume,
   onDiscard,
   onClose,
+  timezone,
 }: {
   orders: HeldOrder[]
   onResume: (id: string) => void
   onDiscard: (id: string) => void
   onClose: () => void
+  timezone: string
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
@@ -55,7 +58,7 @@ export function HeldOrdersDrawer({
                         {o.itemCount} item{o.itemCount === 1 ? '' : 's'} · ₹{o.total}
                       </p>
                       <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Clock size={11} /> {new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        <Clock size={11} /> {formatTime(o.created_at, timezone)}
                       </p>
                     </div>
                   </div>

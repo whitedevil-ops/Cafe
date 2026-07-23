@@ -1,6 +1,7 @@
 import { supabase, isConfigured } from './supabase'
 import { demoCafe, demoTables, demoMenu, demoOrders, demoOrderItems } from './demo'
 import type { Cafe, CafeTable, MenuItem, Order, OrderItem, OrderStatus } from './types'
+import { businessDayStartISO, DEFAULT_TIMEZONE } from './datetime'
 
 export type NewOrder = {
   cafe_id: string
@@ -15,13 +16,11 @@ export type NewOrder = {
   items: { menu_item_id: string; name: string; price: number; qty: number }[]
 }
 
-// Start of "today" in IST (UTC+5:30, no DST). Order numbers reset each morning, so the
-// day boundary must be the cafe's local midnight, not UTC's.
+// Order numbers reset each morning, so the day boundary must be the café's
+// local midnight, not UTC's. Delegates to the shared utility rather than
+// re-deriving the offset by hand — see lib/datetime.ts.
 function istDayStartISO(): string {
-  const offsetMs = 5.5 * 60 * 60 * 1000
-  const ist = new Date(Date.now() + offsetMs)
-  ist.setUTCHours(0, 0, 0, 0)
-  return new Date(ist.getTime() - offsetMs).toISOString()
+  return businessDayStartISO(DEFAULT_TIMEZONE)
 }
 
 export async function getTableContext(

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Clock, Users, Ban, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { businessDayStartISO } from '@/lib/datetime'
 
 export type CommandCenterData = {
   hasMenu: boolean
@@ -22,22 +23,17 @@ export type CommandCenterData = {
   newCustomersToday: number
 }
 
-function istDayStartISO() {
-  const offset = 5.5 * 60 * 60 * 1000
-  const ist = new Date(Date.now() + offset)
-  ist.setUTCHours(0, 0, 0, 0)
-  return new Date(ist.getTime() - offset).toISOString()
-}
-
 export default function DashboardClient({
   cafeId,
   cafeName,
   role,
+  timezone,
   initialData,
 }: {
   cafeId: string
   cafeName: string
   role: string
+  timezone: string
   initialData: CommandCenterData
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -45,7 +41,7 @@ export default function DashboardClient({
   const [lastPolledAt, setLastPolledAt] = useState<Date | null>(null)
 
   const poll = useCallback(async () => {
-    const dayStart = istDayStartISO()
+    const dayStart = businessDayStartISO(timezone)
     const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
     const [todayOrders, cancelledToday, lateTickets, billRequested, callWaiter, occupiedSessions, { count: totalTables }, payments, atRisk, { count: newCustomers }] =
@@ -87,7 +83,7 @@ export default function DashboardClient({
       newCustomersToday: newCustomers ?? 0,
     })
     setLastPolledAt(new Date())
-  }, [supabase, cafeId])
+  }, [supabase, cafeId, timezone])
 
   useEffect(() => {
     const p = setInterval(poll, 30000)
