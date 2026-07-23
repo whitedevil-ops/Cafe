@@ -103,7 +103,18 @@ with expected(kind, name, fix) as (values
   ('function', 'customer_verify_otp',     '0023'),
   ('function', 'customer_session_identity', '0023'),
   ('function', 'customer_order_history',  '0023'),
-  ('function', 'customer_reorder_payload', '0023')
+  ('function', 'customer_reorder_payload', '0023'),
+  -- optional KOT printing (0027)
+  ('column',   'cafes.kot_printing_enabled', '0027'),
+  ('table',    'kitchen_stations',        '0027'),
+  ('table',    'kot_printers',            '0027'),
+  ('table',    'print_jobs',              '0027'),
+  ('table',    'print_bridge_tokens',     '0027'),
+  ('function', 'build_kot_payload',       '0027'),
+  ('function', 'enqueue_kot_jobs',        '0027'),
+  ('function', 'reprint_kot',             '0027'),
+  ('function', 'bridge_claim_jobs',       '0027'),
+  ('function', 'printer_health',          '0027')
 )
 select
   e.kind,

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
+import { PrinterBanner, type PrinterHealth } from '@/components/kitchen/printer-banner'
 
 type Order = {
   id: string
@@ -49,9 +50,11 @@ function useDing() {
 export default function KitchenClient({
   cafeId,
   tableLabels,
+  printingEnabled,
 }: {
   cafeId: string
   tableLabels: Record<string, string>
+  printingEnabled: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -64,6 +67,31 @@ export default function KitchenClient({
   const [cancelling, setCancelling] = useState<Order | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [printerHealth, setPrinterHealth] = useState<PrinterHealth | null>(null)
+
+  // Printer status is polled separately and slowly: it must never share a
+  // failure path with the order poll, because the tickets have to keep
+  // arriving even when every printer in the building is dead.
+  useEffect(() => {
+    if (!printingEnabled) return
+    let alive = true
+    async function pollPrinters() {
+      const { data } = await supabase.rpc('printer_health', { p_cafe_id: cafeId })
+      if (alive && data) setPrinterHealth(data as PrinterHealth)
+    }
+    void pollPrinters()
+    const id = setInterval(pollPrinters, 20000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [supabase, cafeId, printingEnabled])
+
+  async function reprint(o: Order) {
+    const { data, error } = await supabase.rpc('reprint_kot', { p_order_id: o.id })
+    if (error) return toast(error.message, 'error')
+    toast(data === 0 ? 'No printer matched this order.' : `KOT re-queued for order ${o.short_code}.`)
+  }
 
   useEffect(() => {
     let alive = true
@@ -151,6 +179,8 @@ export default function KitchenClient({
         )}
       </header>
 
+      <PrinterBanner health={printerHealth} />
+
       {orders.length === 0 ? (
         <p className="py-32 text-center text-2xl text-muted-foreground">No open orders</p>
       ) : (
@@ -206,12 +236,22 @@ export default function KitchenClient({
                     {NEXT[o.status].label}
                   </button>
                 </div>
-                <button
-                  onClick={() => { setCancelError(null); setCancelling(o) }}
-                  className="mt-2 w-full rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
-                >
-                  Cancel order
-                </button>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => { setCancelError(null); setCancelling(o) }}
+                    className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+                  >
+                    Cancel order
+                  </button>
+                  {printingEnabled && (
+                    <button
+                      onClick={() => reprint(o)}
+                      className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary"
+                    >
+                      Reprint KOT
+                    </button>
+                  )}
+                </div>
               </section>
             )
           })}

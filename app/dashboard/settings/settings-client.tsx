@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import KotPrintingPanel, { type KotPrinter, type KitchenStation, type BridgeToken } from './kot-printing-panel'
 
 type Settings = {
   name: string
@@ -20,6 +21,12 @@ export type StaffMember = {
   email: string | null
 }
 export type StaffInvite = { id: string; email: string; role: string }
+export type PrintingState = {
+  enabled: boolean
+  printers: KotPrinter[]
+  stations: KitchenStation[]
+  tokens: BridgeToken[]
+}
 
 const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
 
@@ -30,6 +37,8 @@ export default function SettingsClient({
   initial,
   initialStaff,
   initialInvites,
+  timezone,
+  printing,
 }: {
   cafeId: string
   myUserId: string
@@ -37,6 +46,8 @@ export default function SettingsClient({
   initial: Settings
   initialStaff: StaffMember[]
   initialInvites: StaffInvite[]
+  timezone: string
+  printing: PrintingState
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -229,6 +240,16 @@ export default function SettingsClient({
           )}
         </div>
       </div>
+
+      <KotPrintingPanel
+        cafeId={cafeId}
+        timezone={timezone}
+        canManage={myRole === "owner" || myRole === "manager"}
+        initialEnabled={printing.enabled}
+        initialPrinters={printing.printers}
+        initialStations={printing.stations}
+        initialTokens={printing.tokens}
+      />
     </div>
   )
 }

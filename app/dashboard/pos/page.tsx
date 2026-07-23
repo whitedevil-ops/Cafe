@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { byTableLabel } from '@/lib/table-sort'
 import { createClient } from '@/utils/supabase/server'
 import PosClient from './pos-client'
 import type { PosCategory } from '@/components/pos/category-tabs'
@@ -60,7 +61,7 @@ export default async function PosPage() {
 
   const posTables: PosTable[] = (tables ?? [])
     .map((t) => ({ id: t.id, label: t.label, occupied: t.status === 'occupied' }))
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    .sort(byTableLabel)
 
   return (
     <PosClient

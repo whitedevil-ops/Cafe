@@ -1,6 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
+import { byTableLabel } from '@/lib/table-sort'
 
 export type LiveTable = {
   id: string
@@ -21,7 +22,7 @@ export function TableSelector({
   onPick: (table: LiveTable) => void
   onClose: () => void
 }) {
-  const sorted = [...tables].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+  const sorted = [...tables].sort(byTableLabel)
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>

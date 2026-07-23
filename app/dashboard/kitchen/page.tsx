@@ -10,13 +10,14 @@ export default async function KitchenPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const { data: tables } = await supabase
-    .from('cafe_tables')
-    .select('id, label')
-    .eq('cafe_id', cafe.cafeId)
+  const [{ data: tables }, { data: cafeRow }] = await Promise.all([
+    supabase.from('cafe_tables').select('id, label').eq('cafe_id', cafe.cafeId),
+    supabase.from('cafes').select('kot_printing_enabled').eq('id', cafe.cafeId).maybeSingle(),
+  ])
 
   const tableLabels: Record<string, string> = {}
   for (const t of tables ?? []) tableLabels[t.id] = t.label
+  const printingEnabled = cafeRow?.kot_printing_enabled ?? false
 
-  return <KitchenClient cafeId={cafe.cafeId} tableLabels={tableLabels} />
+  return <KitchenClient cafeId={cafe.cafeId} tableLabels={tableLabels} printingEnabled={printingEnabled} />
 }

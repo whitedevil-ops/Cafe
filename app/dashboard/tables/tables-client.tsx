@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { createClient } from '@/utils/supabase/client'
+import { byTableLabel } from '@/lib/table-sort'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
@@ -66,7 +67,7 @@ export default function TablesClient({
 
   // Natural sort so "2" comes before "10" (and named tables still sort sensibly).
   const sorted = useMemo(
-    () => [...tables].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })),
+    () => [...tables].sort(byTableLabel),
     [tables],
   )
 

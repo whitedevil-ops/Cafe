@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 import { businessDayStart } from '@/lib/datetime'
+import { byTableLabel } from '@/lib/table-sort'
 
 export type FloorTable = {
   id: string
@@ -194,7 +195,7 @@ export default function FloorClient({
   }, [payments])
 
   const sorted = useMemo(
-    () => [...tables].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })),
+    () => [...tables].sort(byTableLabel),
     [tables],
   )
   const emptyTables = useMemo(() => sorted.filter((t) => !sessionByTable.has(t.id) && t.id !== selected), [sorted, sessionByTable, selected])
