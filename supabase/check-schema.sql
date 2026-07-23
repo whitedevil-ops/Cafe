@@ -130,7 +130,9 @@ with expected(kind, name, fix) as (values
   ('function', 'record_cash_movement',    '0029'),
   ('function', 'shift_summary',           '0029'),
   ('function', 'current_shift',           '0029'),
-  ('function', 'recent_shifts',           '0029')
+  ('function', 'recent_shifts',           '0029'),
+  -- cash management made optional (0030)
+  ('column',   'cafes.cash_management_enabled', '0030')
 )
 select
   e.kind,

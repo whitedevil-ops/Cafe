@@ -28,6 +28,7 @@ export async function loadCommandCenterData(
     atRisk,
     { count: newCustomers },
     latestShift,
+    cashSetting,
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
@@ -41,6 +42,7 @@ export async function loadCommandCenterData(
     supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
     supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
     supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
+    supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
   ])
 
   const orders = todayOrders.data ?? []
@@ -69,6 +71,7 @@ export async function loadCommandCenterData(
     collectionsByMethod,
     atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
     newCustomersToday: newCustomers ?? 0,
+    cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
     shift: (() => {
       const s = (latestShift.data ?? [])[0]
       if (!s) return null

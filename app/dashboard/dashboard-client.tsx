@@ -21,6 +21,7 @@ export type CommandCenterData = {
   collectionsByMethod: Record<string, number>
   atRiskCustomers: { name: string | null; total_spend: number }[]
   newCustomersToday: number
+  cashEnabled: boolean
   shift: {
     id: string
     status: 'open' | 'closed'
@@ -51,7 +52,7 @@ export default function DashboardClient({
     const dayStart = businessDayStartISO(timezone)
     const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
-    const [todayOrders, cancelledToday, lateTickets, billRequested, callWaiter, occupiedSessions, { count: totalTables }, payments, atRisk, { count: newCustomers }, latestShift] =
+    const [todayOrders, cancelledToday, lateTickets, billRequested, callWaiter, occupiedSessions, { count: totalTables }, payments, atRisk, { count: newCustomers }, latestShift, cashSetting] =
       await Promise.all([
         supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
         supabase.from('orders').select('id, cancel_reason').eq('cafe_id', cafeId).eq('status', 'cancelled').gte('created_at', dayStart),
@@ -64,6 +65,7 @@ export default function DashboardClient({
         supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
         supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
         supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
+        supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
       ])
 
     const orders = todayOrders.data ?? []
@@ -89,6 +91,7 @@ export default function DashboardClient({
       collectionsByMethod,
       atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
       newCustomersToday: newCustomers ?? 0,
+      cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
       shift: (() => {
         const s = (latestShift.data ?? [])[0]
         if (!s) return null
@@ -140,13 +143,13 @@ export default function DashboardClient({
     },
     // A drawer that didn't balance is the single most actionable money signal
     // an owner gets, so it outranks cancellations in the list.
-    data.shift?.status === 'closed' && (data.shift.difference ?? 0) !== 0 && {
+    data.cashEnabled && data.shift?.status === 'closed' && (data.shift.difference ?? 0) !== 0 && {
       icon: <Wallet size={16} />,
       text: `Cash ${(data.shift.difference ?? 0) < 0 ? 'shortage' : 'excess'} of ₹${Math.abs(data.shift.difference ?? 0).toLocaleString('en-IN')} on the last shift`,
       href: '/dashboard/shift',
       tone: 'destructive' as const,
     },
-    data.shift?.status === 'open' && {
+    data.cashEnabled && data.shift?.status === 'open' && {
       icon: <Wallet size={16} />,
       text: 'A cash shift is still open — close it to reconcile the drawer',
       href: '/dashboard/shift',

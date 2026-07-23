@@ -15,7 +15,7 @@ export default async function SettingsPage() {
     await Promise.all([
       supabase
         .from('cafes')
-        .select('name, upsell_threshold, kot_printing_enabled')
+        .select('name, upsell_threshold, kot_printing_enabled, cash_management_enabled')
         .eq('id', cafe.cafeId)
         .single(),
       supabase
@@ -55,6 +55,7 @@ export default async function SettingsPage() {
       initialStaff={staff}
       initialInvites={(invites ?? []) as StaffInvite[]}
       timezone={cafe.timezone}
+      cashEnabled={data?.cash_management_enabled ?? false}
       printing={{
         enabled: data?.kot_printing_enabled ?? false,
         printers: (printers ?? []) as KotPrinter[],

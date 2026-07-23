@@ -3,31 +3,35 @@ import { redirect } from 'next/navigation'
 import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
 import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
+import { createClient } from '@/utils/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 // Grouped per the target IA. Only sections with a page that actually exists
 // are linked — Reservations/Inventory/Reports etc. are Phase 2/3 and will
 // join their group once built, rather than shipping dead links now.
-const groups: [string, [string, string][]][] = [
-  ['Overview', [
-    ['Dashboard', '/dashboard'],
-    ['POS', '/dashboard/pos'],
-    ['Live tables', '/dashboard/tables'],
-    ['Shift & cash', '/dashboard/shift'],
-    ['Kitchen', '/dashboard/kitchen'],
-  ]],
-  ['Management', [
-    ['Menu', '/dashboard/menu'],
-    ['Customers', '/dashboard/customers'],
-  ]],
-  ['Business', [
-    ['Café profile', '/dashboard/profile'],
-    ['QR codes', '/dashboard/tables/manage'],
-    ['Settings', '/dashboard/settings'],
-  ]],
-]
-const flatNav = groups.flatMap(([, items]) => items)
+// Cash management is optional per café: a card/UPI-heavy counter shouldn't be
+// shown a drawer-reconciliation workflow it will never use.
+function buildGroups(cashEnabled: boolean): [string, [string, string][]][] {
+  return [
+    ['Overview', [
+      ['Dashboard', '/dashboard'],
+      ['POS', '/dashboard/pos'],
+      ['Live tables', '/dashboard/tables'],
+      ...(cashEnabled ? ([['Shift & cash', '/dashboard/shift']] as [string, string][]) : []),
+      ['Kitchen', '/dashboard/kitchen'],
+    ]],
+    ['Management', [
+      ['Menu', '/dashboard/menu'],
+      ['Customers', '/dashboard/customers'],
+    ]],
+    ['Business', [
+      ['Café profile', '/dashboard/profile'],
+      ['QR codes', '/dashboard/tables/manage'],
+      ['Settings', '/dashboard/settings'],
+    ]],
+  ]
+}
 
 const STATUS_MESSAGE: Record<string, string> = {
   suspended: 'This café account has been suspended.',
@@ -38,6 +42,15 @@ const STATUS_MESSAGE: Record<string, string> = {
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [cafe, myCafes] = await Promise.all([getCurrentCafe(), getMyCafes()])
   if (!cafe) redirect('/onboarding')
+
+  const supabase = await createClient()
+  const { data: cafeRow } = await supabase
+    .from('cafes')
+    .select('cash_management_enabled')
+    .eq('id', cafe.cafeId)
+    .maybeSingle()
+  const groups = buildGroups(cafeRow?.cash_management_enabled ?? false)
+  const flatNav = groups.flatMap(([, items]) => items)
 
   if (cafe.status !== 'active') {
     return (

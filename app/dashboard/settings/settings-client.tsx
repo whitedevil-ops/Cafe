@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import KotPrintingPanel, { type KotPrinter, type KitchenStation, type BridgeToken } from './kot-printing-panel'
+import CashManagementPanel from './cash-management-panel'
 
 type Settings = {
   name: string
@@ -38,6 +39,7 @@ export default function SettingsClient({
   initialStaff,
   initialInvites,
   timezone,
+  cashEnabled,
   printing,
 }: {
   cafeId: string
@@ -47,6 +49,7 @@ export default function SettingsClient({
   initialStaff: StaffMember[]
   initialInvites: StaffInvite[]
   timezone: string
+  cashEnabled: boolean
   printing: PrintingState
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -240,6 +243,12 @@ export default function SettingsClient({
           )}
         </div>
       </div>
+
+      <CashManagementPanel
+        cafeId={cafeId}
+        canManage={myRole === 'owner' || myRole === 'manager'}
+        initialEnabled={cashEnabled}
+      />
 
       <KotPrintingPanel
         cafeId={cafeId}
