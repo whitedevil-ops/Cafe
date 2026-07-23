@@ -15,6 +15,7 @@ export type CafeProfile = {
   phone: string
   website: string
   gstin: string
+  gst_sac_code: string
   tax_percent: number
   service_charge: number
   address: string
@@ -87,6 +88,7 @@ export default function ProfileClient({
       phone: form.phone.trim() || null,
       website: form.website.trim() || null,
       gstin: gstin || null,
+      gst_sac_code: form.gst_sac_code.trim() || '996331',
       tax_percent: Math.min(100, Math.max(0, Number(form.tax_percent) || 0)),
       service_charge: Math.min(100, Math.max(0, Number(form.service_charge) || 0)),
       address: form.address.trim() || null,
@@ -113,7 +115,7 @@ export default function ProfileClient({
 
     // Audit trail: one row per materially changed field (no-op if none changed).
     const audit: { field: string; from: unknown; to: unknown }[] = []
-    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway']
+    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'gst_sac_code', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway']
     for (const k of watch) {
       if (String(initial[k] ?? '') !== String(form[k] ?? '')) audit.push({ field: k, from: initial[k], to: form[k] })
     }
@@ -208,12 +210,22 @@ export default function ProfileClient({
               value={form.gstin}
               onChange={set('gstin')}
               disabled={dis}
-              hint="Format check only — shown on bills when set."
+              hint="Format check only. Set this to turn on GST tax invoices (invoice number, CGST/SGST split) on the customer bill — leave blank for a plain receipt."
             />
+            {form.gstin && (
+              <Input
+                label="SAC code"
+                placeholder="996331"
+                value={form.gst_sac_code}
+                onChange={set('gst_sac_code')}
+                disabled={dis}
+                hint="996331 (restaurant/café service) is correct for almost every café — only change this if your accountant tells you to."
+              />
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Tax %" type="number" min={0} max={100} value={String(form.tax_percent)}
                 onChange={(e) => setForm((f) => ({ ...f, tax_percent: Number(e.target.value) }))} disabled={dis}
-                hint="Stored per café. Not yet applied to order totals — tax engine is a future step." />
+                hint="Applied to every order's subtotal, computed server-side." />
               <Input label="Service charge %" type="number" min={0} max={100} value={String(form.service_charge)}
                 onChange={(e) => setForm((f) => ({ ...f, service_charge: Number(e.target.value) }))} disabled={dis} />
             </div>

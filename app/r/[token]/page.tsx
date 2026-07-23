@@ -20,6 +20,14 @@ type Receipt = {
     table_label: string | null
     phone_masked: string | null
   }
+  gst_invoice: {
+    invoice_number: string
+    issued_at: string
+    cgst: number
+    sgst: number
+    sac_code: string
+    place_of_supply: string
+  } | null
   items: { name: string; qty: number; price: number; modifiers: { name: string; price: number }[] }[]
 }
 
@@ -53,7 +61,18 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </p>
           )}
           {r.cafe.gstin && <p className="text-[12px] text-muted-foreground">GSTIN: {r.cafe.gstin}</p>}
+          {r.gst_invoice && (
+            <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-foreground">Tax Invoice</p>
+          )}
         </header>
+
+        {r.gst_invoice && (
+          <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-border py-3 text-[12px] text-muted-foreground">
+            <span>Invoice: <span className="text-foreground">{r.gst_invoice.invoice_number}</span></span>
+            <span>SAC: {r.gst_invoice.sac_code}</span>
+            <span>Place of supply: {r.gst_invoice.place_of_supply}</span>
+          </div>
+        )}
 
         <div className="flex flex-wrap justify-between gap-2 border-b border-border py-3 text-[13px] text-muted-foreground">
           <span>Order #{r.order.short_code}</span>
@@ -92,9 +111,14 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
               <span>−₹{r.order.discount}</span>
             </div>
           )}
-          {r.order.tax > 0 && (
+          {r.order.tax > 0 && r.gst_invoice ? (
+            <>
+              <div className="flex justify-between text-muted-foreground"><span>CGST</span><span>₹{r.gst_invoice.cgst}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>SGST</span><span>₹{r.gst_invoice.sgst}</span></div>
+            </>
+          ) : r.order.tax > 0 ? (
             <div className="flex justify-between text-muted-foreground"><span>Tax</span><span>₹{r.order.tax}</span></div>
-          )}
+          ) : null}
           {r.order.service_charge > 0 && (
             <div className="flex justify-between text-muted-foreground"><span>Service charge</span><span>₹{r.order.service_charge}</span></div>
           )}
