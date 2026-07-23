@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
+import { RefundDialog, type RefundableItem } from '@/components/orders/refund-dialog'
 import { businessDayStart } from '@/lib/datetime'
 import { byTableLabel } from '@/lib/table-sort'
 
@@ -81,6 +82,14 @@ export default function FloorClient({
   const [cancelling, setCancelling] = useState<SessionOrder | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [refunding, setRefunding] = useState<SessionOrder | null>(null)
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
+  const [refundError, setRefundError] = useState<string | null>(null)
+  const [refundContext, setRefundContext] = useState<{
+    subtotal: number
+    alreadyRefunded: number
+    items: RefundableItem[]
+  } | null>(null)
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
   selectedRef.current = selected
@@ -212,6 +221,72 @@ export default function FloorClient({
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
     const { error } = await supabase.from('payments').insert({ cafe_id: cafeId, order_id: o.id, method, amount: o.total })
     if (!error) await supabase.from('orders').update({ payment_status: 'paid', payment_method: method }).eq('id', o.id)
+    void poll()
+  }
+
+  // Fetches the authoritative refund picture before opening the dialog: what's
+  // left to refund, and how many units of each line were already returned.
+  // The dialog previews numbers, but refund_order recomputes everything.
+  async function openRefund(o: SessionOrder) {
+    setRefundError(null)
+    const [{ data: settlement }, { data: orderRow }, { data: lines }] = await Promise.all([
+      supabase.rpc('order_settlement', { p_order_id: o.id }),
+      supabase.from('orders').select('subtotal').eq('id', o.id).maybeSingle(),
+      supabase.from('order_items').select('id, name, qty, price').eq('order_id', o.id),
+    ])
+
+    const ids = (lines ?? []).map((l) => l.id)
+    const { data: priorRefunds } = ids.length
+      ? await supabase.from('refund_items').select('order_item_id, qty').in('order_item_id', ids)
+      : { data: [] as { order_item_id: string; qty: number }[] }
+
+    const refundedByItem = new Map<string, number>()
+    for (const r of priorRefunds ?? []) {
+      refundedByItem.set(r.order_item_id, (refundedByItem.get(r.order_item_id) ?? 0) + r.qty)
+    }
+
+    const s = settlement as { refunded: number } | null
+    setRefundContext({
+      subtotal: orderRow?.subtotal ?? o.total,
+      alreadyRefunded: s?.refunded ?? 0,
+      items: (lines ?? []).map((l) => ({
+        id: l.id,
+        name: l.name,
+        qty: l.qty,
+        price: l.price,
+        refundedQty: refundedByItem.get(l.id) ?? 0,
+      })),
+    })
+    setRefunding(o)
+  }
+
+  async function confirmRefund(args: {
+    mode: 'full' | 'partial' | 'item'
+    amount: number | null
+    method: string
+    reason: string
+    items: { order_item_id: string; qty: number }[]
+  }) {
+    if (!refunding) return
+    setRefundSubmitting(true)
+    setRefundError(null)
+    const { data, error } = await supabase.rpc('refund_order', {
+      p_order_id: refunding.id,
+      p_reason: args.reason,
+      p_method: args.method,
+      p_amount: args.mode === 'partial' ? args.amount : null,
+      p_items: args.mode === 'item' ? args.items : null,
+    })
+    setRefundSubmitting(false)
+    if (error) return setRefundError(error.message)
+    const r = data as { amount: number; remaining: number }
+    toast(
+      r.remaining > 0
+        ? `₹${r.amount} refunded — ₹${r.remaining} still refundable.`
+        : `₹${r.amount} refunded in full.`,
+    )
+    setRefunding(null)
+    setRefundContext(null)
     void poll()
   }
 
@@ -494,14 +569,31 @@ export default function FloorClient({
                       <button onClick={() => advance(o)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
                     )}
                   </div>
-                  {o.status !== 'completed' && (
-                    <button
-                      onClick={() => { setCancelError(null); setCancelling(o) }}
-                      className="mt-2 min-h-9 w-full rounded-[var(--radius)] border border-border-strong text-[12.5px] font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
-                    >
-                      Cancel order
-                    </button>
-                  )}
+                  <div className="mt-2 flex gap-2">
+                    {o.status !== 'completed' && (
+                      <button
+                        onClick={() => { setCancelError(null); setCancelling(o) }}
+                        className="min-h-9 flex-1 rounded-[var(--radius)] border border-border-strong text-[12.5px] font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+                      >
+                        Cancel order
+                      </button>
+                    )}
+                    {/* Refund replaces Cancel once money has been taken —
+                        cancel_order deliberately refuses paid orders. */}
+                    {o.payment_status === 'paid' && (
+                      <button
+                        onClick={() => openRefund(o)}
+                        className="min-h-9 flex-1 rounded-[var(--radius)] border border-border-strong text-[12.5px] font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+                      >
+                        Refund
+                      </button>
+                    )}
+                    {o.payment_status === 'refunded' && (
+                      <span className="min-h-9 flex-1 rounded-[var(--radius)] bg-surface-subtle text-center text-[12.5px] font-medium leading-9 text-muted-foreground">
+                        Refunded
+                      </span>
+                    )}
+                  </div>
                 </section>
               )
             })}
@@ -546,6 +638,21 @@ export default function FloorClient({
             )}
           </div>
         </div>
+      )}
+
+      {refunding && refundContext && (
+        <RefundDialog
+          orderLabel={`#${refunding.short_code}`}
+          orderTotal={refunding.total}
+          orderSubtotal={refundContext.subtotal}
+          alreadyRefunded={refundContext.alreadyRefunded}
+          items={refundContext.items}
+          defaultMethod={refunding.payment_method}
+          submitting={refundSubmitting}
+          error={refundError}
+          onClose={() => { setRefunding(null); setRefundContext(null) }}
+          onConfirm={confirmRefund}
+        />
       )}
 
       {cancelling && (

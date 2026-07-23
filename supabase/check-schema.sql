@@ -114,7 +114,14 @@ with expected(kind, name, fix) as (values
   ('function', 'enqueue_kot_jobs',        '0027'),
   ('function', 'reprint_kot',             '0027'),
   ('function', 'bridge_claim_jobs',       '0027'),
-  ('function', 'printer_health',          '0027')
+  ('function', 'printer_health',          '0027'),
+  -- refunds (0028)
+  ('column',   'cafes.refund_approval_limit', '0028'),
+  ('table',    'refunds',                 '0028'),
+  ('table',    'refund_items',            '0028'),
+  ('function', 'refund_order',            '0028'),
+  ('function', 'order_refunded_total',    '0028'),
+  ('function', 'order_settlement',        '0028')
 )
 select
   e.kind,
