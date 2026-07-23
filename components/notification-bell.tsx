@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { formatTime } from '@/lib/datetime'
+import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
 
 type Notice = { id: string; type: string; message: string; read: boolean; created_at: string }
 
@@ -21,7 +22,18 @@ export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezon
     if (data) setNotices(data as Notice[])
   }, [supabase, cafeId])
 
+  // Realtime is a supplement, not a replacement: a new call-waiter or
+  // bill-requested notice appears the instant it's inserted instead of
+  // waiting up to 5s. The interval below keeps running underneath it as the
+  // backstop that guarantees the bell is never silently stale.
+  useRealtimeRefresh(supabase, 'notifications', cafeId, load)
+
   useEffect(() => {
+    // load() is async and only calls setState after its own network
+    // round-trip completes — not a synchronous render-phase update — but
+    // this lint rule can't see past the `void`, so it's disabled here
+    // rather than restructured into something less readable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
     const p = setInterval(load, 5000)
     return () => clearInterval(p)

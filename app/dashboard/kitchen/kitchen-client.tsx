@@ -5,6 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 import { PrinterBanner, type PrinterHealth } from '@/components/kitchen/printer-banner'
+import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
+import { OfflineBanner } from '@/components/offline-banner'
 
 type Order = {
   id: string
@@ -93,41 +95,51 @@ export default function KitchenClient({
     toast(data === 0 ? 'No printer matched this order.' : `KOT re-queued for order ${o.short_code}.`)
   }
 
-  useEffect(() => {
-    let alive = true
-    async function poll() {
-      const { data: ords } = await supabase
-        .from('orders')
-        .select('id, short_code, table_id, type, status, total, payment_method, payment_status, created_at')
-        .eq('cafe_id', cafeId)
-        .in('status', ['placed', 'preparing', 'ready'])
-        .order('created_at', { ascending: true })
-      if (!alive || !ords) return
+  const poll = useCallback(async () => {
+    const { data: ords } = await supabase
+      .from('orders')
+      .select('id, short_code, table_id, type, status, total, payment_method, payment_status, created_at')
+      .eq('cafe_id', cafeId)
+      .in('status', ['placed', 'preparing', 'ready'])
+      .order('created_at', { ascending: true })
+    if (!ords) return
 
-      const fresh = ords.filter((o) => !known.current.has(o.id))
-      if (fresh.length && known.current.size > 0) ding()
-      ords.forEach((o) => known.current.add(o.id))
-      setOrders(ords as Order[])
+    const fresh = ords.filter((o) => !known.current.has(o.id))
+    if (fresh.length && known.current.size > 0) ding()
+    ords.forEach((o) => known.current.add(o.id))
+    setOrders(ords as Order[])
 
-      if (ords.length) {
-        const { data: its } = await supabase
-          .from('order_items')
-          .select('id, order_id, name, qty, modifiers')
-          .in('order_id', ords.map((o) => o.id))
-        if (alive && its) setItems(its as Item[])
-      } else {
-        setItems([])
-      }
+    if (ords.length) {
+      const { data: its } = await supabase
+        .from('order_items')
+        .select('id, order_id, name, qty, modifiers')
+        .in('order_id', ords.map((o) => o.id))
+      if (its) setItems(its as Item[])
+    } else {
+      setItems([])
     }
+  }, [supabase, cafeId, ding])
+
+  // Realtime is a supplement, not a replacement: it makes a new order or a
+  // status change from another device appear instantly instead of waiting
+  // up to 3s, but the interval below keeps running underneath it as the
+  // backstop that guarantees the board is never silently stale.
+  useRealtimeRefresh(supabase, 'orders', cafeId, poll)
+
+  useEffect(() => {
+    // poll() is async and only calls setState after its own network
+    // round-trip completes — not a synchronous render-phase update — but
+    // this lint rule can't see past the `void` once poll is a useCallback
+    // reference rather than a function declared inline in this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll()
     const p = setInterval(poll, 3000)
     const t = setInterval(() => tick((n) => n + 1), 30000)
     return () => {
-      alive = false
       clearInterval(p)
       clearInterval(t)
     }
-  }, [supabase, cafeId, ding])
+  }, [poll])
 
   async function markPaid(o: Order) {
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
@@ -169,7 +181,9 @@ export default function KitchenClient({
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
   return (
-    <div className="w-full min-h-dvh bg-background p-5 text-foreground">
+    <div className="w-full min-h-dvh bg-background text-foreground">
+      <OfflineBanner variant="kds" />
+      <div className="p-5">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Kitchen</h1>
         {!armed && (
@@ -267,6 +281,7 @@ export default function KitchenClient({
           onConfirm={confirmCancel}
         />
       )}
+      </div>
     </div>
   )
 }

@@ -29,6 +29,7 @@ export async function loadCommandCenterData(
     { count: newCustomers },
     latestShift,
     cashSetting,
+    lowStock,
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
@@ -43,6 +44,7 @@ export async function loadCommandCenterData(
     supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
     supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
     supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
+    supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
   ])
 
   const orders = todayOrders.data ?? []
@@ -72,6 +74,9 @@ export async function loadCommandCenterData(
     atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
     newCustomersToday: newCustomers ?? 0,
     cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
+    // Tolerates the RPC not existing yet (migration 0035 unrun) — the
+    // dashboard must not break on a café that hasn't migrated.
+    lowStockItems: (lowStock.data ?? []) as { name: string; current_stock: number; min_stock: number; unit: string }[],
     shift: (() => {
       const s = (latestShift.data ?? [])[0]
       if (!s) return null

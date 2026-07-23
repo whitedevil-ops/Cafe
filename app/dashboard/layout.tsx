@@ -8,8 +8,8 @@ import { createClient } from '@/utils/supabase/server'
 export const dynamic = 'force-dynamic'
 
 // Grouped per the target IA. Only sections with a page that actually exists
-// are linked — Reservations/Inventory/Reports etc. are Phase 2/3 and will
-// join their group once built, rather than shipping dead links now.
+// are linked — Reservations/Inventory/etc. join their group once built,
+// rather than shipping dead links now.
 // Cash management is optional per café: a card/UPI-heavy counter shouldn't be
 // shown a drawer-reconciliation workflow it will never use.
 function buildGroups(cashEnabled: boolean): [string, [string, string][]][] {
@@ -24,6 +24,10 @@ function buildGroups(cashEnabled: boolean): [string, [string, string][]][] {
     ['Management', [
       ['Menu', '/dashboard/menu'],
       ['Customers', '/dashboard/customers'],
+      ['Reports', '/dashboard/reports'],
+      ['Expenses', '/dashboard/expenses'],
+      ['Inventory', '/dashboard/inventory'],
+      ['Recipes & cost', '/dashboard/recipes'],
     ]],
     ['Business', [
       ['Café profile', '/dashboard/profile'],

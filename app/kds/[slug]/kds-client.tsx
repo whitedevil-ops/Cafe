@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Order, OrderItem } from '@/lib/types'
+import { OfflineBanner } from '@/components/offline-banner'
 
 type Row = { order: Order; items: OrderItem[]; table_label: string }
 
@@ -83,7 +84,9 @@ export default function KdsClient({ slug }: { slug: string }) {
   }
 
   return (
-    <main className="min-h-dvh bg-stone-950 p-5 text-white">
+    <main className="min-h-dvh bg-stone-950 text-white">
+      <OfflineBanner variant="kds" />
+      <div className="p-5">
       <header className="mb-5 flex items-center justify-between">
         <h1 className="text-xl font-medium text-stone-400">Kitchen · {slug}</h1>
         {!armed && (
@@ -144,6 +147,7 @@ export default function KdsClient({ slug }: { slug: string }) {
           })}
         </div>
       )}
+      </div>
     </main>
   )
 }

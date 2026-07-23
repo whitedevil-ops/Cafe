@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
+import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
 
 export type PublicItem = QrItem
@@ -439,6 +440,7 @@ export default function MenuClient({
   // ── Menu ─────────────────────────────────────────────────────────────────
   return (
     <main className="w-full min-h-dvh bg-background pb-28">
+      <OfflineBanner variant="customer" />
       {/* Café identity scrolls away so the sticky strip below stays short —
           on a 640px-tall phone every sticky pixel is menu you can't see. */}
       <div className="mx-auto w-full max-w-6xl px-4 pb-3 pt-4 sm:px-6">

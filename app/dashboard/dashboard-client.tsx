@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet } from 'lucide-react'
+import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet, PackageMinus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO } from '@/lib/datetime'
 
@@ -22,6 +22,7 @@ export type CommandCenterData = {
   atRiskCustomers: { name: string | null; total_spend: number }[]
   newCustomersToday: number
   cashEnabled: boolean
+  lowStockItems: { name: string; current_stock: number; min_stock: number; unit: string }[]
   shift: {
     id: string
     status: 'open' | 'closed'
@@ -52,7 +53,7 @@ export default function DashboardClient({
     const dayStart = businessDayStartISO(timezone)
     const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
-    const [todayOrders, cancelledToday, lateTickets, billRequested, callWaiter, occupiedSessions, { count: totalTables }, payments, atRisk, { count: newCustomers }, latestShift, cashSetting] =
+    const [todayOrders, cancelledToday, lateTickets, billRequested, callWaiter, occupiedSessions, { count: totalTables }, payments, atRisk, { count: newCustomers }, latestShift, cashSetting, lowStock] =
       await Promise.all([
         supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
         supabase.from('orders').select('id, cancel_reason').eq('cafe_id', cafeId).eq('status', 'cancelled').gte('created_at', dayStart),
@@ -66,6 +67,7 @@ export default function DashboardClient({
         supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
         supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
         supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
+        supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
       ])
 
     const orders = todayOrders.data ?? []
@@ -92,6 +94,7 @@ export default function DashboardClient({
       atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
       newCustomersToday: newCustomers ?? 0,
       cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
+      lowStockItems: (lowStock.data ?? []) as CommandCenterData['lowStockItems'],
       shift: (() => {
         const s = (latestShift.data ?? [])[0]
         if (!s) return null
@@ -154,6 +157,12 @@ export default function DashboardClient({
       text: 'A cash shift is still open — close it to reconcile the drawer',
       href: '/dashboard/shift',
       tone: 'neutral' as const,
+    },
+    data.lowStockItems.length > 0 && {
+      icon: <PackageMinus size={16} />,
+      text: `${data.lowStockItems.length} ingredient${data.lowStockItems.length === 1 ? '' : 's'} below the reorder level — ${data.lowStockItems[0].name}${data.lowStockItems.length > 1 ? ` +${data.lowStockItems.length - 1} more` : ''}`,
+      href: '/dashboard/inventory',
+      tone: 'warning' as const,
     },
     data.cancelledToday > 0 && {
       icon: <Ban size={16} />,
