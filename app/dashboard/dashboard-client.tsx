@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet, PackageMinus } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO } from '@/lib/datetime'
+import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist'
 
 export type CommandCenterData = {
   hasMenu: boolean
@@ -30,6 +31,15 @@ export type CommandCenterData = {
     openedAt: string
     closedAt: string | null
   } | null
+  checklist: {
+    menuAdded: boolean
+    tablesCreated: boolean
+    gstConfigured: boolean
+    paymentsConfigured: boolean
+    staffAdded: boolean
+    qrGenerated: boolean
+    testOrderPlaced: boolean
+  }
 }
 
 export default function DashboardClient({
@@ -79,7 +89,7 @@ export default function DashboardClient({
     const attentionTables = new Set((callWaiter.data ?? []).map((n) => n.table_id).filter(Boolean))
     const occupiedTables = new Set((occupiedSessions.data ?? []).map((s) => s.table_id)).size
 
-    setData({
+    setData((prev) => ({
       hasMenu: true,
       revenue,
       orderCount,
@@ -107,7 +117,8 @@ export default function DashboardClient({
           closedAt: s.closed_at as string | null,
         }
       })(),
-    })
+      checklist: prev.checklist,
+    }))
     setLastPolledAt(new Date())
   }, [supabase, cafeId, timezone])
 
@@ -219,6 +230,8 @@ export default function DashboardClient({
           </span>
         )}
       </div>
+
+      <OnboardingChecklist cafeId={cafeId} flags={data.checklist} />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map(([label, value]) => (

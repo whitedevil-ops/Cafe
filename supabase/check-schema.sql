@@ -237,7 +237,11 @@ with expected(kind, name, fix) as (values
   -- duplicate-order guard (0056)
   ('column',   'orders.client_request_id',      '0056'),
   -- Reports V2, Report 1 (0057)
-  ('function', 'business_overview_report',      '0057')
+  ('function', 'business_overview_report',      '0057'),
+  -- onboarding wizard (0058)
+  ('column',   'cafes.onboarding_step',         '0058'),
+  ('column',   'cafes.onboarding_meta',         '0058'),
+  ('function', 'create_or_resume_onboarding_cafe', '0058')
 )
 select
   e.kind,

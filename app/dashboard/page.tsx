@@ -28,8 +28,10 @@ export async function loadCommandCenterData(
     atRisk,
     { count: newCustomers },
     latestShift,
-    cashSetting,
+    cafeRow,
     lowStock,
+    { count: staffCount },
+    { count: everOrderCount },
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
@@ -43,8 +45,10 @@ export async function loadCommandCenterData(
     supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
     supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
     supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
-    supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
+    supabase.from('cafes').select('cash_management_enabled, gst_registered, gstin, upi_id, online_payments_enabled').eq('id', cafeId).maybeSingle(),
     supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
+    supabase.from('cafe_members').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
+    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).limit(1),
   ])
 
   const orders = todayOrders.data ?? []
@@ -73,7 +77,7 @@ export async function loadCommandCenterData(
     collectionsByMethod,
     atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
     newCustomersToday: newCustomers ?? 0,
-    cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
+    cashEnabled: cafeRow.data?.cash_management_enabled ?? false,
     // Tolerates the RPC not existing yet (migration 0035 unrun) — the
     // dashboard must not break on a café that hasn't migrated.
     lowStockItems: (lowStock.data ?? []) as { name: string; current_stock: number; min_stock: number; unit: string }[],
@@ -88,6 +92,15 @@ export async function loadCommandCenterData(
         closedAt: s.closed_at as string | null,
       }
     })(),
+    checklist: {
+      menuAdded: (itemCount ?? 0) > 0,
+      tablesCreated: (totalTables ?? 0) > 0,
+      gstConfigured: Boolean(cafeRow.data?.gst_registered && cafeRow.data?.gstin),
+      paymentsConfigured: Boolean(cafeRow.data?.upi_id || cafeRow.data?.online_payments_enabled),
+      staffAdded: (staffCount ?? 0) > 1,
+      qrGenerated: (totalTables ?? 0) > 0,
+      testOrderPlaced: (everOrderCount ?? 0) > 0,
+    },
   }
 }
 

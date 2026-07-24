@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 
 export default function SignupPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm_password: '' })
+  const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -21,6 +22,14 @@ export default function SignupPage() {
     e.preventDefault()
     if (form.password.length < 8) {
       setError('Password must be at least 8 characters.')
+      return
+    }
+    if (form.password !== form.confirm_password) {
+      setError('Passwords do not match.')
+      return
+    }
+    if (!agreed) {
+      setError('Please agree to the Terms of Service and Privacy Policy to continue.')
       return
     }
     setLoading(true)
@@ -67,6 +76,34 @@ export default function SignupPage() {
           value={form.password}
           onChange={set('password')}
         />
+        <Input
+          label="Confirm password"
+          name="confirm_password"
+          type="password"
+          autoComplete="new-password"
+          required
+          value={form.confirm_password}
+          onChange={set('confirm_password')}
+        />
+        <label className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+          />
+          <span>
+            I agree to the{' '}
+            <Link href="/legal/terms" target="_blank" className="font-medium text-primary hover:underline">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link href="/legal/privacy" target="_blank" className="font-medium text-primary hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
         {error && (
           <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
             {error}
