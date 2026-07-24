@@ -180,9 +180,14 @@ export default function ReportsClient({
         </div>
         <div className="flex items-center gap-2">
           {canSeeProfit && (
-            <Link href="/dashboard/reports/profitability" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
-              Profitability →
-            </Link>
+            <>
+              <Link href="/dashboard/reports/profitability" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
+                Profitability →
+              </Link>
+              <Link href="/dashboard/reports/recommendations" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
+                Recommendations →
+              </Link>
+            </>
           )}
           <button onClick={exportExcel} disabled={!report} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
             Export Excel

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
@@ -30,6 +31,7 @@ type Line = {
 
 export default function MenuClient({
   token,
+  cafeId,
   cafeName,
   cafeLogo,
   tableLabel,
@@ -43,6 +45,7 @@ export default function MenuClient({
   popularIds,
 }: {
   token: string
+  cafeId: string
   cafeName: string
   cafeLogo: string | null
   tableLabel: string
@@ -233,6 +236,26 @@ export default function MenuClient({
     else addPlain(item)
   }
 
+  // ── Smart cross-sell — "Complete your order" (deterministic, fail-safe) ───
+  const [recs, setRecs] = useState<Recommendation[]>([])
+  const cartItemIds = useMemo(() => [...new Set(cart.map((l) => l.itemId))], [cart])
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(async () => {
+      const list = cartItemIds.length === 0 ? [] : await fetchRecommendations(supabase, cafeId, cartItemIds, 3)
+      if (cancelled) return
+      setRecs(list)
+      for (const r of list) logRecommendationEvent(supabase, cafeId, r.id, 'impression', 'qr')
+    }, cartItemIds.length === 0 ? 0 : 300)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [cartItemIds, supabase, cafeId])
+
+  function addRecommendation(rec: Recommendation) {
+    logRecommendationEvent(supabase, cafeId, rec.id, 'add', 'qr')
+    const it = byId.get(rec.id)
+    if (it) onCardAdd(it)
+  }
+
   function confirmDetail(
     item: PublicItem,
     { variantId, addonIds, note, qty }: { variantId: string | null; addonIds: string[]; note: string; qty: number },
@@ -404,6 +427,24 @@ export default function MenuClient({
             </li>
           ))}
         </ul>
+
+        {/* Complete your order — compact, easy to ignore, never a blocking popup. */}
+        {recs.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[13px] font-medium text-foreground">Complete your order</p>
+            <div className="mt-2 space-y-2">
+              {recs.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] text-foreground">{r.name}</p>
+                    <p className="text-[12px] text-muted-foreground">₹{r.price}</p>
+                  </div>
+                  <button onClick={() => addRecommendation(r)} className="shrink-0 rounded-full border border-primary px-3.5 py-1.5 text-[13px] font-medium text-primary hover:bg-primary-subtle">+ Add</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {upsell && (
           <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary bg-primary-subtle p-4">

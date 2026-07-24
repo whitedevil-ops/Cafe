@@ -42,6 +42,8 @@ export function CartPanel({
   bothEnabled,
   onOpenTableSelector,
   existingSession,
+  recommendations,
+  onAddRecommendation,
   lines,
   onQty,
   onRemove,
@@ -80,6 +82,8 @@ export function CartPanel({
   bothEnabled: boolean
   onOpenTableSelector: () => void
   existingSession: { total: number; itemCount: number } | null
+  recommendations: { id: string; name: string; price: number; reason: string }[]
+  onAddRecommendation: (rec: { id: string; name: string; price: number; reason: string }) => void
   lines: CartLine[]
   onQty: (key: string, delta: number) => void
   onRemove: (key: string) => void
@@ -280,6 +284,21 @@ export function CartPanel({
       </div>
 
       <div className="border-t border-border p-4">
+        {/* Smart cross-sell — subtle, one tap to add. Never blocks anything. */}
+        {lines.length > 0 && recommendations.length > 0 && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recommended</p>
+            <div className="flex flex-wrap gap-1.5">
+              {recommendations.map((r) => (
+                <button key={r.id} onClick={() => onAddRecommendation(r)}
+                  className="flex items-center gap-1 rounded-full border border-border-strong bg-surface px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:border-primary hover:bg-primary-subtle">
+                  <span className="text-primary">+</span> {r.name} <span className="text-muted-foreground">₹{r.price}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-3">
           <div className="flex gap-1.5">
             {(['percent', 'flat'] as const).map((t) => (

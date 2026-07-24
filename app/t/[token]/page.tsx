@@ -55,6 +55,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   return (
     <MenuClient
       token={token}
+      cafeId={table.cafe_id}
       cafeName={cafe.name}
       cafeLogo={cafe.logo_url}
       tableLabel={table.label}

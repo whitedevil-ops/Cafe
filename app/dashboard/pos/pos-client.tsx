@@ -9,6 +9,7 @@ import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
 import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
+import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import type { PosVariant, PosAddon } from './page'
 
@@ -119,6 +120,33 @@ export default function PosClient({
     for (const l of cart) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.qty)
     return m
   }, [cart])
+
+  // ── Smart cross-sell (deterministic, server-side, fail-safe) ─────────────
+  const [recs, setRecs] = useState<Recommendation[]>([])
+  const cartItemIds = useMemo(() => [...new Set(cart.map((l) => l.itemId))], [cart])
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(async () => {
+      const list = cartItemIds.length === 0 ? [] : await fetchRecommendations(supabase, cafeId, cartItemIds, 4)
+      if (cancelled) return
+      setRecs(list)
+      for (const r of list) logRecommendationEvent(supabase, cafeId, r.id, 'impression', 'pos')
+    }, cartItemIds.length === 0 ? 0 : 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [cartItemIds, supabase, cafeId])
+
+  function addRecommendation(rec: Recommendation) {
+    logRecommendationEvent(supabase, cafeId, rec.id, 'add', 'pos')
+    const full = items.find((i) => i.id === rec.id)
+    if (full?.hasOptions) return setCustomizing(full)
+    if (full) return addPlain(full)
+    // Fallback: add as a plain line from the recommendation payload.
+    setCart((c) => {
+      const found = c.find((l) => l.key === rec.id)
+      if (found) return c.map((l) => (l.key === rec.id ? { ...l, qty: l.qty + 1 } : l))
+      return [...c, { key: rec.id, itemId: rec.id, variantId: null, addonIds: [], name: rec.name, modLabel: '', unitPrice: rec.price, qty: 1 }]
+    })
+  }
 
   function addPlain(item: FullItem) {
     setCart((c) => {
@@ -424,6 +452,8 @@ export default function PosClient({
     bothEnabled,
     onOpenTableSelector: () => setTableSelectorOpen(true),
     existingSession,
+    recommendations: recs,
+    onAddRecommendation: addRecommendation,
     lines: cart,
     onQty: changeQty,
     onRemove: removeLine,

@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { uploadMenuImage } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,8 @@ type ItemDraft = {
   is_bestseller: boolean
   variants: VariantDraft[]
   addons: AddonDraft[]
+  // Cross-sell suggestions (other menu item ids) shown when this item is added.
+  pairings: string[]
 }
 
 const emptyDraft: ItemDraft = {
@@ -42,6 +45,7 @@ const emptyDraft: ItemDraft = {
   is_bestseller: false,
   variants: [],
   addons: [],
+  pairings: [],
 }
 
 export default function MenuManager({
@@ -59,6 +63,7 @@ export default function MenuManager({
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
+  const [pairSearch, setPairSearch] = useState('')
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -76,6 +81,45 @@ export default function MenuManager({
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Category → category cross-sell rules (e.g. Pizza pairs with Dips, Drinks).
+  // Cold-start: covers every item in a category without configuring each one.
+  const [categoryPairs, setCategoryPairs] = useState<Record<string, string[]>>({})
+  const [pairingCat, setPairingCat] = useState<string | null>(null)
+  const [savingPairs, setSavingPairs] = useState(false)
+  const [refreshingStats, setRefreshingStats] = useState(false)
+
+  async function loadCategoryPairs() {
+    const { data } = await supabase.from('category_pairings').select('category_id, suggested_category_id').eq('cafe_id', cafeId)
+    const m: Record<string, string[]> = {}
+    for (const row of data ?? []) m[row.category_id] = [...(m[row.category_id] ?? []), row.suggested_category_id]
+    setCategoryPairs(m)
+  }
+  useEffect(() => {
+    // loadCategoryPairs is async and only calls setState after its own network
+    // round-trip completes — not a synchronous render-phase update.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadCategoryPairs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function toggleCategoryPair(catId: string, otherId: string) {
+    const current = categoryPairs[catId] ?? []
+    const next = current.includes(otherId) ? current.filter((id) => id !== otherId) : [...current, otherId]
+    setCategoryPairs((m) => ({ ...m, [catId]: next }))
+    setSavingPairs(true)
+    const { error: err } = await supabase.rpc('set_category_pairings', { p_cafe_id: cafeId, p_category_id: catId, p_suggested: next })
+    setSavingPairs(false)
+    if (err) toast(err.message, 'error')
+  }
+
+  async function refreshRecommendationStats() {
+    setRefreshingStats(true)
+    const { error: err } = await supabase.rpc('refresh_order_pairings', { p_cafe_id: cafeId })
+    setRefreshingStats(false)
+    if (err) return toast(err.message, 'error')
+    toast('Recommendation stats refreshed from recent orders.')
+  }
 
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorised'
 
@@ -207,6 +251,17 @@ export default function MenuManager({
     // Sync variants + add-ons: simplest correct approach at this scale is
     // replace-all (delete then insert the current set).
     const err = await syncModifiers(itemId!, draft)
+
+    // Smart add-ons (cross-sell) — owner/manager only, saved through the
+    // validated RPC (replace-all). Failure here never blocks the item save.
+    if (canSeeCost) {
+      await supabase.rpc('set_item_pairings', {
+        p_cafe_id: cafeId,
+        p_item_id: itemId!,
+        p_suggestions: draft.pairings.map((id, i) => ({ suggested_item_id: id, sort: i, pinned: true })),
+      })
+    }
+
     setBusy(false)
     if (err) return setError(err)
     toast(draft.id ? 'Item updated.' : 'Item added to menu.')
@@ -248,12 +303,14 @@ export default function MenuManager({
       available: item.available,
       is_veg: item.is_veg,
       is_bestseller: item.is_bestseller,
+      pairings: [],
       variants: [],
       addons: [],
     })
-    const [{ data: vs }, { data: as }] = await Promise.all([
+    const [{ data: vs }, { data: as }, { data: prs }] = await Promise.all([
       supabase.from('menu_item_variants').select('id, name, price_delta').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
+      supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
     ])
     setDraft((d) =>
       d && d.id === item.id
@@ -261,6 +318,7 @@ export default function MenuManager({
             ...d,
             variants: (vs ?? []).map((v) => ({ id: v.id, name: v.name, price_delta: String(v.price_delta) })),
             addons: (as ?? []).map((a) => ({ id: a.id, name: a.name, price: String(a.price) })),
+            pairings: (prs ?? []).map((p) => p.suggested_item_id as string),
           }
         : d,
     )
@@ -365,6 +423,42 @@ export default function MenuManager({
               Add
             </Button>
           </div>
+
+          {/* Category cross-sell rules — cold-start coverage without configuring
+              every item. E.g. Pizza pairs with Dips + Soft Drinks. Owner/manager
+              only — the RPC re-checks this regardless of the UI. */}
+          {canSeeCost && categories.length > 1 && (
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">Category pairings</p>
+                <button onClick={refreshRecommendationStats} disabled={refreshingStats} className="text-[12px] font-medium text-primary hover:underline disabled:opacity-50">
+                  {refreshingStats ? 'Refreshing…' : 'Refresh sales-based ranking'}
+                </button>
+              </div>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">Pick which category a category pairs well with (e.g. Pizza → Dips, Soft Drinks).</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {categories.map((c) => (
+                  <button key={c.id} onClick={() => setPairingCat(pairingCat === c.id ? null : c.id)}
+                    className={`rounded-full border px-3 py-1 text-[12.5px] font-medium ${pairingCat === c.id ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground'}`}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              {pairingCat && (
+                <div className="mt-2 flex flex-wrap gap-1.5 rounded-[var(--radius)] bg-surface-subtle p-2.5">
+                  {categories.filter((c) => c.id !== pairingCat).map((c) => {
+                    const on = (categoryPairs[pairingCat] ?? []).includes(c.id)
+                    return (
+                      <button key={c.id} onClick={() => toggleCategoryPair(pairingCat, c.id)} disabled={savingPairs}
+                        className={`rounded-full border px-2.5 py-1 text-[12px] font-medium disabled:opacity-50 ${on ? 'border-success bg-success-subtle text-success' : 'border-border-strong bg-surface text-muted-foreground'}`}>
+                        {on ? '✓ ' : '+ '}{c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -579,6 +673,45 @@ export default function MenuManager({
                       </div>
                     )
                   })()}
+                </div>
+              )}
+
+              {/* Smart add-ons (cross-sell) — owner/manager. Separate menu items
+                  suggested when this one is ordered (not modifiers). */}
+              {canSeeCost && (
+                <div className="rounded-[var(--radius)] border border-border bg-surface-subtle p-3.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Smart add-ons</p>
+                  <p className="mt-0.5 text-[11.5px] text-muted-foreground">Suggested alongside this item at checkout (e.g. a dip or drink). These are separate items — not modifiers.</p>
+                  {draft.pairings.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {draft.pairings.map((pid) => {
+                        const it = items.find((i) => i.id === pid)
+                        return (
+                          <button key={pid} type="button" onClick={() => setDraft({ ...draft, pairings: draft.pairings.filter((x) => x !== pid) })}
+                            className="flex items-center gap-1 rounded-full border border-primary bg-primary-subtle px-2.5 py-1 text-[12px] font-medium text-primary">
+                            {it?.name ?? 'Item'} <X size={12} />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <input value={pairSearch} onChange={(e) => setPairSearch(e.target.value)} placeholder="Search items to suggest…"
+                    className="mt-2 h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-sm text-foreground" />
+                  {pairSearch.trim() && (
+                    <ul className="mt-1.5 max-h-40 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface">
+                      {items
+                        .filter((i) => i.id !== draft.id && !draft.pairings.includes(i.id) && i.name.toLowerCase().includes(pairSearch.trim().toLowerCase()))
+                        .slice(0, 12)
+                        .map((i) => (
+                          <li key={i.id}>
+                            <button type="button" onClick={() => { setDraft({ ...draft, pairings: [...draft.pairings, i.id] }); setPairSearch('') }}
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] text-foreground hover:bg-surface-subtle">
+                              <span>{i.name}</span><span className="text-muted-foreground">₹{i.price}</span>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
                 </div>
               )}
 

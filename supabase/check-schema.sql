@@ -221,7 +221,19 @@ with expected(kind, name, fix) as (values
   ('column',   'cafe_tables.pos_y',             '0053'),
   ('column',   'cafe_tables.shape',             '0053'),
   ('column',   'cafe_tables.archived',          '0053'),
-  ('function', 'save_floor_layout',             '0053')
+  ('function', 'save_floor_layout',             '0053'),
+  -- smart cross-sell recommendation engine (0055)
+  ('column',   'cafes.recommendations_enabled', '0055'),
+  ('table',    'menu_pairings',                 '0055'),
+  ('table',    'category_pairings',             '0055'),
+  ('table',    'order_pair_stats',              '0055'),
+  ('table',    'recommendation_events',         '0055'),
+  ('function', 'get_recommendations',           '0055'),
+  ('function', 'set_item_pairings',             '0055'),
+  ('function', 'set_category_pairings',         '0055'),
+  ('function', 'refresh_order_pairings',        '0055'),
+  ('function', 'log_recommendation_event',      '0055'),
+  ('function', 'recommendation_report',         '0055')
 )
 select
   e.kind,

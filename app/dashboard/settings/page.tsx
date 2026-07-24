@@ -15,7 +15,7 @@ export default async function SettingsPage() {
     await Promise.all([
       supabase
         .from('cafes')
-        .select('name, upsell_threshold, kot_printing_enabled, cash_management_enabled')
+        .select('name, upsell_threshold, kot_printing_enabled, cash_management_enabled, recommendations_enabled')
         .eq('id', cafe.cafeId)
         .single(),
       supabase
@@ -51,6 +51,7 @@ export default async function SettingsPage() {
       initial={{
         name: data?.name ?? cafe.name,
         upsell_threshold: data?.upsell_threshold ?? 150,
+        recommendations_enabled: data?.recommendations_enabled ?? true,
       }}
       initialStaff={staff}
       initialInvites={(invites ?? []) as StaffInvite[]}

@@ -12,6 +12,7 @@ import CashManagementPanel from './cash-management-panel'
 type Settings = {
   name: string
   upsell_threshold: number
+  recommendations_enabled: boolean
 }
 
 export type StaffMember = {
@@ -116,6 +117,7 @@ export default function SettingsClient({
       .update({
         name: form.name.trim() || initial.name,
         upsell_threshold: Math.max(0, Math.round(Number(form.upsell_threshold) || 0)),
+        recommendations_enabled: form.recommendations_enabled,
       })
       .eq('id', cafeId)
     setBusy(false)
@@ -153,6 +155,19 @@ export default function SettingsClient({
           onChange={(e) => setForm({ ...form, upsell_threshold: Number(e.target.value) })}
           hint="Cart value at which the add-on nudge appears on the QR menu."
         />
+
+        <label className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border-strong bg-surface px-4 py-3">
+          <span>
+            <span className="block text-[13.5px] font-medium text-foreground">Smart recommendations</span>
+            <span className="block text-[12px] text-muted-foreground">Suggest complementary add-ons on the QR menu and POS — never a required setting.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={form.recommendations_enabled}
+            onChange={(e) => setForm({ ...form, recommendations_enabled: e.target.checked })}
+            className="h-5 w-5 shrink-0"
+          />
+        </label>
 
         {error && (
           <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>

@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
 import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
+import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
 export default function BulkImportPanel({
@@ -32,6 +33,11 @@ export default function BulkImportPanel({
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
+
+  // Optional post-import review — deterministic keyword heuristic, never AI,
+  // never required (spec §3, §18). Owner approves before anything activates.
+  const [suggestions, setSuggestions] = useState<(CategorySuggestion & { catName: string; suggestedName: string })[] | null>(null)
+  const [approving, setApproving] = useState(false)
 
   const catNameById = new Map(categories.map((c) => [c.id, c.name]))
 
@@ -169,12 +175,89 @@ export default function BulkImportPanel({
 
       toast(`Menu imported — ${inserts.length} new, ${updates.length} updated.`)
       onImported()
+
+      // Optional: suggest category pairings from a zero-cost keyword heuristic
+      // (no AI, no external call). Purely a review step — nothing is activated
+      // until the owner approves. Skip quietly on any hiccup.
+      try {
+        const { data: existingCatPairs } = await supabase.from('category_pairings').select('category_id, suggested_category_id').eq('cafe_id', cafeId)
+        const already = new Set((existingCatPairs ?? []).map((r) => `${r.category_id}:${r.suggested_category_id}`))
+        const catList = [...existingByLower.entries()].map(([name, id]) => ({ id, name }))
+        const catNameById = new Map(catList.map((c) => [c.id, c.name]))
+        const raw = suggestCategoryPairings(catList).filter((s) => !already.has(`${s.categoryId}:${s.suggestedCategoryId}`))
+        if (raw.length > 0) {
+          setSuggestions(raw.map((s) => ({ ...s, catName: catNameById.get(s.categoryId) ?? '', suggestedName: catNameById.get(s.suggestedCategoryId) ?? '' })))
+          return // hold the panel open on the review step instead of closing
+        }
+      } catch {
+        /* suggestion step is optional — never block the import success path */
+      }
       onClose()
     } catch (e) {
       setFileError((e as Error).message)
     } finally {
       setImporting(false)
     }
+  }
+
+  async function approveSuggestions(only?: string) {
+    if (!suggestions) return
+    const toApprove = only ? suggestions.filter((s) => `${s.categoryId}:${s.suggestedCategoryId}` === only) : suggestions
+    setApproving(true)
+    // Merge with whatever each category already has (set_category_pairings
+    // replaces-all for one category), then group approvals by category.
+    const byCategory = new Map<string, Set<string>>()
+    for (const s of toApprove) {
+      if (!byCategory.has(s.categoryId)) {
+        const { data } = await supabase.from('category_pairings').select('suggested_category_id').eq('cafe_id', cafeId).eq('category_id', s.categoryId)
+        byCategory.set(s.categoryId, new Set((data ?? []).map((r) => r.suggested_category_id as string)))
+      }
+      byCategory.get(s.categoryId)!.add(s.suggestedCategoryId)
+    }
+    for (const [catId, set] of byCategory) {
+      await supabase.rpc('set_category_pairings', { p_cafe_id: cafeId, p_category_id: catId, p_suggested: [...set] })
+    }
+    setApproving(false)
+    const remaining = only ? suggestions.filter((s) => `${s.categoryId}:${s.suggestedCategoryId}` !== only) : []
+    setSuggestions(remaining.length ? remaining : null)
+    toast(only ? 'Pairing added.' : 'All suggested pairings added.')
+    if (remaining.length === 0) onClose()
+  }
+
+  if (suggestions && suggestions.length > 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
+        <div className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-2xl bg-surface sm:max-h-[80dvh] sm:rounded-[var(--radius-lg)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="text-lg font-semibold text-foreground">Smart recommendations</h2>
+            <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center text-muted-foreground"><X size={18} /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <p className="text-[13px] text-muted-foreground">
+              KhaoPiyo found potential complementary pairings from your menu&apos;s category names. Nothing is active until you approve it.
+            </p>
+            <div className="mt-3 space-y-2">
+              {suggestions.map((s) => {
+                const key = `${s.categoryId}:${s.suggestedCategoryId}`
+                return (
+                  <div key={key} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[14px] font-medium text-foreground">{s.catName} → {s.suggestedName}</p>
+                      <p className="text-[12px] text-muted-foreground">Reason: {s.reason}</p>
+                    </div>
+                    <button onClick={() => approveSuggestions(key)} disabled={approving} className="shrink-0 rounded-full border border-primary px-3 py-1.5 text-[12.5px] font-medium text-primary hover:bg-primary-subtle disabled:opacity-50">Add</button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <div className="flex gap-2 border-t border-border p-4">
+            <Button variant="secondary" className="flex-1" onClick={onClose}>Skip</Button>
+            <Button className="flex-1" loading={approving} onClick={() => approveSuggestions()}>Add all ({suggestions.length})</Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
