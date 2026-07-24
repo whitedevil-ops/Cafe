@@ -325,8 +325,10 @@ end $$;
 revoke execute on function adjustments_report(uuid, timestamptz, timestamptz) from public, anon;
 grant execute on function adjustments_report(uuid, timestamptz, timestamptz) to authenticated;
 
--- ── 5. Operations (turnaround, table turnover, per-staff) ───────────────────
--- Deliberately does not restate by_hour (already in business_overview_report).
+-- ── 5. Operations (turnaround, table turnover) ──────────────────────────────
+-- Deliberately does not restate by_hour (business_overview_report) or
+-- by_staff (sales_report already has "Sales by staff") — this is only the
+-- two operational angles nothing else in the product currently shows.
 -- created_at→done_at is the only stored prep/service timestamp pair — there
 -- is no separate "ready_at", so this measures full order-to-completion time,
 -- named accordingly rather than implying kitchen-only prep time.
@@ -373,21 +375,6 @@ begin
   turnover_summary as (
     select coalesce(round(avg(mins)), 0) as avg_mins, count(*) as cnt from sessions
   ),
-  by_staff_json as (
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'staff', staff_name, 'orders', cnt, 'sales', amt,
-      'avg_order_value', case when cnt > 0 then round(amt::numeric / cnt) else 0 end
-    ) order by amt desc), '[]'::jsonb) as arr
-    from (
-      select coalesce(p.full_name, p.email, 'Unknown') as staff_name,
-             count(*) as cnt, sum(o.total) as amt
-      from orders o
-      left join profiles p on p.id = o.staff_id
-      where o.cafe_id = p_cafe_id and o.status <> 'cancelled' and o.staff_id is not null
-        and o.created_at >= p_from and o.created_at < p_to
-      group by 1
-    ) x
-  ),
   cancelled as (
     select count(*) as cnt from orders
     where cafe_id = p_cafe_id and status = 'cancelled'
@@ -404,7 +391,6 @@ begin
       'avg_mins', (select avg_mins from turnover_summary),
       'sessions', (select cnt from turnover_summary)
     ),
-    'by_staff', (select arr from by_staff_json),
     'cancelled_orders', (select cnt from cancelled)
   ) into v_result;
 

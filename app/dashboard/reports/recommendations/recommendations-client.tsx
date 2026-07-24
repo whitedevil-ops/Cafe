@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
+import { ReportsSubnav } from '../_shared'
 
 type ItemRow = { name: string; shown: number; added: number; conversion: number; added_sales: number }
 type Pairing = { a: string; b: string; times: number }
@@ -37,8 +37,9 @@ export default function RecommendationsClient({ cafeId, timezone }: { cafeId: st
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <p className="text-[13px] text-muted-foreground"><Link href="/dashboard/reports" className="hover:underline">Reports</Link> / Recommendations</p>
-      <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">Smart recommendations</h1>
+      <ReportsSubnav active="/dashboard/reports/recommendations" canSeeProfit={true} />
+
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Smart recommendations</h1>
       <p className="mt-1 max-w-xl text-sm text-muted-foreground">
         Last 30 days. See which suggestions actually get added — remove anything that doesn&apos;t convert.
       </p>

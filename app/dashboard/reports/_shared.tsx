@@ -5,6 +5,7 @@
 // established (business_overview_report). One place so every report reads as
 // the same product instead of five different ones bolted together.
 import { useCallback, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 
@@ -156,6 +157,40 @@ export function List({ rows }: { rows: { label: string; value: number }[] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+// One nav strip, every report page — so nine separate reports read as one
+// product instead of nine bolted-on pages each linking to a different subset
+// of its siblings.
+export const REPORT_LINKS: { href: string; label: string; ownerOnly?: boolean }[] = [
+  { href: '/dashboard/reports', label: 'Overview' },
+  { href: '/dashboard/reports/sales', label: 'Sales' },
+  { href: '/dashboard/reports/items', label: 'Items & Categories' },
+  { href: '/dashboard/reports/payments', label: 'Payments & Aging' },
+  { href: '/dashboard/reports/gst', label: 'GST' },
+  { href: '/dashboard/reports/adjustments', label: 'Adjustments' },
+  { href: '/dashboard/reports/operations', label: 'Operations' },
+  { href: '/dashboard/reports/profitability', label: 'Profitability', ownerOnly: true },
+  { href: '/dashboard/reports/recommendations', label: 'Recommendations', ownerOnly: true },
+]
+
+export function ReportsSubnav({ active, canSeeProfit }: { active: string; canSeeProfit: boolean }) {
+  const links = REPORT_LINKS.filter((l) => !l.ownerOnly || canSeeProfit)
+  return (
+    <nav className="-mx-1 mb-6 flex flex-wrap gap-1 border-b border-border pb-3">
+      {links.map((l) => (
+        <Link
+          key={l.href}
+          href={l.href}
+          className={`rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
+            l.href === active ? 'bg-primary-subtle text-primary' : 'text-muted-foreground hover:bg-surface-subtle hover:text-foreground'
+          }`}
+        >
+          {l.label}
+        </Link>
+      ))}
+    </nav>
   )
 }
 

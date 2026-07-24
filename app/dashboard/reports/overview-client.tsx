@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import { ReportsSubnav } from './_shared'
 
 export type OverviewReport = {
   summary: {
@@ -206,29 +206,16 @@ export default function OverviewClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
+      <ReportsSubnav active="/dashboard/reports" canSeeProfit={canSeeProfit} />
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">Overview — how much you sold, collected, and where money went, in this range.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/reports/sales" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
-            Sales →
-          </Link>
-          {canSeeProfit && (
-            <>
-              <Link href="/dashboard/reports/profitability" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
-                Profitability →
-              </Link>
-              <Link href="/dashboard/reports/recommendations" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
-                Recommendations →
-              </Link>
-            </>
-          )}
-          <button onClick={exportExcel} disabled={!report} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
-            Export Excel
-          </button>
-        </div>
+        <button onClick={exportExcel} disabled={!report} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
+          Export Excel
+        </button>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">

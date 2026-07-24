@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 import { exportProfitabilityXlsx } from '@/lib/xlsx-export'
+import { ReportsSubnav } from '../_shared'
 
 type Item = {
   menu_item_id: string | null
@@ -94,10 +95,11 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <ReportsSubnav active="/dashboard/reports/profitability" canSeeProfit={true} />
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[13px] text-muted-foreground"><Link href="/dashboard/reports" className="hover:underline">Reports</Link> / Profitability</p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">Profitability</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profitability</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Estimated contribution by item, from actual finalised orders — after discounts and refunds, excluding
             cancelled orders and tax. This is gross contribution, not net profit (rent, salaries and utilities are not included).
