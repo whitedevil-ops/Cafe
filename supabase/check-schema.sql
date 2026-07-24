@@ -241,7 +241,10 @@ with expected(kind, name, fix) as (values
   -- onboarding wizard (0058)
   ('column',   'cafes.onboarding_step',         '0058'),
   ('column',   'cafes.onboarding_meta',         '0058'),
-  ('function', 'create_or_resume_onboarding_cafe', '0058')
+  ('function', 'create_or_resume_onboarding_cafe', '0058'),
+  -- plan-gated multi-café caps (0059)
+  ('column',   'platform_plans.max_owned_cafes', '0059'),
+  ('function', 'owned_cafe_capacity',           '0059')
 )
 select
   e.kind,
