@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import OverviewClient, { type OverviewReport } from './overview-client'
+import SalesReportClient, { type SalesReport } from './sales-report-client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ReportsOverviewPage() {
+export default async function SalesReportPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
 
@@ -15,21 +15,21 @@ export default async function ReportsOverviewPage() {
   const to = new Date().toISOString()
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('business_overview_report', {
+  const { data, error } = await supabase.rpc('sales_report', {
     p_cafe_id: cafe.cafeId,
     p_from: from,
     p_to: to,
   })
 
   return (
-    <OverviewClient
+    <SalesReportClient
       cafeId={cafe.cafeId}
       cafeName={cafe.name}
       role={cafe.role}
       timezone={cafe.timezone}
       initialFrom={from}
       initialTo={to}
-      initialReport={(error ? null : (data as OverviewReport)) ?? null}
+      initialReport={(error ? null : (data as SalesReport)) ?? null}
       todayStart={businessDayStartISO(cafe.timezone)}
     />
   )

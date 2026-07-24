@@ -42,7 +42,7 @@ function rangeFor(preset: Preset, timezone: string): { from: string; to: string 
   return { from: businessDaysAgoStartISO(6, timezone), to: now.toISOString() }
 }
 
-export default function ReportsClient({
+export default function SalesReportClient({
   cafeId,
   cafeName,
   role,
@@ -171,9 +171,12 @@ export default function ReportsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <p className="text-[13px] text-muted-foreground">
+        <Link href="/dashboard/reports" className="hover:underline">Reports</Link> / Sales
+      </p>
+      <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sales</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Money that actually settled in this range — unlike the dashboard&apos;s live count, unpaid orders aren&apos;t included.
           </p>
