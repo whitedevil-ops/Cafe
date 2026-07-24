@@ -22,7 +22,7 @@ export default async function PosPage() {
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
-      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available')
+      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available, created_at')
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false)
       .order('sort'),
@@ -56,6 +56,7 @@ export default async function PosPage() {
     hasOptions: withOptions.has(i.id),
     available: i.available,
     category_id: i.category_id,
+    created_at: i.created_at,
   }))
 
   const posCategories: PosCategory[] = (categories ?? []).map((c) => ({

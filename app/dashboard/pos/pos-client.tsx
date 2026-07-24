@@ -1,17 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, TrendingUp, ClipboardList, Users, ChefHat } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
+import { CategoryRail } from '@/components/pos/category-rail'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
 import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
+import { businessDayStartISO } from '@/lib/datetime'
 import type { PosVariant, PosAddon } from './page'
+
+// Same freshness window as the customer QR menu (menu-client.tsx) — one
+// definition of "new" would be nicer as a shared constant, but duplicating a
+// single number here is simpler than adding a cross-surface import for it.
+const NEW_ITEM_DAYS = 14
 
 type FullItem = PosItem & { category_id: string | null }
 type Line = CartLine & { itemId: string; variantId: string | null; addonIds: string[] }
@@ -108,12 +115,28 @@ export default function PosClient({
     return m
   }, [addons])
 
+  // "New Arrivals" — same freshness heuristic as the customer QR menu (real
+  // created_at data, not fabricated). Suppressed if it would cover most of an
+  // young/small menu, same guard as the QR side.
+  const newItemIds = useMemo(() => {
+    const cutoff = Date.now() - NEW_ITEM_DAYS * 86400000
+    const fresh = items.filter((i) => new Date(i.created_at).getTime() > cutoff)
+    if (items.length === 0 || fresh.length / items.length > 0.3) return new Set<string>()
+    return new Set(fresh.map((i) => i.id))
+  }, [items])
+  const bestsellerCount = useMemo(() => items.filter((i) => i.is_bestseller).length, [items])
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     return items
-      .filter((i) => (activeCategory === 'all' ? true : i.category_id === activeCategory))
+      .filter((i) => {
+        if (activeCategory === 'all') return true
+        if (activeCategory === '__bestsellers') return i.is_bestseller
+        if (activeCategory === '__new') return newItemIds.has(i.id)
+        return i.category_id === activeCategory
+      })
       .filter((i) => (q ? i.name.toLowerCase().includes(q) : true))
-  }, [items, activeCategory, search])
+  }, [items, activeCategory, search, newItemIds])
 
   const qtyByItem = useMemo(() => {
     const m = new Map<string, number>()
@@ -265,6 +288,34 @@ export default function PosClient({
     return () => clearInterval(p)
   }, [pollTables])
 
+  // ── Bottom live strip — real numbers, lighter poll than the table grid.
+  // Never steals space from ordering: collapsed entirely below lg (spec §"bottom
+  // live strip"). A failed fetch just leaves the strip showing its last value.
+  const [stats, setStats] = useState<{ collected: number; orders: number; aov: number; preparing: number; ready: number } | null>(null)
+  const pollStats = useCallback(async () => {
+    const dayStart = businessDayStartISO(timezone)
+    const [{ data: ords }, { data: kitchen }] = await Promise.all([
+      supabase.from('orders').select('total').eq('cafe_id', cafeId).neq('status', 'cancelled').gte('created_at', dayStart),
+      supabase.from('orders').select('status').eq('cafe_id', cafeId).in('status', ['preparing', 'ready']),
+    ])
+    const rows = ords ?? []
+    const collected = rows.reduce((s, o) => s + (o.total ?? 0), 0)
+    const orderCount = rows.length
+    setStats({
+      collected,
+      orders: orderCount,
+      aov: orderCount ? Math.round(collected / orderCount) : 0,
+      preparing: (kitchen ?? []).filter((o) => o.status === 'preparing').length,
+      ready: (kitchen ?? []).filter((o) => o.status === 'ready').length,
+    })
+  }, [supabase, cafeId, timezone])
+
+  useEffect(() => {
+    void pollStats()
+    const p = setInterval(pollStats, 20000)
+    return () => clearInterval(p)
+  }, [pollStats])
+
   async function pickTable(t: LiveTable) {
     if (t.status === 'occupied' && t.sessionId) {
       const ok = await confirm({
@@ -281,7 +332,7 @@ export default function PosClient({
   const existingSession = useMemo(() => {
     const t = liveTables.find((lt) => lt.id === selectedTableId)
     if (!t || !t.sessionId) return null
-    return { total: t.bill, itemCount: t.itemCount }
+    return { total: t.bill, itemCount: t.itemCount, due: t.due, payState: t.payState }
   }, [liveTables, selectedTableId])
 
   // ── Customer phone lookup: name/visits/points suggestion ─────────────────
@@ -484,52 +535,97 @@ export default function PosClient({
     onOpenHeld: () => setHeldOrdersOpen(true),
   }
 
+  const activeTables = liveTables.filter((t) => t.sessionId).length
+  const activeLabel = activeCategory === 'all' ? 'All Items'
+    : activeCategory === '__bestsellers' ? 'Best Sellers'
+    : activeCategory === '__new' ? 'New Arrivals'
+    : (categories.find((c) => c.id === activeCategory)?.name ?? 'Items')
+
   return (
-    <div className="flex w-full min-w-0 items-start">
-      {/* Workspace — scrolls with the page, same as every other dashboard screen. */}
-      <div className="min-w-0 flex-1">
-        <div className="border-b border-border bg-surface px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search menu…"
-                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+    <div className="flex w-full min-w-0 flex-col">
+      <div className="flex w-full min-w-0 flex-1 items-start">
+        {/* Category rail — desktop only; the horizontal chips below cover
+            mobile/tablet, both read from the same category set. */}
+        <div className="hidden h-[calc(100dvh-56px)] shrink-0 lg:sticky lg:top-0 lg:block">
+          <CategoryRail
+            categories={categories}
+            bestsellerCount={bestsellerCount}
+            newCount={newItemIds.size}
+            activeId={activeCategory}
+            onSelect={setActiveCategory}
+            totalCount={items.length}
+          />
+        </div>
+
+        {/* Workspace — scrolls with the page, same as every other dashboard screen. */}
+        <div className="min-w-0 flex-1">
+          <div className="border-b border-border bg-surface px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search items, categories or scan barcode"
+                  className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+            <div className="mt-3 lg:hidden">
+              <CategoryTabs
+                categories={categories}
+                bestsellerCount={bestsellerCount}
+                newCount={newItemIds.size}
+                activeId={activeCategory}
+                onSelect={setActiveCategory}
+                totalCount={items.length}
               />
             </div>
           </div>
-          <div className="mt-3">
-            <CategoryTabs categories={categories} activeId={activeCategory} onSelect={setActiveCategory} totalCount={items.length} />
+
+          <div className="p-5 pb-24 lg:pb-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{activeLabel}</h2>
+              <span className="text-[12.5px] text-muted-foreground">{visible.length} item{visible.length === 1 ? '' : 's'}</span>
+            </div>
+            {visible.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">No items match.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {visible.map((item) => (
+                  <ProductCard
+                    key={item.id}
+                    item={item}
+                    qty={qtyByItem.get(item.id) ?? 0}
+                    onAdd={() => (item.hasOptions ? setCustomizing(item) : addPlain(item))}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="p-5 pb-24 lg:pb-5">
-          {visible.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">No items match.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {visible.map((item) => (
-                <ProductCard
-                  key={item.id}
-                  item={item}
-                  qty={qtyByItem.get(item.id) ?? 0}
-                  onAdd={() => (item.hasOptions ? setCustomizing(item) : addPlain(item))}
-                />
-              ))}
-            </div>
-          )}
+        {/* Cart — persistent right panel on desktop. Sticky + a direct dvh
+            height (not a percentage of an ambiguous flex-parent chain) so it
+            stays put while the product grid scrolls, regardless of how the
+            shared dashboard layout resolves its own height on any given page. */}
+        <div className="sticky top-0 hidden h-dvh w-[360px] shrink-0 border-l border-border lg:block">
+          <CartPanel {...cartProps} />
         </div>
       </div>
 
-      {/* Cart — persistent right panel on desktop. Sticky + a direct dvh height
-          (not a percentage of an ambiguous flex-parent chain) so it stays put
-          while the product grid scrolls, regardless of how the shared
-          dashboard layout resolves its own height on any given page. */}
-      <div className="sticky top-0 hidden h-dvh w-[360px] shrink-0 border-l border-border lg:block">
-        <CartPanel {...cartProps} />
-      </div>
+      {/* Bottom live strip — real numbers, collapsed below lg so it never
+          competes with ordering on tablet/mobile. Spans the full width,
+          under both the product area and the cart. */}
+      {stats && (
+        <div className="hidden shrink-0 items-stretch gap-px overflow-x-auto border-t border-border bg-border lg:flex">
+          <StatTile label="Today's sales" value={`₹${stats.collected.toLocaleString('en-IN')}`} icon={<TrendingUp size={15} />} />
+          <StatTile label="Orders" value={String(stats.orders)} icon={<ClipboardList size={15} />} />
+          <StatTile label="Average order value" value={`₹${stats.aov}`} icon={<TrendingUp size={15} />} />
+          <StatTile label="Active tables" value={`${activeTables} / ${tables.length}`} icon={<Users size={15} />} />
+          <StatTile label="Kitchen" value={`${stats.preparing} Preparing · ${stats.ready} Ready`} icon={<ChefHat size={15} />} />
+        </div>
+      )}
 
       {/* Cart — bottom bar + sheet on smaller screens */}
       {!cartOpen && cartCount > 0 && (
@@ -591,6 +687,18 @@ export default function PosClient({
           </a>
         </div>
       )}
+    </div>
+  )
+}
+
+function StatTile({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="flex min-w-[150px] flex-1 items-center gap-2.5 bg-surface px-4 py-2.5">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary">{icon}</span>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] text-muted-foreground">{label}</p>
+        <p className="truncate text-[14px] font-semibold text-foreground">{value}</p>
+      </div>
     </div>
   )
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { Minus, Plus, X } from 'lucide-react'
-import { FoodImage, VegDot, type QrItem } from './food-card'
+import { type QrItem } from './food-card'
+import { FoodImage, VegDot } from '@/components/ui/food-image'
 
 export type QrVariant = { id: string; menu_item_id: string; name: string; price_delta: number }
 export type QrAddon = { id: string; menu_item_id: string; name: string; price: number }

@@ -29,6 +29,10 @@
   --destructive-subtle:#FEF2F2;
   --info:              #1D4ED8;
   --info-subtle:       #EFF6FF;
+  /* One reserved informational accent — smart recommendations only. Never a
+     status color, never used for success/warning/danger. */
+  --special:           #7C3AED;
+  --special-subtle:    #F5F3FF;
 
   /* Sidebar: a deep green-black rail, its own scale so the light content
      area and the dark navigation never fight over the same tokens. */
@@ -75,6 +79,8 @@
   --destructive-subtle:#2A1414;
   --info:              #60A5FA;
   --info-subtle:       #0F1B2E;
+  --special:           #A78BFA;
+  --special-subtle:    #1E1B2E;
 
   /* Sidebar stays near-black in dark mode, one step below the page. */
   --sidebar:                  #0B0D0B;
@@ -120,6 +126,8 @@
   --color-destructive-subtle: var(--destructive-subtle);
   --color-info:             var(--info);
   --color-info-subtle:      var(--info-subtle);
+  --color-special:          var(--special);
+  --color-special-subtle:   var(--special-subtle);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --radius: var(--radius);

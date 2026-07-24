@@ -1,6 +1,7 @@
 'use client'
 
-import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X } from 'lucide-react'
+import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 export type CartLine = {
   key: string
@@ -81,7 +82,7 @@ export function CartPanel({
   takeawayEnabled: boolean
   bothEnabled: boolean
   onOpenTableSelector: () => void
-  existingSession: { total: number; itemCount: number } | null
+  existingSession: { total: number; itemCount: number; due: number; payState: 'paid' | 'partial' | 'unpaid' | null } | null
   recommendations: { id: string; name: string; price: number; reason: string }[]
   onAddRecommendation: (rec: { id: string; name: string; price: number; reason: string }) => void
   lines: CartLine[]
@@ -140,7 +141,7 @@ export function CartPanel({
     ? 'Placing…'
     : takeaway
       ? collecting
-        ? `${tenderLabel[tender as 'cash' | 'upi' | 'card']} ₹${total} · Place`
+        ? `Collect payment · ${tenderLabel[tender as 'cash' | 'upi' | 'card']} ₹${total}`
         : `Place — payment pending`
       : `Send to kitchen · ₹${total}`
 
@@ -150,11 +151,18 @@ export function CartPanel({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {orderType === 'dine_in' ? 'Table' : 'Order'}
+              {orderType === 'dine_in' ? 'Dine-in' : 'Order'}
             </p>
-            <p className="text-[17px] font-semibold text-foreground">
-              {orderType === 'dine_in' ? (tableLabel ?? 'Select table') : 'Takeaway'}
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="text-[17px] font-semibold text-foreground">
+                {orderType === 'dine_in' ? (tableLabel ?? 'Select table') : 'Takeaway'}
+              </p>
+              {orderType === 'dine_in' && existingSession && existingSession.payState && existingSession.payState !== 'paid' && (
+                <StatusBadge status={existingSession.payState === 'partial' ? 'partial' : 'due'}>
+                  {existingSession.payState === 'partial' ? 'Partial' : 'Payment Due'}
+                </StatusBadge>
+              )}
+            </div>
             {orderType === 'dine_in' && tableLabel && tableArea && (
               <p className="text-[12px] text-muted-foreground">{tableArea}</p>
             )}
@@ -201,13 +209,18 @@ export function CartPanel({
           </div>
         )}
 
-        {orderType === 'dine_in' && (
+        {orderType === 'dine_in' && !tableLabel && (
           <button
             onClick={onOpenTableSelector}
             className="mt-2.5 flex h-11 w-full items-center justify-between rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
           >
-            <span>{tableLabel ?? 'Choose a table…'}</span>
-            <span className="text-[12px] text-primary">Change</span>
+            <span className="text-muted-foreground">Choose a table…</span>
+            <span className="text-[12px] font-medium text-primary">Select</span>
+          </button>
+        )}
+        {orderType === 'dine_in' && tableLabel && (
+          <button onClick={onOpenTableSelector} className="mt-1.5 text-[12.5px] font-medium text-primary hover:underline">
+            Change table
           </button>
         )}
 
@@ -284,15 +297,18 @@ export function CartPanel({
       </div>
 
       <div className="border-t border-border p-4">
-        {/* Smart cross-sell — subtle, one tap to add. Never blocks anything. */}
+        {/* Smart cross-sell — subtle, one tap to add. Never blocks anything,
+            never framed as "AI" to the person using it. */}
         {lines.length > 0 && recommendations.length > 0 && (
-          <div className="mb-3">
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recommended</p>
+          <div className="mb-3 rounded-[var(--radius)] border border-special/25 bg-special-subtle p-2.5">
+            <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-special">
+              <Sparkles size={12} /> Goes well together
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {recommendations.map((r) => (
                 <button key={r.id} onClick={() => onAddRecommendation(r)}
-                  className="flex items-center gap-1 rounded-full border border-border-strong bg-surface px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:border-primary hover:bg-primary-subtle">
-                  <span className="text-primary">+</span> {r.name} <span className="text-muted-foreground">₹{r.price}</span>
+                  className="flex items-center gap-1 rounded-full border border-border-strong bg-surface px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:border-special hover:bg-special-subtle">
+                  <Plus size={11} className="text-special" /> {r.name} <span className="text-muted-foreground">₹{r.price}</span>
                 </button>
               ))}
             </div>
@@ -351,9 +367,9 @@ export function CartPanel({
               <span>₹{svc}</span>
             </div>
           )}
-          <div className="flex justify-between border-t border-border-strong pt-2 text-[16px] font-semibold text-foreground">
-            <span>Total</span>
-            <span>₹{total}</span>
+          <div className="flex items-baseline justify-between border-t border-border-strong pt-2">
+            <span className="text-[13px] font-semibold text-foreground">Total</span>
+            <span className="text-[20px] font-bold tracking-tight text-foreground">₹{total}</span>
           </div>
         </div>
 
@@ -428,11 +444,12 @@ export function CartPanel({
           <button
             onClick={onPlaceOrder}
             disabled={disabled}
-            className={`min-h-12 flex-1 rounded-[var(--radius)] text-[15px] font-semibold transition-colors disabled:opacity-40 ${
+            className={`flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] text-[14.5px] font-semibold transition-colors disabled:opacity-40 ${
               collecting ? 'bg-success text-white hover:opacity-90' : 'bg-primary text-primary-foreground hover:bg-primary-hover'
             }`}
           >
             {placeLabel}
+            {!placing && <ArrowRight size={16} />}
           </button>
         </div>
       </div>
