@@ -34,7 +34,7 @@ type Range = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
 
 const STATUS_STYLE: Record<Bill['bill_status'], string> = {
   PAID: 'border-success bg-success-subtle text-success',
-  OPEN: 'border-border-strong bg-surface-subtle text-muted-foreground',
+  OPEN: 'border-destructive bg-destructive-subtle text-destructive',
   UNPAID: 'border-destructive bg-destructive-subtle text-destructive',
   PARTIALLY_PAID: 'border-warning bg-warning-subtle text-warning',
   PAYMENT_PENDING: 'border-warning bg-warning-subtle text-warning',
@@ -42,13 +42,16 @@ const STATUS_STYLE: Record<Bill['bill_status'], string> = {
   REFUNDED: 'border-destructive bg-destructive-subtle text-destructive',
   CANCELLED: 'border-destructive bg-destructive-subtle text-destructive',
 }
+// One vocabulary everywhere: Paid / Partially paid / Payment due (+ refunds).
+// Both list_bills (UNPAID/PARTIALLY_PAID) and bill_status (OPEN/PAYMENT_PENDING)
+// vocabularies map onto the same three financial states.
 const STATUS_LABEL: Record<Bill['bill_status'], string> = {
   PAID: 'Paid',
-  OPEN: 'Open',
-  UNPAID: 'Unpaid',
-  PARTIALLY_PAID: 'Partly paid',
-  PAYMENT_PENDING: 'Payment pending',
-  PARTIALLY_REFUNDED: 'Partly refunded',
+  OPEN: 'Payment due',
+  UNPAID: 'Payment due',
+  PARTIALLY_PAID: 'Partially paid',
+  PAYMENT_PENDING: 'Partially paid',
+  PARTIALLY_REFUNDED: 'Partially refunded',
   REFUNDED: 'Refunded',
   CANCELLED: 'Cancelled',
 }
@@ -171,7 +174,7 @@ export default function BillsClient({
       </div>
 
       <div className="mt-2 flex flex-wrap gap-2">
-        {([['all', 'All'], ['paid', 'Paid'], ['partial', 'Partly paid'], ['unpaid', 'Unpaid'], ['refunded', 'Refunded']] as const).map(([key, label]) => (
+        {([['all', 'All'], ['paid', 'Paid'], ['partial', 'Partially paid'], ['unpaid', 'Payment due'], ['refunded', 'Refunded']] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => { setPayment(key); void load(range, type, search, key) }}

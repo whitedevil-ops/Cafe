@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
-import { CartPanel, type CartLine, type PosTable, type CustomerLookup } from '@/components/pos/cart-panel'
+import { CartPanel, type CartLine, type PosTable, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import type { PosVariant, PosAddon } from './page'
@@ -56,11 +56,12 @@ export default function PosClient({
   const [cart, setCart] = useState<Line[]>([])
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'counter'>('counter')
+  const [tender, setTender] = useState<Tender>('cash')
+  const [pendingReason, setPendingReason] = useState('')
   const [customizing, setCustomizing] = useState<FullItem | null>(null)
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ code: string; total: number; token: string } | null>(null)
+  const [success, setSuccess] = useState<{ code: string; total: number; token: string; paid: boolean } | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
 
   const [tableSelectorOpen, setTableSelectorOpen] = useState(false)
@@ -325,6 +326,13 @@ export default function PosClient({
 
   async function placeOrder() {
     if (orderType === 'dine_in' && !selectedTableId) return
+    // Takeaway collects now on a real tender (bill → PAID) or is explicitly
+    // left unpaid ("Payment Pending"). Dine-in always sends unpaid — its bill
+    // runs and is settled later at the table. Money is booked server-side by
+    // staff_place_order via record_payment; the browser never marks it paid.
+    const settle = orderType === 'takeaway' && tender !== 'pending'
+    const method = settle ? tender : 'counter'
+    const reason = orderType === 'takeaway' && tender === 'pending' ? pendingReason || null : null
     setPlacing(true)
     setError(null)
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
@@ -332,16 +340,18 @@ export default function PosClient({
       p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null })),
       p_order_type: orderType,
       p_table_id: orderType === 'dine_in' ? selectedTableId : null,
-      p_payment_method: paymentMethod,
+      p_payment_method: method,
       p_customer_phone: customerPhone || null,
       p_customer_name: customerName || null,
       p_discount_type: discountType,
       p_discount_value: Number(discountValue) || 0,
+      p_settle: settle,
+      p_pending_reason: reason,
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
-    const r = data as { short_code: string; total: number; receipt_token: string }
-    setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token })
+    const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
+    setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })
     setCart([])
     setCartOpen(false)
     setCustomerPhone('')
@@ -349,6 +359,8 @@ export default function PosClient({
     setCustomerLookup(null)
     setDiscountType(null)
     setDiscountValue('')
+    setTender('cash')
+    setPendingReason('')
     void pollTables()
     setTimeout(() => setSuccess(null), 6000)
   }
@@ -369,8 +381,10 @@ export default function PosClient({
     onNote: noteLine,
     taxPercent,
     serviceChargePercent,
-    paymentMethod,
-    onPaymentMethod: setPaymentMethod,
+    tender,
+    onTender: setTender,
+    pendingReason,
+    onPendingReason: setPendingReason,
     customerPhone,
     onCustomerPhone: setCustomerPhone,
     customerName,
@@ -489,9 +503,9 @@ export default function PosClient({
       )}
 
       {success && (
-        <div className="fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-[var(--radius)] border border-success bg-primary-subtle px-4 py-3 shadow-[var(--shadow-lg)]">
+        <div className={`fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-[var(--radius)] border px-4 py-3 shadow-[var(--shadow-lg)] ${success.paid ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle'}`}>
           <span className="text-[13px] font-medium text-foreground">
-            Order #{success.code} placed · ₹{success.total}
+            Order #{success.code} · ₹{success.total} · {success.paid ? 'Paid' : 'Payment due'}
           </span>
           <a href={`/r/${success.token}`} target="_blank" className="text-[13px] font-semibold text-primary hover:underline">
             View bill →

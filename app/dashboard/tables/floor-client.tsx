@@ -438,17 +438,20 @@ export default function FloorClient({
     void poll()
   }
 
+  // Split is a UI division of the same money. Financially it is the full
+  // remaining bill paid by one method, allocated across the session's unpaid
+  // orders through the validated ledger — so Bills, Tables and the dashboard
+  // never disagree about what's paid.
   async function recordSplit(method: 'cash' | 'card', shares: number[]) {
     const session = selected ? sessionByTable.get(selected) : null
     if (!session) return
-    const rows = shares.map((amount, i) => ({
-      cafe_id: cafeId,
-      session_id: session.id,
-      method,
-      amount,
-      split_label: `Equal split ${i + 1}/${shares.length}`,
-    }))
-    const { error } = await supabase.from('payments').insert(rows)
+    const total = shares.reduce((a, b) => a + b, 0)
+    const { error } = await supabase.rpc('record_session_payment', {
+      p_session_id: session.id,
+      p_amount: total,
+      p_method: method,
+      p_split_label: `Equal split ${shares.length} ways`,
+    })
     if (error) return setActionError(error.message)
     setSplitting(false)
     toast(`Split payment recorded — ${shares.length} ways.`)
@@ -520,7 +523,7 @@ export default function FloorClient({
               ps.state === 'paid' ? 'bg-success text-white' : ps.state === 'partial' ? 'bg-warning text-white' : 'bg-destructive text-white'
             }`}>
               <span className="h-1 w-1 rounded-full bg-white/90" />
-              {ps.state === 'paid' ? 'PAID' : ps.state === 'partial' ? 'PART' : 'UNPAID'}
+              {ps.state === 'paid' ? 'PAID' : ps.state === 'partial' ? 'PARTIAL' : 'DUE'}
             </span>
           )
 
@@ -672,8 +675,8 @@ export default function FloorClient({
                     {fullyPaid
                       ? <span className="font-medium text-success">Paid</span>
                       : orderPaid > 0
-                        ? <span className="font-medium text-warning">Part paid · ₹{orderDue} due</span>
-                        : <span className="font-medium text-destructive">Unpaid · ₹{orderDue} due</span>}
+                        ? <span className="font-medium text-warning">Partially paid · ₹{orderDue} due</span>
+                        : <span className="font-medium text-destructive">Payment due · ₹{orderDue}</span>}
                     {(names[o.customer_id ?? ''] || o.phone) && <> · {names[o.customer_id ?? ''] ?? ''} {mask(o.phone)}</>}
                   </p>
                   <ul className="mt-3 space-y-1.5 border-y border-border py-3">

@@ -200,7 +200,9 @@ with expected(kind, name, fix) as (values
   ('column',   'cafes.razorpay_webhook_token',  '0046'),
   ('table',    'cafe_payment_secrets',          '0046'),
   ('function', 'set_cafe_razorpay',             '0046'),
-  ('function', 'disconnect_cafe_razorpay',      '0046')
+  ('function', 'disconnect_cafe_razorpay',      '0046'),
+  -- one payment-state model: payment-first placement + session settle (0047)
+  ('function', 'record_session_payment',        '0047')
 )
 select
   e.kind,

@@ -1,6 +1,6 @@
 'use client'
 
-import { Minus, Plus, X, Banknote, CreditCard, Wallet, Tag, PauseCircle, Clock3, StickyNote } from 'lucide-react'
+import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X } from 'lucide-react'
 
 export type CartLine = {
   key: string
@@ -12,6 +12,18 @@ export type CartLine = {
 }
 export type PosTable = { id: string; label: string; occupied: boolean }
 export type CustomerLookup = { found: boolean; name?: string; visits?: number; points?: number }
+
+// One vocabulary for how a counter order is settled. A real tender means
+// "money received now" → the bill is PAID. 'pending' means the exception:
+// the customer walks out unpaid and the bill reads PAYMENT DUE.
+export type Tender = 'cash' | 'upi' | 'card' | 'pending'
+
+const PENDING_REASONS = [
+  'Customer will pay on pickup',
+  'Known customer',
+  'Manager approved',
+  'Other',
+]
 
 export function CartPanel({
   tableLabel,
@@ -25,8 +37,10 @@ export function CartPanel({
   onNote,
   taxPercent,
   serviceChargePercent,
-  paymentMethod,
-  onPaymentMethod,
+  tender,
+  onTender,
+  pendingReason,
+  onPendingReason,
   customerPhone,
   onCustomerPhone,
   customerName,
@@ -57,8 +71,10 @@ export function CartPanel({
   onNote: (key: string, note: string) => void
   taxPercent: number
   serviceChargePercent: number
-  paymentMethod: 'cash' | 'card' | 'counter'
-  onPaymentMethod: (m: 'cash' | 'card' | 'counter') => void
+  tender: Tender
+  onTender: (t: Tender) => void
+  pendingReason: string
+  onPendingReason: (v: string) => void
   customerPhone: string
   onCustomerPhone: (v: string) => void
   customerName: string
@@ -92,6 +108,22 @@ export function CartPanel({
   const total = base + tax + svc
   const itemCount = lines.reduce((s, l) => s + l.qty, 0)
   const overCap = discountType === 'percent' && maxPct !== null && parsedDiscount > maxPct
+
+  const takeaway = orderType === 'takeaway'
+  const collecting = takeaway && tender !== 'pending'
+  const disabled = placing || overCap || lines.length === 0 || (orderType === 'dine_in' && !tableLabel)
+
+  // Primary action text carries the financial intent so staff never have to
+  // reason about state: takeaway collects now (or is explicitly left pending);
+  // dine-in sends to the kitchen and runs a bill paid later at the table.
+  const tenderLabel: Record<'cash' | 'upi' | 'card', string> = { cash: 'Cash', upi: 'UPI', card: 'Card' }
+  const placeLabel = placing
+    ? 'Placing…'
+    : takeaway
+      ? collecting
+        ? `${tenderLabel[tender as 'cash' | 'upi' | 'card']} ₹${total} · Place`
+        : `Place — payment pending`
+      : `Send to kitchen · ₹${total}`
 
   return (
     <div className="flex h-full flex-col bg-surface">
@@ -279,24 +311,61 @@ export function CartPanel({
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2">
-          {([
-            ['cash', 'Cash', Wallet],
-            ['card', 'Card', CreditCard],
-            ['counter', 'Pay later', Banknote],
-          ] as const).map(([val, label, Icon]) => (
+        {/* Payment — takeaway is payment-first. Cash/UPI/Card mean money is in
+            hand now (bill → PAID). Payment Pending is the explicit exception. */}
+        {takeaway ? (
+          <div className="mt-3">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payment</p>
+            <div className="flex gap-2">
+              {([
+                ['cash', 'Cash', Wallet],
+                ['upi', 'UPI', Smartphone],
+                ['card', 'Card', CreditCard],
+              ] as const).map(([val, label, Icon]) => (
+                <button
+                  key={val}
+                  onClick={() => onTender(val)}
+                  className={`flex flex-1 flex-col items-center gap-1 rounded-[var(--radius)] border py-2.5 text-[12px] font-medium transition-colors ${
+                    tender === val ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
+                  }`}
+                >
+                  <Icon size={17} />
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
-              key={val}
-              onClick={() => onPaymentMethod(val)}
-              className={`flex flex-1 flex-col items-center gap-1 rounded-[var(--radius)] border py-2 text-[11.5px] font-medium transition-colors ${
-                paymentMethod === val ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground'
+              onClick={() => onTender('pending')}
+              className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-[var(--radius)] border py-2 text-[12px] font-medium transition-colors ${
+                tender === 'pending' ? 'border-warning bg-warning-subtle text-warning' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
               }`}
             >
-              <Icon size={16} />
-              {label}
+              <Clock3 size={14} /> Payment pending
             </button>
-          ))}
-        </div>
+            {tender === 'pending' && (
+              <div className="mt-2 rounded-[var(--radius)] border border-warning-subtle bg-warning-subtle/40 p-2.5">
+                <p className="text-[11.5px] font-medium text-warning">Why is this order unpaid?</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {PENDING_REASONS.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => onPendingReason(r)}
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        pendingReason === r ? 'border-warning bg-warning text-white' : 'border-border-strong text-muted-foreground hover:bg-surface'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[11.5px] text-muted-foreground">
+            Dine-in runs an open bill. Collect payment from the <span className="font-medium text-foreground">Tables</span> screen when the guest is ready.
+          </p>
+        )}
 
         {error && (
           <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>
@@ -312,10 +381,12 @@ export function CartPanel({
           </button>
           <button
             onClick={onPlaceOrder}
-            disabled={placing || overCap || lines.length === 0 || (orderType === 'dine_in' && !tableLabel)}
-            className="min-h-12 flex-1 rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-40"
+            disabled={disabled}
+            className={`min-h-12 flex-1 rounded-[var(--radius)] text-[15px] font-semibold transition-colors disabled:opacity-40 ${
+              collecting ? 'bg-success text-white hover:opacity-90' : 'bg-primary text-primary-foreground hover:bg-primary-hover'
+            }`}
           >
-            {placing ? 'Placing order…' : `Place order · ₹${total}`}
+            {placeLabel}
           </button>
         </div>
       </div>

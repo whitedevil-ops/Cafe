@@ -48,7 +48,7 @@ export default function DashboardClient({
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState(initialData)
   const [lastPolledAt, setLastPolledAt] = useState<Date | null>(null)
-  const [money, setMoney] = useState<{ collected: number; outstanding: number; refunded: number; unpaid_orders: number } | null>(null)
+  const [money, setMoney] = useState<{ collected: number; outstanding: number; refunded: number; unpaid_orders: number; unpaid_dine_in: number; unpaid_takeaway: number } | null>(null)
 
   const poll = useCallback(async () => {
     const dayStart = businessDayStartISO(timezone)
@@ -230,7 +230,11 @@ export default function DashboardClient({
       </div>
 
       {money && (
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-[12.5px] text-muted-foreground">Billed today</p>
+            <p className="mt-0.5 text-xl font-semibold text-foreground">₹{data.revenue.toLocaleString('en-IN')}</p>
+          </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-[12.5px] text-muted-foreground">Collected today</p>
             <p className="mt-0.5 text-xl font-semibold text-success">₹{money.collected.toLocaleString('en-IN')}</p>
@@ -238,7 +242,13 @@ export default function DashboardClient({
           <Link href="/dashboard/bills?payment=unpaid" className="rounded-xl border border-border bg-surface p-4 transition-colors hover:bg-surface-subtle">
             <p className="text-[12.5px] text-muted-foreground">Outstanding</p>
             <p className={`mt-0.5 text-xl font-semibold ${money.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>₹{money.outstanding.toLocaleString('en-IN')}</p>
-            {money.unpaid_orders > 0 && <p className="text-[11px] text-muted-foreground">{money.unpaid_orders} unpaid order{money.unpaid_orders === 1 ? '' : 's'}</p>}
+            {money.outstanding > 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Dine-in ₹{money.unpaid_dine_in.toLocaleString('en-IN')} · Takeaway ₹{money.unpaid_takeaway.toLocaleString('en-IN')}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">Everything settled</p>
+            )}
           </Link>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-[12.5px] text-muted-foreground">Refunded today</p>
