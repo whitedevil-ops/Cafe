@@ -1,6 +1,7 @@
 'use client'
 
-import { Wallet, CreditCard, Landmark, Coins, Info } from 'lucide-react'
+import { useState } from 'react'
+import { Wallet, CreditCard, Landmark, Coins, Info, X } from 'lucide-react'
 
 export type PaymentsConfig = {
   accept_cash: boolean
@@ -51,6 +52,7 @@ export function PaymentsPanel({
 }) {
   const connected = value.razorpay_status === 'connected'
   const rzp = RZP_BADGE[value.razorpay_status]
+  const [showSetup, setShowSetup] = useState(false)
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
@@ -100,8 +102,8 @@ export function PaymentsPanel({
             </div>
             <button
               type="button"
-              disabled
-              className="min-h-9 shrink-0 cursor-not-allowed rounded-[var(--radius)] border border-border-strong px-4 text-[12.5px] font-medium text-muted-foreground opacity-70"
+              onClick={() => setShowSetup((v) => !v)}
+              className="min-h-9 shrink-0 rounded-[var(--radius)] border border-border-strong px-4 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle"
             >
               {connected ? 'Manage' : 'Connect Razorpay'}
             </button>
@@ -119,14 +121,28 @@ export function PaymentsPanel({
             </label>
           )}
 
-          {!connected && (
-            <div className="mt-3 flex items-start gap-2 rounded-[var(--radius)] bg-info-subtle px-3 py-2.5 text-[12.5px] text-info">
-              <Info size={15} className="mt-0.5 shrink-0" />
-              <span>
-                Online payments are <strong>not available yet</strong>. Connecting a café as a merchant requires a
-                Razorpay platform account with Route enabled and each café’s KYC — an onboarding step the platform
-                owner completes. Until then, customers pay at the counter.
-              </span>
+          {showSetup && !connected && (
+            <div className="mt-3 rounded-[var(--radius)] border border-info bg-info-subtle p-3.5 text-[12.5px] text-info">
+              <div className="flex items-start justify-between gap-2">
+                <p className="flex items-center gap-1.5 font-semibold"><Info size={15} /> Online payments aren’t live yet</p>
+                <button type="button" onClick={() => setShowSetup(false)} aria-label="Dismiss" className="shrink-0 text-info/70 hover:text-info"><X size={14} /></button>
+              </div>
+              <p className="mt-1.5 leading-relaxed">
+                Accepting online payments needs a one-time setup at the <strong>KhaoPiyo platform level</strong> — it
+                isn’t something a single café can switch on. Once that’s done, connecting your café here takes a couple
+                of minutes.
+              </p>
+              <p className="mt-2 font-medium">What the platform owner sets up first:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li>A Razorpay platform account with <strong>Route</strong> enabled</li>
+                <li>Platform API keys + webhook secret (kept server-side, never shared)</li>
+              </ul>
+              <p className="mt-2 font-medium">Then, to connect your café:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li>Your business + bank details (KYC), verified by a small test deposit</li>
+                <li>Money then settles straight to your own bank account</li>
+              </ul>
+              <p className="mt-2">Until then, customers pay at the counter — everything else works normally.</p>
             </div>
           )}
         </div>
