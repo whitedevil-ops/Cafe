@@ -43,7 +43,7 @@ const SENSITIVE = [
 ]
 
 describe('tenant isolation & RLS (live anon)', () => {
-  it('anonymous caller reads no rows from any sensitive table', async () => {
+  it('anonymous caller reads no rows from any sensitive table', { timeout: 30000 }, async () => {
     for (const t of SENSITIVE) {
       const { status, rows } = await anonRead(t)
       // Either RLS returns an empty set (200 []) or the request is rejected.
@@ -57,7 +57,7 @@ describe('tenant isolation & RLS (live anon)', () => {
     expect(rows.length).toBe(0)
   })
 
-  it('financial/staff RPCs reject the anon role', async () => {
+  it('financial/staff RPCs reject the anon role', { timeout: 30000 }, async () => {
     const zero = '00000000-0000-0000-0000-000000000000'
     const cases: [string, Record<string, unknown>][] = [
       ['staff_place_order', { p_cafe_id: zero, p_items: [], p_settle: true }],
@@ -78,6 +78,26 @@ describe('tenant isolation & RLS (live anon)', () => {
     const { text } = await anonRpc('get_receipt', { p_token: '11111111-2222-3333-4444-555555555555' })
     // get_receipt is anon-callable by design; a non-existent token must yield null.
     expect(text.trim() === 'null' || text.trim() === '').toBe(true)
+  })
+})
+
+// Route protection — proves there is NO auth bypass: every protected page
+// redirects an unauthenticated request to /login (audit upgrade #3).
+describe('route protection (live, unauthenticated)', () => {
+  // The DEPLOYED site — this asserts production route protection, so it must
+  // not use a localhost APP_URL. Override with SECURITY_TEST_SITE if the
+  // deployment lives elsewhere.
+  const envSite = process.env.SECURITY_TEST_SITE
+  const SITE = envSite && !envSite.includes('localhost') ? envSite : 'https://khaopiyo.ventron.in'
+
+  it('protected routes 3xx-redirect to /login with no session', { timeout: 30000 }, async () => {
+    const routes = ['/dashboard', '/dashboard/pos', '/dashboard/bills', '/dashboard/reports', '/dashboard/settings', '/platform-admin']
+    for (const r of routes) {
+      const res = await fetch(`${SITE}${r}`, { redirect: 'manual' })
+      const loc = res.headers.get('location') ?? ''
+      const redirected = res.status >= 300 && res.status < 400 && loc.includes('/login')
+      expect(redirected, `${r} did not redirect to /login (status ${res.status}, location "${loc}")`).toBe(true)
+    }
   })
 })
 

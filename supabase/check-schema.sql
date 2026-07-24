@@ -205,7 +205,9 @@ with expected(kind, name, fix) as (values
   ('function', 'record_session_payment',        '0047'),
   -- F-01 financial lockdown: expenses move to authorized RPCs (0050)
   ('function', 'record_expense',                '0050'),
-  ('function', 'delete_expense',                '0050')
+  ('function', 'delete_expense',                '0050'),
+  -- enabled-order-type enforcement trigger fn (0051)
+  ('function', 'enforce_enabled_order_type',    '0051')
 )
 select
   e.kind,

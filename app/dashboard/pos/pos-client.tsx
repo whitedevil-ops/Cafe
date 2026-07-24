@@ -30,6 +30,8 @@ export default function PosClient({
   timezone,
   taxPercent,
   serviceChargePercent,
+  dineIn,
+  takeaway,
   categories,
   items,
   variants,
@@ -41,6 +43,8 @@ export default function PosClient({
   timezone: string
   taxPercent: number
   serviceChargePercent: number
+  dineIn: boolean
+  takeaway: boolean
   categories: PosCategory[]
   items: FullItem[]
   variants: PosVariant[]
@@ -54,7 +58,11 @@ export default function PosClient({
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState<Line[]>([])
-  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>('dine_in')
+  // Respect the café's enabled order types. If both are off (shouldn't happen)
+  // fall back to dine-in so the POS still renders; the server trigger (0051) is
+  // the real gate regardless of what the UI offers.
+  const bothEnabled = dineIn && takeaway
+  const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>(takeaway && !dineIn ? 'takeaway' : 'dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [tender, setTender] = useState<Tender>('cash')
   const [pendingReason, setPendingReason] = useState('')
@@ -373,6 +381,9 @@ export default function PosClient({
     tableLabel: selectedTable?.label ?? null,
     orderType,
     onOrderType: setOrderType,
+    dineInEnabled: dineIn,
+    takeawayEnabled: takeaway,
+    bothEnabled,
     onOpenTableSelector: () => setTableSelectorOpen(true),
     existingSession,
     lines: cart,

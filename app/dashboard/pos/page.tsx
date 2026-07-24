@@ -18,7 +18,7 @@ export default async function PosPage() {
 
   const supabase = await createClient()
   const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }] = await Promise.all([
-    supabase.from('cafes').select('tax_percent, service_charge').eq('id', cafe.cafeId).single(),
+    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
@@ -70,6 +70,8 @@ export default async function PosPage() {
       timezone={cafe.timezone}
       taxPercent={Number(cafeRow?.tax_percent ?? 0)}
       serviceChargePercent={Number(cafeRow?.service_charge ?? 0)}
+      dineIn={cafeRow?.dine_in ?? true}
+      takeaway={cafeRow?.takeaway ?? true}
       categories={posCategories}
       items={posItems}
       variants={(variants ?? []) as PosVariant[]}

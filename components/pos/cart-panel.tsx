@@ -29,6 +29,9 @@ export function CartPanel({
   tableLabel,
   orderType,
   onOrderType,
+  dineInEnabled,
+  takeawayEnabled,
+  bothEnabled,
   onOpenTableSelector,
   existingSession,
   lines,
@@ -63,6 +66,9 @@ export function CartPanel({
   tableLabel: string | null
   orderType: 'dine_in' | 'takeaway'
   onOrderType: (t: 'dine_in' | 'takeaway') => void
+  dineInEnabled: boolean
+  takeawayEnabled: boolean
+  bothEnabled: boolean
   onOpenTableSelector: () => void
   existingSession: { total: number; itemCount: number } | null
   lines: CartLine[]
@@ -151,24 +157,33 @@ export function CartPanel({
           </button>
         </div>
 
-        <div className="mt-3 flex gap-1 rounded-[var(--radius)] bg-surface-subtle p-1">
-          <button
-            onClick={() => onOrderType('dine_in')}
-            className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[13px] font-medium transition-colors ${
-              orderType === 'dine_in' ? 'bg-surface text-foreground shadow-[var(--shadow-sm)]' : 'text-muted-foreground'
-            }`}
-          >
-            Dine-in
-          </button>
-          <button
-            onClick={() => onOrderType('takeaway')}
-            className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[13px] font-medium transition-colors ${
-              orderType === 'takeaway' ? 'bg-surface text-foreground shadow-[var(--shadow-sm)]' : 'text-muted-foreground'
-            }`}
-          >
-            Takeaway
-          </button>
-        </div>
+        {/* Only offer the order types the café has enabled (Settings → Profile).
+            When just one is on, the toggle collapses to a static label — the
+            server trigger (0051) rejects a disabled type regardless. */}
+        {bothEnabled ? (
+          <div className="mt-3 flex gap-1 rounded-[var(--radius)] bg-surface-subtle p-1">
+            <button
+              onClick={() => onOrderType('dine_in')}
+              className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[13px] font-medium transition-colors ${
+                orderType === 'dine_in' ? 'bg-surface text-foreground shadow-[var(--shadow-sm)]' : 'text-muted-foreground'
+              }`}
+            >
+              Dine-in
+            </button>
+            <button
+              onClick={() => onOrderType('takeaway')}
+              className={`flex-1 rounded-[var(--radius-sm)] py-2 text-[13px] font-medium transition-colors ${
+                orderType === 'takeaway' ? 'bg-surface text-foreground shadow-[var(--shadow-sm)]' : 'text-muted-foreground'
+              }`}
+            >
+              Takeaway
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[13px] font-medium text-foreground">
+            {dineInEnabled ? 'Dine-in' : takeawayEnabled ? 'Takeaway' : 'Ordering disabled'}
+          </div>
+        )}
 
         {orderType === 'dine_in' && (
           <button
