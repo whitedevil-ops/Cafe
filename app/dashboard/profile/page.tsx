@@ -20,7 +20,7 @@ export default async function CafeProfilePage() {
   const [{ data }, { data: settings }] = await Promise.all([
     supabase
       .from('cafes')
-      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, upi_enabled, upi_id, upi_name, payment_qr_url, qr_payment_mode, address, city, state, pincode, dine_in, takeaway')
+      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, accept_cash, accept_upi_counter, accept_card_counter, accept_pay_counter, online_payments_enabled, razorpay_status, address, city, state, pincode, dine_in, takeaway')
       .eq('id', cafe.cafeId)
       .single(),
     supabase.from('cafe_settings').select('hours, receipt').eq('cafe_id', cafe.cafeId).maybeSingle(),
@@ -43,11 +43,12 @@ export default async function CafeProfilePage() {
     tax_inclusive: data?.tax_inclusive ?? false,
     tax_percent: Number(data?.tax_percent ?? 0),
     service_charge: Number(data?.service_charge ?? 0),
-    upi_enabled: data?.upi_enabled ?? false,
-    upi_id: data?.upi_id ?? '',
-    upi_name: data?.upi_name ?? '',
-    payment_qr_url: data?.payment_qr_url ?? null,
-    qr_payment_mode: (data?.qr_payment_mode ?? 'pay_later') as 'pay_later' | 'prepaid' | 'both',
+    accept_cash: data?.accept_cash ?? true,
+    accept_upi_counter: data?.accept_upi_counter ?? true,
+    accept_card_counter: data?.accept_card_counter ?? true,
+    accept_pay_counter: data?.accept_pay_counter ?? true,
+    online_payments_enabled: data?.online_payments_enabled ?? false,
+    razorpay_status: (data?.razorpay_status ?? 'not_connected') as 'not_connected' | 'pending' | 'connected' | 'disabled',
     address: data?.address ?? '',
     city: data?.city ?? '',
     state: data?.state ?? '',

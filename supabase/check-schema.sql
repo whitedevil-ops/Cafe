@@ -186,7 +186,15 @@ with expected(kind, name, fix) as (values
   ('function', 'qr_start_upi_payment',          '0041'),
   ('function', 'qr_claim_payment',              '0041'),
   ('function', 'pending_payment_claims',        '0041'),
-  ('function', 'outstanding_summary',           '0042')
+  ('function', 'outstanding_summary',           '0042'),
+  -- payment methods + Razorpay abstraction (0045)
+  ('column',   'cafes.accept_pay_counter',      '0045'),
+  ('column',   'cafes.online_payments_enabled', '0045'),
+  ('column',   'cafes.razorpay_status',         '0045'),
+  ('column',   'cafes.razorpay_account_id',     '0045'),
+  ('column',   'payments.status',               '0045'),
+  ('column',   'payments.provider',             '0045'),
+  ('column',   'payments.provider_payment_id',  '0045')
 )
 select
   e.kind,

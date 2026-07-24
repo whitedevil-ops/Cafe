@@ -1,177 +1,134 @@
 'use client'
 
-import { useState } from 'react'
-import { Landmark, ExternalLink, Check } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { uploadPaymentQr } from '@/lib/image-upload'
+import { Wallet, CreditCard, Landmark, Coins, Info } from 'lucide-react'
 
 export type PaymentsConfig = {
-  upi_enabled: boolean
-  upi_id: string
-  upi_name: string
-  payment_qr_url: string | null
-  qr_payment_mode: 'pay_later' | 'prepaid' | 'both'
+  accept_cash: boolean
+  accept_upi_counter: boolean
+  accept_card_counter: boolean
+  accept_pay_counter: boolean
+  online_payments_enabled: boolean
+  razorpay_status: 'not_connected' | 'pending' | 'connected' | 'disabled'
 }
 
-const MODES: { v: PaymentsConfig['qr_payment_mode']; label: string; sub: string }[] = [
-  { v: 'pay_later', label: 'Pay at counter only', sub: 'Customers order, then pay you directly' },
-  { v: 'prepaid', label: 'Prepaid only', sub: 'Customers must pay online before it reaches the kitchen' },
-  { v: 'both', label: 'Let customers choose', sub: 'Show both “Pay now” and “Pay at counter”' },
+const METHODS: { key: keyof PaymentsConfig; label: string; sub: string; icon: React.ReactNode }[] = [
+  { key: 'accept_cash', label: 'Cash', sub: 'Recorded at the counter', icon: <Coins size={16} /> },
+  { key: 'accept_upi_counter', label: 'UPI at counter', sub: 'Customer pays your UPI directly; staff record it', icon: <Landmark size={16} /> },
+  { key: 'accept_card_counter', label: 'Card at counter', sub: 'Card machine at the counter', icon: <CreditCard size={16} /> },
+  { key: 'accept_pay_counter', label: 'Pay at counter (QR menu)', sub: 'Let QR customers order now and pay later', icon: <Wallet size={16} /> },
 ]
 
-// Server stays authoritative: the UPI ID is the payment configuration, not the
-// uploaded QR image. The QR is a convenience for scanning; if a UPI ID exists,
-// the app builds the intent from it (with the server-computed amount).
+const RZP_BADGE: Record<PaymentsConfig['razorpay_status'], { label: string; cls: string }> = {
+  not_connected: { label: 'Not connected', cls: 'bg-surface-subtle text-muted-foreground border-border-strong' },
+  pending: { label: 'Pending', cls: 'bg-warning-subtle text-warning border-warning' },
+  connected: { label: 'Connected', cls: 'bg-success-subtle text-success border-success' },
+  disabled: { label: 'Disabled', cls: 'bg-destructive-subtle text-destructive border-destructive' },
+}
+
+function Toggle({ on, disabled, onClick, label }: { on: boolean; disabled?: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-primary' : 'border border-border-strong bg-surface-subtle'}`}
+    >
+      <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+    </button>
+  )
+}
+
 export function PaymentsPanel({
-  cafeId,
   value,
   onChange,
   disabled,
 }: {
-  cafeId: string
   value: PaymentsConfig
   onChange: (patch: Partial<PaymentsConfig>) => void
   disabled: boolean
 }) {
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-
-  const upiValid = /^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(value.upi_id.trim())
-
-  async function pickQr(file: File | undefined) {
-    if (!file) return
-    setUploading(true)
-    setUploadError(null)
-    const res = await uploadPaymentQr(cafeId, file)
-    setUploading(false)
-    if ('error' in res) return setUploadError(res.error)
-    onChange({ payment_qr_url: res.url })
-  }
-
-  function testLink() {
-    const uri = `upi://pay?pa=${encodeURIComponent(value.upi_id.trim())}&pn=${encodeURIComponent(value.upi_name.trim() || 'Café')}&am=1&cu=INR&tn=KhaoPiyo%20test`
-    window.location.href = uri
-  }
+  const connected = value.razorpay_status === 'connected'
+  const rzp = RZP_BADGE[value.razorpay_status]
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
       <h2 className="text-[15px] font-semibold tracking-tight text-foreground">Payments</h2>
       <p className="mt-0.5 text-[13px] text-muted-foreground">
-        How customers pay you. Cash, card and “pay at counter” are always available — this controls UPI.
+        How you accept money. Your café works fully on counter payments — online payment is optional.
       </p>
 
-      {/* Always-on methods, for reassurance */}
-      <ul className="mt-4 grid gap-2 sm:grid-cols-3">
-        {['Cash', 'Card', 'Pay at counter'].map((m) => (
-          <li key={m} className="flex items-center gap-1.5 rounded-[var(--radius)] border border-border px-3 py-2 text-[12.5px] text-muted-foreground">
-            <Check size={13} className="text-success" /> {m}
-          </li>
-        ))}
-      </ul>
-
-      {/* UPI enable */}
-      <div className="mt-5 flex flex-wrap items-start justify-between gap-4 rounded-[var(--radius)] border border-border p-4">
-        <div className="min-w-0">
-          <h3 className="flex items-center gap-2 text-[13.5px] font-medium text-foreground"><Landmark size={16} /> UPI payments</h3>
-          <p className="mt-0.5 max-w-md text-[12.5px] leading-relaxed text-muted-foreground">
-            Let customers pay to your UPI ID from the QR menu. KhaoPiyo shows the exact amount and opens their UPI app —
-            it never handles their PIN and does not process the money itself.
-          </p>
-        </div>
-        <button
-          role="switch"
-          aria-checked={value.upi_enabled}
-          aria-label="UPI payments"
-          disabled={disabled}
-          onClick={() => onChange({ upi_enabled: !value.upi_enabled })}
-          className={`h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${value.upi_enabled ? 'bg-primary' : 'border border-border-strong bg-surface-subtle'}`}
-        >
-          <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${value.upi_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-        </button>
+      {/* Counter payment methods */}
+      <div className="mt-4">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Payment methods</p>
+        <ul className="mt-2 divide-y divide-border rounded-[var(--radius)] border border-border">
+          {METHODS.map((m) => (
+            <li key={m.key} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="text-muted-foreground">{m.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-medium text-foreground">{m.label}</p>
+                  <p className="text-[12px] text-muted-foreground">{m.sub}</p>
+                </div>
+              </div>
+              <Toggle
+                on={Boolean(value[m.key])}
+                disabled={disabled}
+                onClick={() => onChange({ [m.key]: !value[m.key] } as Partial<PaymentsConfig>)}
+                label={m.label}
+              />
+            </li>
+          ))}
+        </ul>
       </div>
 
-      {value.upi_enabled && (
-        <div className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="UPI ID / VPA"
-              placeholder="breworacafe@upi"
-              value={value.upi_id}
-              onChange={(e) => onChange({ upi_id: e.target.value })}
-              disabled={disabled}
-              error={value.upi_id.trim() && !upiValid ? 'That doesn’t look like a UPI ID (e.g. name@bank).' : undefined}
-              hint={!value.upi_id.trim() ? 'Required to accept UPI.' : upiValid ? 'Looks valid.' : undefined}
-            />
-            <Input
-              label="Payee name"
-              placeholder="Brewora Café"
-              value={value.upi_name}
-              onChange={(e) => onChange({ upi_name: e.target.value })}
-              disabled={disabled}
-              hint="Shown in the customer’s UPI app."
-            />
-          </div>
-
-          <div>
-            <p className="text-[13px] font-medium text-foreground">Payment QR (optional)</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">A scannable image for desktop customers. The UPI ID above stays the source of truth.</p>
-            <div className="mt-2 flex items-center gap-4">
-              {value.payment_qr_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={value.payment_qr_url} alt="Payment QR" className="h-20 w-20 rounded-[var(--radius)] border border-border object-contain bg-white p-1" />
-              ) : (
-                <div className="grid h-20 w-20 place-items-center rounded-[var(--radius)] border border-dashed border-border-strong text-[11px] text-muted-foreground">No QR</div>
-              )}
-              {!disabled && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="inline-flex min-h-9 cursor-pointer items-center rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle">
-                    {uploading ? 'Uploading…' : value.payment_qr_url ? 'Replace QR' : 'Upload QR'}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => pickQr(e.target.files?.[0])} />
-                  </label>
-                  {value.payment_qr_url && (
-                    <button type="button" onClick={() => onChange({ payment_qr_url: null })} className="min-h-8 px-1 text-left text-[12px] text-muted-foreground hover:text-destructive">Remove</button>
-                  )}
-                </div>
-              )}
+      {/* Online payments — Razorpay */}
+      <div className="mt-6">
+        <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Online payments</p>
+        <div className="mt-2 rounded-[var(--radius)] border border-border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-[13.5px] font-medium text-foreground">Razorpay</p>
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${rzp.cls}`}>{rzp.label}</span>
+              </div>
+              <p className="mt-0.5 max-w-md text-[12px] leading-relaxed text-muted-foreground">
+                Accept automatically-verified online payments (UPI, cards, wallets) from the QR menu. Money settles to
+                your own bank account.
+              </p>
             </div>
-            {uploadError && <p className="mt-2 text-[12px] text-destructive">{uploadError}</p>}
+            <button
+              type="button"
+              disabled
+              className="min-h-9 shrink-0 cursor-not-allowed rounded-[var(--radius)] border border-border-strong px-4 text-[12.5px] font-medium text-muted-foreground opacity-70"
+            >
+              {connected ? 'Manage' : 'Connect Razorpay'}
+            </button>
           </div>
 
-          {upiValid && (
-            <button type="button" onClick={testLink} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle">
-              <ExternalLink size={14} /> Test payment link (₹1)
-            </button>
+          {value.online_payments_enabled && connected && (
+            <label className="mt-3 flex items-center gap-2 text-[13px] text-foreground">
+              <input
+                type="checkbox"
+                checked={value.online_payments_enabled}
+                disabled={disabled}
+                onChange={(e) => onChange({ online_payments_enabled: e.target.checked })}
+              />
+              Show “Pay online” on the customer QR checkout
+            </label>
           )}
-        </div>
-      )}
 
-      {/* QR ordering payment mode */}
-      <div className="mt-5">
-        <p className="text-[13px] font-medium text-foreground">QR ordering — how customers pay</p>
-        <div className="mt-2 space-y-2">
-          {MODES.map((m) => {
-            const on = value.qr_payment_mode === m.v
-            const needsUpi = m.v !== 'pay_later' && !value.upi_enabled
-            return (
-              <button
-                key={m.v}
-                type="button"
-                disabled={disabled || needsUpi}
-                onClick={() => onChange({ qr_payment_mode: m.v })}
-                className={`flex w-full items-center gap-3 rounded-[var(--radius)] border px-4 py-3 text-left disabled:opacity-50 ${
-                  on ? 'border-primary bg-primary-subtle' : 'border-border-strong hover:bg-surface-subtle'
-                }`}
-              >
-                <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${on ? 'border-primary' : 'border-border-strong'}`}>
-                  {on && <span className="h-2 w-2 rounded-full bg-primary" />}
-                </span>
-                <span className="min-w-0">
-                  <span className={`block text-[13px] font-medium ${on ? 'text-primary' : 'text-foreground'}`}>{m.label}</span>
-                  <span className="block text-[11.5px] text-muted-foreground">{needsUpi ? 'Enable UPI above to use this' : m.sub}</span>
-                </span>
-              </button>
-            )
-          })}
+          {!connected && (
+            <div className="mt-3 flex items-start gap-2 rounded-[var(--radius)] bg-info-subtle px-3 py-2.5 text-[12.5px] text-info">
+              <Info size={15} className="mt-0.5 shrink-0" />
+              <span>
+                Online payments are <strong>not available yet</strong>. Connecting a café as a merchant requires a
+                Razorpay platform account with Route enabled and each café’s KYC — an onboarding step the platform
+                owner completes. Until then, customers pay at the counter.
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </section>

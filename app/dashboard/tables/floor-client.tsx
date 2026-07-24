@@ -42,7 +42,6 @@ type SessionOrder = {
 type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
 type SmsLog = { id: string; order_id: string; status: string; error: string | null }
 type Payment = { session_id: string | null; order_id: string | null; amount: number }
-type PaymentClaim = { attempt_id: string; order_id: string; short_code: string; table_label: string | null; amount: number; reference: string | null; claimed_at: string }
 
 const NEXT: Record<string, { label: string; to: string }> = {
   placed: { label: 'Start preparing', to: 'preparing' },
@@ -73,7 +72,6 @@ export default function FloorClient({
   const [orders, setOrders] = useState<SessionOrder[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
-  const [claims, setClaims] = useState<PaymentClaim[]>([])
   const [payingOrder, setPayingOrder] = useState<string | null>(null)
   const [names, setNames] = useState<Record<string, string>>({})
   const [attention, setAttention] = useState<Set<string>>(new Set()) // table ids with unacked call_waiter
@@ -162,13 +160,6 @@ export default function FloorClient({
       const map: Record<string, string> = {}
       for (const c of custRes.data ?? []) if (c.name) map[c.id] = c.name
       setNames(map)
-    }
-
-    // Pending UPI claims — customers who tapped "I have paid", awaiting staff
-    // confirmation. Tolerates the RPC not existing yet (pre-migration).
-    {
-      const { data: claimRows } = await supabase.rpc('pending_payment_claims', { p_cafe_id: cafeId })
-      setClaims((claimRows ?? []) as PaymentClaim[])
     }
 
     // Unacknowledged call-waiter flags.
@@ -284,11 +275,10 @@ export default function FloorClient({
     void poll()
   }
 
-  // Record a payment through the server RPC, which validates the amount
-  // against the order's real outstanding (rejecting overpayment) and writes
-  // the immutable, audited payment row. Records the full outstanding for this
-  // order. `claim` links a confirmed customer UPI claim.
-  async function markPaid(o: SessionOrder, method: 'cash' | 'card' | 'upi', claim?: PaymentClaim) {
+  // Record a counter payment through the server RPC, which validates the
+  // amount against the order's real outstanding (rejecting overpayment) and
+  // writes the immutable, audited payment row for the full outstanding.
+  async function markPaid(o: SessionOrder, method: 'cash' | 'card' | 'upi') {
     const due = Math.max(0, o.total - (paidByOrder.get(o.id) ?? 0))
     if (due <= 0) return
     setPayingOrder(o.id)
@@ -296,9 +286,9 @@ export default function FloorClient({
       p_order_id: o.id,
       p_amount: due,
       p_method: method,
-      p_reference: claim?.reference ?? null,
-      p_source: method === 'upi' ? 'upi_manual' : 'manual',
-      p_attempt_id: claim?.attempt_id ?? null,
+      p_reference: null,
+      p_source: 'manual',
+      p_attempt_id: null,
     })
     setPayingOrder(null)
     if (error) return toast(error.message, 'error')
@@ -669,7 +659,6 @@ export default function FloorClient({
               const orderPaid = paidByOrder.get(o.id) ?? 0
               const orderDue = Math.max(0, o.total - orderPaid)
               const fullyPaid = o.total > 0 && orderDue <= 0
-              const claim = claims.find((c) => c.order_id === o.id)
               const busy = payingOrder === o.id
               return (
                 <section key={o.id} className="mt-4 rounded-xl border border-border p-4">
@@ -701,16 +690,6 @@ export default function FloorClient({
                     <span className="text-base font-semibold text-foreground">₹{o.total}</span>
                     <a href={`/r/${o.receipt_token}`} target="_blank" className="text-[13px] text-primary hover:underline">View bill →</a>
                   </div>
-                  {/* Customer tapped "I have paid" by UPI — confirm receipt. */}
-                  {claim && !fullyPaid && (
-                    <button
-                      onClick={() => markPaid(o, 'upi', claim)}
-                      disabled={busy}
-                      className="mt-3 w-full rounded-[var(--radius)] bg-primary py-3 text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
-                    >
-                      {busy ? 'Confirming…' : `Confirm ₹${claim.amount} UPI — customer says paid${claim.reference ? ` · ref ${claim.reference}` : ''}`}
-                    </button>
-                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!fullyPaid && (
                       <>

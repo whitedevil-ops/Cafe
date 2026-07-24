@@ -17,7 +17,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   if (!table) notFound()
 
   const [{ data: cafe, error: cafeErr }, { data: categories }, { data: items }] = await Promise.all([
-    supabase.from('cafes').select('name, logo_url, upsell_threshold, upi_enabled, qr_payment_mode, payment_qr_url').eq('id', table.cafe_id).maybeSingle(),
+    supabase.from('cafes').select('name, logo_url, upsell_threshold, accept_pay_counter, online_payments_enabled, razorpay_status').eq('id', table.cafe_id).maybeSingle(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', table.cafe_id).order('sort'),
     // Unavailable items are fetched too and rendered subdued rather than
     // hidden — a customer looking for something needs to see it's sold out
@@ -58,8 +58,8 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       cafeName={cafe.name}
       cafeLogo={cafe.logo_url}
       tableLabel={table.label}
-      upiEnabled={cafe.upi_enabled ?? false}
-      qrPaymentMode={(cafe.qr_payment_mode ?? 'pay_later') as 'pay_later' | 'prepaid' | 'both'}
+      onlinePaymentsEnabled={(cafe.online_payments_enabled ?? false) && cafe.razorpay_status === 'connected'}
+      acceptPayCounter={cafe.accept_pay_counter ?? true}
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}

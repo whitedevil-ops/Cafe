@@ -34,11 +34,12 @@ export type CafeProfile = {
   tax_inclusive: boolean
   tax_percent: number
   service_charge: number
-  upi_enabled: boolean
-  upi_id: string
-  upi_name: string
-  payment_qr_url: string | null
-  qr_payment_mode: 'pay_later' | 'prepaid' | 'both'
+  accept_cash: boolean
+  accept_upi_counter: boolean
+  accept_card_counter: boolean
+  accept_pay_counter: boolean
+  online_payments_enabled: boolean
+  razorpay_status: 'not_connected' | 'pending' | 'connected' | 'disabled'
   address: string
   city: string
   state: string
@@ -143,11 +144,11 @@ export default function ProfileClient({
       tax_inclusive: form.tax_inclusive,
       tax_percent: Math.min(100, Math.max(0, Number(form.tax_percent) || 0)),
       service_charge: Math.min(100, Math.max(0, Number(form.service_charge) || 0)),
-      upi_enabled: form.upi_enabled,
-      upi_id: form.upi_id.trim() || null,
-      upi_name: form.upi_name.trim() || null,
-      payment_qr_url: form.payment_qr_url,
-      qr_payment_mode: form.qr_payment_mode,
+      accept_cash: form.accept_cash,
+      accept_upi_counter: form.accept_upi_counter,
+      accept_card_counter: form.accept_card_counter,
+      accept_pay_counter: form.accept_pay_counter,
+      online_payments_enabled: form.online_payments_enabled,
       address: form.address.trim() || null,
       city: form.city.trim() || null,
       state: form.state.trim() || null,
@@ -313,7 +314,7 @@ export default function ProfileClient({
           )}
 
           {section === 'payments' && (
-            <PaymentsPanel cafeId={cafeId} value={form} onChange={patch} disabled={dis} />
+            <PaymentsPanel value={form} onChange={patch} disabled={dis} />
           )}
 
           {section === 'branding' && (
