@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
@@ -42,8 +43,8 @@ export default function Home() {
       {/* Nav */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">
-            KhaoPiyo
+          <Link href="/" className="flex items-center">
+            <Image src="/logo-wordmark.png" alt="KhaoPiyo" width={900} height={311} className="h-8 w-auto" priority />
           </Link>
           <div className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
             <a href="#features" className="transition-colors hover:text-foreground">Features</a>

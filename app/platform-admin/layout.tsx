@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
@@ -51,7 +52,10 @@ export default async function PlatformAdminLayout({
           the platform's own operations console, never to be mistaken for it. */}
       <aside className="hidden w-60 shrink-0 flex-col bg-[#0B0D10] px-4 py-6 md:flex">
         <div className="px-2">
-          <p className="text-lg font-semibold tracking-tight text-white">KhaoPiyo</p>
+          <div className="flex items-center gap-2">
+            <Image src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" />
+            <p className="text-lg font-semibold tracking-tight text-white">KhaoPiyo</p>
+          </div>
           <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator console
           </p>
@@ -76,7 +80,10 @@ export default async function PlatformAdminLayout({
           user had no way to navigate the platform-admin panel at all. */}
       <header className="border-b border-white/10 bg-[#0B0D10] px-5 py-3 md:hidden">
         <div className="flex items-center justify-between">
-          <span className="font-semibold tracking-tight text-white">KhaoPiyo</span>
+          <span className="flex items-center gap-2 font-semibold tracking-tight text-white">
+            <Image src="/logo-mark.png" alt="" width={22} height={22} className="h-[22px] w-[22px]" />
+            KhaoPiyo
+          </span>
           <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator
           </span>

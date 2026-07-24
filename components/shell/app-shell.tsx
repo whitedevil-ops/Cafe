@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -111,7 +112,7 @@ export function AppShell({
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Brand */}
       <div className={`flex items-center gap-2.5 px-4 py-4 ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary text-[15px] font-bold text-primary-foreground">K</div>
+        <Image src="/logo-mark.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" priority />
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-[15px] font-semibold leading-tight tracking-tight">KhaoPiyo</p>
@@ -211,7 +212,10 @@ export function AppShell({
             <MenuIcon size={19} />
           </button>
 
-          <span className="font-semibold tracking-tight text-foreground lg:hidden">KhaoPiyo</span>
+          <div className="flex items-center gap-2 lg:hidden">
+            <Image src="/logo-mark.png" alt="" width={26} height={26} className="h-[26px] w-[26px]" />
+            <span className="font-semibold tracking-tight text-foreground">KhaoPiyo</span>
+          </div>
 
           <div className="ml-auto flex items-center gap-1">
             <a

@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -219,7 +220,9 @@ export default async function LegalPage({ params }: { params: Promise<{ doc: str
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-3xl items-center px-6">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-foreground">KhaoPiyo</Link>
+          <Link href="/" className="flex items-center">
+            <Image src="/logo-wordmark.png" alt="KhaoPiyo" width={900} height={311} className="h-7 w-auto" />
+          </Link>
         </div>
       </header>
 
