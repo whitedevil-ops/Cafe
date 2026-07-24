@@ -11,8 +11,9 @@ export default async function TablesFloorPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data }, { data: categories }, { data: items }] = await Promise.all([
-    supabase.from('cafe_tables').select('id, label, capacity, status').eq('cafe_id', cafe.cafeId),
+  const [{ data }, { data: areas }, { data: categories }, { data: items }] = await Promise.all([
+    supabase.from('cafe_tables').select('id, label, capacity, status, area_id').eq('cafe_id', cafe.cafeId).eq('archived', false),
+    supabase.from('floor_areas').select('id, name').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
@@ -35,7 +36,9 @@ export default async function TablesFloorPage() {
   return (
     <FloorClient
       cafeId={cafe.cafeId}
+      role={cafe.role}
       timezone={cafe.timezone}
+      areas={(areas ?? []) as { id: string; name: string }[]}
       initialTables={(data ?? []) as FloorTable[]}
       menu={{
         categories: (categories ?? []) as MenuCategory[],

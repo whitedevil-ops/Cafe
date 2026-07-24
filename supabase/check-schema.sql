@@ -213,7 +213,13 @@ with expected(kind, name, fix) as (values
   ('column',   'menu_items.cost_source',        '0052'),
   ('column',   'order_items.cost_snapshot',     '0052'),
   ('function', 'menu_item_effective_cost',      '0052'),
-  ('function', 'profitability_report',          '0052')
+  ('function', 'profitability_report',          '0052'),
+  -- visual floor & table layout (0053)
+  ('table',    'floor_areas',                   '0053'),
+  ('column',   'cafe_tables.area_id',           '0053'),
+  ('column',   'cafe_tables.pos_x',             '0053'),
+  ('column',   'cafe_tables.shape',             '0053'),
+  ('function', 'save_floor_layout',             '0053')
 )
 select
   e.kind,

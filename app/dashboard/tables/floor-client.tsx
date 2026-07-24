@@ -16,6 +16,7 @@ export type FloorTable = {
   label: string
   capacity: number | null
   status: 'available' | 'occupied' | 'reserved' | 'cleaning'
+  area_id: string | null
 }
 
 type Session = {
@@ -56,15 +57,23 @@ const mask = (p: string | null) => (p ? `******${p.slice(-4)}` : null)
 
 export default function FloorClient({
   cafeId,
+  role,
   timezone,
+  areas,
   initialTables,
   menu,
 }: {
   cafeId: string
+  role: string
   timezone: string
+  areas: { id: string; name: string }[]
   initialTables: FloorTable[]
   menu: { categories: MenuCategory[]; items: MenuItem[]; variants: MenuVariant[]; addons: MenuAddon[] }
 }) {
+  const canEditLayout = role === 'owner' || role === 'manager'
+  // Floor selector: 'all' plus each configured area. Only shown when the café
+  // has actually set up more than one area.
+  const [activeArea, setActiveArea] = useState<string>('all')
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const [tables, setTables] = useState(initialTables)
@@ -104,7 +113,7 @@ export default function FloorClient({
 
   const poll = useCallback(async () => {
     const [{ data: tbls, error: tblErr }, { data: sess, error: sessErr }] = await Promise.all([
-      supabase.from('cafe_tables').select('id, label, capacity, status').eq('cafe_id', cafeId),
+      supabase.from('cafe_tables').select('id, label, capacity, status, area_id').eq('cafe_id', cafeId).eq('archived', false),
       supabase
         .from('table_sessions')
         .select('id, table_id, status, started_at, guest_count')
@@ -262,8 +271,8 @@ export default function FloorClient({
   }, [sessions, ordersBySession, paidBySession])
 
   const sorted = useMemo(
-    () => [...tables].sort(byTableLabel),
-    [tables],
+    () => [...tables].filter((t) => activeArea === 'all' || t.area_id === activeArea).sort(byTableLabel),
+    [tables, activeArea],
   )
   const emptyTables = useMemo(() => sorted.filter((t) => !sessionByTable.has(t.id) && t.id !== selected), [sorted, sessionByTable, selected])
 
@@ -484,11 +493,33 @@ export default function FloorClient({
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> Live
             </span>
           )}
+          {canEditLayout && (
+            <Link href="/dashboard/tables/layout" className="flex min-h-11 items-center rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-sm text-foreground hover:bg-surface-subtle">
+              Floor &amp; table setup
+            </Link>
+          )}
           <Link href="/dashboard/tables/manage" className="flex min-h-11 items-center rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-sm text-foreground hover:bg-surface-subtle">
             Manage tables &amp; QR
           </Link>
         </div>
       </div>
+
+      {/* Floor selector — only when the café configured more than one area. */}
+      {areas.length > 1 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[{ id: 'all', name: 'All floors' }, ...areas].map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setActiveArea(a.id)}
+              className={`min-h-9 rounded-full border px-4 text-[13px] font-medium transition-colors ${
+                activeArea === a.id ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
+              }`}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {pollError && (
         <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
