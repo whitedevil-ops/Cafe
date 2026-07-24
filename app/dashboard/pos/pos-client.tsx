@@ -6,7 +6,6 @@ import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
-import { CategoryRail } from '@/components/pos/category-rail'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
 import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
@@ -544,23 +543,10 @@ export default function PosClient({
   return (
     <div className="flex h-[calc(100dvh-56px)] w-full min-w-0 flex-col overflow-hidden">
       <div className="flex w-full min-w-0 flex-1 items-stretch overflow-hidden">
-        {/* Category rail — desktop only; the horizontal chips below cover
-            mobile/tablet, both read from the same category set. Plain h-full:
-            the row above no longer scrolls, so sticky/its own height calc are
-            unnecessary — CategoryRail scrolls internally if its list is long. */}
-        <div className="hidden h-full shrink-0 lg:block">
-          <CategoryRail
-            categories={categories}
-            bestsellerCount={bestsellerCount}
-            newCount={newItemIds.size}
-            activeId={activeCategory}
-            onSelect={setActiveCategory}
-            totalCount={items.length}
-          />
-        </div>
-
         {/* Workspace — only this column's product grid scrolls; the search
-            header stays put and the rail/cart siblings never move. */}
+            and category strip stay put and the cart sibling never moves.
+            No permanent category sidebar — categories run horizontally
+            across the top at every breakpoint, per the approved design. */}
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border bg-surface px-5 py-4">
             <div className="flex items-center gap-3">
@@ -574,7 +560,7 @@ export default function PosClient({
                 />
               </div>
             </div>
-            <div className="mt-3 lg:hidden">
+            <div className="mt-3">
               <CategoryTabs
                 categories={categories}
                 bestsellerCount={bestsellerCount}

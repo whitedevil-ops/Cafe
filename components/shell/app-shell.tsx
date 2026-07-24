@@ -28,16 +28,16 @@ function buildNav(cashEnabled: boolean): NavGroup[] {
     { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} /> },
   ]
   return [
-    { heading: 'Overview', items: overview },
+    { heading: 'Operations', items: overview },
     {
       heading: 'Management',
       items: [
         { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} /> },
         { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} /> },
-        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} /> },
-        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} /> },
         { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} /> },
         { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} /> },
+        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} /> },
+        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} /> },
       ],
     },
     {

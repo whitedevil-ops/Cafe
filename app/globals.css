@@ -1,30 +1,33 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   counter — design tokens. "Market Fresh": white/off-white surfaces, one
-   confident green operational accent, soft single-direction shadows, 10-14px
-   radii. Semantic colors stay separate from the accent (spec §26).
-   Light is primary; dark is fully defined so the architecture is ready.
+   KhaoPiyo — design tokens. "Amber Warm": warm ivory canvas, white surfaces,
+   one confident burnt-orange brand accent, soft single-direction shadows,
+   10-14px radii. Semantic status colors stay independent of the brand accent
+   (paid=green, due=red, partial=amber-gold, preparing=blue) so status is never
+   confused with brand identity (spec §4).
+   Light is primary (the approved reference is light-only); dark is fully
+   defined so the architecture stays ready.
    ============================================================================ */
 :root {
-  --background:        #F7F8F6;  /* soft neutral page, faint green bias */
+  --background:        #FAF6EF;  /* warm ivory canvas */
   --surface:           #FFFFFF;  /* cards, panels */
-  --surface-subtle:    #F1F3EF;  /* hover, inset */
-  --foreground:        #1B1F1C;  /* near-black text, faint green bias */
-  --muted-foreground:  #6B7268;  /* secondary text */
-  --border:            #E6E9E3;  /* hairline */
-  --border-strong:     #D3D8CE;
+  --surface-subtle:    #F5EFE4;  /* hover, inset */
+  --foreground:        #241D15;  /* near-black graphite, warm bias */
+  --muted-foreground:  #7A7263;  /* secondary text, warm gray */
+  --border:            #EBE2D3;  /* hairline, soft warm gray */
+  --border-strong:     #DCCEB4;
 
-  --primary:           #16A34A;  /* brand green — primary actions, active state */
-  --primary-hover:     #15803D;  /* deep green on hover/press */
+  --primary:           #C2410C;  /* burnt amber/orange — brand, primary actions, active state */
+  --primary-hover:     #9A3412;  /* deeper burnt orange on hover/press */
   --primary-foreground:#FFFFFF;
-  --primary-subtle:    #EAF6EE;  /* tinted fill behind primary content */
-  --accent:            #22C55E;  /* fresh accent — positive status, highlights */
+  --primary-subtle:    #FDECE1;  /* pale amber fill behind primary content */
+  --accent:            #EA580C;  /* brighter orange — small highlights, left-accent bars, badges */
 
   --success:           #16A34A;
   --success-subtle:    #EAF6EE;
-  --warning:           #B45309;
-  --warning-subtle:    #FFFBEB;
+  --warning:           #A16207;  /* golden amber — distinct from the burnt-orange brand */
+  --warning-subtle:    #FDF3DD;
   --destructive:       #B91C1C;
   --destructive-subtle:#FEF2F2;
   --info:              #1D4ED8;
@@ -34,16 +37,17 @@
   --special:           #7C3AED;
   --special-subtle:    #F5F3FF;
 
-  /* Sidebar: a deep green-black rail, its own scale so the light content
-     area and the dark navigation never fight over the same tokens. */
-  --sidebar:                  #0F1613;
-  --sidebar-elevated:         #17201B;
-  --sidebar-foreground:       #E7ECE8;
-  --sidebar-muted:            #8A9690;
-  --sidebar-border:           #23302A;
-  --sidebar-hover:            #1B241F;
-  --sidebar-active:           #113C24;  /* deep-green active pill */
-  --sidebar-active-foreground:#5EEA8D;
+  /* Sidebar: warm ivory/white, matching the app canvas rather than a dark
+     rail, per the approved reference. Its own scale so nav can still diverge
+     from the content area's tones without hardcoding. */
+  --sidebar:                  #FFFFFF;
+  --sidebar-elevated:         #FFFFFF;
+  --sidebar-foreground:       #241D15;
+  --sidebar-muted:            #8A8171;
+  --sidebar-border:           #EBE2D3;
+  --sidebar-hover:            #F7F1E6;
+  --sidebar-active:           #FDECE1;  /* pale amber active pill */
+  --sidebar-active-foreground:#C2410C;
 
   --radius: 12px;
   --radius-sm: 10px;
@@ -51,30 +55,30 @@
   --ring: color-mix(in srgb, var(--primary) 45%, transparent);
 
   /* Very subtle single-direction shadows — never a glow, never on all sides. */
-  --shadow-sm: 0 1px 2px rgba(20, 24, 21, 0.05);
-  --shadow-md: 0 2px 8px rgba(20, 24, 21, 0.06);
-  --shadow-lg: 0 8px 24px rgba(20, 24, 21, 0.08);
+  --shadow-sm: 0 1px 2px rgba(36, 29, 21, 0.05);
+  --shadow-md: 0 2px 8px rgba(36, 29, 21, 0.06);
+  --shadow-lg: 0 8px 24px rgba(36, 29, 21, 0.08);
 }
 
 :root[data-theme="dark"], .dark {
-  --background:        #101210;
-  --surface:           #191C19;
-  --surface-subtle:    #232622;
-  --foreground:        #F2F4F1;
-  --muted-foreground:  #9AA396;
-  --border:            #262A25;
-  --border-strong:     #363B34;
+  --background:        #17130F;
+  --surface:           #201A14;
+  --surface-subtle:    #2A2219;
+  --foreground:        #F5EFE6;
+  --muted-foreground:  #A69A87;
+  --border:            #2E271E;
+  --border-strong:     #3D3427;
 
-  --primary:           #34C25F;
-  --primary-hover:     #4ADE80;
-  --primary-foreground:#0A1F12;
-  --primary-subtle:    #122A1B;
-  --accent:            #4ADE80;
+  --primary:           #FB923C;
+  --primary-hover:     #FDBA74;
+  --primary-foreground:#1F1207;
+  --primary-subtle:    #3A2415;
+  --accent:            #FB923C;
 
   --success:           #34C25F;
   --success-subtle:    #122A1B;
   --warning:           #FBBF24;
-  --warning-subtle:    #241C0C;
+  --warning-subtle:    #2A1F0C;
   --destructive:       #F87171;
   --destructive-subtle:#2A1414;
   --info:              #60A5FA;
@@ -82,15 +86,16 @@
   --special:           #A78BFA;
   --special-subtle:    #1E1B2E;
 
-  /* Sidebar stays near-black in dark mode, one step below the page. */
-  --sidebar:                  #0B0D0B;
-  --sidebar-elevated:         #141714;
-  --sidebar-foreground:       #E7ECE8;
-  --sidebar-muted:            #8A9690;
-  --sidebar-border:           #1E241E;
-  --sidebar-hover:            #171A17;
-  --sidebar-active:           #123120;
-  --sidebar-active-foreground:#5EEA8D;
+  /* Dark mode isn't the approved reference's focus — keep the sidebar simply
+     one step above the dark canvas rather than forcing a light rail. */
+  --sidebar:                  #1D1712;
+  --sidebar-elevated:         #241D16;
+  --sidebar-foreground:       #F5EFE6;
+  --sidebar-muted:            #A69A87;
+  --sidebar-border:           #2E271E;
+  --sidebar-hover:            #2A2219;
+  --sidebar-active:           #3A2415;
+  --sidebar-active-foreground:#FB923C;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.35);

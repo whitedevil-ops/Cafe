@@ -104,7 +104,7 @@ export function TableSelector({
                           : <span className="text-destructive">● PAYMENT DUE</span>}
                       </p>
                       {(t.waiterCalled || t.billRequested || t.ready) && (
-                        <p className="text-[10.5px] font-medium text-[#7C3AED]">{t.waiterCalled ? 'Waiter called' : t.billRequested ? 'Bill requested' : 'Ready'}</p>
+                        <p className="text-[10.5px] font-medium text-info">{t.waiterCalled ? 'Waiter called' : t.billRequested ? 'Bill requested' : 'Ready'}</p>
                       )}
                     </div>
                   ) : (

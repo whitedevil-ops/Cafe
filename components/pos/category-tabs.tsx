@@ -27,22 +27,22 @@ function Tab({
   return (
     <button
       onClick={() => onSelect(id)}
-      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors ${
         active
-          ? 'border-primary bg-primary-subtle text-primary'
-          : 'border-border text-muted-foreground hover:border-border-strong hover:bg-surface-subtle'
+          ? 'border-primary bg-primary text-primary-foreground shadow-[var(--shadow-sm)]'
+          : 'border-border bg-surface text-muted-foreground hover:border-border-strong hover:bg-surface-subtle'
       }`}
     >
       {icon}
       {label}
-      <span className="opacity-60">{count}</span>
+      <span className={active ? 'opacity-80' : 'opacity-60'}>{count}</span>
     </button>
   )
 }
 
-// Compact horizontal quick-nav — the same category set as the vertical rail
-// (single source of truth), for fast switching without reaching for the rail
-// on tablet/narrow desktop, and as the only category nav on mobile.
+// The single category nav for POS — horizontal at every breakpoint. There is
+// no permanent category sidebar; when the list overflows the strip, it just
+// scrolls horizontally.
 export function CategoryTabs({
   categories,
   bestsellerCount,
