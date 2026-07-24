@@ -202,7 +202,10 @@ with expected(kind, name, fix) as (values
   ('function', 'set_cafe_razorpay',             '0046'),
   ('function', 'disconnect_cafe_razorpay',      '0046'),
   -- one payment-state model: payment-first placement + session settle (0047)
-  ('function', 'record_session_payment',        '0047')
+  ('function', 'record_session_payment',        '0047'),
+  -- F-01 financial lockdown: expenses move to authorized RPCs (0050)
+  ('function', 'record_expense',                '0050'),
+  ('function', 'delete_expense',                '0050')
 )
 select
   e.kind,

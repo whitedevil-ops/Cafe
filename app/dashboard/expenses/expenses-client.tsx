@@ -59,19 +59,18 @@ export default function ExpensesClient({
     if (!amt || amt <= 0) return setError('Enter an amount greater than 0.')
     setSaving(true)
     setError(null)
-    const { data, error: err } = await supabase
-      .from('expenses')
-      .insert({
-        cafe_id: cafeId,
-        category: finalCategory,
-        amount: amt,
-        vendor: vendor.trim() || null,
-        method,
-        notes: notes.trim() || null,
-        spent_on: date,
-      })
-      .select('id, category, amount, vendor, method, notes, spent_on, created_at')
-      .single()
+    // Expenses feed net-profit reporting, so they are written through an
+    // authorized RPC (owner/manager only, validated + audited). Direct table
+    // writes are blocked by RLS since migration 0050.
+    const { data, error: err } = await supabase.rpc('record_expense', {
+      p_cafe_id: cafeId,
+      p_category: finalCategory,
+      p_amount: amt,
+      p_vendor: vendor.trim() || null,
+      p_method: method,
+      p_notes: notes.trim() || null,
+      p_spent_on: date,
+    })
     setSaving(false)
     if (err) return setError(err.message)
     setExpenses((list) => [data as Expense, ...list].sort((a, b) => b.spent_on.localeCompare(a.spent_on)))
@@ -86,7 +85,7 @@ export default function ExpensesClient({
   async function removeExpense(id: string) {
     setConfirmingDelete(null)
     setExpenses((list) => list.filter((e) => e.id !== id))
-    const { error: err } = await supabase.from('expenses').delete().eq('id', id)
+    const { error: err } = await supabase.rpc('delete_expense', { p_expense_id: id })
     if (err) toast(err.message, 'error')
   }
 

@@ -1,27 +1,14 @@
 import { supabase, isConfigured } from './supabase'
 import { demoCafe, demoTables, demoMenu, demoOrders, demoOrderItems } from './demo'
-import type { Cafe, CafeTable, MenuItem, Order, OrderItem, OrderStatus } from './types'
-import { businessDayStartISO, DEFAULT_TIMEZONE } from './datetime'
+import type { Cafe, CafeTable, MenuItem, Order, OrderItem } from './types'
 
-export type NewOrder = {
-  cafe_id: string
-  table_id: string | null
-  phone: string | null
-  total: number
-  payment_method: 'upi' | 'counter'
-  upsell_shown: boolean
-  upsell_item_id: string | null
-  upsell_taken: boolean
-  upsell_value: number
-  items: { menu_item_id: string; name: string; price: number; qty: number }[]
-}
-
-// Order numbers reset each morning, so the day boundary must be the café's
-// local midnight, not UTC's. Delegates to the shared utility rather than
-// re-deriving the offset by hand — see lib/datetime.ts.
-function istDayStartISO(): string {
-  return businessDayStartISO(DEFAULT_TIMEZONE)
-}
+// SECURITY (audit F-01): `NewOrder`/`createOrder()` were removed. They accepted
+// a client-supplied `total` and per-item `price` and inserted them directly.
+// Orders are created only by place_order()/staff_place_order(), which price
+// every line from the database; migration 0050 also revokes INSERT on
+// orders/order_items from the anon and authenticated roles.
+// `setOrderStatus()` was removed too — it mutated orders through the anon
+// client; app/api/orders/[id] now performs that update as the signed-in user.
 
 export async function getTableContext(
   token: string,
@@ -50,63 +37,6 @@ export async function getTableContext(
   ])
   if (!cafe) return null
   return { cafe, table, menu: menu ?? [] }
-}
-
-export async function createOrder(input: NewOrder): Promise<Order> {
-  const dayStart = istDayStartISO()
-
-  if (!isConfigured) {
-    // Plain daily sequence per cafe — the cook calls out "12", not a random "A47".
-    // JS is single-threaded so this branch has no race.
-    const seq =
-      demoOrders.filter((o) => o.cafe_id === input.cafe_id && o.created_at >= dayStart).length + 1
-    const order: Order = {
-      id: `demo-order-${demoOrders.length + 1}`,
-      cafe_id: input.cafe_id,
-      table_id: input.table_id,
-      short_code: String(seq),
-      phone: input.phone,
-      status: 'placed',
-      total: input.total,
-      payment_method: input.payment_method,
-      upsell_shown: input.upsell_shown,
-      upsell_item_id: input.upsell_item_id,
-      upsell_taken: input.upsell_taken,
-      upsell_value: input.upsell_value,
-      created_at: new Date().toISOString(),
-      done_at: null,
-    }
-    demoOrders.unshift(order)
-    input.items.forEach((it, i) =>
-      demoOrderItems.push({ id: `${order.id}-${i}`, order_id: order.id, ...it }),
-    )
-    return order
-  }
-
-  const { items, ...head } = input
-  const { count } = await supabase!
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('cafe_id', input.cafe_id)
-    .gte('created_at', dayStart)
-  // ponytail: count+1 has a sub-second race if two tables pay simultaneously — at ~0.06
-  // orders/sec (250/day) that's negligible. If it ever matters, move to an atomic
-  // daily-counter table with an upsert; do not build that for a pilot.
-  const seq = (count ?? 0) + 1
-
-  const { data: order, error } = await supabase!
-    .from('orders')
-    .insert({ ...head, short_code: String(seq) })
-    .select()
-    .single()
-  if (error) throw new Error(error.message)
-
-  const { error: itemsError } = await supabase!
-    .from('order_items')
-    .insert(items.map((it) => ({ ...it, order_id: order.id })))
-  if (itemsError) throw new Error(itemsError.message)
-
-  return order
 }
 
 export type KdsRow = { order: Order; items: OrderItem[]; table_label: string }
@@ -153,20 +83,4 @@ export async function listOpenOrders(slug: string): Promise<KdsRow[]> {
     items: (items ?? []).filter((i) => i.order_id === order.id),
     table_label: (order.table_id && labelOf.get(order.table_id)) || '—',
   }))
-}
-
-export async function setOrderStatus(id: string, status: OrderStatus): Promise<void> {
-  const done_at = status === 'done' ? new Date().toISOString() : null
-
-  if (!isConfigured) {
-    const order = demoOrders.find((o) => o.id === id)
-    if (order) {
-      order.status = status
-      order.done_at = done_at
-    }
-    return
-  }
-
-  const { error } = await supabase!.from('orders').update({ status, done_at }).eq('id', id)
-  if (error) throw new Error(error.message)
 }

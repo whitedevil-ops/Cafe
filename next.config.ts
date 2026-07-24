@@ -28,6 +28,25 @@ const nextConfig: NextConfig = {
     // the image does.
     minimumCacheTTL: 31536000,
   },
+
+  // Security headers (audit F-04). A strict Content-Security-Policy is
+  // deliberately NOT set here: it needs a nonce pass over the app's inline
+  // styles first, and a broken CSP fails closed on a live café's till. These
+  // are the headers that are safe to apply unconditionally.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

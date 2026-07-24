@@ -141,20 +141,29 @@ export default function KitchenClient({
     }
   }, [poll])
 
+  // Money is booked through record_payment — the one validated, audited path.
+  // It computes the authoritative outstanding server-side, refuses overpayment
+  // and recomputes payment_status itself, so the browser never decides what is
+  // "paid". (Direct writes to payments/orders are blocked by RLS since 0050.)
   async function markPaid(o: Order) {
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
-    // Record the money, then flip the order — the payments row is the audit trail.
-    const { error } = await supabase.from('payments').insert({
-      cafe_id: cafeId,
-      order_id: o.id,
-      method: o.payment_method === 'upi' ? 'upi' : 'cash',
-      amount: o.total,
-    })
-    if (error) {
+    const revert = () =>
       setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'unpaid' } : x)))
-      return
-    }
-    await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', o.id)
+
+    const { data: due, error: dueErr } = await supabase.rpc('order_outstanding', { p_order_id: o.id })
+    if (dueErr) return revert()
+    const amount = Number(due ?? 0)
+    if (amount <= 0) return // already settled elsewhere
+
+    const { error } = await supabase.rpc('record_payment', {
+      p_order_id: o.id,
+      p_amount: amount,
+      p_method: o.payment_method === 'upi' ? 'upi' : 'cash',
+      p_reference: null,
+      p_source: 'kds',
+      p_attempt_id: null,
+    })
+    if (error) revert()
   }
 
   async function advance(o: Order) {
