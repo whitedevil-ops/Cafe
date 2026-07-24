@@ -102,6 +102,11 @@ export default function PosClient({
   const [discountType, setDiscountType] = useState<'percent' | 'flat' | null>(null)
   const [discountValue, setDiscountValue] = useState('')
 
+  const [couponCode, setCouponCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
+  const [couponChecking, setCouponChecking] = useState(false)
+  const [couponError, setCouponError] = useState<string | null>(null)
+
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
   const [heldOrdersOpen, setHeldOrdersOpen] = useState(false)
   const [holding, setHolding] = useState(false)
@@ -413,6 +418,9 @@ export default function PosClient({
     setCustomerName('')
     setDiscountType(null)
     setDiscountValue('')
+    setCouponCode('')
+    setAppliedCoupon(null)
+    setCouponError(null)
     setCartOpen(false)
     void fetchHeld()
   }
@@ -449,6 +457,33 @@ export default function PosClient({
     return () => window.removeEventListener('keydown', onKey)
   }, [customizing, tableSelectorOpen, heldOrdersOpen, cartOpen])
 
+  async function applyCoupon() {
+    const code = couponCode.trim()
+    if (!code) return
+    const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
+    setCouponChecking(true)
+    setCouponError(null)
+    // Preview only — staff_place_order recomputes and redeems this exact same
+    // way server-side, so a stale preview here can never overcharge or
+    // undercharge; it can only be out of date by the time of placement.
+    const { data, error: err } = await supabase.rpc('validate_coupon', {
+      p_cafe_id: cafeId,
+      p_code: code,
+      p_subtotal: subtotal,
+      p_customer_phone: customerPhone || null,
+    })
+    setCouponChecking(false)
+    if (err) return setCouponError(err.message)
+    const r = data as { code: string; discount: number; name: string | null }
+    setAppliedCoupon({ code: r.code, discount: r.discount, name: r.name })
+    setCouponCode('')
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null)
+    setCouponError(null)
+  }
+
   async function placeOrder() {
     if (orderType === 'dine_in' && !selectedTableId) return
     // Takeaway collects now on a real tender (bill → PAID) or is explicitly
@@ -474,6 +509,7 @@ export default function PosClient({
       p_settle: settle,
       p_pending_reason: reason,
       p_client_request_id: requestId.current,
+      p_coupon_code: appliedCoupon?.code ?? null,
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
@@ -487,6 +523,9 @@ export default function PosClient({
     setCustomerLookup(null)
     setDiscountType(null)
     setDiscountValue('')
+    setCouponCode('')
+    setAppliedCoupon(null)
+    setCouponError(null)
     setTender('cash')
     setPendingReason('')
     void pollTables()
@@ -531,6 +570,13 @@ export default function PosClient({
     discountValue,
     onDiscountType: setDiscountType,
     onDiscountValue: setDiscountValue,
+    couponCode,
+    onCouponCode: setCouponCode,
+    appliedCoupon,
+    couponChecking,
+    couponError,
+    onApplyCoupon: applyCoupon,
+    onRemoveCoupon: removeCoupon,
     onPlaceOrder: placeOrder,
     placing,
     error,

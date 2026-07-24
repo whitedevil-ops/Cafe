@@ -66,6 +66,13 @@ export function CartPanel({
   discountValue,
   onDiscountType,
   onDiscountValue,
+  couponCode,
+  onCouponCode,
+  appliedCoupon,
+  couponChecking,
+  couponError,
+  onApplyCoupon,
+  onRemoveCoupon,
   onPlaceOrder,
   placing,
   error,
@@ -106,6 +113,13 @@ export function CartPanel({
   discountValue: string
   onDiscountType: (t: 'percent' | 'flat' | null) => void
   onDiscountValue: (v: string) => void
+  couponCode: string
+  onCouponCode: (v: string) => void
+  appliedCoupon: { code: string; discount: number; name: string | null } | null
+  couponChecking: boolean
+  couponError: string | null
+  onApplyCoupon: () => void
+  onRemoveCoupon: () => void
   onPlaceOrder: () => void
   placing: boolean
   error: string | null
@@ -122,7 +136,8 @@ export function CartPanel({
     : discountType === 'flat'
       ? Math.min(Math.round(parsedDiscount), subtotal)
       : 0
-  const base = subtotal - discount
+  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal - discount) : 0
+  const base = subtotal - discount - couponDiscount
   const tax = Math.round((base * taxPercent) / 100)
   const svc = Math.round((base * serviceChargePercent) / 100)
   const total = base + tax + svc
@@ -344,6 +359,37 @@ export function CartPanel({
           {overCap && <p className="mt-1 text-[11.5px] text-destructive">Exceeds your role&apos;s discount limit.</p>}
         </div>
 
+        <div className="mb-3">
+          {appliedCoupon ? (
+            <div className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-primary bg-primary-subtle px-2.5 py-1.5">
+              <span className="flex items-center gap-1.5 text-[12px] font-medium text-primary">
+                <Tag size={12} /> {appliedCoupon.code}{appliedCoupon.name ? ` — ${appliedCoupon.name}` : ''} · −₹{appliedCoupon.discount}
+              </span>
+              <button onClick={onRemoveCoupon} aria-label="Remove coupon" className="text-primary hover:opacity-70">
+                <X size={13} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-1.5">
+              <input
+                value={couponCode}
+                onChange={(e) => onCouponCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) onApplyCoupon() }}
+                placeholder="Coupon code"
+                className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12.5px] uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground"
+              />
+              <button
+                onClick={onApplyCoupon}
+                disabled={!couponCode.trim() || couponChecking}
+                className="rounded-[var(--radius-sm)] border border-border-strong px-3 text-[11.5px] font-medium text-foreground disabled:opacity-40"
+              >
+                {couponChecking ? 'Checking…' : 'Apply'}
+              </button>
+            </div>
+          )}
+          {couponError && <p className="mt-1 text-[11.5px] text-destructive">{couponError}</p>}
+        </div>
+
         <div className="space-y-1.5 text-[13px]">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
@@ -353,6 +399,12 @@ export function CartPanel({
             <div className="flex justify-between text-primary">
               <span>Discount</span>
               <span>−₹{discount}</span>
+            </div>
+          )}
+          {couponDiscount > 0 && (
+            <div className="flex justify-between text-primary">
+              <span>Coupon ({appliedCoupon?.code})</span>
+              <span>−₹{couponDiscount}</span>
             </div>
           )}
           {taxPercent > 0 && (

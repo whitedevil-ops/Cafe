@@ -66,6 +66,10 @@ export default function MenuClient({
   const [error, setError] = useState<string | null>(null)
   const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter'; receiptToken: string | null } | null>(null)
   const [onlineError, setOnlineError] = useState<string | null>(null)
+  const [couponCode, setCouponCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
+  const [couponChecking, setCouponChecking] = useState(false)
+  const [couponError, setCouponError] = useState<string | null>(null)
   const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
@@ -193,6 +197,8 @@ export default function MenuClient({
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const count = cart.reduce((s, l) => s + l.qty, 0)
+  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal) : 0
+  const payable = subtotal - couponDiscount
 
   // Plain (no variant/add-on/note) quantity for a given item, which is what the
   // card's inline stepper controls.
@@ -283,6 +289,32 @@ export default function MenuClient({
     setDetail(null)
   }
 
+  async function applyCoupon() {
+    const code = couponCode.trim()
+    if (!code) return
+    setCouponChecking(true)
+    setCouponError(null)
+    // Preview only — place_order recomputes and redeems this exact same way
+    // server-side, so this can never let the customer claim a bigger discount
+    // than the coupon actually grants.
+    const { data, error: err } = await supabase.rpc('validate_coupon_public', {
+      p_token: token,
+      p_code: code,
+      p_subtotal: subtotal,
+      p_customer_phone: phone || null,
+    })
+    setCouponChecking(false)
+    if (err) return setCouponError(err.message)
+    const r = data as { code: string; discount: number; name: string | null }
+    setAppliedCoupon({ code: r.code, discount: r.discount, name: r.name })
+    setCouponCode('')
+  }
+
+  function removeCoupon() {
+    setAppliedCoupon(null)
+    setCouponError(null)
+  }
+
   // Places the order (always UNPAID) then routes to payment. 'online' hands
   // off to the verified online-payment provider; 'counter' means the customer
   // pays staff, who record it. The total is always the SERVER's, never this
@@ -312,12 +344,16 @@ export default function MenuClient({
       p_upsell_item_id: upsellTaken.current,
       p_upsell_shown: upsellShown.current,
       p_client_request_id: requestId.current,
+      p_coupon_code: appliedCoupon?.code ?? null,
     })
     if (error) { setPlacing(false); return setError(error.message) }
     requestId.current = null
-    const r = data as { short_code: string; total: number; receipt_token?: string }
+    const r = data as { short_code: string; total: number; receipt_token?: string; discount?: number }
     setPlaced({ code: r.short_code, total: r.total, method: mode, receiptToken: r.receipt_token ?? null })
     setStep('done')
+    setCouponCode('')
+    setAppliedCoupon(null)
+    setCouponError(null)
 
     if (mode === 'online' && r.receipt_token) {
       await startOnlinePayment(r.receipt_token)
@@ -479,11 +515,54 @@ export default function MenuClient({
           </div>
         </div>
 
+        <div className="mt-4">
+          {appliedCoupon ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-primary bg-primary-subtle px-4 py-2.5">
+              <span className="text-[13.5px] font-medium text-primary">
+                {appliedCoupon.code}{appliedCoupon.name ? ` — ${appliedCoupon.name}` : ''} · saved ₹{appliedCoupon.discount}
+              </span>
+              <button onClick={removeCoupon} className="text-[13px] font-medium text-primary hover:underline">Remove</button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) applyCoupon() }}
+                placeholder="Have a coupon?"
+                className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-4 uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground outline-none"
+              />
+              <button
+                onClick={applyCoupon}
+                disabled={!couponCode.trim() || couponChecking}
+                className="rounded-[var(--radius)] border border-border-strong px-4 text-[13.5px] font-medium text-foreground disabled:opacity-40"
+              >
+                {couponChecking ? 'Checking…' : 'Apply'}
+              </button>
+            </div>
+          )}
+          {couponError && <p className="mt-2 text-[13px] text-destructive">{couponError}</p>}
+        </div>
+
         {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
 
-        <div className="mt-6 flex items-baseline justify-between border-t border-border pt-4">
-          <span className="text-muted-foreground">Total</span>
-          <span className="text-2xl font-semibold text-foreground">₹{subtotal}</span>
+        <div className="mt-6 border-t border-border pt-4">
+          {appliedCoupon && (
+            <div className="flex items-baseline justify-between text-[13.5px] text-muted-foreground">
+              <span>Subtotal</span>
+              <span>₹{subtotal}</span>
+            </div>
+          )}
+          {appliedCoupon && (
+            <div className="mt-1 flex items-baseline justify-between text-[13.5px] text-primary">
+              <span>Coupon ({appliedCoupon.code})</span>
+              <span>−₹{couponDiscount}</span>
+            </div>
+          )}
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-muted-foreground">Total</span>
+            <span className="text-2xl font-semibold text-foreground">₹{payable}</span>
+          </div>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -492,7 +571,7 @@ export default function MenuClient({
               counter — always a first-class option. */}
           {onlinePaymentsEnabled && (
             <button disabled={placing || count === 0} onClick={() => place('online')} className="w-full rounded-[var(--radius)] bg-primary py-4 font-medium text-primary-foreground disabled:opacity-40">
-              {placing ? 'Placing…' : `Pay online · ₹${subtotal}`}
+              {placing ? 'Placing…' : `Pay online · ₹${payable}`}
             </button>
           )}
           {acceptPayCounter && (

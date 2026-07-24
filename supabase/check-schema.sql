@@ -252,7 +252,10 @@ with expected(kind, name, fix) as (values
   ('function', 'resolve_coupon_discount',        '0061'),
   ('function', 'validate_coupon',                '0061'),
   ('function', 'validate_coupon_public',         '0061'),
-  ('function', 'coupon_stats',                   '0061')
+  ('function', 'coupon_stats',                   '0061'),
+  -- coupon management (0062)
+  ('function', 'create_coupon',                  '0062'),
+  ('function', 'set_coupon_active',              '0062')
 )
 select
   e.kind,
