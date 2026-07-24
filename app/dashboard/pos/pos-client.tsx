@@ -542,11 +542,13 @@ export default function PosClient({
     : (categories.find((c) => c.id === activeCategory)?.name ?? 'Items')
 
   return (
-    <div className="flex w-full min-w-0 flex-col">
-      <div className="flex w-full min-w-0 flex-1 items-start">
+    <div className="flex h-[calc(100dvh-56px)] w-full min-w-0 flex-col overflow-hidden">
+      <div className="flex w-full min-w-0 flex-1 items-stretch overflow-hidden">
         {/* Category rail — desktop only; the horizontal chips below cover
-            mobile/tablet, both read from the same category set. */}
-        <div className="hidden h-[calc(100dvh-56px)] shrink-0 lg:sticky lg:top-0 lg:block">
+            mobile/tablet, both read from the same category set. Plain h-full:
+            the row above no longer scrolls, so sticky/its own height calc are
+            unnecessary — CategoryRail scrolls internally if its list is long. */}
+        <div className="hidden h-full shrink-0 lg:block">
           <CategoryRail
             categories={categories}
             bestsellerCount={bestsellerCount}
@@ -557,9 +559,10 @@ export default function PosClient({
           />
         </div>
 
-        {/* Workspace — scrolls with the page, same as every other dashboard screen. */}
-        <div className="min-w-0 flex-1">
-          <div className="border-b border-border bg-surface px-5 py-4">
+        {/* Workspace — only this column's product grid scrolls; the search
+            header stays put and the rail/cart siblings never move. */}
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 border-b border-border bg-surface px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -583,7 +586,7 @@ export default function PosClient({
             </div>
           </div>
 
-          <div className="p-5 pb-24 lg:pb-5">
+          <div className="flex-1 overflow-y-auto p-5 pb-24 lg:pb-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{activeLabel}</h2>
               <span className="text-[12.5px] text-muted-foreground">{visible.length} item{visible.length === 1 ? '' : 's'}</span>
@@ -605,11 +608,10 @@ export default function PosClient({
           </div>
         </div>
 
-        {/* Cart — persistent right panel on desktop. Sticky + a direct dvh
-            height (not a percentage of an ambiguous flex-parent chain) so it
-            stays put while the product grid scrolls, regardless of how the
-            shared dashboard layout resolves its own height on any given page. */}
-        <div className="sticky top-0 hidden h-dvh w-[360px] shrink-0 border-l border-border lg:block">
+        {/* Cart — persistent right panel on desktop. Parent row is height-capped
+            and non-scrolling, so a plain h-full (no sticky/dvh) keeps it fixed
+            while the product grid scrolls independently. */}
+        <div className="hidden h-full w-[360px] shrink-0 border-l border-border lg:block">
           <CartPanel {...cartProps} />
         </div>
       </div>
