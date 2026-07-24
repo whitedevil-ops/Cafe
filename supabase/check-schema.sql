@@ -233,7 +233,9 @@ with expected(kind, name, fix) as (values
   ('function', 'set_category_pairings',         '0055'),
   ('function', 'refresh_order_pairings',        '0055'),
   ('function', 'log_recommendation_event',      '0055'),
-  ('function', 'recommendation_report',         '0055')
+  ('function', 'recommendation_report',         '0055'),
+  -- duplicate-order guard (0056)
+  ('column',   'orders.client_request_id',      '0056')
 )
 select
   e.kind,

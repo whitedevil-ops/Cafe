@@ -109,6 +109,9 @@ export default function FloorClient({
   selectedRef.current = selected
   const [quickAdding, setQuickAdding] = useState(false)
   const [quickAddSubmitting, setQuickAddSubmitting] = useState(false)
+  // Stable per-attempt key so a network retry can never bill the same order
+  // twice — see migration 0056. Reset whenever a fresh quick-add sheet opens.
+  const quickAddRequestId = useRef<string | null>(null)
   const [quickAddError, setQuickAddError] = useState<string | null>(null)
 
   const poll = useCallback(async () => {
@@ -395,6 +398,7 @@ export default function FloorClient({
   ) {
     setQuickAddSubmitting(true)
     setQuickAddError(null)
+    if (!quickAddRequestId.current) quickAddRequestId.current = crypto.randomUUID()
     // Same canonical write path as the POS and the customer QR menu — a
     // waiter adding items tableside is not a separate order engine, just a
     // third caller of the one that already exists.
@@ -403,9 +407,11 @@ export default function FloorClient({
       p_items: lines,
       p_order_type: 'dine_in',
       p_table_id: tableId,
+      p_client_request_id: quickAddRequestId.current,
     })
     setQuickAddSubmitting(false)
     if (error) return setQuickAddError(error.message)
+    quickAddRequestId.current = null
     setQuickAdding(false)
     toast('Added to the kitchen.')
     void poll()
@@ -626,7 +632,7 @@ export default function FloorClient({
 
             {!selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => { setQuickAddError(null); setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+                <button onClick={() => { setQuickAddError(null); quickAddRequestId.current = null; setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover">
                   Take order
                 </button>
                 <button onClick={() => toggleReserve(selTable)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground hover:bg-surface-subtle">
@@ -637,7 +643,7 @@ export default function FloorClient({
 
             {selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => { setQuickAddError(null); setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+                <button onClick={() => { setQuickAddError(null); quickAddRequestId.current = null; setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
                   Add items
                 </button>
                 <button onClick={() => setMoving((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">

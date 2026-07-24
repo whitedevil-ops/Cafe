@@ -75,6 +75,9 @@ export default function MenuClient({
 
   const upsellShown = useRef(false)
   const upsellTaken = useRef<string | null>(null)
+  // Stable per-attempt key so a dropped connection/timeout can be safely
+  // retried without risking a second real order — see migration 0056.
+  const requestId = useRef<string | null>(null)
 
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
   const variantsByItem = useMemo(() => {
@@ -292,6 +295,9 @@ export default function MenuClient({
     setPlacing(true)
     setError(null)
     setOnlineError(null)
+    // Reused across a manual retry after a failed attempt so the server can
+    // recognize a replay instead of billing a second order (migration 0056).
+    if (!requestId.current) requestId.current = crypto.randomUUID()
     const { data, error } = await supabase.rpc('place_order', {
       p_token: token,
       p_items: cart.map((l) => ({
@@ -305,8 +311,10 @@ export default function MenuClient({
       p_payment_method: 'counter',
       p_upsell_item_id: upsellTaken.current,
       p_upsell_shown: upsellShown.current,
+      p_client_request_id: requestId.current,
     })
     if (error) { setPlacing(false); return setError(error.message) }
+    requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token?: string }
     setPlaced({ code: r.short_code, total: r.total, method: mode, receiptToken: r.receipt_token ?? null })
     setStep('done')
