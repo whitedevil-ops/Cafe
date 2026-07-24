@@ -268,9 +268,13 @@ export default function MenuClient({
       setError('Enter a valid 10-digit mobile number — we send your bill there.')
       return
     }
-    const method = mode === 'now' ? 'upi' : 'counter'
     setPlacing(true)
     setError(null)
+    // Every QR order is created UNPAID; UPI is collected after placement via
+    // the attempt flow, and the payment method the customer actually used is
+    // recorded when staff confirm receipt. place_order only accepts
+    // counter/cash/card, so the order is always placed as 'counter' here —
+    // `mode` drives the on-screen payment step, not the stored method.
     const { data, error } = await supabase.rpc('place_order', {
       p_token: token,
       p_items: cart.map((l) => ({
@@ -281,13 +285,13 @@ export default function MenuClient({
         note: l.note || null,
       })),
       p_phone: phone || null,
-      p_payment_method: method,
+      p_payment_method: 'counter',
       p_upsell_item_id: upsellTaken.current,
       p_upsell_shown: upsellShown.current,
     })
     if (error) { setPlacing(false); return setError(error.message) }
     const r = data as { short_code: string; total: number; receipt_token?: string }
-    setPlaced({ code: r.short_code, total: r.total, method, receiptToken: r.receipt_token ?? null })
+    setPlaced({ code: r.short_code, total: r.total, method: mode === 'now' ? 'upi' : 'counter', receiptToken: r.receipt_token ?? null })
     setStep('done')
 
     if (mode === 'now' && r.receipt_token) {
