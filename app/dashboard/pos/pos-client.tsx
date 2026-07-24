@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X, TrendingUp, ClipboardList, Users, ChefHat } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -77,6 +77,9 @@ export default function PosClient({
   const [pendingReason, setPendingReason] = useState('')
   const [customizing, setCustomizing] = useState<FullItem | null>(null)
   const [placing, setPlacing] = useState(false)
+  // Stable per-attempt key so a network retry can never bill the same order
+  // twice — see migration 0056. Cleared once an order actually succeeds.
+  const requestId = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ code: string; total: number; token: string; paid: boolean } | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
@@ -457,6 +460,7 @@ export default function PosClient({
     const reason = orderType === 'takeaway' && tender === 'pending' ? pendingReason || null : null
     setPlacing(true)
     setError(null)
+    if (!requestId.current) requestId.current = crypto.randomUUID()
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
       p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null })),
@@ -469,9 +473,11 @@ export default function PosClient({
       p_discount_value: Number(discountValue) || 0,
       p_settle: settle,
       p_pending_reason: reason,
+      p_client_request_id: requestId.current,
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
+    requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
     setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })
     setCart([])

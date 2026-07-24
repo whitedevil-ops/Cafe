@@ -77,7 +77,9 @@ genuinely isn't proven yet.
 
 ## 3. What changed this session
 
-**Migration `0056_order_idempotency.sql`** (written, typechecked/linted/tested/built — **not yet applied to the live database**, same environment constraint as every prior migration in this project: no service-role key or direct Postgres connection here, only the Supabase SQL editor can run it):
+**Migration `0056_order_idempotency.sql`** — written, typechecked/linted/tested/built, **applied to the live database by the owner and confirmed live**: direct RPC calls against production now return real validation errors (`invalid table`, `permission denied`) for the new `p_client_request_id` parameter instead of `PGRST202` (function not found), and a dedicated live integration test (`tests/integration/order-engine.test.ts`) proves a repeated key returns the same order while a fresh key still creates a new one — 55/55 tests passing including this new one.
+
+**Incident, disclosed in full:** the client-side wiring was first pushed in the same commit as the migration, before the migration had actually been applied — PostgREST correctly rejected the unrecognized parameter, breaking order placement (QR/POS/waiter) in production for the window between that deploy and the revert. Caught via a direct live RPC check within minutes, reverted immediately, confirmed via the live integration suite, then re-applied only after the owner ran 0056 and I re-verified live. Lesson applied: verify a migration is actually live before shipping client code that depends on it, not just that it's written.
 
 - `orders.client_request_id uuid` + a partial unique index on `(cafe_id, client_request_id)`.
 - `place_order` and `staff_place_order` both take an optional `p_client_request_id`. If a matching order already exists for that key, the function returns **that order's original result** instead of creating a second one — a dropped-connection retry becomes a safe no-op instead of a duplicate bill. A second layer (catching `unique_violation` and re-fetching) closes the genuine race where two retries both pass the initial check before either commits.
@@ -86,11 +88,7 @@ genuinely isn't proven yet.
 
 **Verified this session:** `npx tsc --noEmit` clean, `npx eslint .` unchanged at the pre-existing 13-error/2-warning baseline, `npm test` 54/54 passing (unchanged — no test yet exercises 0056 live, since it isn't applied to production yet), `npx next build` clean.
 
-**Manual/live verification required once 0056 is applied** (same pattern as every prior migration — the owner runs it via the Supabase SQL editor, then):
-1. `check-schema.sql` shows `orders.client_request_id` present.
-2. Place a real order, note its `short_code`/`receipt_token`. Re-issue the exact same `place_order`/`staff_place_order` call with the same (now-known) request id — confirm it returns the identical `short_code`/`total`/`receipt_token` rather than creating order #2.
-3. Confirm a genuinely new checkout (fresh key) still creates a normal new order.
-4. Once confirmed live, un-comment/add a live assertion to `tests/integration/order-engine.test.ts` calling `place_order` twice with the same `p_client_request_id` and asserting equal `short_code` — turning this from a one-time manual check into a permanent regression guard.
+**All of the above is now done and verified live** — items 1-4 from the original plan are complete: the schema change is live, a real repeated-key call returns the identical order, a fresh key still creates a new order, and the permanent regression test is committed and passing.
 
 ---
 
@@ -105,7 +103,7 @@ genuinely isn't proven yet.
 | Fake payment insert → DENIED | **COVERED** by the same 0050 grant revocation; not separately asserted with an authenticated fixture, same gap as above |
 | Cafe A → Cafe B access → DENIED | **COVERED** — anon sweep in `security-boundaries.test.ts`; an authenticated cross-café attempt (staff A token reading café B) is not separately tested |
 | Refund → totals stay correct | **COVERED** — `refund_order` RPC, netted correctly in `profitability_report` |
-| Duplicate request → no duplicate order/payment/stock | **BUILT this session (0056)** — not yet live-verified (migration unapplied) |
+| Duplicate request → no duplicate order/payment/stock | **COVERED, live-verified (0056)** — repeated key returns the same order, fresh key still creates a new one |
 | GST calculation → correct server-side | **COVERED** — `apply_order_taxes`, live-verified (₹481 exact match, `KHAOPIYO_ROADMAP_PROGRESS.md` Phase 0) |
 | Recipe consumption → correct stock movement | **WRITTEN, not live-verified** — auto-deduct trigger exists (0036), swallow-all-errors by design, genuinely needs a real order against a real recipe — **MANUAL TEST REQUIRED** |
 | Order retry → stock not double-deducted | **COVERED as of 0056** — the trigger fires on `order_items` insert, and 0056 guarantees a retried request never inserts a second `order_items` set for the same attempt |

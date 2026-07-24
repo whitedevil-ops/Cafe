@@ -165,6 +165,32 @@ describe('order engine — live integration against the Brewora demo café', () 
     expect(waiter.body.message).toMatch(/invalid table/)
   })
 
+  it('a repeated client_request_id returns the SAME order instead of creating a duplicate (migration 0056)', async () => {
+    const key = crypto.randomUUID()
+    const args = {
+      p_token: pick(tableTokens),
+      p_items: [{ item_id: cappuccinoId, qty: 1, variant_id: largeVariantId, note: 'vitest: idempotency check' }],
+      p_phone: TEST_PHONE,
+      p_payment_method: 'counter',
+      p_client_request_id: key,
+    }
+
+    const first = await rpc('place_order', args)
+    expect(first.ok).toBe(true)
+
+    // Same key, same everything — simulates a client retrying after a
+    // dropped response to a request that actually succeeded server-side.
+    const replay = await rpc('place_order', args)
+    expect(replay.ok).toBe(true)
+    expect(replay.body.receipt_token).toBe(first.body.receipt_token)
+    expect(replay.body.total).toBe(first.body.total)
+
+    // A genuinely new key for the same table/items still creates a new order.
+    const fresh = await rpc('place_order', { ...args, p_client_request_id: crypto.randomUUID() })
+    expect(fresh.ok).toBe(true)
+    expect(fresh.body.receipt_token).not.toBe(first.body.receipt_token)
+  })
+
   it('call_waiter and request_bill work on a freshly-opened session, and request_bill throttles a repeat within 2 minutes', async () => {
     const token = pick(tableTokens)
 
