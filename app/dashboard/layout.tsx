@@ -16,10 +16,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: profile }] = await Promise.all([
+  const [{ data: cafeRow }, { data: profile }, { data: capacity }] = await Promise.all([
     supabase.from('cafes').select('cash_management_enabled').eq('id', cafe.cafeId).maybeSingle(),
     supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
+    supabase.rpc('owned_cafe_capacity'),
   ])
+  const canAddCafe = Boolean((capacity as { can_add?: boolean } | null)?.can_add)
 
   if (cafe.status !== 'active') {
     return (
@@ -51,6 +53,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       timezone={cafe.timezone}
       cashEnabled={cafeRow?.cash_management_enabled ?? false}
       cafes={myCafes}
+      canAddCafe={canAddCafe}
       userName={profile?.full_name ?? ''}
     >
       {children}

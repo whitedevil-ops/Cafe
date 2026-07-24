@@ -24,9 +24,20 @@ type MembershipRow = {
   cafe_id: string
   created_at: string
   cafes:
-    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null }
-    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null }[]
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null }
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null }[]
     | null
+}
+
+const SELECT_COLS = 'role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone, onboarding_step)'
+
+// A café still mid-onboarding (details submitted but the wizard not
+// finished) isn't a usable workspace yet — treated the same as "no
+// membership" everywhere below, so the dashboard correctly bounces back to
+// /onboarding instead of rendering a half-set-up café.
+function isUsable(row: MembershipRow): boolean {
+  const cafe = Array.isArray(row.cafes) ? row.cafes[0] : row.cafes
+  return Boolean(cafe) && (cafe!.onboarding_step ?? 'complete') === 'complete'
 }
 
 // All cafés the signed-in user belongs to (RLS-scoped), newest first.
@@ -42,7 +53,7 @@ const getMemberships = cache(
 
     const { data } = await supabase
       .from('cafe_members')
-      .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone)')
+      .select(SELECT_COLS)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -55,14 +66,14 @@ const getMemberships = cache(
       if (claimed && claimed > 0) {
         const { data: refetched } = await supabase
           .from('cafe_members')
-          .select('role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone)')
+          .select(SELECT_COLS)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
         rows = (refetched ?? []) as MembershipRow[]
       }
     }
 
-    return { userId: user.id, rows }
+    return { userId: user.id, rows: rows.filter(isUsable) }
   },
 )
 

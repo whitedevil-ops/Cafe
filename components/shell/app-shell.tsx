@@ -69,6 +69,7 @@ export function AppShell({
   timezone,
   cashEnabled,
   cafes,
+  canAddCafe,
   userName,
   children,
 }: {
@@ -78,6 +79,7 @@ export function AppShell({
   timezone: string
   cashEnabled: boolean
   cafes: CafeOption[]
+  canAddCafe: boolean
   userName: string
   children: React.ReactNode
 }) {
@@ -121,9 +123,9 @@ export function AppShell({
         )}
       </div>
 
-      {!collapsed && cafes.length > 1 && (
+      {!collapsed && (cafes.length > 1 || canAddCafe) && (
         <div className="px-3 pb-1">
-          <CafeSwitcher cafes={cafes} activeCafeId={cafeId} />
+          <CafeSwitcher cafes={cafes} activeCafeId={cafeId} canAddCafe={canAddCafe} />
         </div>
       )}
 

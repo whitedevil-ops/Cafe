@@ -4,19 +4,27 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { CafeOption } from '@/lib/cafe'
 
+const ADD_CAFE_VALUE = '__add__'
+
 export function CafeSwitcher({
   cafes,
   activeCafeId,
+  canAddCafe = false,
 }: {
   cafes: CafeOption[]
   activeCafeId: string
+  canAddCafe?: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
-  if (cafes.length <= 1) return null
+  if (cafes.length <= 1 && !canAddCafe) return null
 
   async function switchTo(cafeId: string) {
+    if (cafeId === ADD_CAFE_VALUE) {
+      router.push('/onboarding')
+      return
+    }
     if (cafeId === activeCafeId) return
     setBusy(true)
     await fetch('/api/active-cafe', {
@@ -41,6 +49,7 @@ export function CafeSwitcher({
           {c.name}
         </option>
       ))}
+      {canAddCafe && <option value={ADD_CAFE_VALUE}>+ Add café</option>}
     </select>
   )
 }
