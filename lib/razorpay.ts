@@ -49,15 +49,16 @@ export function verifyPaymentSignature(orderId: string, paymentId: string, signa
   return crypto.timingSafeEqual(a, b)
 }
 
-/** Create a Razorpay order via the REST API (Basic auth = key_id:key_secret).
- *  amount is in paise. Only called when razorpayConfigured() is true. */
+/** Create a Razorpay order on a specific café's account via the REST API
+ *  (Basic auth = that café's key_id:key_secret). amount is in paise. */
 export async function createRazorpayOrder(params: {
+  keyId: string
+  keySecret: string
   amountPaise: number
   receipt: string
   notes?: Record<string, string>
-  linkedAccountId?: string
 }): Promise<{ id: string } | { error: string }> {
-  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64')
+  const auth = Buffer.from(`${params.keyId}:${params.keySecret}`).toString('base64')
   const res = await fetch('https://api.razorpay.com/v1/orders', {
     method: 'POST',
     headers: { authorization: `Basic ${auth}`, 'content-type': 'application/json' },
@@ -66,8 +67,6 @@ export async function createRazorpayOrder(params: {
       currency: 'INR',
       receipt: params.receipt,
       notes: params.notes ?? {},
-      // Route transfers to the café's linked account would be attached here
-      // once linked-account onboarding is complete.
     }),
   })
   if (!res.ok) return { error: `razorpay order failed (${res.status})` }

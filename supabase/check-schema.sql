@@ -194,7 +194,13 @@ with expected(kind, name, fix) as (values
   ('column',   'cafes.razorpay_account_id',     '0045'),
   ('column',   'payments.status',               '0045'),
   ('column',   'payments.provider',             '0045'),
-  ('column',   'payments.provider_payment_id',  '0045')
+  ('column',   'payments.provider_payment_id',  '0045'),
+  -- per-café Razorpay connect (0046)
+  ('column',   'cafes.razorpay_key_id',         '0046'),
+  ('column',   'cafes.razorpay_webhook_token',  '0046'),
+  ('table',    'cafe_payment_secrets',          '0046'),
+  ('function', 'set_cafe_razorpay',             '0046'),
+  ('function', 'disconnect_cafe_razorpay',      '0046')
 )
 select
   e.kind,

@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Wallet, CreditCard, Landmark, Coins, Info, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Wallet, CreditCard, Landmark, Coins, Info, Check, Copy, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/toast'
 
 export type PaymentsConfig = {
   accept_cash: boolean
@@ -10,6 +13,8 @@ export type PaymentsConfig = {
   accept_pay_counter: boolean
   online_payments_enabled: boolean
   razorpay_status: 'not_connected' | 'pending' | 'connected' | 'disabled'
+  razorpay_key_id: string | null
+  razorpay_webhook_token: string | null
 }
 
 const METHODS: { key: keyof PaymentsConfig; label: string; sub: string; icon: React.ReactNode }[] = [
@@ -28,31 +33,69 @@ const RZP_BADGE: Record<PaymentsConfig['razorpay_status'], { label: string; cls:
 
 function Toggle({ on, disabled, onClick, label }: { on: boolean; disabled?: boolean; onClick: () => void; label: string }) {
   return (
-    <button
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={`h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-primary' : 'border border-border-strong bg-surface-subtle'}`}
-    >
+    <button role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={onClick}
+      className={`h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-primary' : 'border border-border-strong bg-surface-subtle'}`}>
       <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </button>
   )
 }
 
 export function PaymentsPanel({
+  cafeId,
   value,
   onChange,
   disabled,
 }: {
+  cafeId: string
   value: PaymentsConfig
   onChange: (patch: Partial<PaymentsConfig>) => void
   disabled: boolean
 }) {
+  const router = useRouter()
+  const { toast } = useToast()
   const connected = value.razorpay_status === 'connected'
   const rzp = RZP_BADGE[value.razorpay_status]
-  const [showSetup, setShowSetup] = useState(false)
+
+  const [showForm, setShowForm] = useState(false)
+  const [keyId, setKeyId] = useState('')
+  const [keySecret, setKeySecret] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const webhookUrl =
+    typeof window !== 'undefined' && value.razorpay_webhook_token
+      ? `${window.location.origin}/api/payments/razorpay/webhook/${value.razorpay_webhook_token}`
+      : ''
+
+  async function connect() {
+    setBusy(true)
+    setErr(null)
+    const res = await fetch('/api/payments/razorpay/connect', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cafe_id: cafeId, key_id: keyId.trim(), key_secret: keySecret.trim(), webhook_secret: webhookSecret.trim() }),
+    })
+    const body = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (!res.ok) return setErr(body.error ?? 'Could not connect. Check your keys and try again.')
+    setKeySecret('')
+    setWebhookSecret('')
+    setShowForm(false)
+    toast('Razorpay connected.')
+    router.refresh() // re-fetch the true connected state + webhook token
+  }
+
+  async function disconnect() {
+    setBusy(true)
+    const res = await fetch('/api/payments/razorpay/disconnect', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cafe_id: cafeId }),
+    })
+    setBusy(false)
+    if (!res.ok) { const b = await res.json().catch(() => ({})); return toast(b.error ?? 'Could not disconnect.', 'error') }
+    toast('Razorpay disconnected.')
+    router.refresh()
+  }
 
   return (
     <section className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 sm:p-6">
@@ -74,18 +117,13 @@ export function PaymentsPanel({
                   <p className="text-[12px] text-muted-foreground">{m.sub}</p>
                 </div>
               </div>
-              <Toggle
-                on={Boolean(value[m.key])}
-                disabled={disabled}
-                onClick={() => onChange({ [m.key]: !value[m.key] } as Partial<PaymentsConfig>)}
-                label={m.label}
-              />
+              <Toggle on={Boolean(value[m.key])} disabled={disabled} onClick={() => onChange({ [m.key]: !value[m.key] } as Partial<PaymentsConfig>)} label={m.label} />
             </li>
           ))}
         </ul>
       </div>
 
-      {/* Online payments — Razorpay */}
+      {/* Online payments — Razorpay (each café connects its own account) */}
       <div className="mt-6">
         <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Online payments</p>
         <div className="mt-2 rounded-[var(--radius)] border border-border p-4">
@@ -96,53 +134,69 @@ export function PaymentsPanel({
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${rzp.cls}`}>{rzp.label}</span>
               </div>
               <p className="mt-0.5 max-w-md text-[12px] leading-relaxed text-muted-foreground">
-                Accept automatically-verified online payments (UPI, cards, wallets) from the QR menu. Money settles to
-                your own bank account.
+                Connect your own Razorpay account to accept UPI, cards and wallets online. Money settles straight to
+                your bank. Payments are confirmed automatically — never by a customer tapping a button.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSetup((v) => !v)}
-              className="min-h-9 shrink-0 rounded-[var(--radius)] border border-border-strong px-4 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle"
-            >
-              {connected ? 'Manage' : 'Connect Razorpay'}
-            </button>
+            {!disabled && (
+              connected ? (
+                <button type="button" onClick={disconnect} disabled={busy} className="min-h-9 shrink-0 rounded-[var(--radius)] border border-border-strong px-4 text-[12.5px] font-medium text-destructive hover:bg-destructive-subtle disabled:opacity-50">Disconnect</button>
+              ) : (
+                <button type="button" onClick={() => { setShowForm((v) => !v); setErr(null) }} className="min-h-9 shrink-0 rounded-[var(--radius)] bg-primary px-4 text-[12.5px] font-medium text-primary-foreground hover:bg-primary-hover">Connect Razorpay</button>
+              )
+            )}
           </div>
 
-          {value.online_payments_enabled && connected && (
-            <label className="mt-3 flex items-center gap-2 text-[13px] text-foreground">
-              <input
-                type="checkbox"
-                checked={value.online_payments_enabled}
-                disabled={disabled}
-                onChange={(e) => onChange({ online_payments_enabled: e.target.checked })}
-              />
-              Show “Pay online” on the customer QR checkout
-            </label>
+          {/* Connected: show which key + the webhook URL to paste into Razorpay */}
+          {connected && (
+            <div className="mt-3 space-y-3">
+              {value.razorpay_key_id && (
+                <p className="text-[12.5px] text-muted-foreground">Connected as <span className="font-medium text-foreground">{value.razorpay_key_id}</span></p>
+              )}
+              <label className="flex items-center gap-2 text-[13px] text-foreground">
+                <input type="checkbox" checked={value.online_payments_enabled} disabled={disabled} onChange={(e) => onChange({ online_payments_enabled: e.target.checked })} />
+                Show “Pay online” on the customer QR checkout
+              </label>
+              {webhookUrl && (
+                <div className="rounded-[var(--radius)] bg-surface-subtle p-3">
+                  <p className="text-[12px] font-medium text-foreground">Your webhook URL</p>
+                  <p className="mt-0.5 text-[11.5px] text-muted-foreground">In your Razorpay dashboard → Settings → Webhooks, add this URL and subscribe to <strong>payment.captured</strong>, using the same webhook secret you entered here.</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate rounded border border-border bg-surface px-2 py-1.5 text-[11.5px] text-foreground">{webhookUrl}</code>
+                    <button type="button" onClick={() => { void navigator.clipboard.writeText(webhookUrl); toast('Webhook URL copied.') }} className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius)] border border-border-strong text-muted-foreground hover:bg-surface"><Copy size={14} /></button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
-          {showSetup && !connected && (
-            <div className="mt-3 rounded-[var(--radius)] border border-info bg-info-subtle p-3.5 text-[12.5px] text-info">
+          {/* Connect form */}
+          {showForm && !connected && (
+            <div className="mt-3 rounded-[var(--radius)] border border-border bg-surface-subtle p-4">
               <div className="flex items-start justify-between gap-2">
-                <p className="flex items-center gap-1.5 font-semibold"><Info size={15} /> Online payments aren’t live yet</p>
-                <button type="button" onClick={() => setShowSetup(false)} aria-label="Dismiss" className="shrink-0 text-info/70 hover:text-info"><X size={14} /></button>
+                <p className="flex items-center gap-1.5 text-[13px] font-medium text-foreground"><Check size={15} className="text-primary" /> Enter your Razorpay keys</p>
+                <button type="button" onClick={() => setShowForm(false)} aria-label="Close" className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
               </div>
-              <p className="mt-1.5 leading-relaxed">
-                Accepting online payments needs a one-time setup at the <strong>KhaoPiyo platform level</strong> — it
-                isn’t something a single café can switch on. Once that’s done, connecting your café here takes a couple
-                of minutes.
+              <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+                From your Razorpay dashboard → Account &amp; Settings → API Keys. Your secret is encrypted and never shown again.
+                Create a webhook there first if you want its secret; you can add it later too.
               </p>
-              <p className="mt-2 font-medium">What the platform owner sets up first:</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                <li>A Razorpay platform account with <strong>Route</strong> enabled</li>
-                <li>Platform API keys + webhook secret (kept server-side, never shared)</li>
-              </ul>
-              <p className="mt-2 font-medium">Then, to connect your café:</p>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                <li>Your business + bank details (KYC), verified by a small test deposit</li>
-                <li>Money then settles straight to your own bank account</li>
-              </ul>
-              <p className="mt-2">Until then, customers pay at the counter — everything else works normally.</p>
+              <div className="mt-3 space-y-3">
+                <Input label="Key ID" placeholder="rzp_live_XXXXXXXX" value={keyId} onChange={(e) => setKeyId(e.target.value)} />
+                <Input label="Key Secret" type="password" placeholder="••••••••" value={keySecret} onChange={(e) => setKeySecret(e.target.value)} hint="Encrypted at rest. Never displayed again." />
+                <Input label="Webhook Secret (optional)" type="password" placeholder="••••••••" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} hint="The signing secret you set on the Razorpay webhook. Needed for automatic confirmation." />
+              </div>
+              {err && <p className="mt-2 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{err}</p>}
+              <button type="button" onClick={connect} disabled={busy || !keyId.trim() || !keySecret.trim()} className="mt-3 min-h-10 w-full rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground disabled:opacity-50">
+                {busy ? 'Connecting…' : 'Connect'}
+              </button>
+            </div>
+          )}
+
+          {!connected && !showForm && (
+            <div className="mt-3 flex items-start gap-2 rounded-[var(--radius)] bg-info-subtle px-3 py-2.5 text-[12.5px] text-info">
+              <Info size={15} className="mt-0.5 shrink-0" />
+              <span>You’ll need a Razorpay account (razorpay.com) and its API keys. Until connected, customers pay at the counter.</span>
             </div>
           )}
         </div>

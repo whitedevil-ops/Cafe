@@ -20,7 +20,7 @@ export default async function CafeProfilePage() {
   const [{ data }, { data: settings }] = await Promise.all([
     supabase
       .from('cafes')
-      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, accept_cash, accept_upi_counter, accept_card_counter, accept_pay_counter, online_payments_enabled, razorpay_status, address, city, state, pincode, dine_in, takeaway')
+      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, accept_cash, accept_upi_counter, accept_card_counter, accept_pay_counter, online_payments_enabled, razorpay_status, razorpay_key_id, razorpay_webhook_token, address, city, state, pincode, dine_in, takeaway')
       .eq('id', cafe.cafeId)
       .single(),
     supabase.from('cafe_settings').select('hours, receipt').eq('cafe_id', cafe.cafeId).maybeSingle(),
@@ -49,6 +49,8 @@ export default async function CafeProfilePage() {
     accept_pay_counter: data?.accept_pay_counter ?? true,
     online_payments_enabled: data?.online_payments_enabled ?? false,
     razorpay_status: (data?.razorpay_status ?? 'not_connected') as 'not_connected' | 'pending' | 'connected' | 'disabled',
+    razorpay_key_id: data?.razorpay_key_id ?? null,
+    razorpay_webhook_token: data?.razorpay_webhook_token ?? null,
     address: data?.address ?? '',
     city: data?.city ?? '',
     state: data?.state ?? '',

@@ -40,6 +40,8 @@ export type CafeProfile = {
   accept_pay_counter: boolean
   online_payments_enabled: boolean
   razorpay_status: 'not_connected' | 'pending' | 'connected' | 'disabled'
+  razorpay_key_id: string | null
+  razorpay_webhook_token: string | null
   address: string
   city: string
   state: string
@@ -314,7 +316,7 @@ export default function ProfileClient({
           )}
 
           {section === 'payments' && (
-            <PaymentsPanel value={form} onChange={patch} disabled={dis} />
+            <PaymentsPanel cafeId={cafeId} value={form} onChange={patch} disabled={dis} />
           )}
 
           {section === 'branding' && (
