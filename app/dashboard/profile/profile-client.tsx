@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   Building2, ShieldCheck, ReceiptText, CreditCard, QrCode, ChefHat, SlidersHorizontal,
-  Check, Info, ExternalLink,
+  Check, Info, ExternalLink, Plug,
 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
@@ -16,6 +16,7 @@ import { Card, CardHeader } from '@/components/ui/card'
 import { SectionNav, type SectionItem } from '@/components/ui/section-nav'
 import { GstPanel } from './gst-panel'
 import { PaymentsPanel } from './payments-panel'
+import { IntegrationsPanel } from './integrations-panel'
 
 export type CafeProfile = {
   name: string
@@ -65,6 +66,7 @@ const SECTIONS: SectionItem[] = [
   { id: 'gst', label: 'Business & GST', icon: <ShieldCheck size={16} /> },
   { id: 'billing', label: 'Billing', icon: <ReceiptText size={16} /> },
   { id: 'payments', label: 'Payments', icon: <CreditCard size={16} /> },
+  { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
   { id: 'branding', label: 'QR & branding', icon: <QrCode size={16} /> },
   { id: 'kitchen', label: 'Kitchen', icon: <ChefHat size={16} /> },
   { id: 'preferences', label: 'Preferences', icon: <SlidersHorizontal size={16} /> },
@@ -318,6 +320,8 @@ export default function ProfileClient({
           {section === 'payments' && (
             <PaymentsPanel cafeId={cafeId} value={form} onChange={patch} disabled={dis} />
           )}
+
+          {section === 'integrations' && <IntegrationsPanel />}
 
           {section === 'branding' && (
             <Card>

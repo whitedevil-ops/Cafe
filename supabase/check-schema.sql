@@ -244,7 +244,15 @@ with expected(kind, name, fix) as (values
   ('function', 'create_or_resume_onboarding_cafe', '0058'),
   -- plan-gated multi-café caps (0059)
   ('column',   'platform_plans.max_owned_cafes', '0059'),
-  ('function', 'owned_cafe_capacity',           '0059')
+  ('function', 'owned_cafe_capacity',           '0059'),
+  -- inventory deduction reversal on cancellation (0060)
+  ('function', 'reverse_stock_for_cancelled_order', '0060'),
+  -- coupons & offers engine (0061)
+  ('column',   'coupon_redemptions.discount_amount', '0061'),
+  ('function', 'resolve_coupon_discount',        '0061'),
+  ('function', 'validate_coupon',                '0061'),
+  ('function', 'validate_coupon_public',         '0061'),
+  ('function', 'coupon_stats',                   '0061')
 )
 select
   e.kind,

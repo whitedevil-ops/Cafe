@@ -141,31 +141,6 @@ export default function KitchenClient({
     }
   }, [poll])
 
-  // Money is booked through record_payment — the one validated, audited path.
-  // It computes the authoritative outstanding server-side, refuses overpayment
-  // and recomputes payment_status itself, so the browser never decides what is
-  // "paid". (Direct writes to payments/orders are blocked by RLS since 0050.)
-  async function markPaid(o: Order) {
-    setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'paid' } : x)))
-    const revert = () =>
-      setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, payment_status: 'unpaid' } : x)))
-
-    const { data: due, error: dueErr } = await supabase.rpc('order_outstanding', { p_order_id: o.id })
-    if (dueErr) return revert()
-    const amount = Number(due ?? 0)
-    if (amount <= 0) return // already settled elsewhere
-
-    const { error } = await supabase.rpc('record_payment', {
-      p_order_id: o.id,
-      p_amount: amount,
-      p_method: o.payment_method === 'upi' ? 'upi' : 'cash',
-      p_reference: null,
-      p_source: 'kds',
-      p_attempt_id: null,
-    })
-    if (error) revert()
-  }
-
   async function advance(o: Order) {
     const to = NEXT[o.status].to
     setOrders((list) => (to === 'completed' ? list.filter((x) => x.id !== o.id) : list.map((x) => (x.id === o.id ? { ...x, status: to as Order['status'] } : x))))
@@ -250,11 +225,6 @@ export default function KitchenClient({
                   ))}
                 </ul>
                 <div className="flex gap-2">
-                  {o.payment_status !== 'paid' && (
-                    <button onClick={() => markPaid(o)} className="flex-1 rounded-[var(--radius)] border border-warning py-4 text-lg font-medium text-warning">
-                      ₹{o.total} paid
-                    </button>
-                  )}
                   <button onClick={() => advance(o)} className="flex-1 rounded-[var(--radius)] bg-primary py-4 text-xl font-semibold text-primary-foreground">
                     {NEXT[o.status].label}
                   </button>
