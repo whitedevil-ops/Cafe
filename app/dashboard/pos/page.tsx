@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import PosClient from './pos-client'
 import type { PosCategory } from '@/components/pos/category-tabs'
 import type { PosItem } from '@/components/pos/product-card'
-import type { PosTable } from '@/components/pos/cart-panel'
+import type { PosTable, PosArea } from '@/components/pos/cart-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +17,7 @@ export default async function PosPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }] = await Promise.all([
+  const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }, { data: areas }] = await Promise.all([
     supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
@@ -26,7 +26,12 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false)
       .order('sort'),
-    supabase.from('cafe_tables').select('id, label, status').eq('cafe_id', cafe.cafeId),
+    supabase
+      .from('cafe_tables')
+      .select('id, label, status, capacity, area_id, pos_x, pos_y, shape')
+      .eq('cafe_id', cafe.cafeId)
+      .eq('archived', false),
+    supabase.from('floor_areas').select('id, name, sort').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
@@ -59,9 +64,22 @@ export default async function PosPage() {
     count: posItems.filter((i) => i.category_id === c.id).length,
   }))
 
+  // POS reuses the canonical cafe_tables/floor_areas — the SAME layout the owner
+  // configures in Floor & Table Setup. No separate POS table source.
   const posTables: PosTable[] = (tables ?? [])
-    .map((t) => ({ id: t.id, label: t.label, occupied: t.status === 'occupied' }))
+    .map((t) => ({
+      id: t.id,
+      label: t.label,
+      occupied: t.status === 'occupied',
+      capacity: t.capacity ?? null,
+      area_id: t.area_id ?? null,
+      pos_x: t.pos_x != null ? Number(t.pos_x) : null,
+      pos_y: t.pos_y != null ? Number(t.pos_y) : null,
+      shape: (t.shape ?? 'square') as PosTable['shape'],
+    }))
     .sort(byTableLabel)
+
+  const posAreas: PosArea[] = (areas ?? []).map((a) => ({ id: a.id, name: a.name }))
 
   return (
     <PosClient
@@ -77,6 +95,7 @@ export default async function PosPage() {
       variants={(variants ?? []) as PosVariant[]}
       addons={(addons ?? []) as PosAddon[]}
       tables={posTables}
+      areas={posAreas}
     />
   )
 }

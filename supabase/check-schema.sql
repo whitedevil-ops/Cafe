@@ -218,7 +218,9 @@ with expected(kind, name, fix) as (values
   ('table',    'floor_areas',                   '0053'),
   ('column',   'cafe_tables.area_id',           '0053'),
   ('column',   'cafe_tables.pos_x',             '0053'),
+  ('column',   'cafe_tables.pos_y',             '0053'),
   ('column',   'cafe_tables.shape',             '0053'),
+  ('column',   'cafe_tables.archived',          '0053'),
   ('function', 'save_floor_layout',             '0053')
 )
 select

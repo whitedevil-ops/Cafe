@@ -10,7 +10,17 @@ export type CartLine = {
   qty: number
   note?: string
 }
-export type PosTable = { id: string; label: string; occupied: boolean }
+export type PosTable = {
+  id: string
+  label: string
+  occupied: boolean
+  capacity: number | null
+  area_id: string | null
+  pos_x: number | null
+  pos_y: number | null
+  shape: 'square' | 'rectangle' | 'round'
+}
+export type PosArea = { id: string; name: string }
 export type CustomerLookup = { found: boolean; name?: string; visits?: number; points?: number }
 
 // One vocabulary for how a counter order is settled. A real tender means
@@ -27,6 +37,7 @@ const PENDING_REASONS = [
 
 export function CartPanel({
   tableLabel,
+  tableArea,
   orderType,
   onOrderType,
   dineInEnabled,
@@ -64,6 +75,7 @@ export function CartPanel({
   onOpenHeld,
 }: {
   tableLabel: string | null
+  tableArea: string | null
   orderType: 'dine_in' | 'takeaway'
   onOrderType: (t: 'dine_in' | 'takeaway') => void
   dineInEnabled: boolean
@@ -142,6 +154,9 @@ export function CartPanel({
             <p className="text-[17px] font-semibold text-foreground">
               {orderType === 'dine_in' ? (tableLabel ?? 'Select table') : 'Takeaway'}
             </p>
+            {orderType === 'dine_in' && tableLabel && tableArea && (
+              <p className="text-[12px] text-muted-foreground">{tableArea}</p>
+            )}
           </div>
           <button
             onClick={onOpenHeld}

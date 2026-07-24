@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
-import { CartPanel, type CartLine, type PosTable, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
+import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import type { PosVariant, PosAddon } from './page'
@@ -37,6 +37,7 @@ export default function PosClient({
   variants,
   addons,
   tables,
+  areas,
 }: {
   cafeId: string
   role: string
@@ -50,6 +51,7 @@ export default function PosClient({
   variants: PosVariant[]
   addons: PosAddon[]
   tables: PosTable[]
+  areas: PosArea[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const confirm = useConfirm()
@@ -73,9 +75,14 @@ export default function PosClient({
   const [cartOpen, setCartOpen] = useState(false)
 
   const [tableSelectorOpen, setTableSelectorOpen] = useState(false)
-  const [liveTables, setLiveTables] = useState<LiveTable[]>(() =>
-    tables.map((t) => ({ id: t.id, label: t.label, status: t.occupied ? 'occupied' : 'available', sessionId: null, bill: 0, itemCount: 0, items: [] })),
-  )
+  // Seed from the canonical layout (area/position/shape); status fills on poll.
+  const seedLive = (t: PosTable): LiveTable => ({
+    id: t.id, label: t.label, status: t.occupied ? 'occupied' : 'available', sessionId: null,
+    bill: 0, itemCount: 0, items: [],
+    areaId: t.area_id, posX: t.pos_x, posY: t.pos_y, shape: t.shape,
+    paid: 0, due: 0, payState: null, billRequested: false, ready: false, waiterCalled: false, mins: null,
+  })
+  const [liveTables, setLiveTables] = useState<LiveTable[]>(() => tables.map(seedLive))
 
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerName, setCustomerName] = useState('')
@@ -145,36 +152,53 @@ export default function PosClient({
     setCart((c) => c.map((l) => (l.key === key ? { ...l, note } : l)))
   }
 
-  // ── Live table status + running bill, for the visual table selector ──────
+  // ── Live table status + running bill + payment state, for the selector ──────
+  // Reads the SAME canonical tables/floor_areas + ledger the Live Tables screen
+  // uses (no separate POS table source), so status is consistent everywhere.
   const pollTables = useCallback(async () => {
-    const [{ data: tbls }, { data: sess }] = await Promise.all([
-      supabase.from('cafe_tables').select('id, label, status').eq('cafe_id', cafeId),
-      supabase.from('table_sessions').select('id, table_id, status').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
+    const [{ data: tbls }, { data: sess }, { data: unread }] = await Promise.all([
+      supabase.from('cafe_tables').select('id, label, status, area_id, pos_x, pos_y, shape').eq('cafe_id', cafeId).eq('archived', false),
+      supabase.from('table_sessions').select('id, table_id, status, started_at').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
+      supabase.from('notifications').select('table_id').eq('cafe_id', cafeId).eq('type', 'call_waiter').eq('read', false),
     ])
-    const sessions = (sess ?? []) as { id: string; table_id: string; status: string }[]
+    const sessions = (sess ?? []) as { id: string; table_id: string; status: string; started_at: string }[]
     const sessionIds = sessions.map((s) => s.id)
 
-    let orders: { id: string; session_id: string; total: number }[] = []
+    let orders: { id: string; session_id: string; total: number; status: string }[] = []
     let orderItems: { order_id: string; name: string; qty: number }[] = []
+    let payments: { session_id: string | null; order_id: string | null; amount: number }[] = []
     if (sessionIds.length) {
       const { data: ords } = await supabase
         .from('orders')
-        .select('id, session_id, total')
+        .select('id, session_id, total, status')
         .eq('cafe_id', cafeId)
         .in('session_id', sessionIds)
         .neq('status', 'cancelled')
       orders = (ords ?? []) as typeof orders
-      if (orders.length) {
-        const { data: its } = await supabase.from('order_items').select('order_id, name, qty').in('order_id', orders.map((o) => o.id))
+      const orderIds = orders.map((o) => o.id)
+      if (orderIds.length) {
+        const payFilter = `session_id.in.(${sessionIds.join(',')}),order_id.in.(${orderIds.join(',')})`
+        const [{ data: its }, { data: pays }] = await Promise.all([
+          supabase.from('order_items').select('order_id, name, qty').in('order_id', orderIds),
+          supabase.from('payments').select('session_id, order_id, amount').or(payFilter),
+        ])
         orderItems = (its ?? []) as typeof orderItems
+        payments = (pays ?? []) as typeof payments
       }
     }
 
+    const orderToSession = new Map(orders.map((o) => [o.id, o.session_id]))
     const sessionByTable = new Map(sessions.map((s) => [s.table_id, s]))
     const ordersBySession = new Map<string, typeof orders>()
     for (const o of orders) ordersBySession.set(o.session_id, [...(ordersBySession.get(o.session_id) ?? []), o])
     const itemsByOrder = new Map<string, typeof orderItems>()
     for (const i of orderItems) itemsByOrder.set(i.order_id, [...(itemsByOrder.get(i.order_id) ?? []), i])
+    const paidBySession = new Map<string, number>()
+    for (const p of payments) {
+      const sid = p.session_id ?? (p.order_id ? orderToSession.get(p.order_id) : undefined)
+      if (sid) paidBySession.set(sid, (paidBySession.get(sid) ?? 0) + p.amount)
+    }
+    const attention = new Set((unread ?? []).map((n) => n.table_id).filter(Boolean) as string[])
 
     const next: LiveTable[] = (tbls ?? []).map((t) => {
       const s = sessionByTable.get(t.id)
@@ -182,6 +206,9 @@ export default function PosClient({
       const bill = ords.reduce((sum, o) => sum + o.total, 0)
       const its = ords.flatMap((o) => itemsByOrder.get(o.id) ?? [])
       const itemCount = its.reduce((sum, i) => sum + i.qty, 0)
+      const paid = s ? Math.min(bill, paidBySession.get(s.id) ?? 0) : 0
+      const due = Math.max(0, bill - paid)
+      const payState: LiveTable['payState'] = !s ? null : bill > 0 && paid >= bill ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
       return {
         id: t.id,
         label: t.label,
@@ -190,6 +217,17 @@ export default function PosClient({
         bill,
         itemCount,
         items: its.map((i) => ({ name: i.name, qty: i.qty })),
+        areaId: t.area_id ?? null,
+        posX: t.pos_x != null ? Number(t.pos_x) : null,
+        posY: t.pos_y != null ? Number(t.pos_y) : null,
+        shape: (t.shape ?? 'square') as LiveTable['shape'],
+        paid,
+        due,
+        payState,
+        billRequested: s?.status === 'bill_requested',
+        ready: ords.some((o) => o.status === 'ready'),
+        waiterCalled: attention.has(t.id),
+        mins: s ? Math.floor((Date.now() - new Date(s.started_at).getTime()) / 60000) : null,
       }
     })
     setLiveTables(next)
@@ -374,11 +412,13 @@ export default function PosClient({
   }
 
   const selectedTable = liveTables.find((t) => t.id === selectedTableId) ?? null
+  const selectedAreaName = selectedTable?.areaId ? (areas.find((a) => a.id === selectedTable.areaId)?.name ?? null) : null
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
   const cartTotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
 
   const cartProps = {
     tableLabel: selectedTable?.label ?? null,
+    tableArea: selectedAreaName,
     orderType,
     onOrderType: setOrderType,
     dineInEnabled: dineIn,
@@ -490,7 +530,7 @@ export default function PosClient({
       )}
 
       {tableSelectorOpen && (
-        <TableSelector tables={liveTables} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />
+        <TableSelector tables={liveTables} areas={areas} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />
       )}
 
       {heldOrdersOpen && (
