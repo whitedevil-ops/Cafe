@@ -28,7 +28,7 @@ export default async function PosPage() {
       .order('sort'),
     supabase
       .from('cafe_tables')
-      .select('id, label, status, capacity, area_id, pos_x, pos_y, shape')
+      .select('id, label, status, capacity, area_id')
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false),
     supabase.from('floor_areas').select('id, name, sort').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
@@ -73,9 +73,6 @@ export default async function PosPage() {
       occupied: t.status === 'occupied',
       capacity: t.capacity ?? null,
       area_id: t.area_id ?? null,
-      pos_x: t.pos_x != null ? Number(t.pos_x) : null,
-      pos_y: t.pos_y != null ? Number(t.pos_y) : null,
-      shape: (t.shape ?? 'square') as PosTable['shape'],
     }))
     .sort(byTableLabel)
 

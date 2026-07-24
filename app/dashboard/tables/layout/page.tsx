@@ -18,7 +18,7 @@ export default async function FloorLayoutPage() {
     supabase.from('floor_areas').select('id, name, sort, archived').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('cafe_tables')
-      .select('id, label, capacity, shape, area_id, pos_x, pos_y, archived')
+      .select('id, label, capacity, area_id, archived')
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false)
       .order('label'),

@@ -79,7 +79,7 @@ export default function PosClient({
   const seedLive = (t: PosTable): LiveTable => ({
     id: t.id, label: t.label, status: t.occupied ? 'occupied' : 'available', sessionId: null,
     bill: 0, itemCount: 0, items: [],
-    areaId: t.area_id, posX: t.pos_x, posY: t.pos_y, shape: t.shape,
+    areaId: t.area_id, capacity: t.capacity,
     paid: 0, due: 0, payState: null, billRequested: false, ready: false, waiterCalled: false, mins: null,
   })
   const [liveTables, setLiveTables] = useState<LiveTable[]>(() => tables.map(seedLive))
@@ -157,7 +157,7 @@ export default function PosClient({
   // uses (no separate POS table source), so status is consistent everywhere.
   const pollTables = useCallback(async () => {
     const [{ data: tbls }, { data: sess }, { data: unread }] = await Promise.all([
-      supabase.from('cafe_tables').select('id, label, status, area_id, pos_x, pos_y, shape').eq('cafe_id', cafeId).eq('archived', false),
+      supabase.from('cafe_tables').select('id, label, status, area_id, capacity').eq('cafe_id', cafeId).eq('archived', false),
       supabase.from('table_sessions').select('id, table_id, status, started_at').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
       supabase.from('notifications').select('table_id').eq('cafe_id', cafeId).eq('type', 'call_waiter').eq('read', false),
     ])
@@ -218,9 +218,7 @@ export default function PosClient({
         itemCount,
         items: its.map((i) => ({ name: i.name, qty: i.qty })),
         areaId: t.area_id ?? null,
-        posX: t.pos_x != null ? Number(t.pos_x) : null,
-        posY: t.pos_y != null ? Number(t.pos_y) : null,
-        shape: (t.shape ?? 'square') as LiveTable['shape'],
+        capacity: t.capacity ?? null,
         paid,
         due,
         payState,

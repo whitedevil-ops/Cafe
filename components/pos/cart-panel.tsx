@@ -16,9 +16,6 @@ export type PosTable = {
   occupied: boolean
   capacity: number | null
   area_id: string | null
-  pos_x: number | null
-  pos_y: number | null
-  shape: 'square' | 'rectangle' | 'round'
 }
 export type PosArea = { id: string; name: string }
 export type CustomerLookup = { found: boolean; name?: string; visits?: number; points?: number }
