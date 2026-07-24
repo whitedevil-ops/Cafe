@@ -16,6 +16,9 @@ export type ParsedItem = {
   category: string
   name: string
   price: number
+  /** Optional estimated cost (₹). Null when the file has no cost column or the
+      cell is blank. Never required — existing imports keep working. */
+  cost: number | null
   isVeg: boolean | null
   description: string | null
 }
@@ -65,9 +68,26 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
 
   const catCol = findColumn(header, (h) => h.includes('category'))
   const itemCol = findColumn(header, (h) => h.includes('item') || h.includes('name'))
-  const priceCol = findColumn(header, (h) => h.includes('price'))
+  // "Cost Price" contains "price", so cost must be matched first and price must
+  // exclude it — otherwise the cost column would be read as the selling price.
+  const costCol = findColumn(header, (h) => h.includes('cost'))
+  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost'))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
+
+  // Parses the optional cost cell for a row; invalid (negative/non-numeric)
+  // values are flagged and treated as "no cost" rather than failing the row.
+  function parseCost(raw: unknown[], row: number): number | null {
+    if (costCol === -1) return null
+    const c = costCol < raw.length ? raw[costCol] : ''
+    if (normalize(c) === '') return null
+    const v = parsePrice(c)
+    if (v === null) {
+      issues.push({ row, message: `Cost "${c}" is not a valid amount — left unset.` })
+      return null
+    }
+    return v
+  }
 
   // Flat format needs a category column that is DISTINCT from the item column.
   const isFlat = catCol !== -1 && itemCol !== -1 && catCol !== itemCol
@@ -111,6 +131,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         category: cat,
         name,
         price,
+        cost: parseCost(raw, rowNum),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
       })
@@ -144,6 +165,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         category: cat,
         name: mergedText,
         price,
+        cost: parseCost(raw, rowNum),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
       })

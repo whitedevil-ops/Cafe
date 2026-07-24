@@ -207,7 +207,13 @@ with expected(kind, name, fix) as (values
   ('function', 'record_expense',                '0050'),
   ('function', 'delete_expense',                '0050'),
   -- enabled-order-type enforcement trigger fn (0051)
-  ('function', 'enforce_enabled_order_type',    '0051')
+  ('function', 'enforce_enabled_order_type',    '0051'),
+  -- item cost + profitability (0052)
+  ('column',   'menu_items.cost',               '0052'),
+  ('column',   'menu_items.cost_source',        '0052'),
+  ('column',   'order_items.cost_snapshot',     '0052'),
+  ('function', 'menu_item_effective_cost',      '0052'),
+  ('function', 'profitability_report',          '0052')
 )
 select
   e.kind,

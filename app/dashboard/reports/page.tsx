@@ -24,6 +24,8 @@ export default async function ReportsPage() {
   return (
     <ReportsClient
       cafeId={cafe.cafeId}
+      cafeName={cafe.name}
+      role={cafe.role}
       timezone={cafe.timezone}
       initialFrom={from}
       initialTo={to}

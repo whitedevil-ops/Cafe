@@ -20,6 +20,7 @@ export default async function MenuPage() {
     <MenuManager
       cafeId={cafe.cafeId}
       cafeName={cafe.name}
+      role={cafe.role}
       initialCategories={(categories ?? []) as MenuCategory[]}
       initialItems={(items ?? []) as MenuItemRow[]}
     />

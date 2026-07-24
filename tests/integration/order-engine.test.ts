@@ -38,7 +38,7 @@ type RpcBody = {
   receipt_token?: string
   ok?: boolean
   throttled?: boolean
-  order?: { subtotal?: number; tax?: number; total?: number }
+  order?: { subtotal?: number; tax?: number; service_charge?: number; total?: number }
   items?: { qty?: number }[]
 }
 
@@ -58,8 +58,6 @@ function pick<T>(arr: T[]): T {
 
 describe('order engine — live integration against the Brewora demo café', () => {
   let cafeId: string
-  let taxPercent: number
-  let serviceCharge: number
   let tableTokens: string[]
   let cappuccinoId: string
   let basePrice: number
@@ -69,13 +67,14 @@ describe('order engine — live integration against the Brewora demo café', () 
   let addonPrice: number
 
   beforeAll(async () => {
-    const cafes = await rest(`cafes?select=id,tax_percent,service_charge&name=eq.Brewora%20Caf%C3%A9`)
+    // Only the public columns are anon-readable since migration 0049 (F-02);
+    // the café's tax rate is no longer exposed to anon — and does not need to
+    // be, because the engine returns authoritative totals we assert against.
+    const cafes = await rest(`cafes?select=id&name=eq.Brewora%20Caf%C3%A9`)
     if (!cafes[0]) {
       throw new Error('Brewora Café not found — run supabase/seed-demo-cafe.sql first.')
     }
     cafeId = cafes[0].id
-    taxPercent = Number(cafes[0].tax_percent)
-    serviceCharge = Number(cafes[0].service_charge)
 
     const tables = await rest(`cafe_tables?select=token&cafe_id=eq.${cafeId}`)
     if (tables.length < 2) throw new Error('Need at least 2 seeded tables for these tests.')
@@ -97,13 +96,10 @@ describe('order engine — live integration against the Brewora demo café', () 
     addonPrice = addons[0].price
   })
 
-  it('computes tax identically to compute_bill(), end to end through place_order + get_receipt', async () => {
+  it('prices consistently end to end through place_order + get_receipt', async () => {
     const qty = 2
     const unit = basePrice + largeDelta + addonPrice
-    const subtotal = unit * qty
-    const expectedTax = Math.round((subtotal * taxPercent) / 100)
-    const expectedSvc = Math.round((subtotal * serviceCharge) / 100)
-    const expectedTotal = subtotal + expectedTax + expectedSvc
+    const subtotal = unit * qty // from anon-readable menu prices
 
     const placed = await rpc('place_order', {
       p_token: pick(tableTokens),
@@ -113,15 +109,21 @@ describe('order engine — live integration against the Brewora demo café', () 
     })
 
     expect(placed.ok).toBe(true)
-    expect(placed.body.total).toBe(expectedTotal)
     expect(typeof placed.body.receipt_token).toBe('string')
 
     const receipt = await rpc('get_receipt', { p_token: placed.body.receipt_token })
     expect(receipt.ok).toBe(true)
-    expect(receipt.body.order).toBeDefined()
-    expect(receipt.body.order?.subtotal).toBe(subtotal)
-    expect(receipt.body.order?.tax).toBe(expectedTax)
-    expect(receipt.body.order?.total).toBe(expectedTotal)
+    const o = receipt.body.order
+    expect(o).toBeDefined()
+
+    // Server computed the subtotal from menu prices (never the client).
+    expect(o?.subtotal).toBe(subtotal)
+    // The order engine and the receipt read path agree on the total.
+    expect(placed.body.total).toBe(o?.total)
+    // Bill arithmetic is internally consistent: subtotal + tax + svc = total,
+    // with a non-negative, server-derived tax — without exposing the rate.
+    expect(o?.tax ?? 0).toBeGreaterThanOrEqual(0)
+    expect((o?.subtotal ?? 0) + (o?.tax ?? 0) + (o?.service_charge ?? 0)).toBe(o?.total)
     expect(receipt.body.items?.[0]?.qty).toBe(qty)
   })
 

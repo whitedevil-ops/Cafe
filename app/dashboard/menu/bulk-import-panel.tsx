@@ -111,12 +111,13 @@ export default function BulkImportPanel({
         nextSort.set(cid, Math.max(nextSort.get(cid) ?? -1, i.sort) + 1)
       }
 
-      const updates: { id: string; price: number; description: string | null; is_veg: boolean | null }[] = []
+      const updates: { id: string; price: number; description: string | null; is_veg: boolean | null; cost: number | null }[] = []
       const inserts: {
         cafe_id: string
         category_id: string
         name: string
         price: number
+        cost: number | null
         description: string | null
         is_veg: boolean | null
         sort: number
@@ -128,7 +129,7 @@ export default function BulkImportPanel({
           const key = `${cat.name.trim().toLowerCase()}::${item.name.trim().toLowerCase()}`
           const existingMatch = existingItemByKey.get(key)
           if (existingMatch) {
-            updates.push({ id: existingMatch.id, price: item.price, description: item.description, is_veg: item.isVeg })
+            updates.push({ id: existingMatch.id, price: item.price, description: item.description, is_veg: item.isVeg, cost: item.cost })
           } else {
             const sort = nextSort.get(categoryId) ?? 0
             nextSort.set(categoryId, sort + 1)
@@ -137,6 +138,8 @@ export default function BulkImportPanel({
               category_id: categoryId,
               name: item.name,
               price: item.price,
+              // Optional — null leaves cost unset (cost_source defaults to 'manual').
+              cost: item.cost,
               description: item.description,
               is_veg: item.isVeg,
               sort,
@@ -152,7 +155,12 @@ export default function BulkImportPanel({
       if (updates.length) {
         const results = await Promise.all(
           updates.map((u) =>
-            supabase.from('menu_items').update({ price: u.price, description: u.description, is_veg: u.is_veg }).eq('id', u.id),
+            supabase
+              .from('menu_items')
+              // Only overwrite cost when the file actually supplied one — a
+              // re-import without a cost column must not blank existing costs.
+              .update({ price: u.price, description: u.description, is_veg: u.is_veg, ...(u.cost != null ? { cost: u.cost } : {}) })
+              .eq('id', u.id),
           ),
         )
         const failed = results.find((r) => r.error)

@@ -106,11 +106,20 @@ describe('route protection (live, unauthenticated)', () => {
 // These currently FAIL (the vulnerability is real); they are written now so
 // that fixing F-01/F-02 flips them green and they guard against regression.
 describe('open P1 findings (un-skip after remediation)', () => {
-  it.skip('F-02: anon cannot read cafes.owner_id / email / phone / gstin', async () => {
-    const { rows } = await anonRead('cafes', 'id,owner_id,email,phone,gstin')
-    for (const r of rows as Record<string, unknown>[]) {
-      expect(r.owner_id ?? null, 'owner_id exposed to anon').toBeNull()
-      expect(r.email ?? null, 'email exposed to anon').toBeNull()
+  // F-02 remediation (migration 0049) is live: anon may read only the public
+  // café columns, never owner_id / email / phone / gstin. Requesting them now
+  // fails with a column-privilege error instead of returning the values.
+  it('F-02: anon cannot read cafes.owner_id / email / phone / gstin', async () => {
+    const { status, rows } = await anonRead('cafes', 'id,owner_id,email,phone,gstin')
+    // Either the request is rejected (column privilege denied) or, if it somehow
+    // returns rows, those sensitive fields must be absent/null.
+    if (status < 400) {
+      for (const r of rows as Record<string, unknown>[]) {
+        expect(r.owner_id ?? null, 'owner_id exposed to anon').toBeNull()
+        expect(r.email ?? null, 'email exposed to anon').toBeNull()
+      }
+    } else {
+      expect(status).toBeGreaterThanOrEqual(400)
     }
   })
 

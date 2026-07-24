@@ -19,6 +19,8 @@ type ItemDraft = {
   description: string
   category_id: string | null
   price: string
+  cost: string
+  cost_source: 'manual' | 'recipe'
   image_url: string | null
   available: boolean
   is_veg: boolean | null
@@ -32,6 +34,8 @@ const emptyDraft: ItemDraft = {
   description: '',
   category_id: null,
   price: '',
+  cost: '',
+  cost_source: 'manual',
   image_url: null,
   available: true,
   is_veg: null,
@@ -43,14 +47,18 @@ const emptyDraft: ItemDraft = {
 export default function MenuManager({
   cafeId,
   cafeName,
+  role,
   initialCategories,
   initialItems,
 }: {
   cafeId: string
   cafeName: string
+  role: string
   initialCategories: MenuCategory[]
   initialItems: MenuItemRow[]
 }) {
+  // Estimated cost + contribution are owner/manager information (spec §6).
+  const canSeeCost = role === 'owner' || role === 'manager'
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -141,6 +149,20 @@ export default function MenuManager({
 
     setBusy(true)
     setError(null)
+    // Only owner/manager may set cost; for others omit the fields entirely so
+    // an update can never blank an existing cost.
+    const costPatch = canSeeCost
+      ? {
+          cost_source: draft.cost_source,
+          cost:
+            draft.cost_source === 'manual' && draft.cost.trim() !== ''
+              ? Math.max(0, Math.round(Number(draft.cost)))
+              : draft.cost_source === 'manual'
+                ? null
+                : undefined, // 'recipe' → leave the stored manual cost untouched
+        }
+      : {}
+
     const payload = {
       cafe_id: cafeId,
       category_id: draft.category_id,
@@ -151,6 +173,7 @@ export default function MenuManager({
       available: draft.available,
       is_veg: draft.is_veg,
       is_bestseller: draft.is_bestseller,
+      ...costPatch,
     }
 
     let itemId = draft.id
@@ -219,6 +242,8 @@ export default function MenuManager({
       description: item.description ?? '',
       category_id: item.category_id,
       price: String(item.price),
+      cost: item.cost != null ? String(item.cost) : '',
+      cost_source: item.cost_source ?? 'manual',
       image_url: item.image_url,
       available: item.available,
       is_veg: item.is_veg,
@@ -489,13 +514,74 @@ export default function MenuManager({
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
               <Input
-                label="Price (₹)"
+                label="Selling price (₹)"
                 type="number"
                 inputMode="numeric"
                 min={0}
                 value={draft.price}
                 onChange={(e) => setDraft({ ...draft, price: e.target.value })}
               />
+
+              {/* Pricing & Cost — owner/manager only. Contribution/margin update
+                  live and stay consistent when the price changes. */}
+              {canSeeCost && (
+                <div className="rounded-[var(--radius)] border border-border bg-surface-subtle p-3.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Pricing &amp; cost</p>
+                  <div className="mt-2 flex gap-1 rounded-[var(--radius)] bg-surface p-1">
+                    {(['manual', 'recipe'] as const).map((src) => (
+                      <button
+                        key={src}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, cost_source: src })}
+                        className={`flex-1 rounded-[var(--radius-sm)] py-1.5 text-[12.5px] font-medium transition-colors ${
+                          draft.cost_source === src ? 'bg-primary-subtle text-primary' : 'text-muted-foreground'
+                        }`}
+                      >
+                        {src === 'manual' ? 'Manual cost' : 'Recipe calculated'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {draft.cost_source === 'manual' ? (
+                    <div className="mt-3">
+                      <Input
+                        label="Estimated cost (₹)"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        value={draft.cost}
+                        onChange={(e) => setDraft({ ...draft, cost: e.target.value })}
+                        hint="What it costs you to make one. Used only in Profitability."
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-3 rounded-[var(--radius)] bg-surface px-3 py-2 text-[12.5px] text-muted-foreground">
+                      Cost is calculated from this item&apos;s recipe on the <span className="font-medium text-foreground">Recipes</span> page.
+                    </p>
+                  )}
+
+                  {(() => {
+                    const p = Number(draft.price) || 0
+                    const c = draft.cost_source === 'manual' ? Number(draft.cost) || 0 : null
+                    if (draft.cost_source !== 'manual' || draft.cost.trim() === '' || p <= 0) return null
+                    const contrib = p - (c ?? 0)
+                    const margin = p > 0 ? (contrib * 100) / p : 0
+                    return (
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                        <div className="rounded-[var(--radius)] bg-surface p-2">
+                          <p className="text-[11px] text-muted-foreground">Gross contribution</p>
+                          <p className={`text-[15px] font-semibold ${contrib < 0 ? 'text-destructive' : 'text-success'}`}>₹{contrib}</p>
+                        </div>
+                        <div className="rounded-[var(--radius)] bg-surface p-2">
+                          <p className="text-[11px] text-muted-foreground">Contribution margin</p>
+                          <p className={`text-[15px] font-semibold ${margin < 0 ? 'text-destructive' : 'text-foreground'}`}>{margin.toFixed(1)}%</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-medium text-foreground">Category</label>
                 <select

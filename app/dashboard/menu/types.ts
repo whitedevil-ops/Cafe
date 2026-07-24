@@ -19,4 +19,6 @@ export type MenuItemRow = {
   is_bestseller: boolean
   sort: number
   archived: boolean
+  cost: number | null
+  cost_source: 'manual' | 'recipe'
 }

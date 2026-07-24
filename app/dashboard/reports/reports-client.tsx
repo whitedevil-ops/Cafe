@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
+import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
 
 export type SalesReport = {
   summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number; net_profit: number }
@@ -42,12 +44,16 @@ function rangeFor(preset: Preset, timezone: string): { from: string; to: string 
 
 export default function ReportsClient({
   cafeId,
+  cafeName,
+  role,
   timezone,
   initialFrom,
   initialTo,
   initialReport,
 }: {
   cafeId: string
+  cafeName: string
+  role: string
   timezone: string
   initialFrom: string
   initialTo: string
@@ -55,6 +61,7 @@ export default function ReportsClient({
   todayStart: string
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const canSeeProfit = role === 'owner' || role === 'manager'
   const [preset, setPreset] = useState<Preset>('7d')
   const [customFrom, setCustomFrom] = useState(businessDayKey(initialFrom, timezone))
   const [customTo, setCustomTo] = useState(businessDayKey(initialTo, timezone))
@@ -90,6 +97,67 @@ export default function ReportsClient({
     void load(from, to)
   }
 
+  function activeRange(): { from: string; to: string } {
+    if (preset === 'custom' && customFrom && customTo) {
+      const from = businessDayStartISO(timezone, new Date(`${customFrom}T12:00:00Z`))
+      const to = businessDayStartISO(timezone, new Date(new Date(`${customTo}T12:00:00Z`).getTime() + 86400_000))
+      return { from, to }
+    }
+    return rangeFor(preset, timezone)
+  }
+
+  // Export the CURRENTLY loaded, filtered report to a real .xlsx — one sheet
+  // per breakdown, numeric cells for money/qty, user text guarded downstream.
+  function exportExcel() {
+    if (!report) return
+    const { from, to } = activeRange()
+    const r = report
+    const sheets: SheetSpec[] = [
+      {
+        name: 'Summary', title: 'Sales summary',
+        columns: [{ header: 'Metric', key: 'k', kind: 'text' }, { header: 'Value (₹)', key: 'v', kind: 'money' }],
+        rows: [
+          { k: 'Revenue (collected)', v: r.summary.revenue },
+          { k: 'Orders', v: r.summary.orders },
+          { k: 'Average order value', v: r.summary.aov },
+          { k: 'Discounts given', v: r.summary.discount },
+          { k: 'Tax collected', v: r.summary.tax },
+          { k: 'Refunded', v: r.summary.refunds },
+          { k: 'Expenses', v: r.summary.expenses },
+          { k: 'Net profit', v: r.summary.net_profit },
+        ],
+      },
+      {
+        name: 'Item sales', title: 'Item sales',
+        columns: [{ header: 'Item', key: 'name', kind: 'text' }, { header: 'Qty', key: 'qty', kind: 'qty' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        rows: r.top_items,
+      },
+      {
+        name: 'Category sales', title: 'Category sales',
+        columns: [{ header: 'Category', key: 'category', kind: 'text' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        rows: r.by_category,
+      },
+      {
+        name: 'Payments', title: 'Payments by method',
+        columns: [{ header: 'Method', key: 'method', kind: 'text' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        rows: r.by_payment_method.map((m) => ({ method: METHOD_LABEL[m.method] ?? m.method, revenue: m.revenue })),
+      },
+      {
+        name: 'By day', title: 'Revenue by day',
+        columns: [{ header: 'Date', key: 'date', kind: 'text' }, { header: 'Orders', key: 'orders', kind: 'qty' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        rows: r.by_day,
+      },
+    ]
+    if (r.by_staff.length) {
+      sheets.push({
+        name: 'By staff', title: 'Sales by staff',
+        columns: [{ header: 'Staff', key: 'staff_name', kind: 'text' }, { header: 'Orders', key: 'orders', kind: 'qty' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        rows: r.by_staff,
+      })
+    }
+    downloadReport({ cafeName, reportName: 'Sales', from, to }, sheets)
+  }
+
   const maxDayRevenue = Math.max(1, ...(report?.by_day.map((d) => d.revenue) ?? [0]))
 
   const presets: { key: Preset; label: string }[] = [
@@ -103,10 +171,24 @@ export default function ReportsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Money that actually settled in this range — unlike the dashboard&apos;s live count, unpaid orders aren&apos;t included.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Money that actually settled in this range — unlike the dashboard&apos;s live count, unpaid orders aren&apos;t included.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {canSeeProfit && (
+            <Link href="/dashboard/reports/profitability" className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium leading-10 text-foreground hover:bg-surface-subtle">
+              Profitability →
+            </Link>
+          )}
+          <button onClick={exportExcel} disabled={!report} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
+            Export Excel
+          </button>
+        </div>
+      </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {presets.map((p) => (
