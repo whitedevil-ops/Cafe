@@ -66,6 +66,7 @@ export default function MenuClient({
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [claimStatus, setClaimStatus] = useState<'idle' | 'claiming' | 'claimed'>('idle')
   const [utr, setUtr] = useState('')
+  const [isAndroid, setIsAndroid] = useState(false)
   const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
@@ -329,6 +330,26 @@ export default function MenuClient({
     setClaimStatus('claimed')
   }
 
+  // Detected after mount (navigator is undefined during SSR).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsAndroid(/android/i.test(navigator.userAgent))
+  }, [])
+
+  // A plain upi:// link opens the phone's DEFAULT UPI handler — which may be
+  // WhatsApp Pay, not the app the customer tapped. On Android we target the
+  // specific app by package via an intent:// URL so "PhonePe" opens PhonePe.
+  // Off Android (and for "Any UPI app") we fall back to the generic intent,
+  // and the QR always works regardless of app or in-app browser.
+  function payHref(pkg?: string): string {
+    if (!upiIntent) return '#'
+    if (isAndroid && pkg) {
+      const query = upiIntent.upi_uri.split('?')[1] ?? ''
+      return `intent://pay?${query}#Intent;scheme=upi;package=${pkg};end`
+    }
+    return upiIntent.upi_uri
+  }
+
   async function callWaiter() {
     setAssistBusy(true)
     const { error } = await supabase.rpc('call_waiter', { p_token: token })
@@ -382,15 +403,21 @@ export default function MenuClient({
               <p className="mt-0.5 text-3xl font-semibold text-foreground">₹{upiIntent.amount}</p>
             </div>
 
-            {/* Tapping any of these opens the phone's UPI app with the café's
-                ID and the exact amount already filled in. All resolve through
-                the standard upi:// intent so they work across UPI apps. */}
+            {/* Each button opens that specific UPI app (on Android) with the
+                café's ID and the exact amount pre-filled. */}
             <div className="space-y-2">
-              {['Google Pay', 'PhonePe', 'Other UPI app'].map((label) => (
+              {[
+                { label: 'Google Pay', pkg: 'com.google.android.apps.nbu.paisa.user' },
+                { label: 'PhonePe', pkg: 'com.phonepe.app' },
+                { label: 'Paytm', pkg: 'net.one97.paytm' },
+                { label: 'Any UPI app', pkg: undefined },
+              ].map(({ label, pkg }) => (
                 <a
                   key={label}
-                  href={upiIntent.upi_uri}
-                  className="flex w-full items-center justify-center rounded-[var(--radius)] bg-primary py-3.5 text-center font-medium text-primary-foreground"
+                  href={payHref(pkg)}
+                  className={`flex w-full items-center justify-center rounded-[var(--radius)] py-3.5 text-center font-medium ${
+                    pkg ? 'bg-primary text-primary-foreground' : 'border border-border-strong bg-surface text-foreground'
+                  }`}
                 >
                   {label}
                 </a>
@@ -399,9 +426,10 @@ export default function MenuClient({
 
             {(qrDataUrl || upiIntent.qr_url) && (
               <div className="flex flex-col items-center gap-2 border-t border-border pt-3">
-                <p className="text-[12px] text-muted-foreground">— or scan to pay —</p>
+                <p className="text-[12px] font-medium text-foreground">Opened the wrong app? Scan this instead</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={qrDataUrl ?? upiIntent.qr_url ?? ''} alt="Scan to pay by UPI" className="h-40 w-40 rounded-[var(--radius)] border border-border bg-white p-2" />
+                <img src={qrDataUrl ?? upiIntent.qr_url ?? ''} alt="Scan to pay by UPI" className="h-44 w-44 rounded-[var(--radius)] border border-border bg-white p-2" />
+                <p className="text-[11px] text-muted-foreground">Open any UPI app → Scan &amp; Pay → point it here. The amount is already set.</p>
               </div>
             )}
 
