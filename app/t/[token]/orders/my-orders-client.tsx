@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Receipt, RotateCcw, UserRound } from 'lucide-react'
+import { ArrowLeft, Receipt, RotateCcw } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatTime, isToday } from '@/lib/datetime'
-import { readCustomerSession, writeCustomerSession, clearCustomerSession, getOrCreateDeviceId } from '@/lib/customer-session'
+import { clearCustomerSession, type CustomerSession } from '@/lib/customer-session'
 import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
+import { CustomerLoginGate } from '@/components/qr/customer-login-gate'
 
 type HistoryItem = { name: string; qty: number; price: number; modifiers: { name: string }[] | null }
 type HistoryOrder = {
@@ -53,10 +54,6 @@ export default function MyOrdersClient({
   const router = useRouter()
 
   const [sessionToken, setSessionToken] = useState<string | null>(null)
-  const [checkedStorage, setCheckedStorage] = useState(false)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [history, setHistory] = useState<History | null>(null)
@@ -64,13 +61,9 @@ export default function MyOrdersClient({
   const [loading, setLoading] = useState(false)
   const [reordering, setReordering] = useState<string | null>(null)
 
-  useEffect(() => {
-    // One-time hydration from storage on mount, not an ongoing sync loop.
-    // Scoped by café (not table token) — see lib/customer-session.ts.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSessionToken(readCustomerSession(cafeId)?.token ?? null)
-    setCheckedStorage(true)
-  }, [cafeId])
+  function handleSessionReady(session: CustomerSession) {
+    setSessionToken(session.token)
+  }
 
   const loadHistory = useCallback(
     async (st: string, pageIndex: number) => {
@@ -105,23 +98,6 @@ export default function MyOrdersClient({
     return () => clearInterval(id)
   }, [sessionToken, hasActive, page, loadHistory])
 
-  async function startSession(e: React.FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    const { data, error: rpcError } = await supabase.rpc('customer_start_session', {
-      p_table_token: token,
-      p_phone: phone,
-      p_name: name,
-      p_device_id: getOrCreateDeviceId(),
-    })
-    setBusy(false)
-    if (rpcError) return setError(rpcError.message)
-    const st = (data as { session_token: string }).session_token
-    writeCustomerSession(cafeId, { token: st, name: name.trim(), phone })
-    setSessionToken(st)
-  }
-
   async function reorder(orderId: string) {
     if (!sessionToken) return
     setReordering(orderId)
@@ -142,8 +118,6 @@ export default function MyOrdersClient({
     clearCustomerSession(cafeId)
     setSessionToken(null)
     setHistory(null)
-    setPhone('')
-    setName('')
   }
 
   const header = (
@@ -165,55 +139,16 @@ export default function MyOrdersClient({
     </header>
   )
 
-  if (!checkedStorage) return <div className="min-h-dvh bg-background">{header}</div>
-
-  // ── Verification gate ────────────────────────────────────────────────────
+  // ── Login gate ───────────────────────────────────────────────────────────
   if (!sessionToken) {
     return (
-      <div className="min-h-dvh bg-background">
-        {header}
-        <main className="mx-auto w-full max-w-sm px-5 py-10">
-          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-primary-subtle text-primary">
-              <UserRound size={20} />
-            </span>
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-primary">Login</p>
-            <h2 className="mt-0.5 text-[17px] font-semibold text-foreground">Login to view your orders</h2>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              Enter your name and mobile number — required to see your orders at {cafeName}.
-            </p>
-
-            <form onSubmit={startSession} className="mt-5 space-y-3">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                autoComplete="name"
-                className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
-              />
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit mobile number"
-                inputMode="numeric"
-                autoComplete="tel"
-                className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
-              />
-              <button
-                type="submit"
-                disabled={busy || phone.length !== 10 || !name.trim()}
-                className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
-              >
-                {busy ? 'Logging in…' : 'Login'}
-              </button>
-            </form>
-
-            {error && (
-              <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>
-            )}
-          </div>
-        </main>
-      </div>
+      <CustomerLoginGate
+        token={token}
+        cafeId={cafeId}
+        cafeName={cafeName}
+        tableLabel={tableLabel}
+        onReady={handleSessionReady}
+      />
     )
   }
 

@@ -9,7 +9,8 @@ import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
 import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
-import { readCustomerSession, writeCustomerSession, getOrCreateDeviceId, type CustomerSession } from '@/lib/customer-session'
+import { getOrCreateDeviceId, type CustomerSession } from '@/lib/customer-session'
+import { CustomerLoginGate } from '@/components/qr/customer-login-gate'
 
 export type PublicItem = QrItem
 export type Variant = QrVariant
@@ -86,14 +87,10 @@ export default function MenuClient({
   const [search, setSearch] = useState('')
   const [activeCat, setActiveCat] = useState<string>('__all')
 
-  // Name + phone gate, shown before the menu whenever this table's token has
-  // no cached session yet — see customer_start_session (migration 0081).
+  // Login gate (name + phone + SMS OTP, trusted-device registration) shown
+  // whenever this café has no still-valid session on this device — see
+  // customer_verify_otp / customer_devices (migration 0088).
   const [session, setSession] = useState<CustomerSession | null>(null)
-  const [checkedSession, setCheckedSession] = useState(false)
-  const [gateName, setGateName] = useState('')
-  const [gatePhone, setGatePhone] = useState('')
-  const [gateBusy, setGateBusy] = useState(false)
-  const [gateError, setGateError] = useState<string | null>(null)
 
   const upsellShown = useRef(false)
   const upsellTaken = useRef<string | null>(null)
@@ -174,19 +171,6 @@ export default function MenuClient({
     }
   }, [token, items, variants, addons])
 
-  useEffect(() => {
-    // One-time hydration from storage on mount, not an ongoing sync loop.
-    // Scoped by café (not table token) — a returning customer on this same
-    // device is recognized regardless of which table they scan this time.
-    const existing = readCustomerSession(cafeId)
-    if (existing) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSession(existing)
-      setPhone(existing.phone)
-    }
-    setCheckedSession(true)
-  }, [cafeId])
-
   // Live kitchen status on the confirmation screen — same get_receipt call
   // the payment poller already uses, just also reading order.status.
   useEffect(() => {
@@ -203,23 +187,9 @@ export default function MenuClient({
     return () => { cancelled = true; clearInterval(id) }
   }, [step, placed, orderStatus, supabase])
 
-  async function startSession(e: React.FormEvent) {
-    e.preventDefault()
-    setGateBusy(true)
-    setGateError(null)
-    const { data, error: rpcError } = await supabase.rpc('customer_start_session', {
-      p_table_token: token,
-      p_phone: gatePhone,
-      p_name: gateName,
-      p_device_id: getOrCreateDeviceId(),
-    })
-    setGateBusy(false)
-    if (rpcError) return setGateError(rpcError.message)
-    const st = (data as { session_token: string }).session_token
-    const next = { token: st, name: gateName.trim(), phone: gatePhone }
-    writeCustomerSession(cafeId, next)
+  function handleSessionReady(next: CustomerSession) {
     setSession(next)
-    setPhone(gatePhone)
+    setPhone(next.phone)
   }
 
   const cats = useMemo(() => {
@@ -514,58 +484,19 @@ export default function MenuClient({
     setTimeout(() => setAssist(null), 4000)
   }
 
-  // ── Name + phone gate ────────────────────────────────────────────────────
-  // Shown before anything else on a table this browser hasn't started an
-  // order at yet. No OTP: phone + name are taken at face value, same as
-  // place_order already did for anonymous checkout — see customer_start_session.
-  if (!checkedSession) {
-    return <main className="min-h-dvh bg-background" />
-  }
-
+  // ── Login gate ───────────────────────────────────────────────────────────
+  // Name + phone + SMS OTP, with trusted-device registration server-side —
+  // see components/qr/customer-login-gate.tsx and migration 0088.
   if (!session) {
     return (
-      <main className="mx-auto flex w-full min-h-dvh max-w-sm flex-col justify-center px-6 py-10">
-        <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6">
-          {cafeLogo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={cafeLogo} alt="" className="mb-3 h-12 w-12 rounded-xl object-cover" />
-          )}
-          <p className="text-[12px] font-semibold uppercase tracking-wide text-primary">Login</p>
-          <h1 className="mt-0.5 text-[18px] font-semibold text-foreground">{cafeName}</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Table {tableLabel} — login with your name and mobile number to view the menu and order. This is required.</p>
-          <form onSubmit={startSession} className="mt-5 space-y-3">
-            <input
-              value={gateName}
-              onChange={(e) => setGateName(e.target.value)}
-              placeholder="Your name"
-              autoComplete="name"
-              autoFocus
-              className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
-            />
-            <div className="flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
-              <span className="pl-4 pr-2 text-muted-foreground">+91</span>
-              <input
-                value={gatePhone}
-                onChange={(e) => setGatePhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="98765 43210"
-                inputMode="numeric"
-                autoComplete="tel"
-                className="h-12 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={gateBusy || gateName.trim().length === 0 || gatePhone.length !== 10}
-              className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
-            >
-              {gateBusy ? 'Logging in…' : 'Login'}
-            </button>
-            {gateError && (
-              <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{gateError}</p>
-            )}
-          </form>
-        </div>
-      </main>
+      <CustomerLoginGate
+        token={token}
+        cafeId={cafeId}
+        cafeName={cafeName}
+        cafeLogo={cafeLogo}
+        tableLabel={tableLabel}
+        onReady={handleSessionReady}
+      />
     )
   }
 

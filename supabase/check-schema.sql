@@ -341,7 +341,11 @@ with expected(kind, name, fix) as (values
   ('function', 'create_staff_member',                 '0085'),
   -- device-scoped customer identity (0087)
   ('column',   'customer_sessions.device_id',          '0087'),
-  ('column',   'orders.device_id',                     '0087')
+  ('column',   'orders.device_id',                     '0087'),
+  -- trusted-device registration, OTP required again (0088)
+  ('table',    'customer_devices',                     '0088'),
+  ('column',   'customer_sessions.device_row_id',       '0088'),
+  ('function', 'customer_session_status',              '0088')
 )
 select
   e.kind,
