@@ -708,7 +708,7 @@ export default function PosClient({
               </button>
             </div>
             <div className="max-h-[calc(90dvh-49px)] overflow-y-auto">
-              <CartPanel {...cartProps} />
+              <CartPanel {...cartProps} flat />
             </div>
           </div>
         </div>
