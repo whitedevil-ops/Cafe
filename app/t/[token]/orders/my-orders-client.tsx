@@ -172,9 +172,10 @@ export default function MyOrdersClient({
             <span className="grid h-10 w-10 place-items-center rounded-full bg-primary-subtle text-primary">
               <UserRound size={20} />
             </span>
-            <h2 className="mt-3 text-[17px] font-semibold text-foreground">Your name and number</h2>
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-primary">Login</p>
+            <h2 className="mt-0.5 text-[17px] font-semibold text-foreground">Login to view your orders</h2>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              So we can show your orders here at {cafeName}.
+              Enter your name and mobile number — required to see your orders at {cafeName}.
             </p>
 
             <form onSubmit={startSession} className="mt-5 space-y-3">
@@ -198,7 +199,7 @@ export default function MyOrdersClient({
                 disabled={busy || phone.length !== 10 || !name.trim()}
                 className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
               >
-                {busy ? 'Continuing…' : 'View my orders'}
+                {busy ? 'Logging in…' : 'Login'}
               </button>
             </form>
 

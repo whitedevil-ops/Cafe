@@ -536,8 +536,9 @@ export default function MenuClient({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={cafeLogo} alt="" className="mb-3 h-12 w-12 rounded-xl object-cover" />
           )}
-          <h1 className="text-[18px] font-semibold text-foreground">{cafeName}</h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">Table {tableLabel} — tell us your name and number to start ordering.</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-primary">Login</p>
+          <h1 className="mt-0.5 text-[18px] font-semibold text-foreground">{cafeName}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">Table {tableLabel} — login with your name and mobile number to view the menu and order. This is required.</p>
           <form onSubmit={startSession} className="mt-5 space-y-3">
             <input
               value={gateName}
@@ -563,7 +564,7 @@ export default function MenuClient({
               disabled={gateBusy || gateName.trim().length === 0 || gatePhone.length !== 10}
               className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
             >
-              {gateBusy ? 'Starting…' : 'Start ordering'}
+              {gateBusy ? 'Logging in…' : 'Login'}
             </button>
             {gateError && (
               <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{gateError}</p>
