@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import BulkImportPanel from './bulk-import-panel'
+import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
 type VariantDraft = { id?: string; name: string; price_delta: string }
@@ -119,6 +120,34 @@ export default function MenuManager({
     setRefreshingStats(false)
     if (err) return toast(err.message, 'error')
     toast('Recommendation stats refreshed from recent orders.')
+  }
+
+  // Fills in sensible defaults from category names (Burgers → drinks, Coffee →
+  // desserts, ...) — the same heuristic bulk-import already offers, just
+  // runnable any time for a menu that's already set up. Only ADDS to what's
+  // there; never removes a pairing set manually, so it's always safe to run.
+  async function autoSuggestPairings() {
+    const grouped: Record<string, Set<string>> = {}
+    for (const catId of Object.keys(categoryPairs)) grouped[catId] = new Set(categoryPairs[catId])
+    for (const s of suggestCategoryPairings(categories)) {
+      if (!grouped[s.categoryId]) grouped[s.categoryId] = new Set(categoryPairs[s.categoryId] ?? [])
+      grouped[s.categoryId].add(s.suggestedCategoryId)
+    }
+    const toUpdate = Object.keys(grouped).filter((catId) => {
+      const existing = categoryPairs[catId] ?? []
+      return grouped[catId].size !== existing.length || [...grouped[catId]].some((id) => !existing.includes(id))
+    })
+    if (toUpdate.length === 0) {
+      toast('No new pairings to suggest for these category names.')
+      return
+    }
+    setSavingPairs(true)
+    for (const catId of toUpdate) {
+      await supabase.rpc('set_category_pairings', { p_cafe_id: cafeId, p_category_id: catId, p_suggested: [...grouped[catId]] })
+    }
+    setSavingPairs(false)
+    await loadCategoryPairs()
+    toast(`Added pairings for ${toUpdate.length} categor${toUpdate.length === 1 ? 'y' : 'ies'} — review and adjust below.`)
   }
 
   const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorised'
@@ -427,11 +456,16 @@ export default function MenuManager({
               only — the RPC re-checks this regardless of the UI. */}
           {canSeeCost && categories.length > 1 && (
             <div className="mt-5 border-t border-border pt-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-sm font-medium text-foreground">Category pairings</p>
-                <button onClick={refreshRecommendationStats} disabled={refreshingStats} className="text-[12px] font-medium text-primary hover:underline disabled:opacity-50">
-                  {refreshingStats ? 'Refreshing…' : 'Refresh sales-based ranking'}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={autoSuggestPairings} disabled={savingPairs} className="text-[12px] font-medium text-primary hover:underline disabled:opacity-50">
+                    {savingPairs ? 'Applying…' : 'Auto-suggest from category names'}
+                  </button>
+                  <button onClick={refreshRecommendationStats} disabled={refreshingStats} className="text-[12px] font-medium text-primary hover:underline disabled:opacity-50">
+                    {refreshingStats ? 'Refreshing…' : 'Refresh sales-based ranking'}
+                  </button>
+                </div>
               </div>
               <p className="mt-0.5 text-[12px] text-muted-foreground">Pick which category a category pairs well with (e.g. Pizza → Dips, Soft Drinks).</p>
               <div className="mt-2 flex flex-wrap gap-1.5">
