@@ -62,23 +62,60 @@ export default function SettingsClient({
 
   const [staff, setStaff] = useState(initialStaff)
   const [invites, setInvites] = useState(initialInvites)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<string>('waiter')
-  const [staffBusy, setStaffBusy] = useState(false)
   const [staffError, setStaffError] = useState<string | null>(null)
   const isAdmin = myRole === 'owner' || myRole === 'manager'
 
-  async function invite() {
-    const email = inviteEmail.trim().toLowerCase()
-    if (!email || !email.includes('@')) return setStaffError('Enter a valid email.')
-    setStaffBusy(true)
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newConfirmPassword, setNewConfirmPassword] = useState('')
+  const [newRole, setNewRole] = useState<string>('waiter')
+  const [createBusy, setCreateBusy] = useState(false)
+
+  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [resetPwValue, setResetPwValue] = useState('')
+  const [resetPwConfirm, setResetPwConfirm] = useState('')
+  const [resetBusy, setResetBusy] = useState(false)
+
+  async function createStaff() {
     setStaffError(null)
-    const { data, error } = await supabase
-      .rpc('create_staff_invite', { p_cafe_id: cafeId, p_email: email, p_role: inviteRole })
-    setStaffBusy(false)
-    if (error) return setStaffError(error.message)
-    setInvites((list) => [...list, data as StaffInvite])
-    setInviteEmail('')
+    if (!newName.trim()) return setStaffError('Enter their name.')
+    const email = newEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) return setStaffError('Enter a valid email.')
+    if (newPassword.length < 8) return setStaffError('Password must be at least 8 characters.')
+    if (newPassword !== newConfirmPassword) return setStaffError('Passwords do not match.')
+    setCreateBusy(true)
+    const res = await fetch('/api/staff/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        cafe_id: cafeId, full_name: newName.trim(), email,
+        password: newPassword, confirm_password: newConfirmPassword, role: newRole,
+      }),
+    })
+    const resBody = await res.json().catch(() => ({}))
+    setCreateBusy(false)
+    if (!res.ok) return setStaffError(resBody.error ?? 'Could not create account.')
+    setStaff((list) => [...list, { userId: resBody.member.userId, role: resBody.member.role, status: 'active', name: resBody.member.name, email: resBody.member.email }])
+    setNewName(''); setNewEmail(''); setNewPassword(''); setNewConfirmPassword(''); setNewRole('waiter')
+    toast(`${resBody.member.name} can now sign in.`)
+  }
+
+  async function submitPasswordReset(m: StaffMember) {
+    setStaffError(null)
+    if (resetPwValue.length < 8) return setStaffError('Password must be at least 8 characters.')
+    if (resetPwValue !== resetPwConfirm) return setStaffError('Passwords do not match.')
+    setResetBusy(true)
+    const res = await fetch('/api/staff/reset-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cafe_id: cafeId, user_id: m.userId, password: resetPwValue, confirm_password: resetPwConfirm }),
+    })
+    const resBody = await res.json().catch(() => ({}))
+    setResetBusy(false)
+    if (!res.ok) return setStaffError(resBody.error ?? 'Could not reset password.')
+    setResettingId(null); setResetPwValue(''); setResetPwConfirm('')
+    toast(`Password reset for ${m.name ?? m.email}.`)
   }
 
   async function removeInvite(id: string) {
@@ -183,34 +220,70 @@ export default function SettingsClient({
         <div className="mt-4 rounded-xl border border-border bg-surface p-4">
           <p className="text-sm font-medium text-foreground">Staff</p>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Add staff by email — this does not send them anything. Share the signup link
-            yourself (use &quot;Copy message&quot; below) with the exact email you entered here; once
-            they sign up with it, they join this café automatically with the role you set. They
-            create their own password — you never handle it.
+            Create a login for staff yourself — set their password below and tell them
+            directly. No email or message is sent. They can change their password after
+            signing in; you can reset it here any time.
           </p>
 
           <ul className="mt-4 divide-y divide-border">
             {staff.map((m) => (
-              <li key={m.userId} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-foreground">{m.name ?? m.email ?? '—'}</p>
-                  <p className="truncate text-[12px] text-muted-foreground">{m.email}</p>
+              <li key={m.userId} className="py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-foreground">{m.name ?? m.email ?? '—'}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">{m.email}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">
+                      {m.role}
+                    </span>
+                    {isAdmin && m.userId !== myUserId && m.role !== 'owner' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setResettingId(resettingId === m.userId ? null : m.userId)
+                            setResetPwValue(''); setResetPwConfirm(''); setStaffError(null)
+                          }}
+                          className="min-h-11 px-2 text-[13px] font-medium text-primary hover:underline"
+                        >
+                          {resettingId === m.userId ? 'Cancel' : 'Reset password'}
+                        </button>
+                        <button
+                          onClick={() => removeMember(m)}
+                          className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive"
+                        >
+                          Remove
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">
-                    {m.role}
-                  </span>
-                  {isAdmin && m.userId !== myUserId && m.role !== 'owner' && (
-                    <button
-                      onClick={() => removeMember(m)}
-                      className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
+                {resettingId === m.userId && (
+                  <div className="mt-2 flex flex-wrap gap-2 rounded-[var(--radius)] bg-surface-subtle p-3">
+                    <input
+                      type="password"
+                      value={resetPwValue}
+                      onChange={(e) => setResetPwValue(e.target.value)}
+                      placeholder="New password (min 8 characters)"
+                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                    />
+                    <input
+                      type="password"
+                      value={resetPwConfirm}
+                      onChange={(e) => setResetPwConfirm(e.target.value)}
+                      placeholder="Confirm"
+                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                    />
+                    <Button size="sm" onClick={() => submitPasswordReset(m)} loading={resetBusy}>Save</Button>
+                  </div>
+                )}
               </li>
             ))}
+            {invites.length > 0 && (
+              <li className="py-2 text-[11.5px] text-muted-foreground">
+                Older pending invites — the email-invite flow is retired, but these still work if that person signs up with the matching email.
+              </li>
+            )}
             {invites.map((iv) => (
               <li key={iv.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
@@ -243,25 +316,50 @@ export default function SettingsClient({
           </ul>
 
           {isAdmin && (
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-4">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="staff@email.com"
-                className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
-              />
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
-                aria-label="Role"
-                className="h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
-              >
-                {INVITE_ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <Button size="sm" onClick={invite} loading={staffBusy}>Invite</Button>
+            <div className="mt-3 space-y-2 border-t border-border pt-4">
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Full name"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="staff@email.com"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  aria-label="Role"
+                  className="h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
+                >
+                  {INVITE_ROLES.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Password (min 8 characters)"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+                <input
+                  type="password"
+                  value={newConfirmPassword}
+                  onChange={(e) => setNewConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+                <Button size="sm" onClick={createStaff} loading={createBusy}>Create login</Button>
+              </div>
             </div>
           )}
           {staffError && (

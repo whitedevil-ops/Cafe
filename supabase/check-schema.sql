@@ -336,7 +336,9 @@ with expected(kind, name, fix) as (values
   ('column',   'platform_plans.price_yearly',         '0083'),
   ('column',   'platform_plans.renewal_price_yearly', '0083'),
   -- QR ordering kill switch, anon-safe (0084)
-  ('function', 'public_cafe_ordering_enabled',        '0084')
+  ('function', 'public_cafe_ordering_enabled',        '0084'),
+  -- direct staff account creation, no email invite (0085)
+  ('function', 'create_staff_member',                 '0085')
 )
 select
   e.kind,

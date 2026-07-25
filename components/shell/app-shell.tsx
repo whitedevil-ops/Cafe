@@ -14,12 +14,16 @@ import type { CafeOption } from '@/lib/cafe'
 import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
 
-type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string }
+type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string }
 type NavGroup = { heading: string; items: NavItem[] }
 
 const ICON = 17
 
-function buildNav(cashEnabled: boolean): NavGroup[] {
+// Reports keeps no featureKey on purpose — its index and most sub-pages
+// (sales, items, payments, recommendations) are baseline for every plan;
+// only 4 of its sub-pages gate on 'advanced_reports', so hiding the whole
+// nav entry behind that key would wrongly hide the baseline reports too.
+function buildNav(cashEnabled: boolean, features: Record<string, boolean>): NavGroup[] {
   const overview: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={ICON} /> },
     { label: 'POS', href: '/dashboard/pos', icon: <ShoppingCart size={ICON} /> },
@@ -28,21 +32,21 @@ function buildNav(cashEnabled: boolean): NavGroup[] {
     ...(cashEnabled ? [{ label: 'Shift & cash', href: '/dashboard/shift', icon: <Banknote size={ICON} /> }] : []),
     { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} /> },
   ]
-  return [
+  const groups: NavGroup[] = [
     { heading: 'Operations', items: overview },
     {
       heading: 'Management',
       items: [
         { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} /> },
-        { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} /> },
-        { label: 'Feedback', href: '/dashboard/feedback', icon: <Star size={ICON} /> },
-        { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} /> },
-        { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} /> },
-        { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} /> },
-        { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} /> },
-        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} /> },
+        { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} />, featureKey: 'crm' },
+        { label: 'Feedback', href: '/dashboard/feedback', icon: <Star size={ICON} />, featureKey: 'feedback' },
+        { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} />, featureKey: 'inventory' },
+        { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} />, featureKey: 'inventory' },
+        { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} />, featureKey: 'inventory' },
+        { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} />, featureKey: 'coupons' },
+        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty' },
         { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} /> },
-        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} /> },
+        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses' },
       ],
     },
     {
@@ -55,6 +59,9 @@ function buildNav(cashEnabled: boolean): NavGroup[] {
       ],
     },
   ]
+  return groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.featureKey || features[i.featureKey]) }))
+    .filter((g) => g.items.length > 0)
 }
 
 // Longest matching href wins, so /dashboard/tables/manage highlights "QR codes"
@@ -73,6 +80,7 @@ export function AppShell({
   role,
   timezone,
   cashEnabled,
+  features,
   cafes,
   canAddCafe,
   userName,
@@ -83,13 +91,14 @@ export function AppShell({
   role: string
   timezone: string
   cashEnabled: boolean
+  features: Record<string, boolean>
   cafes: CafeOption[]
   canAddCafe: boolean
   userName: string
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const groups = useMemo(() => buildNav(cashEnabled), [cashEnabled])
+  const groups = useMemo(() => buildNav(cashEnabled, features), [cashEnabled, features])
   const active = activeHref(pathname, groups)
 
   const [collapsed, setCollapsed] = useState(false)
