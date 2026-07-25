@@ -275,7 +275,16 @@ with expected(kind, name, fix) as (values
   ('column',   'notifications.order_id',         '0066'),
   ('function', 'notification_target_roles',      '0066'),
   ('function', 'notify_low_stock',                '0066'),
-  ('function', 'flag_late_tickets',               '0066')
+  ('function', 'flag_late_tickets',               '0066'),
+  -- purchase & supplier management (0067)
+  ('table',    'suppliers',                      '0067'),
+  ('table',    'purchase_orders',                '0067'),
+  ('table',    'purchase_order_items',           '0067'),
+  ('function', 'create_supplier',                '0067'),
+  ('function', 'set_supplier_active',             '0067'),
+  ('function', 'create_purchase_order',          '0067'),
+  ('function', 'receive_purchase_order_items',    '0067'),
+  ('function', 'cancel_purchase_order',          '0067')
 )
 select
   e.kind,
