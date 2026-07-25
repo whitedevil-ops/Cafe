@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
+import { FeedbackForm } from '@/components/receipt/feedback-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -169,6 +170,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           Thank you for visiting!
         </p>
       </div>
+
+      <FeedbackForm token={token} />
     </main>
   )
 }
