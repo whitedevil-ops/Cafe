@@ -82,6 +82,14 @@ export default function FloorClient({
   const [items, setItems] = useState<Item[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [payingOrder, setPayingOrder] = useState<string | null>(null)
+  // Only one order/method can be mid-entry at a time — simplest model for a
+  // drawer that may show several orders at once. Defaults to the full due
+  // amount (today's one-tap behaviour still works unchanged), but is
+  // editable so staff can record a split — e.g. 20% cash now, the rest UPI
+  // right after — as two separate record_payment calls against the same
+  // order, exactly like an in-person split already works elsewhere.
+  const [entering, setEntering] = useState<{ orderId: string; method: 'cash' | 'card' | 'upi' } | null>(null)
+  const [amountInput, setAmountInput] = useState('')
   const [names, setNames] = useState<Record<string, string>>({})
   const [attention, setAttention] = useState<Set<string>>(new Set()) // table ids with unacked call_waiter
   const [selected, setSelected] = useState<string | null>(null)
@@ -307,16 +315,39 @@ export default function FloorClient({
     void poll()
   }
 
-  // Record a counter payment through the server RPC, which validates the
-  // amount against the order's real outstanding (rejecting overpayment) and
-  // writes the immutable, audited payment row for the full outstanding.
-  async function markPaid(o: SessionOrder, method: 'cash' | 'card' | 'upi') {
+  // Tapping a method no longer immediately books the full due amount — it
+  // opens an amount field pre-filled with it, so the common case (one tap,
+  // confirm) is unchanged in effort, but a partial/split amount is just as
+  // easy to enter.
+  function startPayment(o: SessionOrder, method: 'cash' | 'card' | 'upi') {
     const due = Math.max(0, o.total - (paidByOrder.get(o.id) ?? 0))
     if (due <= 0) return
+    setEntering({ orderId: o.id, method })
+    setAmountInput(String(due))
+  }
+
+  function cancelPayment() {
+    setEntering(null)
+    setAmountInput('')
+  }
+
+  // Record a counter payment through the server RPC, which validates the
+  // amount against the order's real outstanding (rejecting overpayment) and
+  // writes the immutable, audited payment row. A partial amount here simply
+  // leaves the order 'partial' — record_payment already computes that
+  // status itself; the same buttons reappear afterwards for the remainder.
+  async function confirmPayment(o: SessionOrder) {
+    if (!entering || entering.orderId !== o.id) return
+    const due = Math.max(0, o.total - (paidByOrder.get(o.id) ?? 0))
+    const amount = Math.round(Number(amountInput))
+    if (!amount || amount <= 0) return toast('Enter an amount greater than 0.', 'error')
+    if (amount > due) return toast(`Cannot exceed the ₹${due} due.`, 'error')
+
+    const method = entering.method
     setPayingOrder(o.id)
     const { error } = await supabase.rpc('record_payment', {
       p_order_id: o.id,
-      p_amount: due,
+      p_amount: amount,
       p_method: method,
       p_reference: null,
       p_source: 'manual',
@@ -324,7 +355,9 @@ export default function FloorClient({
     })
     setPayingOrder(null)
     if (error) return toast(error.message, 'error')
-    toast(`₹${due} recorded${method === 'upi' ? ' by UPI' : ''}.`)
+    toast(`₹${amount} recorded${method === 'upi' ? ' by UPI' : method === 'card' ? ' by card' : ' in cash'}.`)
+    setEntering(null)
+    setAmountInput('')
     void poll()
   }
 
@@ -752,15 +785,39 @@ export default function FloorClient({
                     <a href={`/r/${o.receipt_token}`} target="_blank" className="text-[13px] text-primary hover:underline">View bill →</a>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {!fullyPaid && (
+                    {!fullyPaid && entering?.orderId === o.id ? (
+                      <div className="flex w-full items-center gap-2">
+                        <span className="shrink-0 text-[12.5px] font-medium capitalize text-muted-foreground">{entering.method}</span>
+                        <span className="shrink-0 text-muted-foreground">₹</span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          autoFocus
+                          value={amountInput}
+                          onChange={(e) => setAmountInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && confirmPayment(o)}
+                          className="h-11 w-24 min-w-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                        />
+                        <button onClick={() => confirmPayment(o)} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground disabled:opacity-50">
+                          {busy ? 'Saving…' : `Confirm ₹${amountInput || 0}`}
+                        </button>
+                        <button onClick={cancelPayment} className="min-h-11 shrink-0 rounded-[var(--radius)] border border-border-strong px-3 text-[13px] font-medium text-muted-foreground hover:bg-surface-subtle">
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
                       <>
-                        <button onClick={() => markPaid(o, 'cash')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Cash</button>
-                        <button onClick={() => markPaid(o, 'card')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Card</button>
-                        <button onClick={() => markPaid(o, 'upi')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">UPI</button>
+                        {!fullyPaid && (
+                          <>
+                            <button onClick={() => startPayment(o, 'cash')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Cash</button>
+                            <button onClick={() => startPayment(o, 'card')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">Card</button>
+                            <button onClick={() => startPayment(o, 'upi')} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50">UPI</button>
+                          </>
+                        )}
+                        {NEXT[o.status] && (
+                          <button onClick={() => advance(o)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
+                        )}
                       </>
-                    )}
-                    {NEXT[o.status] && (
-                      <button onClick={() => advance(o)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground">{NEXT[o.status].label}</button>
                     )}
                   </div>
                   <div className="mt-2 flex gap-2">
