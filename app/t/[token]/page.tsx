@@ -54,6 +54,12 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
 
   return (
     <MenuClient
+      // Forces a full remount whenever the table token changes, so cart,
+      // order confirmation, and the session gate can never carry over from
+      // a previous table — without this React may reuse the component
+      // instance (same position in the tree) across a token change and
+      // keep its old state alive.
+      key={token}
       token={token}
       cafeId={table.cafe_id}
       cafeName={cafe.name}

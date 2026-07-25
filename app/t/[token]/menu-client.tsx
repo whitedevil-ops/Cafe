@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft } from 'lucide-react'
+import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft, Check } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
@@ -784,11 +784,27 @@ export default function MenuClient({
             <p className="text-[13px] text-muted-foreground">Table {tableLabel}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button onClick={callWaiter} disabled={assistBusy} aria-label="Call waiter" title="Call waiter" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-50">
-              <BellRing size={16} />
+            <button
+              onClick={callWaiter}
+              disabled={assistBusy}
+              aria-label="Call waiter"
+              title="Call waiter"
+              className={`grid h-10 w-10 place-items-center rounded-full border text-foreground transition-colors disabled:opacity-50 ${
+                assist === 'waiter' ? 'border-success bg-success-subtle text-success' : 'border-border-strong'
+              }`}
+            >
+              {assist === 'waiter' ? <Check size={16} /> : <BellRing size={16} />}
             </button>
-            <button onClick={requestBill} disabled={assistBusy} aria-label="Request bill" title="Request bill" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-50">
-              <ReceiptText size={16} />
+            <button
+              onClick={requestBill}
+              disabled={assistBusy}
+              aria-label="Request bill"
+              title="Request bill"
+              className={`grid h-10 w-10 place-items-center rounded-full border text-foreground transition-colors disabled:opacity-50 ${
+                assist === 'bill' ? 'border-success bg-success-subtle text-success' : 'border-border-strong'
+              }`}
+            >
+              {assist === 'bill' ? <Check size={16} /> : <ReceiptText size={16} />}
             </button>
             <Link href={`/t/${token}/orders`} aria-label="My orders" title="My orders" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground">
               <ClipboardList size={16} />

@@ -87,6 +87,13 @@ export default function SettingsClient({
     setInvites((list) => list.filter((i) => i.id !== id))
   }
 
+  async function copyInviteMessage(iv: StaffInvite) {
+    const signupUrl = `${window.location.origin}/signup`
+    const message = `You've been invited to join ${form.name || 'our café'} on KhaoPiyo as a ${iv.role}. Sign up here using this exact email address (${iv.email}): ${signupUrl}`
+    await navigator.clipboard.writeText(message)
+    toast('Invite message copied — paste it into WhatsApp, SMS, or email.')
+  }
+
   async function removeMember(m: StaffMember) {
     const label = m.name ?? m.email ?? 'this member'
     const ok = await confirm({
@@ -176,9 +183,10 @@ export default function SettingsClient({
         <div className="mt-4 rounded-xl border border-border bg-surface p-4">
           <p className="text-sm font-medium text-foreground">Staff</p>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Invite staff by email. When they sign up (or log in) with that email, they join this
-            café automatically with the role you set. They create their own password — you never
-            handle it.
+            Add staff by email — this does not send them anything. Share the signup link
+            yourself (use &quot;Copy message&quot; below) with the exact email you entered here; once
+            they sign up with it, they join this café automatically with the role you set. They
+            create their own password — you never handle it.
           </p>
 
           <ul className="mt-4 divide-y divide-border">
@@ -213,6 +221,14 @@ export default function SettingsClient({
                   <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">
                     {iv.role}
                   </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => copyInviteMessage(iv)}
+                      className="min-h-11 px-2 text-[13px] font-medium text-primary hover:underline"
+                    >
+                      Copy message
+                    </button>
+                  )}
                   {isAdmin && (
                     <button
                       onClick={() => removeInvite(iv.id)}
