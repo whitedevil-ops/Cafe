@@ -11,7 +11,7 @@ export default async function MyOrdersPage({ params }: { params: Promise<{ token
 
   const { data: table } = await supabase
     .from('cafe_tables')
-    .select('label, cafes(name, timezone)')
+    .select('label, cafe_id, cafes(name, timezone)')
     .eq('token', token)
     .maybeSingle()
   if (!table) notFound()
@@ -21,6 +21,7 @@ export default async function MyOrdersPage({ params }: { params: Promise<{ token
   return (
     <MyOrdersClient
       token={token}
+      cafeId={table.cafe_id}
       cafeName={cafe?.name ?? 'Café'}
       tableLabel={table.label}
       timezone={cafe?.timezone ?? DEFAULT_TIMEZONE}

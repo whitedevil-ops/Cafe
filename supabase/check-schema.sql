@@ -338,7 +338,10 @@ with expected(kind, name, fix) as (values
   -- QR ordering kill switch, anon-safe (0084)
   ('function', 'public_cafe_ordering_enabled',        '0084'),
   -- direct staff account creation, no email invite (0085)
-  ('function', 'create_staff_member',                 '0085')
+  ('function', 'create_staff_member',                 '0085'),
+  -- device-scoped customer identity (0087)
+  ('column',   'customer_sessions.device_id',          '0087'),
+  ('column',   'orders.device_id',                     '0087')
 )
 select
   e.kind,

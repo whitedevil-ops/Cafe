@@ -9,7 +9,7 @@ import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
 import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
-import { readCustomerSession, writeCustomerSession, type CustomerSession } from '@/lib/customer-session'
+import { readCustomerSession, writeCustomerSession, getOrCreateDeviceId, type CustomerSession } from '@/lib/customer-session'
 
 export type PublicItem = QrItem
 export type Variant = QrVariant
@@ -176,14 +176,16 @@ export default function MenuClient({
 
   useEffect(() => {
     // One-time hydration from storage on mount, not an ongoing sync loop.
-    const existing = readCustomerSession(token)
+    // Scoped by café (not table token) — a returning customer on this same
+    // device is recognized regardless of which table they scan this time.
+    const existing = readCustomerSession(cafeId)
     if (existing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSession(existing)
       setPhone(existing.phone)
     }
     setCheckedSession(true)
-  }, [token])
+  }, [cafeId])
 
   // Live kitchen status on the confirmation screen — same get_receipt call
   // the payment poller already uses, just also reading order.status.
@@ -209,12 +211,13 @@ export default function MenuClient({
       p_table_token: token,
       p_phone: gatePhone,
       p_name: gateName,
+      p_device_id: getOrCreateDeviceId(),
     })
     setGateBusy(false)
     if (rpcError) return setGateError(rpcError.message)
     const st = (data as { session_token: string }).session_token
     const next = { token: st, name: gateName.trim(), phone: gatePhone }
-    writeCustomerSession(token, next)
+    writeCustomerSession(cafeId, next)
     setSession(next)
     setPhone(gatePhone)
   }
@@ -415,6 +418,7 @@ export default function MenuClient({
       p_upsell_shown: upsellShown.current,
       p_client_request_id: requestId.current,
       p_coupon_code: appliedCoupon?.code ?? null,
+      p_device_id: getOrCreateDeviceId(),
     })
     if (error) { setPlacing(false); return setError(error.message) }
     requestId.current = null

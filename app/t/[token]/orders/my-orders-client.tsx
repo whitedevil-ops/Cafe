@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Receipt, RotateCcw, UserRound } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatTime, isToday } from '@/lib/datetime'
-import { readCustomerSession, writeCustomerSession, clearCustomerSession } from '@/lib/customer-session'
+import { readCustomerSession, writeCustomerSession, clearCustomerSession, getOrCreateDeviceId } from '@/lib/customer-session'
 import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
 
 type HistoryItem = { name: string; qty: number; price: number; modifiers: { name: string }[] | null }
@@ -38,11 +38,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function MyOrdersClient({
   token,
+  cafeId,
   cafeName,
   tableLabel,
   timezone,
 }: {
   token: string
+  cafeId: string
   cafeName: string
   tableLabel: string
   timezone: string
@@ -64,10 +66,11 @@ export default function MyOrdersClient({
 
   useEffect(() => {
     // One-time hydration from storage on mount, not an ongoing sync loop.
+    // Scoped by café (not table token) — see lib/customer-session.ts.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSessionToken(readCustomerSession(token)?.token ?? null)
+    setSessionToken(readCustomerSession(cafeId)?.token ?? null)
     setCheckedStorage(true)
-  }, [token])
+  }, [cafeId])
 
   const loadHistory = useCallback(
     async (st: string, pageIndex: number) => {
@@ -80,14 +83,14 @@ export default function MyOrdersClient({
       setLoading(false)
       if (rpcError) {
         // Expired/revoked session — drop it and fall back to the gate.
-        clearCustomerSession(token)
+        clearCustomerSession(cafeId)
         setSessionToken(null)
         setError(rpcError.message)
         return
       }
       setHistory(data as History)
     },
-    [supabase, token],
+    [supabase, cafeId],
   )
 
   useEffect(() => {
@@ -110,11 +113,12 @@ export default function MyOrdersClient({
       p_table_token: token,
       p_phone: phone,
       p_name: name,
+      p_device_id: getOrCreateDeviceId(),
     })
     setBusy(false)
     if (rpcError) return setError(rpcError.message)
     const st = (data as { session_token: string }).session_token
-    writeCustomerSession(token, { token: st, name: name.trim(), phone })
+    writeCustomerSession(cafeId, { token: st, name: name.trim(), phone })
     setSessionToken(st)
   }
 
@@ -135,7 +139,7 @@ export default function MyOrdersClient({
   }
 
   function signOut() {
-    clearCustomerSession(token)
+    clearCustomerSession(cafeId)
     setSessionToken(null)
     setHistory(null)
     setPhone('')
