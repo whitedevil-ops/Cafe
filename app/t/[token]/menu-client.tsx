@@ -72,10 +72,12 @@ export default function MenuClient({
   const [phone, setPhone] = useState('')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter'; receiptToken: string | null; paid?: boolean } | null>(null)
+  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter' | 'wallet'; receiptToken: string | null; paid?: boolean } | null>(null)
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [onlineError, setOnlineError] = useState<string | null>(null)
   const [verifyingPayment, setVerifyingPayment] = useState(false)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [walletError, setWalletError] = useState<string | null>(null)
   const [couponCode, setCouponCode] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
@@ -191,6 +193,19 @@ export default function MenuClient({
     setSession(next)
     setPhone(next.phone)
   }
+
+  // Balance is fetched once a session exists — shown as a payment option at
+  // checkout only when it covers the total, so a customer never sees a "Pay
+  // from wallet" button they can't actually use.
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    void (async () => {
+      const { data } = await supabase.rpc('customer_wallet_state', { p_session_token: session.token })
+      if (!cancelled && data) setWalletBalance((data as { balance: number }).balance)
+    })()
+    return () => { cancelled = true }
+  }, [session, supabase])
 
   const cats = useMemo(() => {
     const withItems = categories.filter((c) => items.some((i) => i.category_id === c.id))
@@ -359,10 +374,11 @@ export default function MenuClient({
   }
 
   // Places the order (always UNPAID) then routes to payment. 'online' hands
-  // off to the verified online-payment provider; 'counter' means the customer
-  // pays staff, who record it. The total is always the SERVER's, never this
-  // browser's.
-  async function place(mode: 'online' | 'counter') {
+  // off to the verified online-payment provider; 'wallet' deducts from the
+  // customer's own balance right after creation; 'counter' means the
+  // customer pays staff, who record it. The total is always the SERVER's,
+  // never this browser's.
+  async function place(mode: 'online' | 'counter' | 'wallet') {
     if (!PHONE_RE.test(phone)) {
       setError('Enter a valid 10-digit mobile number — we send your bill there.')
       return
@@ -370,6 +386,7 @@ export default function MenuClient({
     setPlacing(true)
     setError(null)
     setOnlineError(null)
+    setWalletError(null)
     // Reused across a manual retry after a failed attempt so the server can
     // recognize a replay instead of billing a second order (migration 0056).
     if (!requestId.current) requestId.current = crypto.randomUUID()
@@ -402,8 +419,27 @@ export default function MenuClient({
 
     if (mode === 'online' && r.receipt_token) {
       await startOnlinePayment(r.receipt_token)
+    } else if (mode === 'wallet' && r.receipt_token && session) {
+      await payFromWallet(session.token, r.receipt_token)
     }
     setPlacing(false)
+  }
+
+  // The order already exists (unpaid) by the time this runs — a failure here
+  // (e.g. a concurrent spend dropped the balance below the total) leaves it
+  // exactly where 'counter' orders already sit: unpaid, payable at the
+  // counter. Nothing here can double-charge or leave the order in limbo.
+  async function payFromWallet(sessionToken: string, receiptToken: string) {
+    const { data, error: rpcError } = await supabase.rpc('wallet_pay_order', {
+      p_session_token: sessionToken, p_receipt_token: receiptToken,
+    })
+    if (rpcError) {
+      setWalletError(rpcError.message)
+      return
+    }
+    const r = data as { new_balance: number }
+    setWalletBalance(r.new_balance)
+    setPlaced((p) => (p ? { ...p, paid: true } : p))
   }
 
   // Server creates the provider order with ITS amount and returns the
@@ -529,7 +565,16 @@ export default function MenuClient({
             View your bill →
           </a>
         )}
-        {placed.method === 'online' && placed.paid ? (
+        {placed.method === 'wallet' && placed.paid ? (
+          <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Paid from your wallet — thank you!</p>
+        ) : placed.method === 'wallet' && walletError ? (
+          <div className="w-full space-y-2 text-center">
+            <p className="rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[13px] text-warning">{walletError}</p>
+            <p className="text-[13px] text-muted-foreground">Please pay ₹{placed.total} at the counter.</p>
+          </div>
+        ) : placed.method === 'wallet' ? (
+          <p className="text-[13px] text-muted-foreground">Charging your wallet…</p>
+        ) : placed.method === 'online' && placed.paid ? (
           <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Payment received — thank you!</p>
         ) : placed.method === 'online' && verifyingPayment ? (
           <p className="text-[13px] text-muted-foreground">Confirming your payment…</p>
@@ -677,6 +722,11 @@ export default function MenuClient({
           {/* Pay online is shown only when the café has a verified online-
               payment provider connected. Otherwise the customer pays at the
               counter — always a first-class option. */}
+          {walletBalance !== null && walletBalance >= payable && payable > 0 && (
+            <button disabled={placing || count === 0} onClick={() => place('wallet')} className="w-full rounded-[var(--radius)] border border-primary bg-primary-subtle py-4 font-medium text-primary disabled:opacity-40">
+              {placing ? 'Placing…' : `Pay from wallet · ₹${payable} (balance ₹${walletBalance})`}
+            </button>
+          )}
           {onlinePaymentsEnabled && (
             <button disabled={placing || count === 0} onClick={() => place('online')} className="w-full rounded-[var(--radius)] bg-primary py-4 font-medium text-primary-foreground disabled:opacity-40">
               {placing ? 'Placing…' : `Pay online · ₹${payable}`}

@@ -3,17 +3,18 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UtensilsCrossed, ClipboardList, Receipt, Check } from 'lucide-react'
+import { UtensilsCrossed, ClipboardList, Receipt, Check, PiggyBank } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
 // Persistent mobile bottom nav for the customer-facing QR flow: Menu, Orders,
-// Pay bill. Self-contained — owns its own supabase client and the
+// Wallet, Pay bill. Self-contained — owns its own supabase client and the
 // request_bill call — so it can be dropped into any screen with just a
 // table token, no state wiring from the parent page.
 export function CustomerFooterNav({ token }: { token: string }) {
   const pathname = usePathname()
   const onMenu = pathname === `/t/${token}`
   const onOrders = pathname.startsWith(`/t/${token}/orders`)
+  const onWallet = pathname.startsWith(`/t/${token}/wallet`)
 
   const [busy, setBusy] = useState(false)
   const [requested, setRequested] = useState(false)
@@ -48,6 +49,15 @@ export function CustomerFooterNav({ token }: { token: string }) {
         >
           <ClipboardList size={20} />
           Orders
+        </Link>
+        <Link
+          href={`/t/${token}/wallet`}
+          className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
+            onWallet ? 'text-primary' : 'text-muted-foreground'
+          }`}
+        >
+          <PiggyBank size={20} />
+          Wallet
         </Link>
         <button
           onClick={payBill}
