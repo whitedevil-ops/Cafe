@@ -694,6 +694,19 @@ export default function MenuClient({
           )}
         </div>
       </main>
+      {/* Tapping "+ Add" on a "Complete your order" recommendation that has
+          variants/add-ons calls setDetail (same as a menu card) — this must
+          be rendered here too, not just on the menu screen, or the sheet
+          state changes with nothing on screen to show it. */}
+      {detail && (
+        <ItemSheet
+          item={detail}
+          variants={variantsByItem.get(detail.id) ?? []}
+          addons={addonsByItem.get(detail.id) ?? []}
+          onClose={() => setDetail(null)}
+          onAdd={(args) => confirmDetail(detail, args)}
+        />
+      )}
       <CustomerFooterNav token={token} />
       </>
     )
