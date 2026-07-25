@@ -284,7 +284,11 @@ with expected(kind, name, fix) as (values
   ('function', 'set_supplier_active',             '0067'),
   ('function', 'create_purchase_order',          '0067'),
   ('function', 'receive_purchase_order_items',    '0067'),
-  ('function', 'cancel_purchase_order',          '0067')
+  ('function', 'cancel_purchase_order',          '0067'),
+  -- feedback app (0068)
+  ('table',    'feedback',                       '0068'),
+  ('function', 'submit_feedback',                '0068'),
+  ('function', 'feedback_summary',               '0068')
 )
 select
   e.kind,
