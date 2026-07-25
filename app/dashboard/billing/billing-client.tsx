@@ -13,10 +13,12 @@ export type BillingState = {
   plan: string
   plan_name: string | null
   price_monthly: number | null
+  price_yearly: number | null
+  renewal_price_yearly: number | null
   billing_status: string
   subscription_ends_at: string | null
   status: string
-  plans: { key: string; name: string; price_monthly: number; available: boolean }[]
+  plans: { key: string; name: string; price_monthly: number; price_yearly: number | null; renewal_price_yearly: number | null; available: boolean }[]
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -138,9 +140,20 @@ export default function BillingClient({
                 return (
                   <Card key={p.key} className={current ? 'border-primary' : ''}>
                     <h3 className="text-[15px] font-semibold text-foreground">{p.name}</h3>
-                    <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-                      ₹{p.price_monthly.toLocaleString('en-IN')}<span className="text-[13px] font-normal text-muted-foreground">/mo</span>
-                    </p>
+                    {p.price_yearly ? (
+                      <>
+                        <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+                          ₹{p.price_yearly.toLocaleString('en-IN')}<span className="text-[13px] font-normal text-muted-foreground">/yr</span>
+                        </p>
+                        {p.renewal_price_yearly && (
+                          <p className="mt-0.5 text-[12px] text-muted-foreground">
+                            Renews at ₹{p.renewal_price_yearly.toLocaleString('en-IN')}/yr
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Free</p>
+                    )}
                     {current ? (
                       <p className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary"><Check size={14} /> Current plan</p>
                     ) : (
