@@ -53,13 +53,46 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
 
   let event: {
     event?: string
-    payload?: { payment?: { entity?: { id?: string; order_id?: string; amount?: number } } }
+    payload?: { payment?: { entity?: { id?: string; order_id?: string; amount?: number; error_description?: string } } }
   }
   try {
     event = JSON.parse(raw)
   } catch {
     return NextResponse.json({ error: 'bad payload' }, { status: 400 })
   }
+
+  // A failed attempt previously vanished silently — staff had no visibility
+  // that a customer's online payment didn't go through. Surface it, but
+  // never let a payments-table write depend on this notification succeeding.
+  if (event.event === 'payment.failed') {
+    const fp = event.payload?.payment?.entity
+    if (fp?.order_id) {
+      const { data: failedAttempt } = await admin
+        .from('payment_attempts')
+        .select('id, order_id')
+        .eq('provider_order_id', fp.order_id)
+        .eq('cafe_id', cafe.id)
+        .maybeSingle()
+      if (failedAttempt) {
+        await admin.from('payment_attempts').update({ status: 'failed' }).eq('id', failedAttempt.id)
+        const { data: order } = await admin
+          .from('orders')
+          .select('short_code, table_id, session_id')
+          .eq('id', failedAttempt.order_id)
+          .maybeSingle()
+        await admin.from('notifications').insert({
+          cafe_id: cafe.id,
+          type: 'payment_failed',
+          message: `Online payment failed for order #${order?.short_code ?? ''}${fp.error_description ? ` — ${fp.error_description}` : ''}`,
+          table_id: order?.table_id ?? null,
+          session_id: order?.session_id ?? null,
+          order_id: failedAttempt.order_id,
+        })
+      }
+    }
+    return NextResponse.json({ ok: true, handled: 'payment.failed' })
+  }
+
   if (event.event !== 'payment.captured') {
     return NextResponse.json({ ok: true, ignored: event.event })
   }

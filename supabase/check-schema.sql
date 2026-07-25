@@ -270,7 +270,12 @@ with expected(kind, name, fix) as (values
   ('function', 'redeem_reward',                  '0064'),
   ('function', 'adjust_loyalty_points',          '0064'),
   ('function', 'create_reward',                  '0064'),
-  ('function', 'set_reward_active',              '0064')
+  ('function', 'set_reward_active',              '0064'),
+  -- notification centre (0066)
+  ('column',   'notifications.order_id',         '0066'),
+  ('function', 'notification_target_roles',      '0066'),
+  ('function', 'notify_low_stock',                '0066'),
+  ('function', 'flag_late_tickets',               '0066')
 )
 select
   e.kind,
