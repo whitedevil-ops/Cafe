@@ -133,7 +133,7 @@ const docs: Record<string, Doc> = {
       { h: 'Intellectual property', p: ['The software, interface, and brand remain ours. Nothing here transfers ownership of them.'] },
       { h: 'Suspension and termination', p: ['We may suspend an account for non-payment, unlawful use, or activity that threatens the security or integrity of the service. A café may stop using the service at any time.'] },
       { h: 'Warranties and liability', p: ['The service is provided "as is" to the maximum extent permitted by law. Limits and exclusions of liability must be set out in a form that is enforceable in the applicable jurisdiction — this section is expressly flagged for legal review.'] },
-      { h: 'Governing law', p: ['Governing law and jurisdiction are to be confirmed in the final executed terms.'] },
+      { h: 'Governing law', p: ['These terms are governed by the laws of India. Subject to applicable consumer-protection law, courts in Haryana have exclusive jurisdiction over any dispute arising from them.'] },
       { h: 'Contact', p: [`Questions about these terms: ${CONTACT_EMAIL}`] },
     ],
     review: 'These terms are a good-faith description of how the product actually works. They are NOT a substitute for legal advice. Liability limitation, indemnity, warranty disclaimers, governing law, and consumer-law compliance must be drafted or reviewed by a qualified Indian lawyer before the product is sold commercially.',
