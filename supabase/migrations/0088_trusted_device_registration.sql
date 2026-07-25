@@ -221,16 +221,22 @@ select
   os.last_visit,
   f.favourite_item,
   coalesce(lb.balance, 0)           as loyalty_points,
-  exists(
-    select 1 from customer_devices cd
-    where cd.cafe_id = c.cafe_id and cd.customer_id = c.id and cd.status = 'active'
-  )                                 as has_trusted_device,
   case
     when coalesce(os.visits, 0) >= 2 and os.last_visit < now() - interval '30 days' then 'at_risk'
     when coalesce(os.visits, 0) >= 3 and coalesce(sr.spend_pctile, 0) >= 0.9 then 'vip'
     when coalesce(os.visits, 0) <= 1 then 'new'
     else 'regular'
-  end as segment
+  end as segment,
+  -- Appended at the end, not inserted earlier — CREATE OR REPLACE VIEW
+  -- requires every pre-existing column to keep its name AND position;
+  -- Postgres reads a column inserted mid-list as a rename of whatever was
+  -- there before (this is exactly what failed on the first run of this
+  -- migration: "cannot change name of view column segment to
+  -- has_trusted_device"). New columns can only ever be added at the end.
+  exists(
+    select 1 from customer_devices cd
+    where cd.cafe_id = c.cafe_id and cd.customer_id = c.id and cd.status = 'active'
+  )                                 as has_trusted_device
 from customers c
 left join order_stats os on os.cafe_id = c.cafe_id and os.customer_id = c.id
 left join favourite    f on f.cafe_id = c.cafe_id and f.customer_id = c.id
