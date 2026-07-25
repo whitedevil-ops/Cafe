@@ -305,7 +305,9 @@ with expected(kind, name, fix) as (values
   -- menu RBAC (0075)
   ('function', 'set_menu_item_availability',     '0075'),
   -- OTP IP-side throttle (0076)
-  ('table',    'otp_ip_attempts',                '0076')
+  ('table',    'otp_ip_attempts',                '0076'),
+  -- POS coupon suggestions (0077)
+  ('function', 'list_applicable_coupons',        '0077')
 )
 select
   e.kind,

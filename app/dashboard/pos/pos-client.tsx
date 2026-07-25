@@ -111,6 +111,75 @@ export default function PosClient({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
   const [couponError, setCouponError] = useState<string | null>(null)
+  const [applicableCoupons, setApplicableCoupons] = useState<
+    { code: string; name: string | null; kind: string; value: number; discount: number }[] | null
+  >(null)
+  const [couponSuggestionsLoading, setCouponSuggestionsLoading] = useState(false)
+
+  // Survives navigating away mid-order (e.g. to Bills) and back — the POS
+  // page fully unmounts on route change, so without this the in-progress
+  // cart was silently lost. sessionStorage (not localStorage): a draft
+  // shouldn't outlive the browser tab into a later shift on a shared
+  // terminal. Cleared automatically once the cart is actually empty again
+  // (order placed, held, or manually cleared) — see the effect below.
+  const draftKey = `pos-draft:${cafeId}`
+  const skipNextDraftWrite = useRef(true)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(draftKey)
+      if (!raw) return
+      const d = JSON.parse(raw) as {
+        cart?: Line[]; customerPhone?: string; customerName?: string
+        orderType?: 'dine_in' | 'takeaway'; selectedTableId?: string | null
+        tender?: Tender; pendingReason?: string
+        discountType?: 'percent' | 'flat' | null; discountValue?: string
+        couponCode?: string; appliedCoupon?: { code: string; discount: number; name: string | null } | null
+      }
+      // One-time hydration from storage on mount, not an ongoing sync loop —
+      // the pattern this lint rule warns about doesn't apply here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (d.cart?.length) setCart(d.cart)
+      if (d.customerPhone) setCustomerPhone(d.customerPhone)
+      if (d.customerName) setCustomerName(d.customerName)
+      if (d.orderType) setOrderType(d.orderType)
+      if (d.selectedTableId) setSelectedTableId(d.selectedTableId)
+      if (d.tender) setTender(d.tender)
+      if (d.pendingReason) setPendingReason(d.pendingReason)
+      if (d.discountType) setDiscountType(d.discountType)
+      if (d.discountValue) setDiscountValue(d.discountValue)
+      if (d.couponCode) setCouponCode(d.couponCode)
+      if (d.appliedCoupon) setAppliedCoupon(d.appliedCoupon)
+    } catch {
+      // Corrupt or inaccessible storage — start with a normal empty cart.
+    }
+    // Deliberately once per mount only (draftKey is stable for the life of
+    // this page instance).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    // The mount-time render still holds the pre-hydration (empty) state by
+    // the time this runs in the same commit — writing here would erase the
+    // draft the effect above just read. Skip exactly that one first pass.
+    if (skipNextDraftWrite.current) {
+      skipNextDraftWrite.current = false
+      return
+    }
+    try {
+      const isEmpty = cart.length === 0 && !customerPhone && !customerName && !discountType && !couponCode && !appliedCoupon
+      if (isEmpty) {
+        sessionStorage.removeItem(draftKey)
+      } else {
+        sessionStorage.setItem(draftKey, JSON.stringify({
+          cart, customerPhone, customerName, orderType, selectedTableId,
+          tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon,
+        }))
+      }
+    } catch {
+      // Storage unavailable (private browsing, quota) — draft just won't persist.
+    }
+  }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, draftKey])
 
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
   const [heldOrdersOpen, setHeldOrdersOpen] = useState(false)
@@ -462,12 +531,13 @@ export default function PosClient({
     return () => window.removeEventListener('keydown', onKey)
   }, [customizing, tableSelectorOpen, heldOrdersOpen, cartOpen])
 
-  async function applyCoupon() {
-    const code = couponCode.trim()
+  async function applyCoupon(codeOverride?: string) {
+    const code = (codeOverride ?? couponCode).trim()
     if (!code) return
     const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
     setCouponChecking(true)
     setCouponError(null)
+    setApplicableCoupons(null)
     // Preview only — staff_place_order recomputes and redeems this exact same
     // way server-side, so a stale preview here can never overcharge or
     // undercharge; it can only be out of date by the time of placement.
@@ -487,6 +557,39 @@ export default function PosClient({
   function removeCoupon() {
     setAppliedCoupon(null)
     setCouponError(null)
+  }
+
+  // Tapping the (empty) coupon field suggests what's actually usable on this
+  // cart right now, so staff don't need to already know a code — the same
+  // eligibility check validate_coupon runs, just for every coupon at once.
+  async function loadApplicableCoupons() {
+    if (couponCode.trim() || cart.length === 0) return
+    const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
+    setCouponSuggestionsLoading(true)
+    const { data, error: err } = await supabase.rpc('list_applicable_coupons', {
+      p_cafe_id: cafeId,
+      p_subtotal: subtotal,
+      p_customer_phone: customerPhone || null,
+    })
+    setCouponSuggestionsLoading(false)
+    if (err) {
+      // Surfaced (not silently dropped) so a real permission/config problem
+      // is visible instead of just "nothing happens when I tap the field."
+      console.error('list_applicable_coupons failed:', err.message)
+      setApplicableCoupons([])
+      return
+    }
+    setApplicableCoupons(data as { code: string; name: string | null; kind: string; value: number; discount: number }[])
+  }
+
+  function pickApplicableCoupon(code: string) {
+    setCouponCode(code)
+    setApplicableCoupons(null)
+    void applyCoupon(code)
+  }
+
+  function dismissApplicableCoupons() {
+    setTimeout(() => setApplicableCoupons(null), 150)
   }
 
   async function redeemReward(rewardId: string) {
@@ -593,8 +696,13 @@ export default function PosClient({
     appliedCoupon,
     couponChecking,
     couponError,
-    onApplyCoupon: applyCoupon,
+    onApplyCoupon: () => applyCoupon(),
     onRemoveCoupon: removeCoupon,
+    applicableCoupons,
+    couponSuggestionsLoading,
+    onFocusCouponField: loadApplicableCoupons,
+    onBlurCouponField: dismissApplicableCoupons,
+    onPickApplicableCoupon: pickApplicableCoupon,
     rewards: loyaltyEnabled ? rewards : [],
     onRedeemReward: redeemReward,
     redeeming,

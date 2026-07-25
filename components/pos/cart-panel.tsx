@@ -73,6 +73,11 @@ export function CartPanel({
   couponError,
   onApplyCoupon,
   onRemoveCoupon,
+  applicableCoupons,
+  couponSuggestionsLoading,
+  onFocusCouponField,
+  onBlurCouponField,
+  onPickApplicableCoupon,
   rewards,
   onRedeemReward,
   redeeming,
@@ -123,6 +128,11 @@ export function CartPanel({
   couponError: string | null
   onApplyCoupon: () => void
   onRemoveCoupon: () => void
+  applicableCoupons: { code: string; name: string | null; kind: string; value: number; discount: number }[] | null
+  couponSuggestionsLoading: boolean
+  onFocusCouponField: () => void
+  onBlurCouponField: () => void
+  onPickApplicableCoupon: (code: string) => void
   rewards: { id: string; name: string; points_cost: number }[]
   onRedeemReward: (rewardId: string) => void
   redeeming: boolean
@@ -415,21 +425,53 @@ export function CartPanel({
               </button>
             </div>
           ) : (
-            <div className="flex gap-1.5">
-              <input
-                value={couponCode}
-                onChange={(e) => onCouponCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) onApplyCoupon() }}
-                placeholder="Coupon code"
-                className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12.5px] uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground"
-              />
-              <button
-                onClick={onApplyCoupon}
-                disabled={!couponCode.trim() || couponChecking}
-                className="rounded-[var(--radius-sm)] border border-border-strong px-3 text-[11.5px] font-medium text-foreground disabled:opacity-40"
-              >
-                {couponChecking ? 'Checking…' : 'Apply'}
-              </button>
+            <div className="relative">
+              <div className="flex gap-1.5">
+                <input
+                  value={couponCode}
+                  onChange={(e) => onCouponCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) onApplyCoupon() }}
+                  onFocus={onFocusCouponField}
+                  onBlur={onBlurCouponField}
+                  placeholder="Coupon code"
+                  className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12.5px] uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground"
+                />
+                <button
+                  onClick={onApplyCoupon}
+                  disabled={!couponCode.trim() || couponChecking}
+                  className="rounded-[var(--radius-sm)] border border-border-strong px-3 text-[11.5px] font-medium text-foreground disabled:opacity-40"
+                >
+                  {couponChecking ? 'Checking…' : 'Apply'}
+                </button>
+              </div>
+              {!couponCode.trim() && (couponSuggestionsLoading || applicableCoupons !== null) && (
+                <div className="absolute inset-x-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-[var(--radius-sm)] border border-border-strong bg-surface shadow-lg">
+                  <p className="border-b border-border px-2.5 py-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Applicable to this order
+                  </p>
+                  {couponSuggestionsLoading ? (
+                    <p className="px-2.5 py-2.5 text-[12px] text-muted-foreground">Checking…</p>
+                  ) : applicableCoupons && applicableCoupons.length > 0 ? (
+                    applicableCoupons.map((c) => (
+                      <button
+                        key={c.code}
+                        onMouseDown={(e) => { e.preventDefault(); onPickApplicableCoupon(c.code) }}
+                        className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left hover:bg-surface-subtle"
+                      >
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
+                            <Tag size={12} className="shrink-0 text-primary" /> {c.code}
+                          </span>
+                          {c.name && <span className="block truncate text-[11px] text-muted-foreground">{c.name}</span>}
+                        </span>
+                        <span className="shrink-0 text-[12.5px] font-medium text-primary">−₹{c.discount}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-2.5 py-2.5 text-[12px] text-muted-foreground">No coupons available for this order.</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {couponError && <p className="mt-1 text-[11.5px] text-destructive">{couponError}</p>}
