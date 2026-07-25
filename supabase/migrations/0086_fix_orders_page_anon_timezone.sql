@@ -1,0 +1,21 @@
+-- ============================================================================
+-- 0086 — Fix a real, live 404: /t/[token]/orders (My Orders / the new
+-- footer nav's "Orders" tab) has been broken for every customer, on every
+-- café, since 0049.
+--
+-- Root cause: 0049 (F-02 hardening) locked anon's SELECT on `cafes` down to
+-- an explicit column list, scoped to exactly what app/t/[token]/page.tsx
+-- reads at the time. It never accounted for
+-- app/t/[token]/orders/page.tsx's `cafe_tables.select('label, cafes(name,
+-- timezone)')` join, which also needs `timezone` — that query has been
+-- returning 42501 permission denied ever since, and the page code only
+-- checks `if (!table) notFound()`, silently swallowing the error and
+-- rendering a 404 instead of the order history. Confirmed live via anon
+-- REST probe: selecting cafes(timezone) through cafe_tables 401s with
+-- "permission denied for table cafes"; selecting cafes(name) alone succeeds.
+--
+-- timezone is an IANA string (e.g. "Asia/Kolkata"), not sensitive — same
+-- category as the columns 0049 already granted.
+-- ============================================================================
+
+grant select (timezone) on cafes to anon;

@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
-import { Search, X, BellRing, ReceiptText, ClipboardList, ArrowLeft, Check } from 'lucide-react'
+import { Search, X, BellRing, ArrowLeft, Check } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
+import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
 import { readCustomerSession, writeCustomerSession, type CustomerSession } from '@/lib/customer-session'
 
@@ -79,7 +79,7 @@ export default function MenuClient({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
   const [couponError, setCouponError] = useState<string | null>(null)
-  const [assist, setAssist] = useState<'waiter' | 'bill' | null>(null)
+  const [assist, setAssist] = useState<'waiter' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
   const [reorderNote, setReorderNote] = useState<string | null>(null)
@@ -510,16 +510,6 @@ export default function MenuClient({
     setTimeout(() => setAssist(null), 4000)
   }
 
-  async function requestBill() {
-    setAssistBusy(true)
-    const { data, error } = await supabase.rpc('request_bill', { p_token: token })
-    setAssistBusy(false)
-    if (error) return
-    void data
-    setAssist('bill')
-    setTimeout(() => setAssist(null), 4000)
-  }
-
   // ── Name + phone gate ────────────────────────────────────────────────────
   // Shown before anything else on a table this browser hasn't started an
   // order at yet. No OTP: phone + name are taken at face value, same as
@@ -578,7 +568,8 @@ export default function MenuClient({
   // ── Confirmation ─────────────────────────────────────────────────────────
   if (step === 'done' && placed) {
     return (
-      <main className="mx-auto flex w-full min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
+      <>
+      <main className="mx-auto flex w-full min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 pb-24 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-full bg-success-subtle text-2xl text-success">✓</div>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Order placed</h1>
@@ -618,13 +609,16 @@ export default function MenuClient({
           </div>
         )}
       </main>
+      <CustomerFooterNav token={token} />
+      </>
     )
   }
 
   // ── Cart ─────────────────────────────────────────────────────────────────
   if (step === 'cart') {
     return (
-      <main className="mx-auto w-full min-h-dvh max-w-md bg-background p-5">
+      <>
+      <main className="mx-auto w-full min-h-dvh max-w-md bg-background p-5 pb-24">
         <button
           onClick={() => setStep('menu')}
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground"
@@ -765,11 +759,14 @@ export default function MenuClient({
           )}
         </div>
       </main>
+      <CustomerFooterNav token={token} />
+      </>
     )
   }
 
   // ── Menu ─────────────────────────────────────────────────────────────────
   return (
+    <>
     <main className="w-full min-h-dvh bg-background pb-28">
       <OfflineBanner variant="customer" />
       {/* Café identity scrolls away so the sticky strip below stays short —
@@ -796,20 +793,6 @@ export default function MenuClient({
             >
               {assist === 'waiter' ? <Check size={16} /> : <BellRing size={16} />}
             </button>
-            <button
-              onClick={requestBill}
-              disabled={assistBusy}
-              aria-label="Request bill"
-              title="Request bill"
-              className={`grid h-10 w-10 place-items-center rounded-full border text-foreground transition-colors disabled:opacity-50 ${
-                assist === 'bill' ? 'border-success bg-success-subtle text-success' : 'border-border-strong'
-              }`}
-            >
-              {assist === 'bill' ? <Check size={16} /> : <ReceiptText size={16} />}
-            </button>
-            <Link href={`/t/${token}/orders`} aria-label="My orders" title="My orders" className="grid h-10 w-10 place-items-center rounded-full border border-border-strong text-foreground">
-              <ClipboardList size={16} />
-            </Link>
           </div>
         </div>
       </div>
@@ -854,7 +837,7 @@ export default function MenuClient({
       {assist && (
         <div className="fixed inset-x-0 top-16 z-30 mx-auto max-w-md px-5">
           <div className="rounded-[var(--radius)] bg-foreground px-4 py-2.5 text-center text-[13px] font-medium text-background shadow-lg">
-            {assist === 'waiter' ? "We've notified the staff — someone's on the way." : 'Bill requested — your bill is being prepared.'}
+            We&apos;ve notified the staff — someone&apos;s on the way.
           </div>
         </div>
       )}
@@ -913,7 +896,7 @@ export default function MenuClient({
       {/* Sticky cart — appears the moment something is added, so nobody has to
           hunt for a cart icon. */}
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 sm:px-6">
+        <div className="fixed inset-x-0 bottom-16 z-30 px-4 pb-2 pt-2 sm:px-6">
           <button
             onClick={() => setStep('cart')}
             className="mx-auto flex w-full max-w-md items-center justify-between rounded-full bg-primary px-5 py-3.5 text-primary-foreground shadow-[var(--shadow-lg)] transition-transform active:scale-[0.99]"
@@ -936,6 +919,8 @@ export default function MenuClient({
         />
       )}
     </main>
+    <CustomerFooterNav token={token} />
+    </>
   )
 }
 

@@ -7,6 +7,7 @@ import { ArrowLeft, Receipt, RotateCcw, UserRound } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatTime, isToday } from '@/lib/datetime'
 import { readCustomerSession, writeCustomerSession, clearCustomerSession } from '@/lib/customer-session'
+import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
 
 type HistoryItem = { name: string; qty: number; price: number; modifiers: { name: string }[] | null }
 type HistoryOrder = {
@@ -221,7 +222,7 @@ export default function MyOrdersClient({
   return (
     <div className="min-h-dvh bg-background">
       {header}
-      <main className="mx-auto w-full max-w-lg px-5 py-6">
+      <main className="mx-auto w-full max-w-lg px-5 py-6 pb-24">
         {loading && !history && <p className="py-16 text-center text-sm text-muted-foreground">Loading your orders…</p>}
 
         {history && orders.length === 0 && (
@@ -281,6 +282,7 @@ export default function MyOrdersClient({
           <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>
         )}
       </main>
+      <CustomerFooterNav token={token} />
     </div>
   )
 }
