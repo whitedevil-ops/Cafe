@@ -1,11 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ShoppingBag, ReceiptText, BellRing, PackageX, CreditCard, Undo2, Clock3, Bell } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatTime } from '@/lib/datetime'
 import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
 
 type Notice = { id: string; type: string; message: string; read: boolean; created_at: string }
+
+const TYPE_ICON: Record<string, typeof Bell> = {
+  new_order: ShoppingBag,
+  bill_requested: ReceiptText,
+  call_waiter: BellRing,
+  low_stock: PackageX,
+  payment_failed: CreditCard,
+  refund: Undo2,
+  late_ticket: Clock3,
+}
 
 export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezone: string }) {
   const supabase = useMemo(() => createClient(), [])
@@ -90,20 +101,26 @@ export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezon
               {notices.length === 0 ? (
                 <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">Nothing yet.</p>
               ) : (
-                notices.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => markOne(n.id)}
-                    className={`block min-h-[44px] w-full border-b border-border px-4 py-3 text-left text-[13px] last:border-0 hover:bg-surface-subtle ${
-                      n.read ? 'text-muted-foreground' : 'font-medium text-foreground'
-                    }`}
-                  >
-                    {n.message}
-                    <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
-                      {formatTime(n.created_at, timezone)}
-                    </span>
-                  </button>
-                ))
+                notices.map((n) => {
+                  const Icon = TYPE_ICON[n.type] ?? Bell
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() => markOne(n.id)}
+                      className={`flex w-full min-h-[44px] items-start gap-2.5 border-b border-border px-4 py-3 text-left text-[13px] last:border-0 hover:bg-surface-subtle ${
+                        n.read ? 'text-muted-foreground' : 'font-medium text-foreground'
+                      }`}
+                    >
+                      <Icon size={15} className={`mt-0.5 shrink-0 ${n.read ? 'text-muted-foreground' : 'text-primary'}`} />
+                      <span className="min-w-0">
+                        {n.message}
+                        <span className="mt-0.5 block text-[11px] font-normal text-muted-foreground">
+                          {formatTime(n.created_at, timezone)}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })
               )}
             </div>
           </div>

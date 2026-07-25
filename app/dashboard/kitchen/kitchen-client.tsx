@@ -134,12 +134,19 @@ export default function KitchenClient({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll()
     const p = setInterval(poll, 3000)
-    const t = setInterval(() => tick((n) => n + 1), 30000)
+    // Same 30s cadence as the age re-render tick — flagging late tickets is
+    // idempotent per order (notifications.order_id), so calling this on
+    // every tick just means "a ticket becomes flagged within 30s of crossing
+    // 8 minutes", not that it re-flags anything already flagged.
+    const t = setInterval(() => {
+      tick((n) => n + 1)
+      void supabase.rpc('flag_late_tickets', { p_cafe_id: cafeId })
+    }, 30000)
     return () => {
       clearInterval(p)
       clearInterval(t)
     }
-  }, [poll])
+  }, [poll, supabase, cafeId])
 
   async function advance(o: Order) {
     const to = NEXT[o.status].to
