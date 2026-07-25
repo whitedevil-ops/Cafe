@@ -2,10 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet, PackageMinus } from 'lucide-react'
+import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet, PackageMinus, TrendingDown } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO } from '@/lib/datetime'
 import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist'
+import { Change } from './reports/_shared'
+
+export type DailySummary = {
+  netSales: number
+  orders: number
+  aov: number
+  refunds: number
+  cancelledOrders: number
+  compareNetSales: number
+  compareOrders: number
+  topItem: string | null
+}
 
 export type CommandCenterData = {
   hasMenu: boolean
@@ -48,12 +60,14 @@ export default function DashboardClient({
   role,
   timezone,
   initialData,
+  dailySummary,
 }: {
   cafeId: string
   cafeName: string
   role: string
   timezone: string
   initialData: CommandCenterData
+  dailySummary: DailySummary | null
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState(initialData)
@@ -314,6 +328,45 @@ export default function DashboardClient({
           </div>
         </div>
       </div>
+
+      {dailySummary && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Yesterday</p>
+            <Link href="/dashboard/reports" className="text-[12.5px] font-medium text-primary hover:underline">Full report →</Link>
+          </div>
+          <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Net sales</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{dailySummary.netSales.toLocaleString('en-IN')}</p>
+              <Change current={dailySummary.netSales} previous={dailySummary.compareNetSales} />
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Orders</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{dailySummary.orders}</p>
+              <Change current={dailySummary.orders} previous={dailySummary.compareOrders} />
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Average order value</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{dailySummary.aov}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Top item</p>
+              <p className="mt-1 truncate text-xl font-semibold tracking-tight text-foreground">{dailySummary.topItem ?? '—'}</p>
+            </div>
+          </div>
+          {(dailySummary.refunds > 0 || dailySummary.cancelledOrders > 0) && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-muted-foreground">
+              {dailySummary.refunds > 0 && (
+                <span className="flex items-center gap-1"><TrendingDown size={13} className="text-warning" /> ₹{dailySummary.refunds.toLocaleString('en-IN')} refunded</span>
+              )}
+              {dailySummary.cancelledOrders > 0 && (
+                <span className="flex items-center gap-1"><Ban size={13} className="text-destructive" /> {dailySummary.cancelledOrders} cancelled order{dailySummary.cancelledOrders === 1 ? '' : 's'}</span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

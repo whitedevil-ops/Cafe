@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import DashboardClient, { type CommandCenterData } from './dashboard-client'
-import { businessDayStartISO, DEFAULT_TIMEZONE } from '@/lib/datetime'
+import DashboardClient, { type CommandCenterData, type DailySummary } from './dashboard-client'
+import { businessDayStartISO, businessDaysAgoStartISO, DEFAULT_TIMEZONE } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,11 +104,44 @@ export async function loadCommandCenterData(
   }
 }
 
+// Deterministic recap of the last CLOSED business day — reuses
+// business_overview_report (0057) rather than a second RPC, since "how did
+// yesterday go, compared to the day before" is exactly the question that
+// report already answers for any range. No AI, no new numbers — just
+// yesterday's slice of a report that already exists.
+type OverviewReportShape = {
+  summary: { net_sales: number; orders: number; aov: number; refunds: number; cancelled_orders: number }
+  compare: { net_sales: number; orders: number }
+  top_items: { name: string }[]
+}
+
+async function loadDailySummary(cafeId: string, timezone: string): Promise<DailySummary | null> {
+  const supabase = await createClient()
+  const from = businessDaysAgoStartISO(1, timezone)
+  const to = businessDayStartISO(timezone)
+  const { data, error } = await supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
+  if (error || !data) return null
+  const r = data as OverviewReportShape
+  return {
+    netSales: r.summary.net_sales,
+    orders: r.summary.orders,
+    aov: r.summary.aov,
+    refunds: r.summary.refunds,
+    cancelledOrders: r.summary.cancelled_orders,
+    compareNetSales: r.compare.net_sales,
+    compareOrders: r.compare.orders,
+    topItem: r.top_items[0]?.name ?? null,
+  }
+}
+
 export default async function DashboardPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
 
-  const data = await loadCommandCenterData(cafe.cafeId, cafe.timezone)
+  const [data, dailySummary] = await Promise.all([
+    loadCommandCenterData(cafe.cafeId, cafe.timezone),
+    loadDailySummary(cafe.cafeId, cafe.timezone),
+  ])
 
   if (!data.hasMenu) {
     return (
@@ -127,5 +160,14 @@ export default async function DashboardPage() {
     )
   }
 
-  return <DashboardClient cafeId={cafe.cafeId} cafeName={cafe.name} role={cafe.role} timezone={cafe.timezone} initialData={data} />
+  return (
+    <DashboardClient
+      cafeId={cafe.cafeId}
+      cafeName={cafe.name}
+      role={cafe.role}
+      timezone={cafe.timezone}
+      initialData={data}
+      dailySummary={dailySummary}
+    />
+  )
 }
