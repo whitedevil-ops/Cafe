@@ -1,6 +1,6 @@
 'use client'
 
-import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles } from 'lucide-react'
+import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 
 export type CartLine = {
@@ -73,6 +73,9 @@ export function CartPanel({
   couponError,
   onApplyCoupon,
   onRemoveCoupon,
+  rewards,
+  onRedeemReward,
+  redeeming,
   onPlaceOrder,
   placing,
   error,
@@ -120,6 +123,9 @@ export function CartPanel({
   couponError: string | null
   onApplyCoupon: () => void
   onRemoveCoupon: () => void
+  rewards: { id: string; name: string; points_cost: number }[]
+  onRedeemReward: (rewardId: string) => void
+  redeeming: boolean
   onPlaceOrder: () => void
   placing: boolean
   error: string | null
@@ -266,6 +272,22 @@ export function CartPanel({
           <p className="mt-1.5 rounded-[var(--radius)] bg-primary-subtle px-3 py-1.5 text-[12px] font-medium text-primary">
             {customerLookup.name ?? 'Returning customer'} · {customerLookup.visits} visit{customerLookup.visits === 1 ? '' : 's'} · {customerLookup.points} points
           </p>
+        )}
+        {customerLookup?.found && rewards.length > 0 && (customerLookup.points ?? 0) > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {rewards
+              .filter((r) => r.points_cost <= (customerLookup.points ?? 0))
+              .map((r) => (
+                <button
+                  key={r.id}
+                  disabled={redeeming}
+                  onClick={() => onRedeemReward(r.id)}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary px-2.5 py-1 text-[11.5px] font-medium text-primary hover:bg-primary-subtle disabled:opacity-50"
+                >
+                  <Gift size={11} /> {r.name} · {r.points_cost}pts
+                </button>
+              ))}
+          </div>
         )}
       </div>
 

@@ -45,6 +45,8 @@ export default function PosClient({
   addons,
   tables,
   areas,
+  loyaltyEnabled,
+  rewards,
 }: {
   cafeId: string
   role: string
@@ -59,6 +61,8 @@ export default function PosClient({
   addons: PosAddon[]
   tables: PosTable[]
   areas: PosArea[]
+  loyaltyEnabled: boolean
+  rewards: { id: string; name: string; points_cost: number }[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const confirm = useConfirm()
@@ -98,6 +102,7 @@ export default function PosClient({
   const [customerName, setCustomerName] = useState('')
   const [customerLookup, setCustomerLookup] = useState<CustomerLookup | null>(null)
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false)
+  const [redeeming, setRedeeming] = useState(false)
 
   const [discountType, setDiscountType] = useState<'percent' | 'flat' | null>(null)
   const [discountValue, setDiscountValue] = useState('')
@@ -484,6 +489,19 @@ export default function PosClient({
     setCouponError(null)
   }
 
+  async function redeemReward(rewardId: string) {
+    if (!customerPhone) return
+    setRedeeming(true)
+    const { data, error } = await supabase.rpc('redeem_reward', {
+      p_cafe_id: cafeId, p_customer_phone: customerPhone, p_reward_id: rewardId,
+    })
+    setRedeeming(false)
+    if (error) return toast(error.message, 'error')
+    const r = data as { reward: string; points_spent: number; remaining_balance: number }
+    toast(`Redeemed "${r.reward}" — ${r.remaining_balance} points left.`)
+    setCustomerLookup((c) => (c ? { ...c, points: r.remaining_balance } : c))
+  }
+
   async function placeOrder() {
     if (orderType === 'dine_in' && !selectedTableId) return
     // Takeaway collects now on a real tender (bill → PAID) or is explicitly
@@ -577,6 +595,9 @@ export default function PosClient({
     couponError,
     onApplyCoupon: applyCoupon,
     onRemoveCoupon: removeCoupon,
+    rewards: loyaltyEnabled ? rewards : [],
+    onRedeemReward: redeemReward,
+    redeeming,
     onPlaceOrder: placeOrder,
     placing,
     error,

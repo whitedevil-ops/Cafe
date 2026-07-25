@@ -17,8 +17,8 @@ export default async function PosPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }, { data: areas }] = await Promise.all([
-    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway').eq('id', cafe.cafeId).single(),
+  const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }, { data: areas }, { data: rewards }] = await Promise.all([
+    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
@@ -32,6 +32,7 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false),
     supabase.from('floor_areas').select('id, name, sort').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
+    supabase.from('rewards').select('id, name, points_cost').eq('cafe_id', cafe.cafeId).eq('active', true).order('points_cost'),
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
@@ -94,6 +95,8 @@ export default async function PosPage() {
       addons={(addons ?? []) as PosAddon[]}
       tables={posTables}
       areas={posAreas}
+      loyaltyEnabled={cafeRow?.loyalty_enabled ?? false}
+      rewards={rewards ?? []}
     />
   )
 }
