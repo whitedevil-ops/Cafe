@@ -74,6 +74,7 @@ export default function MenuManager({
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all')
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'sold_out'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const [draft, setDraft] = useState<ItemDraft | null>(null)
   const [manageCats, setManageCats] = useState(false)
@@ -387,6 +388,42 @@ export default function MenuManager({
     toast(`"${item.name}" deleted.`)
   }
 
+  // ── Bulk select: mark many items sold out/available or delete them at once ─
+  async function bulkSetAvailable(ids: string[], available: boolean) {
+    setItems((list) => list.map((i) => (ids.includes(i.id) ? { ...i, available } : i)))
+    const results = await Promise.all(
+      ids.map((id) => supabase.rpc('set_menu_item_availability', { p_item_id: id, p_available: available })),
+    )
+    const failed = results.filter((r) => r.error)
+    if (failed.length) setError(failed[0].error!.message)
+    setSelectedIds(new Set())
+    toast(`${ids.length - failed.length} item${ids.length - failed.length === 1 ? '' : 's'} marked ${available ? 'available' : 'sold out'}.`)
+  }
+
+  async function bulkDelete(ids: string[]) {
+    const ok = await confirm({
+      title: `Delete ${ids.length} item${ids.length === 1 ? '' : 's'}?`,
+      description: 'They will disappear from the QR menu and menu manager immediately. This can\'t be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    const { error } = await supabase.from('menu_items').delete().in('id', ids)
+    if (error) return setError(error.message)
+    setItems((list) => list.filter((i) => !ids.includes(i.id)))
+    setSelectedIds(new Set())
+    toast(`${ids.length} item${ids.length === 1 ? '' : 's'} deleted.`)
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -525,6 +562,38 @@ export default function MenuManager({
         </select>
       </div>
 
+      {/* Bulk action bar — appears once anything is selected, for marking or
+          deleting many items in one go instead of one at a time. */}
+      {selectedIds.size > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary bg-primary-subtle px-4 py-2.5">
+          <span className="text-[13px] font-medium text-primary">{selectedIds.size} selected</span>
+          <button
+            onClick={() => bulkSetAvailable([...selectedIds], false)}
+            className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] font-medium text-foreground hover:bg-surface-subtle"
+          >
+            Mark sold out
+          </button>
+          <button
+            onClick={() => bulkSetAvailable([...selectedIds], true)}
+            className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] font-medium text-foreground hover:bg-surface-subtle"
+          >
+            Mark available
+          </button>
+          <button
+            onClick={() => bulkDelete([...selectedIds])}
+            className="min-h-9 rounded-[var(--radius)] border border-destructive px-3 text-[13px] font-medium text-destructive hover:bg-destructive-subtle"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto min-h-9 px-2 text-[13px] text-primary hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Items */}
       {visible.length === 0 ? (
         <div className="mt-6 rounded-xl border border-border bg-surface p-10 text-center">
@@ -534,8 +603,27 @@ export default function MenuManager({
         </div>
       ) : (
         <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border">
+          <li className="flex items-center gap-3 bg-surface-subtle px-4 py-2">
+            <input
+              type="checkbox"
+              aria-label="Select all visible items"
+              checked={visible.length > 0 && visible.every((i) => selectedIds.has(i.id))}
+              onChange={(e) =>
+                setSelectedIds(e.target.checked ? new Set(visible.map((i) => i.id)) : new Set())
+              }
+              className="h-4 w-4 shrink-0"
+            />
+            <span className="text-[12.5px] text-muted-foreground">Select all ({visible.length})</span>
+          </li>
           {visible.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center gap-3 bg-surface px-4 py-3 sm:flex-nowrap">
+              <input
+                type="checkbox"
+                aria-label={`Select ${item.name}`}
+                checked={selectedIds.has(item.id)}
+                onChange={() => toggleSelected(item.id)}
+                className="h-4 w-4 shrink-0"
+              />
               {item.image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.image_url} alt="" className="h-11 w-11 shrink-0 rounded-lg border border-border object-cover" />
