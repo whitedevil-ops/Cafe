@@ -337,9 +337,7 @@ export default function MenuManager({
   async function toggleAvailable(item: MenuItemRow) {
     setItems((list) => list.map((i) => (i.id === item.id ? { ...i, available: !i.available } : i)))
     const { error } = await supabase
-      .from('menu_items')
-      .update({ available: !item.available })
-      .eq('id', item.id)
+      .rpc('set_menu_item_availability', { p_item_id: item.id, p_available: !item.available })
     if (error) {
       setError(error.message)
       setItems((list) => list.map((i) => (i.id === item.id ? { ...i, available: item.available } : i)))

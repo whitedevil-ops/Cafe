@@ -26,6 +26,29 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
+  // IP-side half of the OTP throttle — customer_issue_otp already limits by
+  // PHONE (3/15min); this stops the same attack rotating through many phone
+  // numbers from one IP to exhaust the café's SMS budget. Vercel's proxy sets
+  // x-forwarded-for itself, overwriting anything a client tries to send, so
+  // this header is trustworthy here even though it wouldn't be from a
+  // browser-supplied value.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  const { count: recentFromIp } = await admin
+    .from('otp_ip_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('ip', ip)
+    .gte('created_at', fifteenMinAgo)
+  if ((recentFromIp ?? 0) >= 8) {
+    return NextResponse.json(
+      { error: 'Too many verification codes requested from this connection — please wait a few minutes.' },
+      { status: 429 },
+    )
+  }
+  void admin.from('otp_ip_attempts').insert({ ip })
+  // Opportunistic cleanup — keeps the table small without needing its own cron.
+  void admin.from('otp_ip_attempts').delete().lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+
   const { data: tableRow } = await admin
     .from('cafe_tables')
     .select('cafes(name)')

@@ -288,7 +288,24 @@ with expected(kind, name, fix) as (values
   -- feedback app (0068)
   ('table',    'feedback',                       '0068'),
   ('function', 'submit_feedback',                '0068'),
-  ('function', 'feedback_summary',               '0068')
+  ('function', 'feedback_summary',               '0068'),
+  -- P0 hardening: customers/cafe_settings lockdown, loyalty+coupon race
+  -- fixes, inventory reversal ledger (0071)
+  ('function', 'update_cafe_settings',           '0071'),
+  ('column',   'inventory_transactions.order_item_id', '0071'),
+  -- entitlement gating: seat caps (0073)
+  ('column',   'platform_plans.max_staff',       '0073'),
+  ('function', 'create_staff_invite',            '0073'),
+  -- platform billing via Razorpay Subscriptions (0074)
+  ('column',   'platform_plans.razorpay_plan_id', '0074'),
+  ('column',   'cafes.razorpay_subscription_id', '0074'),
+  ('column',   'cafes.billing_status',           '0074'),
+  ('table',    'platform_billing_events',        '0074'),
+  ('function', 'platform_billing_state',         '0074'),
+  -- menu RBAC (0075)
+  ('function', 'set_menu_item_availability',     '0075'),
+  -- OTP IP-side throttle (0076)
+  ('table',    'otp_ip_attempts',                '0076')
 )
 select
   e.kind,

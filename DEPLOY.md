@@ -13,12 +13,12 @@ git push -u origin main
 ## 2. Import on Vercel
 
 1. https://vercel.com/new → Import the `Cafe` repo. Framework auto-detects as Next.js; keep defaults.
-2. Add Environment Variables **before** the first deploy (they are inlined at build time):
+2. Add Environment Variables **before** the first deploy (they are inlined at build time). Get the real values from **Supabase → Project Settings → API** on your own project — never copy them from this file or commit them anywhere:
 
    | Name | Value |
    |------|-------|
-   | `NEXT_PUBLIC_SUPABASE_URL` | `https://zfoewekgwtvbykyitpig.supabase.co` |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_toxT-6hL67Py9PXqLdA2SQ_AZiEthl5` |
+   | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase project URL, e.g. `https://<ref>.supabase.co` |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon/publishable key |
    | `NEXT_PUBLIC_APP_URL` | your Vercel URL (set after first deploy, then redeploy) |
 
    Add later, when anonymous QR ordering is wired to the real DB (server-only, never `NEXT_PUBLIC_`):
@@ -28,7 +28,8 @@ git push -u origin main
 
 ## 3. Supabase configuration
 
-- **SQL Editor** → run all of `supabase/schema.sql` once. Nothing past the login page works until this is done.
+- **SQL Editor** → run `supabase/schema.sql` once, THEN every file in `supabase/migrations/` **in filename order** (`0001_...` through the highest-numbered file present). `schema.sql` alone is only the pre-migration baseline — most of the product (ordering RPCs, GST, payments, refunds, inventory, coupons, loyalty, everything added after the initial build) lives in the numbered migrations, not in `schema.sql`. Nothing past the login page works until this whole sequence has run.
+- Run `supabase/check-schema.sql` afterward (read-only, instant) to confirm every table/column/function the code expects actually exists — any `present = false` row names the migration that's still missing.
 - **Authentication → URL Configuration** → set **Site URL** to the Vercel URL and add it to **Redirect URLs** (so email confirmation/reset links don't point at localhost).
 - For testing the full journey without email round-trips: **Authentication → Providers → Email** → turn **Confirm email** off (turn back on before launch).
 

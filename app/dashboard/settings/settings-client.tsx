@@ -74,10 +74,7 @@ export default function SettingsClient({
     setStaffBusy(true)
     setStaffError(null)
     const { data, error } = await supabase
-      .from('cafe_invites')
-      .insert({ cafe_id: cafeId, email, role: inviteRole })
-      .select('id, email, role')
-      .single()
+      .rpc('create_staff_invite', { p_cafe_id: cafeId, p_email: email, p_role: inviteRole })
     setStaffBusy(false)
     if (error) return setStaffError(error.message)
     setInvites((list) => [...list, data as StaffInvite])

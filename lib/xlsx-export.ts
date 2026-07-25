@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx'
 
 // A cell that a user could have influenced (item name, notes, category) must not
 // be interpreted as a formula by Excel/Sheets. Prefix the dangerous leads.
-function safeText(v: unknown): string {
+export function safeText(v: unknown): string {
   const s = v == null ? '' : String(v)
   return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s
 }

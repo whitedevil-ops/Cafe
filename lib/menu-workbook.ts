@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import { safeText } from './xlsx-export'
 
 function download(wb: XLSX.WorkBook, filename: string) {
   XLSX.writeFile(wb, filename)
@@ -38,11 +39,11 @@ export type ExportRow = {
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
   const header = ['Category', 'Item', 'Price', 'Veg Type', 'Description']
   const body = rows.map((r) => [
-    r.category,
-    r.name,
+    safeText(r.category),
+    safeText(r.name),
     r.price,
     r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
-    r.description ?? '',
+    safeText(r.description ?? ''),
   ])
   const ws = XLSX.utils.aoa_to_sheet([header, ...body])
   ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 10 }, { wch: 12 }, { wch: 34 }]

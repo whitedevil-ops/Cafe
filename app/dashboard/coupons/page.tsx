@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import { hasFeature } from '@/lib/entitlements'
+import { UpgradeRequired } from '@/components/upgrade-required'
 import CouponsClient, { type Coupon, type CouponStat } from './coupons-client'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,12 @@ export default async function CouponsPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
+
+  if (!(await hasFeature(cafe.cafeId, 'coupons'))) {
+    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
+    return <UpgradeRequired feature="Coupons" plan={planRow?.plan ?? 'current'} />
+  }
+
   const [{ data: coupons }, { data: stats }] = await Promise.all([
     supabase
       .from('coupons')

@@ -164,9 +164,11 @@ export default function ProfileClient({
     const { error: cafeErr } = await supabase.from('cafes').update(cafeUpdate).eq('id', cafeId)
     if (cafeErr) { setBusy(false); return setError(cafeErr.message) }
 
-    const { error: settingsErr } = await supabase
-      .from('cafe_settings')
-      .upsert({ cafe_id: cafeId, hours, receipt: { footer: form.receipt_footer.trim() } })
+    const { error: settingsErr } = await supabase.rpc('update_cafe_settings', {
+      p_cafe_id: cafeId,
+      p_hours: hours,
+      p_receipt: { footer: form.receipt_footer.trim() },
+    })
     if (settingsErr) { setBusy(false); return setError(settingsErr.message) }
 
     // Audit trail: one row per materially changed field, compared to the last

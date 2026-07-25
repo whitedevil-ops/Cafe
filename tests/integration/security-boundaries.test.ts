@@ -3,11 +3,11 @@
 // exact access a hostile visitor has). Added by the pre-launch security audit
 // (2026-07-24). See SECURITY_AUDIT.md for the findings these lock in.
 //
-// The passing tests below assert boundaries that HOLD today. The `.skip`ped
-// tests at the bottom assert the DESIRED state for the two open P1 findings
-// (F-01, F-02) — remove `.skip` once the remediation migration is applied and
-// they become live regression guards.
-import { describe, it, expect } from 'vitest'
+// F-01 and F-02 were both remediated (migrations 0050 and 0049) before this
+// file was last touched — the tests below assert the boundaries that hold
+// TODAY, live, not aspirational ones.
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -101,14 +101,10 @@ describe('route protection (live, unauthenticated)', () => {
   })
 })
 
-// ─────────────────────────────────────────────────────────────────────────
-// KNOWN OPEN P1 FINDINGS — remove `.skip` after applying remediation.
-// These currently FAIL (the vulnerability is real); they are written now so
-// that fixing F-01/F-02 flips them green and they guard against regression.
-describe('open P1 findings (un-skip after remediation)', () => {
-  // F-02 remediation (migration 0049) is live: anon may read only the public
-  // café columns, never owner_id / email / phone / gstin. Requesting them now
-  // fails with a column-privilege error instead of returning the values.
+describe('F-02 regression guard (live)', () => {
+  // Migration 0049: anon may read only the public café columns, never
+  // owner_id / email / phone / gstin. Requesting them now fails with a
+  // column-privilege error instead of returning the values.
   it('F-02: anon cannot read cafes.owner_id / email / phone / gstin', async () => {
     const { status, rows } = await anonRead('cafes', 'id,owner_id,email,phone,gstin')
     // Either the request is rejected (column privilege denied) or, if it somehow
@@ -122,11 +118,101 @@ describe('open P1 findings (un-skip after remediation)', () => {
       expect(status).toBeGreaterThanOrEqual(400)
     }
   })
+})
 
-  // F-01 needs an AUTHENTICATED non-owner (e.g. cashier) JWT fixture, not the
-  // anon key. Wire a test cashier login, then assert these are rejected:
-  //   - PATCH /rest/v1/orders?id=eq.<id>  {payment_status:'paid'}  -> 403
-  //   - POST  /rest/v1/payments  {amount:1,...}                    -> 403
-  //   - DELETE /rest/v1/payments?id=eq.<id>                         -> 403
-  it.todo('F-01: a non-owner member JWT cannot directly write orders/payments (needs auth fixture)')
+// ─────────────────────────────────────────────────────────────────────────
+// F-01 regression guard — needs an AUTHENTICATED non-owner (cashier) JWT,
+// not the anon key, so this block creates one throwaway café + cashier
+// member + auth user via the service-role admin client, runs the three
+// attack requests from SECURITY_AUDIT.md as that cashier, then deletes
+// everything it created. Skips (not fails) when no service role key is
+// configured locally — the anon-only tests above still run either way.
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const hasAdmin = Boolean(URL && SERVICE_KEY)
+
+describe.skipIf(!hasAdmin)('F-01 regression guard (live, needs SUPABASE_SERVICE_ROLE_KEY)', () => {
+  let cafeId: string
+  let userId: string
+  let cashierAuth: { apikey: string; Authorization: string }
+
+  beforeAll(async () => {
+    const admin = createClient(URL!, SERVICE_KEY!, { auth: { persistSession: false } })
+    const email = `test-cashier-${Date.now()}@khaopiyo-test.invalid`
+    const password = crypto.randomUUID()
+
+    const { data: userRes, error: userErr } = await admin.auth.admin.createUser({
+      email, password, email_confirm: true,
+    })
+    if (userErr || !userRes.user) throw new Error(`fixture: could not create test user — ${userErr?.message}`)
+    userId = userRes.user.id
+
+    const { data: cafe, error: cafeErr } = await admin
+      .from('cafes')
+      .insert({ owner_id: userId, slug: `test-f01-${Date.now()}`, name: 'F-01 test café' })
+      .select('id').single()
+    if (cafeErr || !cafe) throw new Error(`fixture: could not create test café — ${cafeErr?.message}`)
+    cafeId = cafe.id
+
+    // The fixture user is its own café's owner by insert above — demote to
+    // cashier, the least-privileged non-kitchen role, which is exactly the
+    // attacker profile F-01 describes ("any café member, not just owner").
+    const { error: memberErr } = await admin
+      .from('cafe_members')
+      .update({ role: 'cashier' })
+      .eq('cafe_id', cafeId).eq('user_id', userId)
+    if (memberErr) throw new Error(`fixture: could not set cashier role — ${memberErr.message}`)
+
+    const plain = createClient(URL!, KEY, { auth: { persistSession: false } })
+    const { data: session, error: signInErr } = await plain.auth.signInWithPassword({ email, password })
+    if (signInErr || !session.session) throw new Error(`fixture: cashier sign-in failed — ${signInErr?.message}`)
+    cashierAuth = { apikey: KEY, Authorization: `Bearer ${session.session.access_token}` }
+  })
+
+  afterAll(async () => {
+    const admin = createClient(URL!, SERVICE_KEY!, { auth: { persistSession: false } })
+    if (cafeId) await admin.from('cafes').delete().eq('id', cafeId)
+    if (userId) await admin.auth.admin.deleteUser(userId)
+  })
+
+  it('a cashier JWT cannot PATCH orders.payment_status directly', async () => {
+    const res = await fetch(`${URL}/rest/v1/orders?cafe_id=eq.${cafeId}`, {
+      method: 'PATCH',
+      headers: { ...cashierAuth, 'content-type': 'application/json' },
+      body: JSON.stringify({ payment_status: 'paid', total: 1 }),
+    })
+    expect(res.status, `expected a rejection, got ${res.status}`).toBeGreaterThanOrEqual(400)
+  })
+
+  it('a cashier JWT cannot POST fabricated rows into payments', async () => {
+    const res = await fetch(`${URL}/rest/v1/payments`, {
+      method: 'POST',
+      headers: { ...cashierAuth, 'content-type': 'application/json' },
+      body: JSON.stringify({ cafe_id: cafeId, amount: 100000, method: 'cash' }),
+    })
+    expect(res.status, `expected a rejection, got ${res.status}`).toBeGreaterThanOrEqual(400)
+  })
+
+  it('a cashier JWT cannot DELETE rows from payments', async () => {
+    const res = await fetch(`${URL}/rest/v1/payments?cafe_id=eq.${cafeId}`, {
+      method: 'DELETE',
+      headers: cashierAuth,
+    })
+    expect(res.status, `expected a rejection, got ${res.status}`).toBeGreaterThanOrEqual(400)
+  })
+
+  it('a cashier JWT cannot directly write customers or cafe_settings either', async () => {
+    const writeCustomers = await fetch(`${URL}/rest/v1/customers`, {
+      method: 'POST',
+      headers: { ...cashierAuth, 'content-type': 'application/json' },
+      body: JSON.stringify({ cafe_id: cafeId, phone: '9999999999', name: 'Injected' }),
+    })
+    expect(writeCustomers.status, `customers POST expected rejection, got ${writeCustomers.status}`).toBeGreaterThanOrEqual(400)
+
+    const writeSettings = await fetch(`${URL}/rest/v1/cafe_settings?cafe_id=eq.${cafeId}`, {
+      method: 'PATCH',
+      headers: { ...cashierAuth, 'content-type': 'application/json' },
+      body: JSON.stringify({ hours: { hacked: true } }),
+    })
+    expect(writeSettings.status, `cafe_settings PATCH expected rejection, got ${writeSettings.status}`).toBeGreaterThanOrEqual(400)
+  })
 })
