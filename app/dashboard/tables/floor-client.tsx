@@ -273,9 +273,29 @@ export default function FloorClient({
     return m
   }, [sessions, ordersBySession, paidBySession])
 
+  // Waiter-first ordering: a table that needs a human RIGHT NOW floats to
+  // the top (call waiter, then bill requested, then any occupied table), so
+  // scanning this grid on a phone while walking the floor shows urgency
+  // before alphabetical geography. Same data, same actions as before — this
+  // is the "mobile-first mode" the product spec asks for, not a parallel
+  // page duplicating Live Tables.
+  const tablePriority = useCallback(
+    (t: FloorTable): number => {
+      const session = sessionByTable.get(t.id)
+      if (attention.has(t.id)) return 0
+      if (session?.status === 'bill_requested') return 1
+      if (session) return 2
+      return 3
+    },
+    [sessionByTable, attention],
+  )
+
   const sorted = useMemo(
-    () => [...tables].filter((t) => activeArea === 'all' || t.area_id === activeArea).sort(byTableLabel),
-    [tables, activeArea],
+    () =>
+      [...tables]
+        .filter((t) => activeArea === 'all' || t.area_id === activeArea)
+        .sort((a, b) => tablePriority(a) - tablePriority(b) || byTableLabel(a, b)),
+    [tables, activeArea, tablePriority],
   )
   const emptyTables = useMemo(() => sorted.filter((t) => !sessionByTable.has(t.id) && t.id !== selected), [sorted, sessionByTable, selected])
 
