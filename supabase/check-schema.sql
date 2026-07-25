@@ -331,7 +331,10 @@ with expected(kind, name, fix) as (values
   -- customer name edit (0080)
   ('function', 'update_customer_name',           '0080'),
   -- QR customer session gate, no OTP (0081)
-  ('function', 'customer_start_session',         '0081')
+  ('function', 'customer_start_session',         '0081'),
+  -- real 3-tier pricing: Starter/Growth/Scale (0083)
+  ('column',   'platform_plans.price_yearly',         '0083'),
+  ('column',   'platform_plans.renewal_price_yearly', '0083')
 )
 select
   e.kind,

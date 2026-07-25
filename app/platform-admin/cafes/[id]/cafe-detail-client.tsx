@@ -32,15 +32,21 @@ export type CafeDetail = {
   recent_audit: { action: string; previous_value: unknown; new_value: unknown; created_at: string; actor_name: string | null }[]
 }
 
+// Every key here is actually checked by hasFeature() somewhere in app code
+// (see lib/entitlements.ts callers) — this list intentionally excludes the
+// plan-default keys (qr_ordering, kds, crm, reservations, advanced_analytics,
+// multi_staff) that platform_plans.features still carries but nothing reads:
+// toggling them here would silently do nothing, which is worse than not
+// showing the toggle at all. Staff seat limits are enforced via the numeric
+// platform_plans.max_staff column instead, not a boolean feature.
 const FEATURES: { key: string; label: string }[] = [
-  { key: 'qr_ordering', label: 'QR Ordering' },
-  { key: 'kds', label: 'KDS' },
-  { key: 'inventory', label: 'Inventory' },
-  { key: 'reservations', label: 'Reservations' },
-  { key: 'crm', label: 'CRM' },
-  { key: 'advanced_analytics', label: 'Advanced Analytics' },
-  { key: 'sms_bills', label: 'SMS Bills' },
-  { key: 'multi_staff', label: 'Multiple Staff' },
+  { key: 'online_payments', label: 'Online Payments (Razorpay)' },
+  { key: 'coupons', label: 'Coupons' },
+  { key: 'loyalty', label: 'Loyalty & Rewards' },
+  { key: 'sms_bills', label: 'SMS Bill Receipts' },
+  { key: 'feedback', label: 'Customer Feedback' },
+  { key: 'expenses', label: 'Expenses Tracking' },
+  { key: 'inventory', label: 'Inventory, Recipes & Purchases' },
   { key: 'advanced_reports', label: 'Advanced Reports' },
 ]
 
@@ -62,7 +68,7 @@ export default function CafeDetailClient({
 }: {
   cafeId: string
   detail: CafeDetail
-  plans: { key: string; name: string; price_monthly: number }[]
+  plans: { key: string; name: string; price_monthly: number; price_yearly: number | null }[]
   permissions: Record<string, boolean>
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -265,7 +271,9 @@ export default function CafeDetailClient({
                   className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
                 >
                   {plans.map((p) => (
-                    <option key={p.key} value={p.key}>{p.name} — ₹{p.price_monthly}/mo</option>
+                    <option key={p.key} value={p.key}>
+                      {p.name} — {p.price_yearly ? `₹${p.price_yearly}/yr` : `₹${p.price_monthly}/mo`}
+                    </option>
                   ))}
                 </select>
               </>

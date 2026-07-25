@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import { hasFeature } from '@/lib/entitlements'
+import { UpgradeRequired } from '@/components/upgrade-required'
 import FeedbackClient, { type FeedbackEntry, type FeedbackSummary } from './feedback-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 
@@ -10,10 +12,16 @@ export default async function FeedbackPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
 
+  const supabase = await createClient()
+
+  if (!(await hasFeature(cafe.cafeId, 'feedback'))) {
+    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
+    return <UpgradeRequired feature="Customer Feedback" plan={planRow?.plan ?? 'current'} />
+  }
+
   const from = businessDaysAgoStartISO(29, cafe.timezone)
   const to = new Date().toISOString()
 
-  const supabase = await createClient()
   const [{ data: entries }, { data: summary }] = await Promise.all([
     supabase
       .from('feedback')

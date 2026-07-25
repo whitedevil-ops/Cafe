@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import { hasFeature } from '@/lib/entitlements'
+import { UpgradeRequired } from '@/components/upgrade-required'
 import PurchasesClient, { type Supplier, type PurchaseOrder, type InventoryItemOption } from './purchases-client'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,14 @@ export default async function PurchasesPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
+
+  // Suppliers/purchase orders are meaningless without stock tracking — same
+  // gate recipes.tsx already reuses rather than inventing a separate key.
+  if (!(await hasFeature(cafe.cafeId, 'inventory'))) {
+    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
+    return <UpgradeRequired feature="Purchases & Suppliers" plan={planRow?.plan ?? 'current'} />
+  }
+
   const [{ data: suppliers }, { data: orders }, { data: items }] = await Promise.all([
     supabase.from('suppliers').select('id, name, contact_name, phone, email, address, notes, active, created_at')
       .eq('cafe_id', cafe.cafeId).order('name'),

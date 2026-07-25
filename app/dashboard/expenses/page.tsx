@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import { hasFeature } from '@/lib/entitlements'
+import { UpgradeRequired } from '@/components/upgrade-required'
 import ExpensesClient, { type Expense } from './expenses-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 
@@ -11,6 +13,12 @@ export default async function ExpensesPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
+
+  if (!(await hasFeature(cafe.cafeId, 'expenses'))) {
+    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
+    return <UpgradeRequired feature="Expenses" plan={planRow?.plan ?? 'current'} />
+  }
+
   // RLS ("member all" on expenses, schema.sql) already lets any active café
   // member manage expenses — that's an existing, deliberate product
   // decision, not something introduced or narrowed here.

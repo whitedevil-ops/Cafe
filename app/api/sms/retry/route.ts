@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { sendSms, billSmsText } from '@/lib/sms'
+import { hasFeature } from '@/lib/entitlements'
 
 // Staff-triggered (re)send of a bill SMS. Auth + tenant scoping come from the
 // caller's session: RLS only returns sms_logs/orders for cafés they belong to.
@@ -21,6 +22,10 @@ export async function POST(req: NextRequest) {
     .eq('id', log_id)
     .maybeSingle()
   if (!log) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  if (!(await hasFeature(log.cafe_id, 'sms_bills'))) {
+    return NextResponse.json({ error: 'SMS bill receipts aren\'t on your plan.' }, { status: 403 })
+  }
 
   const { data: order } = await supabase
     .from('orders')
