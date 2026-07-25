@@ -58,7 +58,6 @@ const STATUS_LABEL: Record<Bill['bill_status'], string> = {
 const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', upi: 'UPI', counter: 'At counter', split: 'Split' }
 
 const money = (n: number) => `₹${n.toLocaleString('en-IN')}`
-const mask = (p: string | null) => (p ? `••••${p.slice(-4)}` : null)
 
 export default function BillsClient({
   cafeId,
@@ -276,7 +275,7 @@ export default function BillsClient({
                   </div>
                   {(b.customer_name || b.phone) && (
                     <p className="mt-1.5 text-[12px] text-muted-foreground">
-                      {[b.customer_name, mask(b.phone)].filter(Boolean).join(' • ')}
+                      {[b.customer_name, b.phone].filter(Boolean).join(' • ')}
                     </p>
                   )}
                 </button>
@@ -305,7 +304,7 @@ export default function BillsClient({
               <tbody className="divide-y divide-border bg-surface">
                 {bills.map((b) => (
                   <tr key={b.id} className="hover:bg-surface-subtle">
-                    <td className="px-3 py-2.5 font-medium text-foreground">{b.gst_invoice_number ?? '—'}</td>
+                    <td className="px-3 py-2.5 font-medium text-foreground">{b.gst_invoice_number ?? `#${b.short_code}`}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">#{b.short_code}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{formatDateTime(b.created_at, timezone)}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{b.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in'}</td>
@@ -313,7 +312,7 @@ export default function BillsClient({
                       {b.order_type === 'takeaway' ? <span className="text-muted-foreground">—</span> : (b.table_label ?? '—')}
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">
-                      {[b.customer_name, mask(b.phone)].filter(Boolean).join(' • ') || '—'}
+                      {[b.customer_name, b.phone].filter(Boolean).join(' • ') || '—'}
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium text-foreground">
                       {money(b.total)}

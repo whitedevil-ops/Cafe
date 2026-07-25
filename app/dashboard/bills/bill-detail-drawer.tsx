@@ -20,7 +20,7 @@ type Detail = {
     table_label: string | null
     session_id: string | null
     customer_name: string | null
-    phone_masked: string | null
+    phone: string | null
     staff_name: string | null
     subtotal: number
     discount: number
@@ -107,7 +107,7 @@ export function BillDetailDrawer({
               <Row k="Status" v={o.bill_status.replace(/_/g, ' ').toLowerCase()} />
               <Row k="Type" v={o.order_type === 'takeaway' ? 'Takeaway' : 'Dine-in'} />
               {o.order_type !== 'takeaway' && <Row k="Table" v={o.table_label ?? '—'} />}
-              <Row k="Customer" v={[o.customer_name, o.phone_masked].filter(Boolean).join(' • ') || '—'} />
+              <Row k="Customer" v={[o.customer_name, o.phone].filter(Boolean).join(' • ') || '—'} />
               <Row k="Staff" v={o.staff_name ?? '—'} />
               <Row k="Paid at" v={o.done_at ? formatDateTime(o.done_at, timezone) : '—'} />
             </dl>

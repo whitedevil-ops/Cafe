@@ -152,7 +152,12 @@ export function CartPanel({
 
   const takeaway = orderType === 'takeaway'
   const collecting = takeaway && tender !== 'pending'
-  const disabled = placing || overCap || lines.length === 0 || (orderType === 'dine_in' && !tableLabel)
+  // Customer name + a valid phone are compulsory for every POS order — the
+  // café wants every walk-in/counter sale captured for CRM, not just QR
+  // self-orders (place_order is unaffected; this is POS-only).
+  const phoneValid = /^[6-9]\d{9}$/.test(customerPhone)
+  const nameValid = customerName.trim().length > 0
+  const disabled = placing || overCap || lines.length === 0 || !phoneValid || !nameValid || (orderType === 'dine_in' && !tableLabel)
 
   // Primary action text carries the financial intent so staff never have to
   // reason about state: takeaway collects now (or is explicitly left pending);
@@ -176,7 +181,12 @@ export function CartPanel({
     // places it (the desktop column, the mobile sheet) owns scrolling the
     // whole thing if it doesn't fit.
     <div className="flex flex-col bg-surface">
-      <div className="border-b border-border px-4 py-3.5">
+      {/* Sticky, not the old flex-1-scrolling-middle split — position:sticky
+          needs no height math and can't reintroduce the squeeze bug that
+          split caused. Stays visible while items/discount/totals scroll
+          underneath, so who this order is for and where it's going is
+          always on screen. */}
+      <div className="sticky top-0 z-10 border-b border-border bg-surface px-4 py-3.5">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -264,17 +274,22 @@ export function CartPanel({
           <input
             value={customerPhone}
             onChange={(e) => onCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-            placeholder="Phone (optional)"
+            placeholder="Phone number *"
             inputMode="numeric"
-            className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+            className={`h-10 rounded-[var(--radius)] border bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground ${
+              customerPhone && !phoneValid ? 'border-destructive' : 'border-border-strong'
+            }`}
           />
           <input
             value={customerName}
             onChange={(e) => onCustomerName(e.target.value)}
-            placeholder="Name (optional)"
+            placeholder="Customer name *"
             className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
           />
         </div>
+        {customerPhone && !phoneValid && (
+          <p className="mt-1 text-[11.5px] text-destructive">Enter a valid 10-digit mobile number.</p>
+        )}
         {lookingUpCustomer && <p className="mt-1.5 text-[11.5px] text-muted-foreground">Looking up customer…</p>}
         {customerLookup?.found && (
           <p className="mt-1.5 rounded-[var(--radius)] bg-primary-subtle px-3 py-1.5 text-[12px] font-medium text-primary">
