@@ -32,20 +32,23 @@ export type CafeDetail = {
   recent_audit: { action: string; previous_value: unknown; new_value: unknown; created_at: string; actor_name: string | null }[]
 }
 
-// Every key here is actually checked by hasFeature() somewhere in app code
-// (see lib/entitlements.ts callers) — this list intentionally excludes the
-// plan-default keys (qr_ordering, kds, crm, reservations, advanced_analytics,
-// multi_staff) that platform_plans.features still carries but nothing reads:
-// toggling them here would silently do nothing, which is worse than not
-// showing the toggle at all. Staff seat limits are enforced via the numeric
-// platform_plans.max_staff column instead, not a boolean feature.
+// Every key here is actually checked by app code (see lib/entitlements.ts
+// callers, plus public_cafe_ordering_enabled for qr_ordering) — this list
+// intentionally excludes keys platform_plans.features still carries but
+// nothing reads: kds (core kitchen infra, every tier defaults true by
+// design — paywalling it risks breaking a live kitchen), reservations and
+// advanced_analytics (no feature exists behind either, toggling would be
+// pure decoration), and multi_staff (seat limits are real, but enforced via
+// the numeric platform_plans.max_staff column, not this boolean).
 const FEATURES: { key: string; label: string }[] = [
+  { key: 'qr_ordering', label: 'QR Ordering (kill switch)' },
   { key: 'online_payments', label: 'Online Payments (Razorpay)' },
   { key: 'coupons', label: 'Coupons' },
   { key: 'loyalty', label: 'Loyalty & Rewards' },
   { key: 'sms_bills', label: 'SMS Bill Receipts' },
   { key: 'feedback', label: 'Customer Feedback' },
   { key: 'expenses', label: 'Expenses Tracking' },
+  { key: 'crm', label: 'Customer Directory (CRM)' },
   { key: 'inventory', label: 'Inventory, Recipes & Purchases' },
   { key: 'advanced_reports', label: 'Advanced Reports' },
 ]

@@ -334,7 +334,9 @@ with expected(kind, name, fix) as (values
   ('function', 'customer_start_session',         '0081'),
   -- real 3-tier pricing: Starter/Growth/Scale (0083)
   ('column',   'platform_plans.price_yearly',         '0083'),
-  ('column',   'platform_plans.renewal_price_yearly', '0083')
+  ('column',   'platform_plans.renewal_price_yearly', '0083'),
+  -- QR ordering kill switch, anon-safe (0084)
+  ('function', 'public_cafe_ordering_enabled',        '0084')
 )
 select
   e.kind,

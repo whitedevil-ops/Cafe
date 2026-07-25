@@ -34,6 +34,25 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   if (cafeErr) console.error('[qr] cafes lookup failed:', cafeErr.message, 'cafe_id=', table.cafe_id)
   if (!cafe) notFound()
 
+  // Operator-facing kill switch (platform-admin Feature control), separate
+  // from account Suspend/Disable — this pauses only customer ordering while
+  // staff keep dashboard access. Any RPC error (including this function not
+  // existing yet, mid-deploy) is treated as enabled: never let a lookup
+  // hiccup take a working café's ordering offline.
+  const { data: orderingEnabled, error: orderingErr } = await supabase.rpc('public_cafe_ordering_enabled', {
+    p_table_token: token,
+  })
+  if (orderingEnabled === false && !orderingErr) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Ordering is paused</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {cafe.name} isn&apos;t taking orders through this QR code right now. Please check with staff.
+        </p>
+      </main>
+    )
+  }
+
   const itemIds = (items ?? []).map((i) => i.id)
   const [{ data: variants }, { data: addons }, { data: popular }] = await Promise.all([
     itemIds.length
