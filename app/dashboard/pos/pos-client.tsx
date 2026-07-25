@@ -670,7 +670,7 @@ export default function PosClient({
         {/* Cart — persistent right panel on desktop. Parent row is height-capped
             and non-scrolling, so a plain h-full (no sticky/dvh) keeps it fixed
             while the product grid scrolls independently. */}
-        <div className="hidden h-full w-[360px] shrink-0 border-l border-border lg:block">
+        <div className="hidden h-full w-[360px] shrink-0 overflow-y-auto border-l border-border lg:block">
           <CartPanel {...cartProps} />
         </div>
       </div>
@@ -708,7 +708,7 @@ export default function PosClient({
               </button>
             </div>
             <div className="max-h-[calc(90dvh-49px)] overflow-y-auto">
-              <CartPanel {...cartProps} flat />
+              <CartPanel {...cartProps} />
             </div>
           </div>
         </div>

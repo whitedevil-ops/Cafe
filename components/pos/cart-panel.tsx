@@ -83,7 +83,6 @@ export function CartPanel({
   holding,
   heldCount,
   onOpenHeld,
-  flat,
 }: {
   tableLabel: string | null
   tableArea: string | null
@@ -134,14 +133,6 @@ export function CartPanel({
   holding: boolean
   heldCount: number
   onOpenHeld: () => void
-  // The mobile bottom sheet already scrolls itself as one document — nesting
-  // this panel's own internal item-list scroll region inside THAT scroll
-  // region is what produced the tiny, cramped scroller reported live (the
-  // inner flex-1/overflow-y-auto had no definite height to fill, so it
-  // collapsed instead of expanding). Desktop keeps the pinned-header/footer,
-  // scrolling-middle layout, since there it has a real fixed-height column
-  // to work with.
-  flat?: boolean
 }) {
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const maxPct = role === 'owner' ? null : role === 'manager' ? 15 : 5
@@ -176,7 +167,15 @@ export function CartPanel({
       : `Send to kitchen · ₹${total}`
 
   return (
-    <div className={flat ? 'flex flex-col bg-surface' : 'flex h-full flex-col bg-surface'}>
+    // No h-full / internal flex-1-scrolling-middle split here on purpose —
+    // that pinned-header/footer-with-a-squeezed-scrolling-middle pattern is
+    // what produced the tiny, confusing scroller reported live (the middle
+    // region can be squeezed smaller than its own content needs whenever
+    // header+footer content is substantial, e.g. customer fields showing,
+    // multiple discount rows). This panel just flows top to bottom; whoever
+    // places it (the desktop column, the mobile sheet) owns scrolling the
+    // whole thing if it doesn't fit.
+    <div className="flex flex-col bg-surface">
       <div className="border-b border-border px-4 py-3.5">
         <div className="flex items-center justify-between">
           <div>
@@ -300,9 +299,9 @@ export function CartPanel({
         )}
       </div>
 
-      <div className={flat ? 'px-4' : 'flex-1 overflow-y-auto px-4'}>
+      <div className="px-4">
         {lines.length === 0 ? (
-          <p className="py-10 text-center text-[13px] text-muted-foreground">Tap items to add them here.</p>
+          <p className="py-4 text-center text-[13px] text-muted-foreground">Tap items to add them here.</p>
         ) : (
           <ul className="divide-y divide-border">
             {lines.map((l) => (
