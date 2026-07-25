@@ -106,11 +106,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   // touch another café's orders.
   const { data: attempt } = await admin
     .from('payment_attempts')
-    .select('id, order_id, amount')
+    .select('id, order_id, amount, purpose')
     .eq('provider_order_id', p.order_id)
     .eq('cafe_id', cafe.id)
     .maybeSingle()
   if (!attempt) return NextResponse.json({ ok: true, unmatched: p.order_id })
+
+  // Wallet top-ups never touch `payments`/`orders` — they credit the
+  // customer's wallet ledger instead. wallet_confirm_topup is itself
+  // idempotent (checks payment_attempts.status), so a duplicate delivery is
+  // a safe no-op rather than a double credit.
+  if (attempt.purpose === 'wallet_topup') {
+    const { error: walletErr } = await admin.rpc('wallet_confirm_topup', {
+      p_attempt_id: attempt.id,
+      p_provider_payment_id: p.id,
+    })
+    if (walletErr) return NextResponse.json({ error: 'wallet credit failed' }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
 
   const { error: insErr } = await admin.from('payments').insert({
     cafe_id: cafe.id,

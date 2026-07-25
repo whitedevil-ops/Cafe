@@ -345,7 +345,18 @@ with expected(kind, name, fix) as (values
   -- trusted-device registration, OTP required again (0088)
   ('table',    'customer_devices',                     '0088'),
   ('column',   'customer_sessions.device_row_id',       '0088'),
-  ('function', 'customer_session_status',              '0088')
+  ('function', 'customer_session_status',              '0088'),
+  -- customer prepaid wallet (0091)
+  ('table',    'wallet_topup_tiers',                   '0091'),
+  ('table',    'wallet_transactions',                  '0091'),
+  ('column',   'payment_attempts.purpose',              '0091'),
+  ('function', 'customer_wallet_state',                '0091'),
+  ('function', 'wallet_start_topup',                   '0091'),
+  ('function', 'wallet_confirm_topup',                 '0091'),
+  ('function', 'wallet_pay_order',                     '0091'),
+  ('function', 'wallet_pay_for_order',                 '0091'),
+  ('function', 'create_wallet_tier',                   '0091'),
+  ('function', 'wallet_overview',                      '0091')
 )
 select
   e.kind,
