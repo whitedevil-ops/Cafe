@@ -62,7 +62,7 @@ export default function ItemsClient({
         rows: report.unsold_items,
       },
     ]
-    downloadReport({ cafeName, reportName: 'Items-Categories', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Items-Categories', from, to }, sheets)
   }
 
   return (

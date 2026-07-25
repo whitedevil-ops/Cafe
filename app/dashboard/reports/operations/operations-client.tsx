@@ -52,7 +52,7 @@ export default function OperationsClient({
         rows: report.turnaround.buckets,
       },
     ]
-    downloadReport({ cafeName, reportName: 'Operations', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Operations', from, to }, sheets)
   }
 
   const maxBucket = Math.max(1, ...(report?.turnaround.buckets.map((b) => b.orders) ?? [0]))

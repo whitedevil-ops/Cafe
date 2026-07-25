@@ -66,7 +66,7 @@ export default function PaymentsClient({
         rows: report.outstanding_bills.map((b) => ({ ...b, type: TYPE_LABEL[b.type] ?? b.type, placed: formatDate(b.created_at, timezone) })),
       },
     ]
-    downloadReport({ cafeName, reportName: 'Payments-Outstanding', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Payments-Outstanding', from, to }, sheets)
   }
 
   return (

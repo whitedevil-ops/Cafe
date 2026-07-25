@@ -155,7 +155,7 @@ export default function SalesReportClient({
         rows: r.by_staff,
       })
     }
-    downloadReport({ cafeName, reportName: 'Sales', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Sales', from, to }, sheets)
   }
 
   const maxDayRevenue = Math.max(1, ...(report?.by_day.map((d) => d.revenue) ?? [0]))

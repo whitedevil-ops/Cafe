@@ -73,7 +73,7 @@ export default function AdjustmentsClient({
         rows: report.cancellations.map((c) => ({ ...c, when: formatDateTime(c.created_at, timezone) })),
       },
     ]
-    downloadReport({ cafeName, reportName: 'Adjustments', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Adjustments', from, to }, sheets)
   }
 
   const tabs: { key: Tab; label: string; count: number }[] = report

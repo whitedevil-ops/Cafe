@@ -107,7 +107,7 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
           </p>
         </div>
         <button
-          onClick={() => s && exportProfitabilityXlsx({ cafeName, summary: s, items, from: bounds(range).from, to: bounds(range).to, type })}
+          onClick={() => { if (s) void exportProfitabilityXlsx({ cafeName, summary: s, items, from: bounds(range).from, to: bounds(range).to, type }) }}
           disabled={!s || items.length === 0}
           className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
         >

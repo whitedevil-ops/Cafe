@@ -63,7 +63,7 @@ export default function GstClient({
         rows: report.invoices.map((i) => ({ ...i, issued: formatDate(i.issued_at, timezone) })),
       },
     ]
-    downloadReport({ cafeName, reportName: 'GST', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'GST', from, to }, sheets)
   }
 
   return (

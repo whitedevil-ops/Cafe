@@ -180,7 +180,7 @@ export default function OverviewClient({
         rows: r.top_customers,
       },
     ]
-    downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
+    void downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
   }
 
   const maxDayNet = Math.max(1, ...(report?.by_day.map((d) => d.net_sales) ?? [0]))
