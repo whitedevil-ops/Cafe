@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
-  BookOpenText, Users, ChartBar, Wallet, Package, Soup, Tag, Gift,
+  BookOpenText, Users, ChartBar, Wallet, Package, Soup, Tag, Gift, Truck,
   Store, QrCode, Settings as SettingsIcon,
   PanelLeftClose, PanelLeft, CircleHelp, ChevronDown, LogOut, Menu as MenuIcon,
 } from 'lucide-react'
@@ -36,6 +36,7 @@ function buildNav(cashEnabled: boolean): NavGroup[] {
         { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} /> },
         { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} /> },
         { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} /> },
+        { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} /> },
         { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} /> },
         { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} /> },
         { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} /> },
