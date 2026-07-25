@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Receipt, RotateCcw, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Receipt, RotateCcw, UserRound } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatTime, isToday } from '@/lib/datetime'
+import { readCustomerSession, writeCustomerSession, clearCustomerSession } from '@/lib/customer-session'
 
 type HistoryItem = { name: string; qty: number; price: number; modifiers: { name: string }[] | null }
 type HistoryOrder = {
@@ -34,10 +35,6 @@ const STATUS_LABEL: Record<string, string> = {
   ready: 'Ready', served: 'Served', completed: 'Completed',
 }
 
-// Only a convenience cache of the server-issued token. The database decides
-// whether it is still valid — a stale or forged value simply fails server-side.
-const sessionKey = (token: string) => `kp_customer_session_${token}`
-
 export default function MyOrdersClient({
   token,
   cafeName,
@@ -54,9 +51,8 @@ export default function MyOrdersClient({
 
   const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [checkedStorage, setCheckedStorage] = useState(false)
-  const [step, setStep] = useState<'phone' | 'code'>('phone')
+  const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,7 +62,9 @@ export default function MyOrdersClient({
   const [reordering, setReordering] = useState<string | null>(null)
 
   useEffect(() => {
-    setSessionToken(localStorage.getItem(sessionKey(token)))
+    // One-time hydration from storage on mount, not an ongoing sync loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSessionToken(readCustomerSession(token)?.token ?? null)
     setCheckedStorage(true)
   }, [token])
 
@@ -80,8 +78,8 @@ export default function MyOrdersClient({
       })
       setLoading(false)
       if (rpcError) {
-        // Expired/revoked session — drop it and fall back to verification.
-        localStorage.removeItem(sessionKey(token))
+        // Expired/revoked session — drop it and fall back to the gate.
+        clearCustomerSession(token)
         setSessionToken(null)
         setError(rpcError.message)
         return
@@ -103,37 +101,20 @@ export default function MyOrdersClient({
     return () => clearInterval(id)
   }, [sessionToken, hasActive, page, loadHistory])
 
-  async function requestCode(e: React.FormEvent) {
+  async function startSession(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const res = await fetch('/api/customer/request-otp', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ table_token: token, phone }),
-    })
-    setBusy(false)
-    const body = await res.json().catch(() => ({}))
-    if (!res.ok) return setError(body.error ?? 'Could not send a code right now.')
-    setStep('code')
-  }
-
-  async function verifyCode(e: React.FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    const { data, error: rpcError } = await supabase.rpc('customer_verify_otp', {
+    const { data, error: rpcError } = await supabase.rpc('customer_start_session', {
       p_table_token: token,
       p_phone: phone,
-      p_code: code,
+      p_name: name,
     })
     setBusy(false)
     if (rpcError) return setError(rpcError.message)
     const st = (data as { session_token: string }).session_token
-    localStorage.setItem(sessionKey(token), st)
+    writeCustomerSession(token, { token: st, name: name.trim(), phone })
     setSessionToken(st)
-    setStep('phone')
-    setCode('')
   }
 
   async function reorder(orderId: string) {
@@ -153,10 +134,11 @@ export default function MyOrdersClient({
   }
 
   function signOut() {
-    localStorage.removeItem(sessionKey(token))
+    clearCustomerSession(token)
     setSessionToken(null)
     setHistory(null)
     setPhone('')
+    setName('')
   }
 
   const header = (
@@ -188,62 +170,37 @@ export default function MyOrdersClient({
         <main className="mx-auto w-full max-w-sm px-5 py-10">
           <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-primary-subtle text-primary">
-              <ShieldCheck size={20} />
+              <UserRound size={20} />
             </span>
-            <h2 className="mt-3 text-[17px] font-semibold text-foreground">
-              {step === 'phone' ? 'Verify your number' : 'Enter the code'}
-            </h2>
+            <h2 className="mt-3 text-[17px] font-semibold text-foreground">Your name and number</h2>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              {step === 'phone'
-                ? 'Your order history is private. We’ll text a one-time code to confirm it’s you.'
-                : `We sent a 6-digit code to ${phone}. It expires in 10 minutes.`}
+              So we can show your orders here at {cafeName}.
             </p>
 
-            {step === 'phone' ? (
-              <form onSubmit={requestCode} className="mt-5 space-y-3">
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="10-digit mobile number"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || phone.length !== 10}
-                  className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
-                >
-                  {busy ? 'Sending…' : 'Send code'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={verifyCode} className="mt-5 space-y-3">
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="6-digit code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  autoFocus
-                  className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-center text-[20px] tracking-[0.3em] text-foreground placeholder:text-[15px] placeholder:tracking-normal placeholder:text-muted-foreground"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || code.length !== 6}
-                  className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
-                >
-                  {busy ? 'Verifying…' : 'View my orders'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setStep('phone'); setCode(''); setError(null) }}
-                  className="w-full text-[13px] text-muted-foreground hover:text-foreground"
-                >
-                  Use a different number
-                </button>
-              </form>
-            )}
+            <form onSubmit={startSession} className="mt-5 space-y-3">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+                className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+              />
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit mobile number"
+                inputMode="numeric"
+                autoComplete="tel"
+                className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+              />
+              <button
+                type="submit"
+                disabled={busy || phone.length !== 10 || !name.trim()}
+                className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
+              >
+                {busy ? 'Continuing…' : 'View my orders'}
+              </button>
+            </form>
 
             {error && (
               <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>

@@ -71,22 +71,44 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   // "Cost Price" contains "price", so cost must be matched first and price must
   // exclude it — otherwise the cost column would be read as the selling price.
   const costCol = findColumn(header, (h) => h.includes('cost'))
+  // Profit is an alternative way to supply the same number: an owner who
+  // thinks "I make ₹20 on this burger" rather than "this costs me ₹80" can
+  // fill in Profit instead of Cost Price — cost is derived (price − profit)
+  // and stored exactly like a directly-supplied cost. If a file somehow has
+  // both, the explicit Cost Price column wins.
+  const profitCol = findColumn(header, (h) => h.includes('profit'))
   const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost'))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
 
   // Parses the optional cost cell for a row; invalid (negative/non-numeric)
   // values are flagged and treated as "no cost" rather than failing the row.
-  function parseCost(raw: unknown[], row: number): number | null {
-    if (costCol === -1) return null
-    const c = costCol < raw.length ? raw[costCol] : ''
-    if (normalize(c) === '') return null
-    const v = parsePrice(c)
-    if (v === null) {
-      issues.push({ row, message: `Cost "${c}" is not a valid amount — left unset.` })
-      return null
+  function parseCost(raw: unknown[], row: number, price: number): number | null {
+    if (costCol !== -1) {
+      const c = costCol < raw.length ? raw[costCol] : ''
+      if (normalize(c) === '') return null
+      const v = parsePrice(c)
+      if (v === null) {
+        issues.push({ row, message: `Cost "${c}" is not a valid amount — left unset.` })
+        return null
+      }
+      return v
     }
-    return v
+    if (profitCol !== -1) {
+      const p = profitCol < raw.length ? raw[profitCol] : ''
+      if (normalize(p) === '') return null
+      const v = parsePrice(p)
+      if (v === null) {
+        issues.push({ row, message: `Profit "${p}" is not a valid amount — left unset.` })
+        return null
+      }
+      if (v > price) {
+        issues.push({ row, message: `Profit "${v}" is more than the price — left unset.` })
+        return null
+      }
+      return price - v
+    }
+    return null
   }
 
   // Flat format needs a category column that is DISTINCT from the item column.
@@ -131,7 +153,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         category: cat,
         name,
         price,
-        cost: parseCost(raw, rowNum),
+        cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
       })
@@ -165,7 +187,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         category: cat,
         name: mergedText,
         price,
-        cost: parseCost(raw, rowNum),
+        cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
       })

@@ -9,6 +9,7 @@ import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
+import { readCustomerSession, writeCustomerSession, type CustomerSession } from '@/lib/customer-session'
 
 export type PublicItem = QrItem
 export type Variant = QrVariant
@@ -17,6 +18,11 @@ export type Addon = QrAddon
 const PHONE_RE = /^[6-9]\d{9}$/
 const NEW_ITEM_DAYS = 14
 const POPULAR = '__popular'
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  placed: 'Order placed', accepted: 'Accepted', preparing: 'Preparing',
+  ready: 'Ready', served: 'Served', completed: 'Completed',
+}
+const ORDER_STATUS_DONE = ['served', 'completed', 'cancelled']
 
 type Line = {
   key: string
@@ -66,6 +72,7 @@ export default function MenuClient({
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter'; receiptToken: string | null; paid?: boolean } | null>(null)
+  const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [onlineError, setOnlineError] = useState<string | null>(null)
   const [verifyingPayment, setVerifyingPayment] = useState(false)
   const [couponCode, setCouponCode] = useState('')
@@ -78,6 +85,15 @@ export default function MenuClient({
   const [reorderNote, setReorderNote] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [activeCat, setActiveCat] = useState<string>('__all')
+
+  // Name + phone gate, shown before the menu whenever this table's token has
+  // no cached session yet — see customer_start_session (migration 0081).
+  const [session, setSession] = useState<CustomerSession | null>(null)
+  const [checkedSession, setCheckedSession] = useState(false)
+  const [gateName, setGateName] = useState('')
+  const [gatePhone, setGatePhone] = useState('')
+  const [gateBusy, setGateBusy] = useState(false)
+  const [gateError, setGateError] = useState<string | null>(null)
 
   const upsellShown = useRef(false)
   const upsellTaken = useRef<string | null>(null)
@@ -157,6 +173,51 @@ export default function MenuClient({
       // A corrupt payload should never break the menu — just ignore it.
     }
   }, [token, items, variants, addons])
+
+  useEffect(() => {
+    // One-time hydration from storage on mount, not an ongoing sync loop.
+    const existing = readCustomerSession(token)
+    if (existing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSession(existing)
+      setPhone(existing.phone)
+    }
+    setCheckedSession(true)
+  }, [token])
+
+  // Live kitchen status on the confirmation screen — same get_receipt call
+  // the payment poller already uses, just also reading order.status.
+  useEffect(() => {
+    if (step !== 'done' || !placed?.receiptToken) return
+    if (orderStatus && ORDER_STATUS_DONE.includes(orderStatus)) return
+    let cancelled = false
+    async function poll() {
+      const { data } = await supabase.rpc('get_receipt', { p_token: placed!.receiptToken })
+      const status = (data as { order?: { status?: string } } | null)?.order?.status
+      if (!cancelled && status) setOrderStatus(status)
+    }
+    void poll()
+    const id = setInterval(poll, 8000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [step, placed, orderStatus, supabase])
+
+  async function startSession(e: React.FormEvent) {
+    e.preventDefault()
+    setGateBusy(true)
+    setGateError(null)
+    const { data, error: rpcError } = await supabase.rpc('customer_start_session', {
+      p_table_token: token,
+      p_phone: gatePhone,
+      p_name: gateName,
+    })
+    setGateBusy(false)
+    if (rpcError) return setGateError(rpcError.message)
+    const st = (data as { session_token: string }).session_token
+    const next = { token: st, name: gateName.trim(), phone: gatePhone }
+    writeCustomerSession(token, next)
+    setSession(next)
+    setPhone(gatePhone)
+  }
 
   const cats = useMemo(() => {
     const withItems = categories.filter((c) => items.some((i) => i.category_id === c.id))
@@ -359,6 +420,7 @@ export default function MenuClient({
     requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token?: string; discount?: number }
     setPlaced({ code: r.short_code, total: r.total, method: mode, receiptToken: r.receipt_token ?? null })
+    setOrderStatus(null)
     setStep('done')
     setCouponCode('')
     setAppliedCoupon(null)
@@ -458,6 +520,60 @@ export default function MenuClient({
     setTimeout(() => setAssist(null), 4000)
   }
 
+  // ── Name + phone gate ────────────────────────────────────────────────────
+  // Shown before anything else on a table this browser hasn't started an
+  // order at yet. No OTP: phone + name are taken at face value, same as
+  // place_order already did for anonymous checkout — see customer_start_session.
+  if (!checkedSession) {
+    return <main className="min-h-dvh bg-background" />
+  }
+
+  if (!session) {
+    return (
+      <main className="mx-auto flex w-full min-h-dvh max-w-sm flex-col justify-center px-6 py-10">
+        <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-6">
+          {cafeLogo && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cafeLogo} alt="" className="mb-3 h-12 w-12 rounded-xl object-cover" />
+          )}
+          <h1 className="text-[18px] font-semibold text-foreground">{cafeName}</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">Table {tableLabel} — tell us your name and number to start ordering.</p>
+          <form onSubmit={startSession} className="mt-5 space-y-3">
+            <input
+              value={gateName}
+              onChange={(e) => setGateName(e.target.value)}
+              placeholder="Your name"
+              autoComplete="name"
+              autoFocus
+              className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+            />
+            <div className="flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
+              <span className="pl-4 pr-2 text-muted-foreground">+91</span>
+              <input
+                value={gatePhone}
+                onChange={(e) => setGatePhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="98765 43210"
+                inputMode="numeric"
+                autoComplete="tel"
+                className="h-12 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={gateBusy || gateName.trim().length === 0 || gatePhone.length !== 10}
+              className="min-h-12 w-full rounded-[var(--radius)] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
+            >
+              {gateBusy ? 'Starting…' : 'Start ordering'}
+            </button>
+            {gateError && (
+              <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{gateError}</p>
+            )}
+          </form>
+        </div>
+      </main>
+    )
+  }
+
   // ── Confirmation ─────────────────────────────────────────────────────────
   if (step === 'done' && placed) {
     return (
@@ -470,6 +586,12 @@ export default function MenuClient({
         <div className="w-full rounded-2xl border border-border bg-surface p-6">
           <p className="text-sm text-muted-foreground">Order number</p>
           <p className="mt-1 text-4xl font-semibold text-foreground">{placed.code}</p>
+          {orderStatus && (
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-warning-subtle px-3 py-1 text-[12.5px] font-medium text-warning">
+              {!ORDER_STATUS_DONE.includes(orderStatus) && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning" />}
+              {ORDER_STATUS_LABEL[orderStatus] ?? orderStatus}
+            </span>
+          )}
           <p className="mt-4 border-t border-border pt-4 text-lg text-foreground">₹{placed.total}</p>
         </div>
         {placed.receiptToken && (

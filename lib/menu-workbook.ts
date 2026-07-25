@@ -11,16 +11,16 @@ function download(wb: XLSX.WorkBook, filename: string) {
 // how it works on first open, not just a bare header row.
 export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
-    ['Category / Item', 'Price', 'Veg Type', 'Description'],
-    ['BURGERS', '', '', ''],
-    ['Classic Veg Burger', 149, 'Veg', 'Classic vegetable burger'],
-    ['Cheese Burger', 179, 'Veg', 'Burger with cheese'],
-    ['SOFT DRINKS', '', '', ''],
-    ['Coca Cola', 60, 'Veg', ''],
-    ['Sprite', 60, 'Veg', ''],
+    ['Category / Item', 'Price', 'Profit', 'Veg Type', 'Description'],
+    ['BURGERS', '', '', '', ''],
+    ['Classic Veg Burger', 149, 89, 'Veg', 'Classic vegetable burger'],
+    ['Cheese Burger', 179, 104, 'Veg', 'Burger with cheese'],
+    ['SOFT DRINKS', '', '', '', ''],
+    ['Coca Cola', 60, 35, 'Veg', ''],
+    ['Sprite', 60, 35, 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 26 }, { wch: 10 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 26 }, { wch: 10 }, { wch: 9 }, { wch: 12 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu template')
   download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
@@ -30,6 +30,7 @@ export type ExportRow = {
   category: string
   name: string
   price: number
+  cost: number | null
   isVeg: boolean | null
   description: string | null
 }
@@ -37,16 +38,17 @@ export type ExportRow = {
 // Flat/repeated-category shape — safe to sort, filter, and bulk-edit in Excel
 // without breaking category grouping, then re-import without duplicating.
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
-  const header = ['Category', 'Item', 'Price', 'Veg Type', 'Description']
+  const header = ['Category', 'Item', 'Price', 'Profit', 'Veg Type', 'Description']
   const body = rows.map((r) => [
     safeText(r.category),
     safeText(r.name),
     r.price,
+    r.cost != null ? r.price - r.cost : '',
     r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
     safeText(r.description ?? ''),
   ])
   const ws = XLSX.utils.aoa_to_sheet([header, ...body])
-  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 10 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 10 }, { wch: 9 }, { wch: 12 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
   download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))

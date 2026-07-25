@@ -101,8 +101,9 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profitability</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Estimated contribution by item, from actual finalised orders — after discounts and refunds, excluding
-            cancelled orders and tax. This is gross contribution, not net profit (rent, salaries and utilities are not included).
+            Profit by item, calculated automatically as items sell — from actual finalised orders, after discounts and
+            refunds, excluding cancelled orders and tax. This is gross profit; rent, salaries and utilities are not
+            included, so it&apos;s not your true bottom-line net profit.
           </p>
         </div>
         <button
@@ -140,21 +141,21 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="Net item sales" value={money(s.net_sales)} />
           <Metric label="Estimated direct cost" value={money(s.cost)} />
-          <Metric label="Gross contribution" value={money(s.contribution)} tone="success" />
-          <Metric label="Contribution margin" value={`${s.margin_pct}%`} />
+          <Metric label="Gross profit" value={money(s.contribution)} tone="success" />
+          <Metric label="Profit margin" value={`${s.margin_pct}%`} />
         </div>
       )}
 
       {missingCost && (
         <p className="mt-3 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
-          Some items have no cost set (shown as “—”). Add estimated costs in <Link href="/dashboard/menu" className="font-medium underline">Menu</Link> so their contribution is accurate. Orders sold before costing was enabled have no cost snapshot.
+          Some items have no cost or profit set (shown as “—”). Add either one in <Link href="/dashboard/menu" className="font-medium underline">Menu</Link> so their profit is calculated accurately. Orders sold before costing was enabled have no cost snapshot.
         </p>
       )}
 
       {insights && (
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <Insight tone="success" head="Top contributor" name={insights.topContrib.name} sub={`${money(insights.topContrib.contribution)} contribution`} />
-          {insights.lowMargin && <Insight tone="warning" head="Lowest margin" name={insights.lowMargin.name} sub={`${insights.lowMargin.margin_pct}% · ${money(insights.lowMargin.contribution)}`} />}
+          <Insight tone="success" head="Most profitable item" name={insights.topContrib.name} sub={`${money(insights.topContrib.contribution)} profit`} />
+          {insights.lowMargin && <Insight tone="warning" head="Lowest profit margin" name={insights.lowMargin.name} sub={`${insights.lowMargin.margin_pct}% · ${money(insights.lowMargin.contribution)}`} />}
           <Insight tone="neutral" head="Highest cost" name={insights.highCost.name} sub={`${money(insights.highCost.cost)} cost`} />
         </div>
       )}
@@ -167,7 +168,7 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
               <th className="px-3 py-2.5 text-right font-medium">Qty</th>
               <th className="px-3 py-2.5 text-right font-medium">Net sales</th>
               <th className="px-3 py-2.5 text-right font-medium">Est. cost</th>
-              <th className="px-3 py-2.5 text-right font-medium">Contribution</th>
+              <th className="px-3 py-2.5 text-right font-medium">Profit</th>
               <th className="px-3 py-2.5 text-right font-medium">Margin</th>
             </tr>
           </thead>

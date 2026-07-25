@@ -74,6 +74,7 @@ export default function BulkImportPanel({
         category: i.category_id ? (catNameById.get(i.category_id) ?? 'Uncategorised') : 'Uncategorised',
         name: i.name,
         price: i.price,
+        cost: i.cost,
         isVeg: i.is_veg,
         description: i.description,
       }))
@@ -319,6 +320,10 @@ export default function BulkImportPanel({
                 In the template, type a category name on its own row (like <b>BURGERS</b>), then list its items
                 underneath with a price. Start a new category the same way whenever you want. Blank rows are fine.
               </p>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <b>Profit</b> (₹ you make per item, e.g. 20 on a ₹100 burger) is optional and never shown to customers —
+                fill it in and Reports auto-calculates your net profit as items sell. You can enter Cost Price instead if you prefer; either works.
+              </p>
             </div>
           )}
 
@@ -352,6 +357,7 @@ export default function BulkImportPanel({
                       {cat.items.map((it, i) => (
                         <li key={i} className="text-[13.5px] text-muted-foreground">
                           • {it.name} — ₹{it.price}
+                          {it.cost != null && <span className="text-[12px]"> (profit ₹{it.price - it.cost})</span>}
                         </li>
                       ))}
                     </ul>

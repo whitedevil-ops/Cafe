@@ -327,7 +327,11 @@ with expected(kind, name, fix) as (values
   ('function', 'op_update_admin',                '0079'),
   ('function', 'op_update_admin_permissions',    '0079'),
   ('function', 'op_set_admin_status',            '0079'),
-  ('function', 'op_log_admin_password_reset',    '0079')
+  ('function', 'op_log_admin_password_reset',    '0079'),
+  -- customer name edit (0080)
+  ('function', 'update_customer_name',           '0080'),
+  -- QR customer session gate, no OTP (0081)
+  ('function', 'customer_start_session',         '0081')
 )
 select
   e.kind,

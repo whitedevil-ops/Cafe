@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, X, Star, TrendingDown, Sparkles } from 'lucide-react'
+import { Search, X, Star, TrendingDown, Sparkles, Pencil } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { useToast } from '@/components/ui/toast'
 import type { CustomerStat } from './page'
 import { formatDayMonth } from '@/lib/datetime'
 
@@ -32,27 +33,45 @@ export default function CustomersClient({
   initialSegment?: Segment
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const { toast } = useToast()
+  const [customers, setCustomers] = useState(initialCustomers)
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment>(initialSegment)
   const [selected, setSelected] = useState<CustomerStat | null>(null)
   const [history, setHistory] = useState<OrderRow[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [savingName, setSavingName] = useState(false)
 
   const counts = useMemo(() => {
-    const c: Record<Segment, number> = { all: initialCustomers.length, new: 0, regular: 0, vip: 0, at_risk: 0 }
-    for (const cust of initialCustomers) c[cust.segment]++
+    const c: Record<Segment, number> = { all: customers.length, new: 0, regular: 0, vip: 0, at_risk: 0 }
+    for (const cust of customers) c[cust.segment]++
     return c
-  }, [initialCustomers])
+  }, [customers])
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return initialCustomers
+    return customers
       .filter((c) => (segment === 'all' ? true : c.segment === segment))
       .filter((c) => (q ? (c.name?.toLowerCase().includes(q) ?? false) || (c.phone?.includes(q) ?? false) : true))
-  }, [initialCustomers, segment, search])
+  }, [customers, segment, search])
+
+  async function saveName() {
+    if (!selected) return
+    setSavingName(true)
+    const { error } = await supabase.rpc('update_customer_name', { p_customer_id: selected.customer_id, p_name: nameInput })
+    setSavingName(false)
+    if (error) return toast(error.message, 'error')
+    const nextName = nameInput.trim() || null
+    setSelected({ ...selected, name: nextName })
+    setCustomers((prev) => prev.map((c) => (c.customer_id === selected.customer_id ? { ...c, name: nextName } : c)))
+    setEditingName(false)
+  }
 
   async function openCustomer(c: CustomerStat) {
     setSelected(c)
+    setEditingName(false)
     setLoadingHistory(true)
     const { data } = await supabase
       .from('orders')
@@ -146,14 +165,40 @@ export default function CustomersClient({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between border-b border-border px-5 py-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[16px] font-semibold text-foreground">{selected.name || 'Unnamed customer'}</h2>
-                  <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium ${SEGMENT_META[selected.segment].badge}`}>
-                    {SEGMENT_META[selected.segment].icon}
-                    {SEGMENT_META[selected.segment].label}
-                  </span>
-                </div>
+              <div className="min-w-0 flex-1">
+                {editingName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void saveName(); if (e.key === 'Escape') setEditingName(false) }}
+                      placeholder="Customer name"
+                      className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[14px] text-foreground placeholder:text-muted-foreground"
+                    />
+                    <button onClick={saveName} disabled={savingName} className="h-8 shrink-0 rounded-[var(--radius-sm)] bg-primary px-2.5 text-[12.5px] font-medium text-primary-foreground disabled:opacity-40">
+                      {savingName ? '…' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingName(false)} className="h-8 shrink-0 rounded-[var(--radius-sm)] px-2 text-[12.5px] text-muted-foreground">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate text-[16px] font-semibold text-foreground">{selected.name || 'Unnamed customer'}</h2>
+                    <button
+                      onClick={() => { setNameInput(selected.name ?? ''); setEditingName(true) }}
+                      aria-label="Edit name"
+                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium ${SEGMENT_META[selected.segment].badge}`}>
+                      {SEGMENT_META[selected.segment].icon}
+                      {SEGMENT_META[selected.segment].label}
+                    </span>
+                  </div>
+                )}
                 <p className="mt-0.5 text-[12.5px] text-muted-foreground">{mask(selected.phone)}{selected.email ? ` · ${selected.email}` : ''}</p>
               </div>
               <button onClick={() => setSelected(null)} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center text-muted-foreground">

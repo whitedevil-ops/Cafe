@@ -103,7 +103,7 @@ export function exportProfitabilityXlsx(args: {
         { header: 'Qty Sold', key: 'qty', kind: 'qty' },
         { header: 'Net Sales (₹)', key: 'sales', kind: 'money' },
         { header: 'Estimated Cost (₹)', key: 'cost', kind: 'money' },
-        { header: 'Gross Contribution (₹)', key: 'contribution', kind: 'money' },
+        { header: 'Gross Profit (₹)', key: 'contribution', kind: 'money' },
         { header: 'Margin %', key: 'margin_pct', kind: 'pct' },
       ],
       rows: args.items.map((i) => ({

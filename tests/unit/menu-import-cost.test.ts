@@ -41,3 +41,38 @@ describe('menu import — optional cost price', () => {
     expect(r.issues.some((i) => /cost/i.test(i.message))).toBe(true)
   })
 })
+
+describe('menu import — optional profit column (alternative to cost)', () => {
+  it('derives cost from a Profit column: cost = price - profit', () => {
+    const rows = [
+      ['Category', 'Item', 'Price', 'Profit'],
+      ['Burger', 'Paneer Burger', '149', '89'],
+    ]
+    const r = parseMenuFile(rows)
+    const item = r.byCategory.flatMap((c) => c.items)[0]
+    expect(item.price).toBe(149)
+    expect(item.cost).toBe(60) // 149 - 89
+  })
+
+  it('prefers an explicit Cost Price column over Profit when both are present', () => {
+    const rows = [
+      ['Category', 'Item', 'Price', 'Cost Price', 'Profit'],
+      ['Burger', 'Paneer Burger', '149', '59', '89'],
+    ]
+    const r = parseMenuFile(rows)
+    const item = r.byCategory.flatMap((c) => c.items)[0]
+    expect(item.cost).toBe(59) // Cost Price wins, not 149 - 89 = 60
+  })
+
+  it('flags a profit greater than the price and leaves cost unset', () => {
+    const rows = [
+      ['Category', 'Item', 'Price', 'Profit'],
+      ['Burger', 'Cheese Burger', '159', '200'],
+    ]
+    const r = parseMenuFile(rows)
+    const item = r.byCategory.flatMap((c) => c.items)[0]
+    expect(item.price).toBe(159)
+    expect(item.cost).toBeNull()
+    expect(r.issues.some((i) => /profit/i.test(i.message))).toBe(true)
+  })
+})
