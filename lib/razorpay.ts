@@ -73,3 +73,30 @@ export async function createRazorpayOrder(params: {
   const body = (await res.json()) as { id?: string }
   return body.id ? { id: body.id } : { error: 'razorpay order missing id' }
 }
+
+/** Create a Razorpay subscription on the PLATFORM's own Razorpay account
+ *  (KhaoPiyo billing a café, not a café billing its customers — uses the
+ *  module-level RAZORPAY_KEY_ID/SECRET, unlike createRazorpayOrder above). */
+export async function createRazorpaySubscription(params: {
+  planId: string
+  totalCount?: number
+  notes?: Record<string, string>
+}): Promise<{ id: string } | { error: string }> {
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64')
+  const res = await fetch('https://api.razorpay.com/v1/subscriptions', {
+    method: 'POST',
+    headers: { authorization: `Basic ${auth}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      plan_id: params.planId,
+      // Razorpay requires a bound on billing cycles; 120 monthly cycles (10
+      // years) is effectively "until cancelled" without using an unbounded
+      // value the API rejects.
+      total_count: params.totalCount ?? 120,
+      customer_notify: 1,
+      notes: params.notes ?? {},
+    }),
+  })
+  if (!res.ok) return { error: `razorpay subscription failed (${res.status})` }
+  const body = (await res.json()) as { id?: string }
+  return body.id ? { id: body.id } : { error: 'razorpay subscription missing id' }
+}

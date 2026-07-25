@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
   BookOpenText, Users, ChartBar, Wallet, Package, Soup, Tag, Gift, Truck, Star,
-  Store, QrCode, Settings as SettingsIcon,
+  Store, QrCode, Settings as SettingsIcon, CreditCard,
   PanelLeftClose, PanelLeft, CircleHelp, ChevronDown, LogOut, Menu as MenuIcon,
 } from 'lucide-react'
 import type { CafeOption } from '@/lib/cafe'
@@ -50,6 +50,7 @@ function buildNav(cashEnabled: boolean): NavGroup[] {
       items: [
         { label: 'Café profile', href: '/dashboard/profile', icon: <Store size={ICON} /> },
         { label: 'QR codes', href: '/dashboard/tables/manage', icon: <QrCode size={ICON} /> },
+        { label: 'Billing', href: '/dashboard/billing', icon: <CreditCard size={ICON} /> },
         { label: 'Settings', href: '/dashboard/settings', icon: <SettingsIcon size={ICON} /> },
       ],
     },

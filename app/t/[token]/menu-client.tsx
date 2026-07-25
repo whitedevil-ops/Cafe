@@ -8,6 +8,7 @@ import { fetchRecommendations, logRecommendationEvent, type Recommendation } fro
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
+import { loadRazorpayCheckout } from '@/lib/razorpay-client'
 
 export type PublicItem = QrItem
 export type Variant = QrVariant
@@ -64,8 +65,9 @@ export default function MenuClient({
   const [phone, setPhone] = useState('')
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter'; receiptToken: string | null } | null>(null)
+  const [placed, setPlaced] = useState<{ code: string; total: number; method: 'online' | 'counter'; receiptToken: string | null; paid?: boolean } | null>(null)
   const [onlineError, setOnlineError] = useState<string | null>(null)
+  const [verifyingPayment, setVerifyingPayment] = useState(false)
   const [couponCode, setCouponCode] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
@@ -377,14 +379,57 @@ export default function MenuClient({
         setOnlineError(body.error ?? 'Online payment is unavailable right now. Please pay at the counter.')
         return
       }
-      const cfg = await res.json()
-      // Provider checkout is opened here once online payments are live.
-      // (Razorpay Checkout is loaded and invoked with cfg.key_id /
-      // cfg.order_id; verification happens server-side via webhook.)
-      void cfg
+      const cfg = (await res.json()) as { key_id: string; order_id: string; amount: number; currency: string; name: string }
+
+      const loaded = await loadRazorpayCheckout()
+      if (!loaded || !window.Razorpay) {
+        setOnlineError('Could not load the payment widget. Please pay at the counter.')
+        return
+      }
+
+      const rzp = new window.Razorpay({
+        key: cfg.key_id,
+        order_id: cfg.order_id,
+        amount: Math.round(cfg.amount * 100),
+        currency: cfg.currency,
+        name: cfg.name,
+        description: `Order ${placed?.code ?? ''}`.trim(),
+        prefill: phone ? { contact: phone } : undefined,
+        theme: { color: '#C2410C' },
+        handler: () => {
+          // Razorpay confirms success client-side, but the order is only
+          // marked paid by the verified webhook — poll for that instead of
+          // trusting this callback directly.
+          void confirmOnlinePayment(receiptToken)
+        },
+        modal: {
+          ondismiss: () => setOnlineError('Payment was not completed.'),
+        },
+      })
+      rzp.on('payment.failed', () => setOnlineError('Payment failed. Please pay at the counter.'))
+      rzp.open()
     } catch {
       setOnlineError('Could not reach the payment service. Please pay at the counter.')
     }
+  }
+
+  // The webhook is the only thing that actually marks an order paid; this
+  // just polls the public receipt for that state so the customer isn't left
+  // staring at "Opening secure payment…" after they've already paid.
+  async function confirmOnlinePayment(receiptToken: string) {
+    setVerifyingPayment(true)
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1200))
+      const { data } = await supabase.rpc('get_receipt', { p_token: receiptToken })
+      const status = (data as { order?: { payment_status?: string } } | null)?.order?.payment_status
+      if (status === 'paid') {
+        setVerifyingPayment(false)
+        setPlaced((p) => (p ? { ...p, paid: true } : p))
+        return
+      }
+    }
+    setVerifyingPayment(false)
+    setOnlineError('Payment received — confirming with the café. Refresh your bill in a moment if this doesn’t update.')
   }
 
   async function callWaiter() {
@@ -428,7 +473,11 @@ export default function MenuClient({
             View your bill →
           </a>
         )}
-        {placed.method === 'online' && !onlineError ? (
+        {placed.method === 'online' && placed.paid ? (
+          <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Payment received — thank you!</p>
+        ) : placed.method === 'online' && verifyingPayment ? (
+          <p className="text-[13px] text-muted-foreground">Confirming your payment…</p>
+        ) : placed.method === 'online' && !onlineError ? (
           <p className="text-[13px] text-muted-foreground">Opening secure payment…</p>
         ) : (
           <div className="w-full space-y-2 text-center">
