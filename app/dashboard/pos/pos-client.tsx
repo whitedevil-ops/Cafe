@@ -539,6 +539,18 @@ export default function PosClient({
     return () => window.removeEventListener('keydown', onKey)
   }, [customizing, tableSelectorOpen, heldOrdersOpen, cartOpen])
 
+  // Distinct categories actually in the cart right now — lets the server
+  // reject (or the suggestion list hide) a coupon restricted to categories
+  // this order doesn't contain, e.g. a coffee-only offer on a burgers order.
+  function cartCategoryIds(): string[] {
+    const ids = new Set<string>()
+    for (const line of cart) {
+      const cat = items.find((i) => i.id === line.itemId)?.category_id
+      if (cat) ids.add(cat)
+    }
+    return [...ids]
+  }
+
   async function applyCoupon(codeOverride?: string) {
     const code = (codeOverride ?? couponCode).trim()
     if (!code) return
@@ -554,6 +566,7 @@ export default function PosClient({
       p_code: code,
       p_subtotal: subtotal,
       p_customer_phone: customerPhone || null,
+      p_category_ids: cartCategoryIds(),
     })
     setCouponChecking(false)
     if (err) return setCouponError(err.message)
@@ -578,6 +591,7 @@ export default function PosClient({
       p_cafe_id: cafeId,
       p_subtotal: subtotal,
       p_customer_phone: customerPhone || null,
+      p_category_ids: cartCategoryIds(),
     })
     setCouponSuggestionsLoading(false)
     if (err) {

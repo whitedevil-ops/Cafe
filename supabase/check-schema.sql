@@ -307,7 +307,10 @@ with expected(kind, name, fix) as (values
   -- OTP IP-side throttle (0076)
   ('table',    'otp_ip_attempts',                '0076'),
   -- POS coupon suggestions (0077)
-  ('function', 'list_applicable_coupons',        '0077')
+  ('function', 'list_applicable_coupons',        '0077'),
+  -- coupon category scoping (0078)
+  ('table',    'coupon_categories',              '0078'),
+  ('function', 'set_coupon_categories',          '0078')
 )
 select
   e.kind,

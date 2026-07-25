@@ -296,6 +296,12 @@ export default function MenuClient({
     if (!code) return
     setCouponChecking(true)
     setCouponError(null)
+    // Distinct categories actually in the cart — lets the server reject a
+    // coupon restricted to categories this order doesn't contain (e.g. a
+    // coffee-only offer applied to a burgers-only order).
+    const categoryIds = [...new Set(
+      cart.map((l) => byId.get(l.itemId)?.category_id).filter((id): id is string => Boolean(id)),
+    )]
     // Preview only — place_order recomputes and redeems this exact same way
     // server-side, so this can never let the customer claim a bigger discount
     // than the coupon actually grants.
@@ -304,6 +310,7 @@ export default function MenuClient({
       p_code: code,
       p_subtotal: subtotal,
       p_customer_phone: phone || null,
+      p_category_ids: categoryIds,
     })
     setCouponChecking(false)
     if (err) return setCouponError(err.message)

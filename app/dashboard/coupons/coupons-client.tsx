@@ -56,11 +56,15 @@ export default function CouponsClient({
   role,
   initialCoupons,
   initialStats,
+  categories,
+  categoriesByCoupon,
 }: {
   cafeId: string
   role: string
   initialCoupons: Coupon[]
   initialStats: CouponStat[]
+  categories: { id: string; name: string }[]
+  categoriesByCoupon: Record<string, { id: string; name: string }[]>
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -68,6 +72,9 @@ export default function CouponsClient({
 
   const [coupons, setCoupons] = useState(initialCoupons)
   const statsByCoupon = useMemo(() => new Map(initialStats.map((s) => [s.coupon_id, s])), [initialStats])
+  const [couponCats, setCouponCats] = useState(categoriesByCoupon)
+  const [editingCatsFor, setEditingCatsFor] = useState<string | null>(null)
+  const [savingCats, setSavingCats] = useState(false)
 
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
@@ -79,6 +86,7 @@ export default function CouponsClient({
   const [perCustomer, setPerCustomer] = useState('')
   const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
+  const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -100,13 +108,26 @@ export default function CouponsClient({
       p_ends_at: toEndOfDayISO(endsAt),
       p_usage_limit: usageLimit ? Math.round(Number(usageLimit)) : null,
       p_per_customer: perCustomer ? Math.round(Number(perCustomer)) : null,
+      p_category_ids: categoryIds,
     })
     setSaving(false)
     if (err) return setError(err.message)
-    setCoupons((list) => [data as Coupon, ...list])
+    const created = data as Coupon
+    setCoupons((list) => [created, ...list])
+    if (categoryIds.length) {
+      setCouponCats((m) => ({ ...m, [created.id]: categories.filter((c) => categoryIds.includes(c.id)) }))
+    }
     setCode(''); setName(''); setValue(''); setMinOrder(''); setMaxDiscount('')
-    setUsageLimit(''); setPerCustomer(''); setStartsAt(''); setEndsAt('')
-    toast(`Coupon ${(data as Coupon).code} created.`)
+    setUsageLimit(''); setPerCustomer(''); setStartsAt(''); setEndsAt(''); setCategoryIds([])
+    toast(`Coupon ${created.code} created.`)
+  }
+
+  async function saveCategoriesFor(couponId: string, ids: string[]) {
+    setSavingCats(true)
+    const { error: err } = await supabase.rpc('set_coupon_categories', { p_coupon_id: couponId, p_category_ids: ids })
+    setSavingCats(false)
+    if (err) return toast(err.message, 'error')
+    setCouponCats((m) => ({ ...m, [couponId]: categories.filter((c) => ids.includes(c.id)) }))
   }
 
   async function toggleActive(c: Coupon) {
@@ -176,6 +197,27 @@ export default function CouponsClient({
                 hint="Needs the customer's phone number to enforce." />
             </div>
 
+            {categories.length > 0 && (
+              <div>
+                <p className="text-[13px] font-medium text-foreground">Applies to (optional)</p>
+                <p className="text-[12px] text-muted-foreground">
+                  Leave empty to apply cafe-wide. Pick categories to restrict it — e.g. a coffee offer only valid on an order with a coffee in it.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {categories.map((c) => {
+                    const on = categoryIds.includes(c.id)
+                    return (
+                      <button key={c.id} type="button"
+                        onClick={() => setCategoryIds((ids) => (on ? ids.filter((id) => id !== c.id) : [...ids, c.id]))}
+                        className={`rounded-full border px-3 py-1 text-[12.5px] font-medium ${on ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'}`}>
+                        {on ? '✓ ' : ''}{c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Starts (optional)" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
               <Input label="Ends (optional)" type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
@@ -224,6 +266,39 @@ export default function CouponsClient({
                         {stat?.redemptions ?? 0} redemption{(stat?.redemptions ?? 0) === 1 ? '' : 's'}
                         {stat && stat.total_discounted > 0 && ` · ₹${stat.total_discounted.toLocaleString('en-IN')} given away`}
                       </p>
+                      {categories.length > 0 && (
+                        <p className="mt-1 text-[12px] text-muted-foreground">
+                          {(couponCats[c.id]?.length ?? 0) > 0
+                            ? `Applies to: ${couponCats[c.id].map((x) => x.name).join(', ')}`
+                            : 'Applies cafe-wide'}
+                          {isAdmin && (
+                            <button
+                              onClick={() => setEditingCatsFor(editingCatsFor === c.id ? null : c.id)}
+                              className="ml-2 font-medium text-primary hover:underline"
+                            >
+                              {editingCatsFor === c.id ? 'Done' : 'Change'}
+                            </button>
+                          )}
+                        </p>
+                      )}
+                      {editingCatsFor === c.id && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5 rounded-[var(--radius)] bg-surface-subtle p-2.5">
+                          {categories.map((cat) => {
+                            const on = (couponCats[c.id] ?? []).some((x) => x.id === cat.id)
+                            return (
+                              <button key={cat.id} disabled={savingCats}
+                                onClick={() => {
+                                  const current = (couponCats[c.id] ?? []).map((x) => x.id)
+                                  const next = on ? current.filter((id) => id !== cat.id) : [...current, cat.id]
+                                  void saveCategoriesFor(c.id, next)
+                                }}
+                                className={`rounded-full border px-2.5 py-1 text-[12px] font-medium disabled:opacity-50 ${on ? 'border-success bg-success-subtle text-success' : 'border-border-strong bg-surface text-muted-foreground'}`}>
+                                {on ? '✓ ' : '+ '}{cat.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                     <Toggle on={c.active} disabled={!isAdmin} onClick={() => toggleActive(c)} />
                   </div>
