@@ -182,14 +182,23 @@ export default function FloorClient({
       setNames(map)
     }
 
-    // Unacknowledged call-waiter flags.
-    const { data: unread } = await supabase
-      .from('notifications')
-      .select('table_id')
-      .eq('cafe_id', cafeId)
-      .eq('type', 'call_waiter')
-      .eq('read', false)
-    setAttention(new Set((unread ?? []).map((n) => n.table_id).filter(Boolean) as string[]))
+    // Unacknowledged call-waiter flags — scoped to the table's CURRENT
+    // session only. Without this, a call-waiter notification from a table's
+    // earlier visit (already paid, session long closed) that was never
+    // explicitly acknowledged would keep flagging that table forever,
+    // including on a brand new order in a completely new session.
+    if (sessionIds.length === 0) {
+      setAttention(new Set())
+    } else {
+      const { data: unread } = await supabase
+        .from('notifications')
+        .select('table_id')
+        .eq('cafe_id', cafeId)
+        .eq('type', 'call_waiter')
+        .eq('read', false)
+        .in('session_id', sessionIds)
+      setAttention(new Set((unread ?? []).map((n) => n.table_id).filter(Boolean) as string[]))
+    }
 
     const sel = selectedRef.current
     if (sel) {
@@ -594,6 +603,21 @@ export default function FloorClient({
           const bill = active.reduce((s, o) => s + o.total, 0)
           const itemCount = items.filter((i) => active.some((o) => o.id === i.order_id)).reduce((s, i) => s + i.qty, 0)
           const billRequested = session?.status === 'bill_requested'
+          // The table's kitchen status is its LEAST-advanced order — if one
+          // order on the table is still preparing, the table isn't "ready"
+          // yet even if another order already is. completed orders don't
+          // affect this: once every order is completed the table shows
+          // nothing here (kitchen's part is done, only payment/bill remain).
+          const kitchenOrders = active.filter((o) => o.status !== 'completed')
+          const kitchenRank: Record<string, number> = { placed: 0, accepted: 0, preparing: 1, ready: 2, served: 3 }
+          const kitchenStatus = kitchenOrders.length
+            ? kitchenOrders.reduce((worst, o) => (kitchenRank[o.status] < kitchenRank[worst] ? o.status : worst), kitchenOrders[0].status)
+            : null
+          const KITCHEN_LABEL: Record<string, string> = { placed: 'Placed', accepted: 'Placed', preparing: 'Preparing', ready: 'Ready to serve', served: 'Served' }
+          const KITCHEN_COLOR: Record<string, string> = {
+            placed: 'text-muted-foreground', accepted: 'text-muted-foreground',
+            preparing: 'text-warning', ready: 'text-success', served: 'text-muted-foreground',
+          }
           const flagged = attention.has(t.id)
           const reserved = !session && t.status === 'reserved'
           const ps = session ? payStateByTable.get(t.id) : undefined
@@ -633,6 +657,11 @@ export default function FloorClient({
                     {itemCount} item{itemCount === 1 ? '' : 's'} · {active.length > 1 ? `${active.length} orders · ` : ''}
                     {mins(session.started_at)}m
                   </p>
+                  {kitchenStatus && (
+                    <p className={`text-[12px] font-medium ${KITCHEN_COLOR[kitchenStatus]}`}>
+                      {KITCHEN_LABEL[kitchenStatus]}
+                    </p>
+                  )}
                   {(flagged || billRequested) && (
                     <p className={`text-[12px] font-medium ${flagged ? 'text-destructive' : 'text-[#7C3AED]'}`}>
                       {flagged ? '● Waiter called' : '● Bill requested'}
