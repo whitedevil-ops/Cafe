@@ -74,6 +74,11 @@ export default function FloorClient({
   // Floor selector: 'all' plus each configured area. Only shown when the café
   // has actually set up more than one area.
   const [activeArea, setActiveArea] = useState<string>('all')
+  // Auto-arrange: sort tables by urgency (waiter called > bill requested >
+  // occupied > empty). Off = fixed table-number order, for staff who know
+  // the floor by heart and want the grid to stop moving under them. Saved
+  // per-device since it's a personal viewing preference, not café config.
+  const [autoArrange, setAutoArrange] = useState(true)
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const [tables, setTables] = useState(initialTables)
@@ -248,6 +253,20 @@ export default function FloorClient({
     }
   }, [poll])
 
+  useEffect(() => {
+    // One-time hydration from storage on mount, not an ongoing sync loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (localStorage.getItem('khaopiyo-table-auto-arrange') === 'off') setAutoArrange(false)
+  }, [])
+
+  const toggleAutoArrange = useCallback(() => {
+    setAutoArrange((prev) => {
+      const next = !prev
+      localStorage.setItem('khaopiyo-table-auto-arrange', next ? 'on' : 'off')
+      return next
+    })
+  }, [])
+
   const sessionByTable = useMemo(() => new Map(sessions.map((s) => [s.table_id, s])), [sessions])
   const ordersBySession = useMemo(() => {
     const m = new Map<string, SessionOrder[]>()
@@ -311,8 +330,8 @@ export default function FloorClient({
     () =>
       [...tables]
         .filter((t) => activeArea === 'all' || t.area_id === activeArea)
-        .sort((a, b) => tablePriority(a) - tablePriority(b) || byTableLabel(a, b)),
-    [tables, activeArea, tablePriority],
+        .sort((a, b) => (autoArrange ? tablePriority(a) - tablePriority(b) || byTableLabel(a, b) : byTableLabel(a, b))),
+    [tables, activeArea, tablePriority, autoArrange],
   )
   const emptyTables = useMemo(() => sorted.filter((t) => !sessionByTable.has(t.id) && t.id !== selected), [sorted, sessionByTable, selected])
 
@@ -562,6 +581,25 @@ export default function FloorClient({
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> Live
             </span>
           )}
+          <button
+            type="button"
+            onClick={toggleAutoArrange}
+            title={autoArrange ? 'Tables reorder by urgency — click for fixed table-number order' : 'Tables in fixed table-number order — click to reorder by urgency'}
+            className="flex min-h-11 items-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground hover:bg-surface-subtle"
+          >
+            <span
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                autoArrange ? 'bg-primary' : 'bg-border-strong'
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  autoArrange ? 'translate-x-[18px]' : 'translate-x-1'
+                }`}
+              />
+            </span>
+            Auto-arrange
+          </button>
           {canEditLayout && (
             <Link href="/dashboard/tables/layout" className="flex min-h-11 items-center rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-sm text-foreground hover:bg-surface-subtle">
               Floor &amp; table setup
