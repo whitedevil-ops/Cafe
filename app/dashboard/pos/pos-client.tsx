@@ -427,7 +427,14 @@ export default function PosClient({
     supabase.rpc('pos_lookup_customer', { p_cafe_id: cafeId, p_phone: customerPhone }).then(({ data }) => {
       if (cancelled) return
       setLookingUpCustomer(false)
-      setCustomerLookup(data as CustomerLookup)
+      const lookup = data as CustomerLookup
+      setCustomerLookup(lookup)
+      // Never overwrites a name staff already typed — only fills a blank
+      // field, so entering a different, new customer's name first still wins
+      // even if the phone happens to also match someone else on file.
+      if (lookup?.found && lookup.name) {
+        setCustomerName((current) => (current.trim() ? current : lookup.name!))
+      }
     })
     return () => {
       cancelled = true
