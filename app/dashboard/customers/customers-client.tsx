@@ -16,7 +16,6 @@ const SEGMENT_META: Record<CustomerStat['segment'], { label: string; badge: stri
   at_risk: { label: 'At risk', badge: 'bg-destructive-subtle text-destructive', icon: <TrendingDown size={12} /> },
 }
 
-const mask = (p: string | null) => (p ? `******${p.slice(-4)}` : '—')
 const fmtDate = (iso: string | null, tz: string) => (iso ? formatDayMonth(iso, tz) : 'Never')
 
 type OrderRow = { id: string; short_code: string; total: number; status: string; created_at: string; receipt_token: string }
@@ -144,7 +143,7 @@ export default function CustomersClient({
                     </span>
                   </div>
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                    {mask(c.phone)} · {c.visits} visit{c.visits === 1 ? '' : 's'} · Last {fmtDate(c.last_visit, timezone)}
+                    {c.phone ?? '—'} · {c.visits} visit{c.visits === 1 ? '' : 's'} · Last {fmtDate(c.last_visit, timezone)}
                     {c.favourite_item && <> · Loves {c.favourite_item}</>}
                   </p>
                 </div>
@@ -199,7 +198,7 @@ export default function CustomersClient({
                     </span>
                   </div>
                 )}
-                <p className="mt-0.5 text-[12.5px] text-muted-foreground">{mask(selected.phone)}{selected.email ? ` · ${selected.email}` : ''}</p>
+                <p className="mt-0.5 text-[12.5px] text-muted-foreground">{selected.phone ?? '—'}{selected.email ? ` · ${selected.email}` : ''}</p>
               </div>
               <button onClick={() => setSelected(null)} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center text-muted-foreground">
                 <X size={18} />
