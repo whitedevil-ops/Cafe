@@ -261,7 +261,16 @@ with expected(kind, name, fix) as (values
   ('function', 'payments_outstanding_report',    '0063'),
   ('function', 'gst_invoice_report',             '0063'),
   ('function', 'adjustments_report',             '0063'),
-  ('function', 'operations_report',              '0063')
+  ('function', 'operations_report',              '0063'),
+  -- loyalty & rewards engine (0064)
+  ('column',   'cafes.loyalty_enabled',          '0064'),
+  ('column',   'cafes.loyalty_points_per_100',   '0064'),
+  ('function', 'get_or_create_loyalty_account',  '0064'),
+  ('function', 'earn_loyalty_points_on_payment', '0064'),
+  ('function', 'redeem_reward',                  '0064'),
+  ('function', 'adjust_loyalty_points',          '0064'),
+  ('function', 'create_reward',                  '0064'),
+  ('function', 'set_reward_active',              '0064')
 )
 select
   e.kind,
