@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { formatDate } from '@/lib/datetime'
+import { NotAuthorized } from '@/components/platform-admin/not-authorized'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,10 @@ type Row = { id: string; full_name: string | null; email: string | null; phone: 
 
 export default async function PlatformUsers() {
   const supabase = await createClient()
+  const { data: context } = await supabase.rpc('platform_admin_context')
+  const permissions = (context as { permissions: Record<string, boolean> } | null)?.permissions ?? {}
+  if (!permissions['users.view']) return <NotAuthorized section="users" />
+
   const { data } = await supabase
     .from('profiles')
     .select('id, full_name, email, phone, created_at')

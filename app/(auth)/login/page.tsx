@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
@@ -23,6 +23,14 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Landing on /login means "let me sign in fresh" — clear any session
+    // already in this browser so switching accounts doesn't depend on
+    // finding Sign out in the dashboard first, and a saved-password
+    // autofill can't silently resume the old account.
+    void createClient().auth.signOut()
+  }, [])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()

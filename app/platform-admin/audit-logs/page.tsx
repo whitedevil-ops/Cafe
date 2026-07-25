@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime } from '@/lib/datetime'
+import { NotAuthorized } from '@/components/platform-admin/not-authorized'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,10 @@ type Row = {
 
 export default async function AuditLogs() {
   const supabase = await createClient()
+  const { data: context } = await supabase.rpc('platform_admin_context')
+  const permissions = (context as { permissions: Record<string, boolean> } | null)?.permissions ?? {}
+  if (!permissions['audit.view']) return <NotAuthorized section="audit logs" />
+
   const { data } = await supabase
     .from('platform_audit_logs')
     .select('id, actor_id, action, target_type, target_id, previous_value, new_value, created_at')
@@ -26,13 +31,16 @@ export default async function AuditLogs() {
   const logs = (data ?? []) as Row[]
   const actorIds = [...new Set(logs.map((l) => l.actor_id).filter(Boolean))] as string[]
   const cafeIds = [...new Set(logs.filter((l) => l.target_type === 'cafe').map((l) => l.target_id).filter(Boolean))] as string[]
+  const adminIds = [...new Set(logs.filter((l) => l.target_type === 'admin').map((l) => l.target_id).filter(Boolean))] as string[]
 
-  const [{ data: actors }, { data: cafes }] = await Promise.all([
+  const [{ data: actors }, { data: cafes }, { data: admins }] = await Promise.all([
     actorIds.length ? supabase.from('profiles').select('id, full_name').in('id', actorIds) : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     cafeIds.length ? supabase.from('cafes').select('id, name').in('id', cafeIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    adminIds.length ? supabase.from('platform_admins').select('id, full_name').in('id', adminIds) : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
   ])
   const actorName = new Map((actors ?? []).map((a) => [a.id, a.full_name]))
   const cafeName = new Map((cafes ?? []).map((c) => [c.id, c.name]))
+  const adminName = new Map((admins ?? []).map((a) => [a.id, a.full_name]))
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -62,6 +70,14 @@ export default async function AuditLogs() {
                     {' · '}
                     <Link href={`/platform-admin/cafes/${l.target_id}`} className="text-primary hover:underline">
                       {cafeName.get(l.target_id) ?? 'café'}
+                    </Link>
+                  </>
+                )}
+                {l.target_type === 'admin' && l.target_id && (
+                  <>
+                    {' · '}
+                    <Link href="/platform-admin/admins" className="text-primary hover:underline">
+                      {adminName.get(l.target_id) ?? 'admin'}
                     </Link>
                   </>
                 )}

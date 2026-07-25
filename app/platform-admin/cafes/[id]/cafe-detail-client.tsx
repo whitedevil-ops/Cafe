@@ -58,10 +58,12 @@ export default function CafeDetailClient({
   cafeId,
   detail,
   plans,
+  permissions,
 }: {
   cafeId: string
   detail: CafeDetail
   plans: { key: string; name: string; price_monthly: number }[]
+  permissions: Record<string, boolean>
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -223,44 +225,60 @@ export default function CafeDetailClient({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={toggleVerified} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
-            {data.account.verified ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
-            {data.account.verified ? 'Remove verification' : 'Verify café'}
-          </button>
-          <button onClick={resetPassword} disabled={resettingPw || !data.business.owner_email} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">
-            <Key size={14} /> {resettingPw ? 'Sending…' : 'Reset owner password'}
-          </button>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {STATUS_ACTIONS.filter((a) => a.to !== data.account.status).map((a) => (
-            <button
-              key={a.to}
-              onClick={() => { setDialogError(null); setStatusDialog(a) }}
-              className={`min-h-9 rounded-[var(--radius-sm)] border px-3 text-[12.5px] font-medium ${
-                a.destructive ? 'border-destructive text-destructive hover:bg-destructive-subtle' : 'border-border-strong text-foreground hover:bg-surface-subtle'
-              }`}
-            >
-              {a.label}
+          {permissions['cafes.verify'] && (
+            <button onClick={toggleVerified} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
+              {data.account.verified ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
+              {data.account.verified ? 'Remove verification' : 'Verify café'}
             </button>
-          ))}
+          )}
+          {permissions['cafes.edit'] && (
+            <button onClick={resetPassword} disabled={resettingPw || !data.business.owner_email} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">
+              <Key size={14} /> {resettingPw ? 'Sending…' : 'Reset owner password'}
+            </button>
+          )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-          <label className="text-[13px] text-muted-foreground">Change plan:</label>
-          <select
-            value={data.account.plan}
-            onChange={(e) => changePlan(e.target.value)}
-            className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
-          >
-            {plans.map((p) => (
-              <option key={p.key} value={p.key}>{p.name} — ₹{p.price_monthly}/mo</option>
+        {permissions['cafes.suspend'] && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {STATUS_ACTIONS.filter((a) => a.to !== data.account.status).map((a) => (
+              <button
+                key={a.to}
+                onClick={() => { setDialogError(null); setStatusDialog(a) }}
+                className={`min-h-9 rounded-[var(--radius-sm)] border px-3 text-[12.5px] font-medium ${
+                  a.destructive ? 'border-destructive text-destructive hover:bg-destructive-subtle' : 'border-border-strong text-foreground hover:bg-surface-subtle'
+                }`}
+              >
+                {a.label}
+              </button>
             ))}
-          </select>
-          <label className="ml-4 text-[13px] text-muted-foreground">Subscription ends:</label>
-          <input type="date" value={subEndsAt} onChange={(e) => setSubEndsAt(e.target.value)} className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
-          <button onClick={extendSubscription} className="h-9 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground">Save</button>
-        </div>
+          </div>
+        )}
+
+        {(permissions['plans.change'] || permissions['subscriptions.manage']) && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            {permissions['plans.change'] && (
+              <>
+                <label className="text-[13px] text-muted-foreground">Change plan:</label>
+                <select
+                  value={data.account.plan}
+                  onChange={(e) => changePlan(e.target.value)}
+                  className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                >
+                  {plans.map((p) => (
+                    <option key={p.key} value={p.key}>{p.name} — ₹{p.price_monthly}/mo</option>
+                  ))}
+                </select>
+              </>
+            )}
+            {permissions['subscriptions.manage'] && (
+              <>
+                <label className="ml-4 text-[13px] text-muted-foreground">Subscription ends:</label>
+                <input type="date" value={subEndsAt} onChange={(e) => setSubEndsAt(e.target.value)} className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
+                <button onClick={extendSubscription} className="h-9 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground">Save</button>
+              </>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Usage */}
@@ -319,12 +337,13 @@ export default function CafeDetailClient({
                   {override !== null && <span className="ml-2 text-[11px] text-warning">override</span>}
                 </div>
                 <div className="flex items-center gap-2">
-                  {override !== null && (
+                  {override !== null && permissions['cafes.edit'] && (
                     <button onClick={() => clearOverride(f.key)} className="text-[11.5px] text-muted-foreground hover:underline">Reset</button>
                   )}
                   <button
                     onClick={() => toggleFeature(f.key, override)}
-                    className={`h-6 w-11 rounded-full transition-colors ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                    disabled={!permissions['cafes.edit']}
+                    className={`h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
                   >
                     <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
                   </button>
@@ -339,10 +358,12 @@ export default function CafeDetailClient({
       <section className="mt-6 rounded-xl border border-border bg-surface p-5">
         <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><StickyNote size={14} /> Operator notes</p>
         <p className="mt-1 text-[12px] text-muted-foreground">Private — never visible to the café.</p>
-        <div className="mt-3 flex gap-2">
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note…" className="h-10 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13.5px] text-foreground placeholder:text-muted-foreground" />
-          <button onClick={addNote} disabled={addingNote || !note.trim()} className="h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground disabled:opacity-40">Add</button>
-        </div>
+        {permissions['cafes.edit'] && (
+          <div className="mt-3 flex gap-2">
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note…" className="h-10 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13.5px] text-foreground placeholder:text-muted-foreground" />
+            <button onClick={addNote} disabled={addingNote || !note.trim()} className="h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground disabled:opacity-40">Add</button>
+          </div>
+        )}
         <ul className="mt-3 space-y-2">
           {data.notes.map((n) => (
             <li key={n.id} className="rounded-[var(--radius)] bg-surface-subtle p-3 text-[13px]">

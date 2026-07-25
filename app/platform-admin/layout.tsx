@@ -2,16 +2,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
+import { AccountMenu } from '@/components/platform-admin/account-menu'
 
 export const dynamic = 'force-dynamic'
 
-const nav = [
-  ['Overview', '/platform-admin'],
-  ['Cafés', '/platform-admin/cafes'],
-  ['Health', '/platform-admin/health'],
-  ['Users', '/platform-admin/users'],
-  ['Audit logs', '/platform-admin/audit-logs'],
-]
+type AdminContext = { admin_id: string; role: string; full_name: string; email: string; permissions: Record<string, boolean> }
 
 export default async function PlatformAdminLayout({
   children,
@@ -25,8 +20,14 @@ export default async function PlatformAdminLayout({
   if (!user) redirect('/login?next=/platform-admin')
 
   // Server-side authorization (spec §1): the ONLY gate. Never trust the client.
-  const { data: isAdmin } = await supabase.rpc('is_platform_admin')
-  if (!isAdmin) {
+  // platform_admin_context() returns null for anyone who isn't an active
+  // admin, and the caller's fully-resolved (role default + override)
+  // permission set for everyone who is — every op_* RPC re-checks the
+  // specific permission it needs independently, this is only what decides
+  // which nav links this admin sees.
+  const { data: context } = await supabase.rpc('platform_admin_context')
+  const ctx = context as AdminContext | null
+  if (!ctx) {
     // Safe denial — no platform data is rendered, no hint of what exists.
     return (
       <div className="grid w-full min-h-dvh place-items-center bg-background px-6 text-center">
@@ -46,6 +47,20 @@ export default async function PlatformAdminLayout({
     )
   }
 
+  // Best-effort — never blocks rendering on it, but does need to complete
+  // before the response finishes (serverless functions don't guarantee an
+  // unawaited promise runs to completion after the function returns).
+  await supabase.rpc('op_touch_admin_login')
+
+  const nav = [
+    ['Overview', '/platform-admin', true],
+    ['Cafés', '/platform-admin/cafes', ctx.permissions['cafes.view']],
+    ['Health', '/platform-admin/health', ctx.permissions['health.view']],
+    ['Users', '/platform-admin/users', ctx.permissions['users.view']],
+    ['Admins', '/platform-admin/admins', ctx.permissions['admins.view']],
+    ['Audit logs', '/platform-admin/audit-logs', ctx.permissions['audit.view']],
+  ].filter(([, , show]) => show) as [string, string, boolean][]
+
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background md:flex-row">
       {/* Deliberately dark, distinct from the light café dashboard — this is
@@ -59,6 +74,9 @@ export default async function PlatformAdminLayout({
           <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator console
           </p>
+          <div className="mt-2">
+            <AccountMenu fullName={ctx.full_name} role={ctx.role} email={ctx.email} />
+          </div>
         </div>
         <nav className="mt-8 space-y-0.5">
           {nav.map(([label, href]) => (

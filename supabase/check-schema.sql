@@ -310,7 +310,24 @@ with expected(kind, name, fix) as (values
   ('function', 'list_applicable_coupons',        '0077'),
   -- coupon category scoping (0078)
   ('table',    'coupon_categories',              '0078'),
-  ('function', 'set_coupon_categories',          '0078')
+  ('function', 'set_coupon_categories',          '0078'),
+  -- multi-admin roles & permissions (0079)
+  ('column',   'platform_admins.full_name',      '0079'),
+  ('column',   'platform_admins.email',          '0079'),
+  ('column',   'platform_admins.permissions',    '0079'),
+  ('column',   'platform_admins.created_by',     '0079'),
+  ('column',   'platform_admins.updated_at',     '0079'),
+  ('function', 'role_default_permissions',       '0079'),
+  ('function', 'has_platform_permission',        '0079'),
+  ('function', 'platform_admin_context',         '0079'),
+  ('function', 'op_touch_admin_login',           '0079'),
+  ('function', 'op_list_admins',                 '0079'),
+  ('function', 'op_get_admin_detail',            '0079'),
+  ('function', 'op_create_admin',                '0079'),
+  ('function', 'op_update_admin',                '0079'),
+  ('function', 'op_update_admin_permissions',    '0079'),
+  ('function', 'op_set_admin_status',            '0079'),
+  ('function', 'op_log_admin_password_reset',    '0079')
 )
 select
   e.kind,
