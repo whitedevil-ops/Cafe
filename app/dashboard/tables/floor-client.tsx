@@ -503,6 +503,7 @@ export default function FloorClient({
   const selPaid = selSession ? Math.min(selTotal, paidBySession.get(selSession.id) ?? 0) : 0
   const selRemaining = Math.max(0, selTotal - selPaid)
   const allCompleted = selOrders.length > 0 && selOrders.every((o) => o.status === 'completed')
+  const canClose = allCompleted && selRemaining === 0
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -794,10 +795,14 @@ export default function FloorClient({
             {selSession && (
               <button
                 onClick={closeTable}
-                disabled={!allCompleted}
+                disabled={!canClose}
                 className="mt-4 w-full rounded-[var(--radius)] bg-foreground py-3 text-sm font-medium text-background disabled:opacity-40"
               >
-                {allCompleted ? 'Close table' : 'Complete all orders to close table'}
+                {!allCompleted
+                  ? 'Complete all orders to close table'
+                  : selRemaining > 0
+                    ? `₹${selRemaining} due — record payment to close table`
+                    : 'Close table'}
               </button>
             )}
 
