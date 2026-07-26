@@ -56,6 +56,18 @@ const FEATURES: { key: string; label: string }[] = [
   { key: 'advanced_reports', label: 'Advanced Reports' },
 ]
 
+// Not gated on anything — every café gets these regardless of plan, so
+// there's no toggle for them. Listed read-only so an operator sees the
+// café's full feature set in one place, not just the plan-gated subset.
+const ALWAYS_INCLUDED: string[] = [
+  'QR ordering', 'Digital menu builder', 'POS billing', 'Kitchen Display System (KDS)',
+  'Live Tables', 'Discounts, held orders, cancel with reason', 'Bills & GST invoicing',
+  'Digital receipts', 'Customer "My Orders"', 'Cash shift & drawer reconciliation',
+  'Waiter tableside quick-add', 'Real-time sync', 'Pay at Counter + customer UPI',
+  'Staff accounts & roles', 'Per-role screen access control', 'Café profile & settings',
+  'Sales report', 'Owner Command Center',
+]
+
 const STATUS_ACTIONS: { to: string; label: string; destructive: boolean }[] = [
   { to: 'active', label: 'Activate', destructive: false },
   { to: 'suspended', label: 'Suspend', destructive: true },
@@ -335,6 +347,17 @@ export default function CafeDetailClient({
           </ul>
         </section>
       )}
+
+      {/* Always included — informational, not gated on anything */}
+      <section className="mt-6 rounded-xl border border-border bg-surface p-5">
+        <p className="text-sm font-medium text-foreground">Always included</p>
+        <p className="mt-1 text-[12.5px] text-muted-foreground">Every café gets these regardless of plan — nothing to toggle.</p>
+        <ul className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          {ALWAYS_INCLUDED.map((label) => (
+            <li key={label} className="text-[13px] text-muted-foreground">{label}</li>
+          ))}
+        </ul>
+      </section>
 
       {/* Feature control */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-5">
