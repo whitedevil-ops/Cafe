@@ -22,8 +22,10 @@ export type ParsedItem = {
   isVeg: boolean | null
   description: string | null
   /** Size variants (Small/Medium/Large), as absolute prices — empty unless the
-      file has at least one of those columns AND this row filled one in. */
-  variants: { name: string; price: number }[]
+      file has at least one of those columns AND this row filled one in.
+      cost is likewise absolute (not a delta) and null when the file has no
+      per-size Cost/Profit column for that size. */
+  variants: { name: string; price: number; cost: number | null }[]
 }
 export type ImportIssue = { row: number; message: string }
 
@@ -71,29 +73,64 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
 
   const catCol = findColumn(header, (h) => h.includes('category'))
   const itemCol = findColumn(header, (h) => h.includes('item') || h.includes('name'))
+  const sizeWords = ['small', 'medium', 'med', 'large']
+  const isSizeSpecific = (h: string) => sizeWords.some((w) => h.includes(w))
   // "Cost Price" contains "price", so cost must be matched first and price must
   // exclude it — otherwise the cost column would be read as the selling price.
-  const costCol = findColumn(header, (h) => h.includes('cost'))
+  // Excludes size-specific columns ("Small Cost") so they aren't double-matched
+  // as the item's own base cost.
+  const costCol = findColumn(header, (h) => h.includes('cost') && !isSizeSpecific(h))
   // Profit is an alternative way to supply the same number: an owner who
   // thinks "I make ₹20 on this burger" rather than "this costs me ₹80" can
   // fill in Profit instead of Cost Price — cost is derived (price − profit)
   // and stored exactly like a directly-supplied cost. If a file somehow has
   // both, the explicit Cost Price column wins.
-  const profitCol = findColumn(header, (h) => h.includes('profit'))
-  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost'))
+  const profitCol = findColumn(header, (h) => h.includes('profit') && !isSizeSpecific(h))
+  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isSizeSpecific(h))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
-  // Optional size columns — absolute prices per size, converted to a base
-  // price + variant deltas at write time (matches how the per-item editor
-  // already stores variants). Leave a size blank for an item with only one.
-  const sizeCols: { name: string; col: number }[] = (
+  // Optional size columns — absolute prices (and optionally an absolute
+  // Cost/Profit) per size, converted to base + variant deltas at write time
+  // (matches how the per-item editor already stores variants). Leave a size
+  // blank for an item with only one.
+  const sizeCols: { name: string; col: number; costCol: number; profitCol: number }[] = (
     [
-      ['Small', findColumn(header, (h) => h.includes('small'))],
-      ['Medium', findColumn(header, (h) => h.includes('med'))],
-      ['Large', findColumn(header, (h) => h.includes('large') || h.includes('lg'))],
+      ['Small', 'small'],
+      ['Medium', 'med'],
+      ['Large', 'large'],
     ] as const
-  ).filter(([, col]) => col !== -1).map(([name, col]) => ({ name, col }))
+  )
+    .map(([name, word]) => ({
+      name,
+      col: findColumn(header, (h) => h.includes(word) && !h.includes('cost') && !h.includes('profit')),
+      costCol: findColumn(header, (h) => h.includes(word) && h.includes('cost')),
+      profitCol: findColumn(header, (h) => h.includes(word) && h.includes('profit')),
+    }))
+    .filter((s) => s.col !== -1)
   const hasSizeCols = sizeCols.length > 0
+
+  // Resolves a size's absolute cost from its own Cost or Profit cell, given
+  // that size's own (already-resolved) price — the exact same cost-or-profit
+  // choice the base item gets, just scoped to one size's numbers instead of
+  // the item's.
+  function resolveSizeCost(raw: unknown[], sizeCol: { costCol: number; profitCol: number }, sizePrice: number, row: number, label: string): number | null {
+    if (sizeCol.costCol !== -1) {
+      const c = sizeCol.costCol < raw.length ? raw[sizeCol.costCol] : ''
+      if (normalize(c) === '') return null
+      const v = parsePrice(c)
+      if (v === null) { issues.push({ row, message: `"${label}" — cost is not a valid amount, ignored.` }); return null }
+      return v
+    }
+    if (sizeCol.profitCol !== -1) {
+      const p = sizeCol.profitCol < raw.length ? raw[sizeCol.profitCol] : ''
+      if (normalize(p) === '') return null
+      const v = parsePrice(p)
+      if (v === null) { issues.push({ row, message: `"${label}" — profit is not a valid amount, ignored.` }); return null }
+      if (v > sizePrice) { issues.push({ row, message: `"${label}" — profit is more than its price, ignored.` }); return null }
+      return sizePrice - v
+    }
+    return null
+  }
 
   // Resolves a row's price and any size variants together, since which size
   // columns are filled changes what "the price" even means:
@@ -109,29 +146,35 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     priceRaw: unknown,
     row: number,
     label: string,
-  ): { price: number | null; variants: { name: string; price: number }[] } {
+  ): { price: number | null; variants: { name: string; price: number; cost: number | null }[] } {
     if (!hasSizeCols) return { price: parsePrice(priceRaw), variants: [] }
 
     const filled = sizeCols
-      .map((s) => ({ name: s.name, raw: s.col < raw.length ? raw[s.col] : '' }))
-      .filter((s) => normalize(s.raw) !== '')
+      .map((s) => ({ s, raw: s.col < raw.length ? raw[s.col] : '' }))
+      .filter((x) => normalize(x.raw) !== '')
     if (filled.length === 0) return { price: parsePrice(priceRaw), variants: [] }
 
-    const parsed = filled.map((s) => ({ name: s.name, price: parsePrice(s.raw) }))
-    for (const s of parsed) {
-      if (s.price === null) issues.push({ row, message: `"${label}" — ${s.name} price is not a valid amount, ignored.` })
+    const parsed = filled.map((x) => ({ s: x.s, price: parsePrice(x.raw) }))
+    for (const x of parsed) {
+      if (x.price === null) issues.push({ row, message: `"${label}" — ${x.s.name} price is not a valid amount, ignored.` })
     }
-    const valid = parsed.filter((s): s is { name: string; price: number } => s.price !== null)
+    const valid = parsed.filter((x): x is { s: typeof sizeCols[number]; price: number } => x.price !== null)
     if (valid.length === 0) return { price: parsePrice(priceRaw), variants: [] }
+
+    const withCost = valid.map((x) => ({
+      name: x.s.name,
+      price: x.price,
+      cost: resolveSizeCost(raw, x.s, x.price, row, `${label} — ${x.s.name}`),
+    }))
 
     const explicitPrice = parsePrice(priceRaw)
     if (explicitPrice !== null) {
-      return { price: explicitPrice, variants: valid }
+      return { price: explicitPrice, variants: withCost }
     }
     // No base price given — use the first filled size as the base, and
     // don't re-list it as a variant of itself.
-    const [base, ...rest] = valid
-    return { price: base.price, variants: rest }
+    const [, ...rest] = withCost
+    return { price: withCost[0].price, variants: rest }
   }
 
   // Parses the optional cost cell for a row; invalid (negative/non-numeric)

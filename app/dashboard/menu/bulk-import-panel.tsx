@@ -73,18 +73,22 @@ export default function BulkImportPanel({
     // here rather than joining them into every list load just for this.
     const { data: variantRows } = await supabase
       .from('menu_item_variants')
-      .select('menu_item_id, name, price_delta')
+      .select('menu_item_id, name, price_delta, cost_delta')
       .in('menu_item_id', items.map((i) => i.id))
       .in('name', ['Small', 'Medium', 'Large'])
-    const sizesByItem = new Map<string, { small?: number; medium?: number; large?: number }>()
+    const sizesByItem = new Map<string, NonNullable<Parameters<typeof downloadMenuExport>[1][number]['sizes']>>()
     for (const v of variantRows ?? []) {
       const entry = sizesByItem.get(v.menu_item_id) ?? {}
       const item = items.find((i) => i.id === v.menu_item_id)
       if (item) {
         const price = item.price + v.price_delta
-        if (v.name === 'Small') entry.small = price
-        else if (v.name === 'Medium') entry.medium = price
-        else if (v.name === 'Large') entry.large = price
+        // Only surface a size's cost if the item itself has one to be
+        // relative to — an item with no cost of its own has no meaningful
+        // "extra" cost per size either.
+        const cost = item.cost != null ? item.cost + v.cost_delta : undefined
+        if (v.name === 'Small') { entry.small = price; entry.smallCost = cost }
+        else if (v.name === 'Medium') { entry.medium = price; entry.mediumCost = cost }
+        else if (v.name === 'Large') { entry.large = price; entry.largeCost = cost }
       }
       sizesByItem.set(v.menu_item_id, entry)
     }
@@ -155,9 +159,9 @@ export default function BulkImportPanel({
       // Populated for updates immediately (the item id is already known);
       // for inserts, held in lockstep with `inserts` and resolved once the
       // insert returns real ids (see below).
-      type VariantPlan = { itemId: string; price: number; variants: { name: string; price: number }[] }
+      type VariantPlan = { itemId: string; price: number; cost: number | null; variants: { name: string; price: number; cost: number | null }[] }
       const updateVariantPlans: VariantPlan[] = []
-      const insertVariantSpecs: ({ price: number; variants: { name: string; price: number }[] } | null)[] = []
+      const insertVariantSpecs: (Omit<VariantPlan, 'itemId'> | null)[] = []
 
       for (const cat of result.byCategory) {
         const categoryId = existingByLower.get(cat.name.trim().toLowerCase())!
@@ -167,7 +171,11 @@ export default function BulkImportPanel({
           if (existingMatch) {
             updates.push({ id: existingMatch.id, price: item.price, description: item.description, is_veg: item.isVeg, cost: item.cost })
             if (item.variants.length > 0) {
-              updateVariantPlans.push({ itemId: existingMatch.id, price: item.price, variants: item.variants })
+              // For an update, an item whose file row had no cost/profit of its
+              // own keeps its EXISTING stored cost as the base for size deltas
+              // (matches the update above, which likewise never blanks cost).
+              const baseCost = item.cost ?? existingMatch.cost
+              updateVariantPlans.push({ itemId: existingMatch.id, price: item.price, cost: baseCost, variants: item.variants })
             }
           } else {
             const sort = nextSort.get(categoryId) ?? 0
@@ -183,7 +191,7 @@ export default function BulkImportPanel({
               is_veg: item.isVeg,
               sort,
             })
-            insertVariantSpecs.push(item.variants.length > 0 ? { price: item.price, variants: item.variants } : null)
+            insertVariantSpecs.push(item.variants.length > 0 ? { price: item.price, cost: item.cost, variants: item.variants } : null)
           }
         }
       }
@@ -196,7 +204,7 @@ export default function BulkImportPanel({
         // Bulk insert returns rows in the same order they were submitted.
         ;(insertedRows ?? []).forEach((row, i) => {
           const spec = insertVariantSpecs[i]
-          if (spec) variantPlans.push({ itemId: row.id, price: spec.price, variants: spec.variants })
+          if (spec) variantPlans.push({ itemId: row.id, price: spec.price, cost: spec.cost, variants: spec.variants })
         })
       }
       if (updates.length) {
@@ -231,11 +239,16 @@ export default function BulkImportPanel({
             // editor, which orders variants by this column — without it every
             // row here would default to sort=0 and display in arbitrary order.
             const sortByName: Record<string, number> = { Small: 0, Medium: 1, Large: 2 }
+            const baseCost = p.cost ?? 0
             return supabase.from('menu_item_variants').insert(
               p.variants.map((v) => ({
                 menu_item_id: p.itemId,
                 name: v.name,
                 price_delta: v.price - p.price,
+                // Only a size with its own Cost/Profit cell gets a real delta;
+                // one with no cost data of its own just costs the same as the
+                // base item (delta 0), same default as adding a variant by hand.
+                cost_delta: v.cost != null ? v.cost - baseCost : 0,
                 sort: sortByName[v.name] ?? 0,
               })),
             )
@@ -400,6 +413,11 @@ export default function BulkImportPanel({
                 <b>Profit</b> (₹ you make per item, e.g. 20 on a ₹100 burger) is optional and never shown to customers —
                 fill it in and Reports auto-calculates your net profit as items sell. You can enter Cost Price instead if you prefer; either works.
               </p>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <b>Small Cost / Medium Cost / Large Cost</b> work the same way, per size — only fill one in if that
+                size actually costs you something different to make. Leave it blank and that size just costs the
+                same as the item&apos;s own Profit/Cost Price above.
+              </p>
             </div>
           )}
 
@@ -435,7 +453,10 @@ export default function BulkImportPanel({
                           • {it.name} — ₹{it.price}
                           {it.cost != null && <span className="text-[12px]"> (profit ₹{it.price - it.cost})</span>}
                           {it.variants.length > 0 && (
-                            <span className="text-[12px]"> · {it.variants.map((v) => `${v.name} ₹${v.price}`).join(', ')}</span>
+                            <span className="text-[12px]">
+                              {' · '}
+                              {it.variants.map((v) => `${v.name} ₹${v.price}${v.cost != null ? ` (profit ₹${v.price - v.cost})` : ''}`).join(', ')}
+                            </span>
                           )}
                         </li>
                       ))}

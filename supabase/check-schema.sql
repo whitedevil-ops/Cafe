@@ -388,8 +388,11 @@ with expected(kind, name, fix) as (values
   -- 0103 is a function-body fix to an already-registered function
   -- (public_cafe_ordering_enabled, 0084) — nothing new to check-schema here.
   -- bulk bill/receipt export (0104)
-  ('function', 'list_bill_receipts',                    '0104')
+  ('function', 'list_bill_receipts',                    '0104'),
   -- 0105 is a function-body fix to 0104 (CTE-scope bug) — nothing new here.
+  -- per-variant cost (0106)
+  ('column',   'menu_item_variants.cost_delta',         '0106'),
+  ('column',   'order_items.variant_id',                '0106')
 )
 select
   e.kind,

@@ -12,7 +12,7 @@ import BulkImportPanel from './bulk-import-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
-type VariantDraft = { id?: string; name: string; price_delta: string }
+type VariantDraft = { id?: string; name: string; price_delta: string; cost_delta: string }
 type AddonDraft = { id?: string; name: string; price: string }
 
 type ItemDraft = {
@@ -304,7 +304,13 @@ export default function MenuManager({
 
     const variants = d.variants
       .filter((v) => v.name.trim())
-      .map((v, i) => ({ menu_item_id: itemId, name: v.name.trim(), price_delta: Math.round(Number(v.price_delta) || 0), sort: i }))
+      .map((v, i) => ({
+        menu_item_id: itemId,
+        name: v.name.trim(),
+        price_delta: Math.round(Number(v.price_delta) || 0),
+        cost_delta: Math.round(Number(v.cost_delta) || 0),
+        sort: i,
+      }))
     const addons = d.addons
       .filter((a) => a.name.trim())
       .map((a, i) => ({ menu_item_id: itemId, name: a.name.trim(), price: Math.max(0, Math.round(Number(a.price) || 0)), sort: i }))
@@ -338,7 +344,7 @@ export default function MenuManager({
       addons: [],
     })
     const [{ data: vs }, { data: as }, { data: prs }] = await Promise.all([
-      supabase.from('menu_item_variants').select('id, name, price_delta').eq('menu_item_id', item.id).order('sort'),
+      supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
     ])
@@ -346,7 +352,7 @@ export default function MenuManager({
       d && d.id === item.id
         ? {
             ...d,
-            variants: (vs ?? []).map((v) => ({ id: v.id, name: v.name, price_delta: String(v.price_delta) })),
+            variants: (vs ?? []).map((v) => ({ id: v.id, name: v.name, price_delta: String(v.price_delta), cost_delta: String(v.cost_delta ?? 0) })),
             addons: (as ?? []).map((a) => ({ id: a.id, name: a.name, price: String(a.price) })),
             pairings: (prs ?? []).map((p) => p.suggested_item_id as string),
           }
@@ -899,7 +905,7 @@ export default function MenuManager({
                   <span className="text-[13px] font-medium text-foreground">Variants</span>
                   <button
                     type="button"
-                    onClick={() => setDraft({ ...draft, variants: [...draft.variants, { name: '', price_delta: '0' }] })}
+                    onClick={() => setDraft({ ...draft, variants: [...draft.variants, { name: '', price_delta: '0', cost_delta: '0' }] })}
                     className="text-[13px] text-primary hover:underline"
                   >
                     + Add
@@ -907,6 +913,7 @@ export default function MenuManager({
                 </div>
                 <p className="mt-0.5 text-[12px] text-muted-foreground">
                   Sizes/options. Final price is base {draft.price ? `(₹${draft.price})` : ''} plus this amount. Leave empty for none.
+                  {canSeeCost && ' The cost field (if shown) works the same way — how much more this size costs you, added to the base cost.'}
                 </p>
                 {draft.variants.map((v, idx) => (
                   <div key={idx} className="mt-2 flex gap-2">
@@ -923,6 +930,16 @@ export default function MenuManager({
                       placeholder="+₹"
                       className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                     />
+                    {canSeeCost && (
+                      <input
+                        value={v.cost_delta}
+                        type="number"
+                        onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, cost_delta: e.target.value } : x)) })}
+                        placeholder="+cost"
+                        title="Extra cost for this size, relative to the base item's cost"
+                        className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      />
+                    )}
                     <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove variant" className="px-2 text-muted-foreground hover:text-destructive">×</button>
                   </div>
                 ))}
