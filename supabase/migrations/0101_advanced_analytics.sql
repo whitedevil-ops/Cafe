@@ -52,7 +52,7 @@ begin
     select count(*) filter (where cnt = 1) as new_customers, count(*) filter (where cnt > 1) as returning_customers
     from customer_orders
   ),
-  trailing as (
+  recent_avg as (
     select coalesce(avg(revenue), 0) as avg_daily from daily where d >= (p_to::date - 7)
   )
   select jsonb_build_object(
@@ -65,7 +65,7 @@ begin
         then round(100.0 * (select returning_customers from repeat_stats) / (select new_customers + returning_customers from repeat_stats), 1)
         else 0 end
     ),
-    'forecast_next_7d', round((select avg_daily from trailing) * 7)
+    'forecast_next_7d', round((select avg_daily from recent_avg) * 7)
   ) into v_result;
 
   return v_result;
