@@ -385,6 +385,8 @@ with expected(kind, name, fix) as (values
   ('table',    'cafe_deletions',                        '0102'),
   ('function', 'op_delete_cafe',                        '0102'),
   ('function', 'list_cafe_deletions',                   '0102')
+  -- 0103 is a function-body fix to an already-registered function
+  -- (public_cafe_ordering_enabled, 0084) — nothing new to check-schema here.
 )
 select
   e.kind,
