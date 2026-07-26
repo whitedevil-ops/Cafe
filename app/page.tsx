@@ -1,6 +1,7 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { SiteHeader } from '@/components/marketing/site-header'
+import { SiteFooter } from '@/components/marketing/site-footer'
 
 const features = [
   {
@@ -40,27 +41,7 @@ const steps = [
 export default function Home() {
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background">
-      {/* Nav */}
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-        <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center">
-            <Image src="/logo-wordmark.png" alt="KhaoPiyo" width={900} height={311} className="h-8 w-auto" priority />
-          </Link>
-          <div className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-            <a href="#features" className="transition-colors hover:text-foreground">Features</a>
-            <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
-            <a href="#pricing" className="transition-colors hover:text-foreground">Pricing</a>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Log in</Button>
-            </Link>
-            <Link href="/signup">
-              <Button size="sm">Start free</Button>
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <SiteHeader />
 
       {/* Hero */}
       <section className="mx-auto grid w-full max-w-6xl gap-12 px-6 py-16 md:grid-cols-2 md:items-center md:py-24">
@@ -208,23 +189,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-border bg-surface">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-lg font-semibold tracking-tight text-foreground">counter</p>
-            <p className="mt-1 text-[13px] text-muted-foreground">
-              The operating system for modern cafés.
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-muted-foreground">
-            <Link href="/legal/privacy" className="hover:text-foreground">Privacy</Link>
-            <Link href="/legal/terms" className="hover:text-foreground">Terms</Link>
-            <Link href="/legal/cookies" className="hover:text-foreground">Cookies</Link>
-            <Link href="/login" className="hover:text-foreground">Log in</Link>
-          </nav>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

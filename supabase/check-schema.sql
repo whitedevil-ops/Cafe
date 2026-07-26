@@ -389,6 +389,7 @@ with expected(kind, name, fix) as (values
   -- (public_cafe_ordering_enabled, 0084) — nothing new to check-schema here.
   -- bulk bill/receipt export (0104)
   ('function', 'list_bill_receipts',                    '0104')
+  -- 0105 is a function-body fix to 0104 (CTE-scope bug) — nothing new here.
 )
 select
   e.kind,
