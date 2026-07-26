@@ -71,7 +71,7 @@ export function AccountMenu({ fullName, role, email }: { fullName: string; role:
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-9 left-0 z-50 w-56 rounded-[var(--radius-lg)] border border-border bg-surface p-1.5 shadow-[var(--shadow-lg)]">
+          <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-[var(--radius-lg)] border border-border bg-surface p-1.5 shadow-[var(--shadow-lg)]">
             <button
               onClick={openChangePassword}
               className="flex w-full items-center rounded-[var(--radius)] px-2.5 py-2 text-left text-[13px] text-foreground hover:bg-surface-subtle"
