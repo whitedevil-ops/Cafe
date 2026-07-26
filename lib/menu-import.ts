@@ -21,6 +21,9 @@ export type ParsedItem = {
   cost: number | null
   isVeg: boolean | null
   description: string | null
+  /** Size variants (Small/Medium/Large), as absolute prices — empty unless the
+      file has at least one of those columns AND this row filled one in. */
+  variants: { name: string; price: number }[]
 }
 export type ImportIssue = { row: number; message: string }
 
@@ -80,6 +83,56 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost'))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
+  // Optional size columns — absolute prices per size, converted to a base
+  // price + variant deltas at write time (matches how the per-item editor
+  // already stores variants). Leave a size blank for an item with only one.
+  const sizeCols: { name: string; col: number }[] = (
+    [
+      ['Small', findColumn(header, (h) => h.includes('small'))],
+      ['Medium', findColumn(header, (h) => h.includes('med'))],
+      ['Large', findColumn(header, (h) => h.includes('large') || h.includes('lg'))],
+    ] as const
+  ).filter(([, col]) => col !== -1).map(([name, col]) => ({ name, col }))
+  const hasSizeCols = sizeCols.length > 0
+
+  // Resolves a row's price and any size variants together, since which size
+  // columns are filled changes what "the price" even means:
+  //  - Price filled: that's the base; every filled size becomes a variant
+  //    (delta = size price − base), even one that happens to match the base.
+  //  - Price blank but a size is filled: the first filled size (Small, then
+  //    Medium, then Large, in that priority) becomes the base instead, so
+  //    the item still gets a valid price — it isn't also re-added as a
+  //    redundant variant of itself.
+  //  - Neither: unchanged from before size columns existed.
+  function resolvePriceAndSizes(
+    raw: unknown[],
+    priceRaw: unknown,
+    row: number,
+    label: string,
+  ): { price: number | null; variants: { name: string; price: number }[] } {
+    if (!hasSizeCols) return { price: parsePrice(priceRaw), variants: [] }
+
+    const filled = sizeCols
+      .map((s) => ({ name: s.name, raw: s.col < raw.length ? raw[s.col] : '' }))
+      .filter((s) => normalize(s.raw) !== '')
+    if (filled.length === 0) return { price: parsePrice(priceRaw), variants: [] }
+
+    const parsed = filled.map((s) => ({ name: s.name, price: parsePrice(s.raw) }))
+    for (const s of parsed) {
+      if (s.price === null) issues.push({ row, message: `"${label}" — ${s.name} price is not a valid amount, ignored.` })
+    }
+    const valid = parsed.filter((s): s is { name: string; price: number } => s.price !== null)
+    if (valid.length === 0) return { price: parsePrice(priceRaw), variants: [] }
+
+    const explicitPrice = parsePrice(priceRaw)
+    if (explicitPrice !== null) {
+      return { price: explicitPrice, variants: valid }
+    }
+    // No base price given — use the first filled size as the base, and
+    // don't re-list it as a variant of itself.
+    const [base, ...rest] = valid
+    return { price: base.price, variants: rest }
+  }
 
   // Parses the optional cost cell for a row; invalid (negative/non-numeric)
   // values are flagged and treated as "no cost" rather than failing the row.
@@ -138,7 +191,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
       const name = normalize(cell(itemCol))
       if (!name) return // no item name at all — nothing to import from this row
       const priceRaw = cell(priceCol)
-      const price = parsePrice(priceRaw)
+      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, name)
       if (price === null) {
         issues.push({ row: rowNum, message: `"${name}" — missing or invalid price, skipped.` })
         return
@@ -156,15 +209,17 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
+        variants,
       })
     } else {
       const mergedText = normalize(cell(mergedCol))
       const priceRaw = cell(priceCol)
       const priceText = normalize(priceRaw)
+      const anySizeFilled = hasSizeCols && sizeCols.some((s) => normalize(s.col < raw.length ? raw[s.col] : '') !== '')
       if (!mergedText) return
 
-      if (!priceText) {
-        // No price on this row → it's a category heading, per spec.
+      if (!priceText && !anySizeFilled) {
+        // No price and no size column filled → it's a category heading, per spec.
         currentCategory = mergedText
         if (!groups.has(mergedText)) {
           groups.set(mergedText, [])
@@ -173,7 +228,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         return
       }
 
-      const price = parsePrice(priceRaw)
+      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, mergedText)
       if (price === null) {
         issues.push({ row: rowNum, message: `"${mergedText}" — invalid price "${priceRaw}", skipped.` })
         return
@@ -190,6 +245,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
+        variants,
       })
     }
   })

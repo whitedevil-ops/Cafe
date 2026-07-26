@@ -67,7 +67,28 @@ export default function BulkImportPanel({
     }
   }
 
-  function exportCurrentMenu() {
+  async function exportCurrentMenu() {
+    // Variants aren't part of the main item list (fetched on demand per item
+    // elsewhere), so pull Small/Medium/Large for the whole café in one query
+    // here rather than joining them into every list load just for this.
+    const { data: variantRows } = await supabase
+      .from('menu_item_variants')
+      .select('menu_item_id, name, price_delta')
+      .in('menu_item_id', items.map((i) => i.id))
+      .in('name', ['Small', 'Medium', 'Large'])
+    const sizesByItem = new Map<string, { small?: number; medium?: number; large?: number }>()
+    for (const v of variantRows ?? []) {
+      const entry = sizesByItem.get(v.menu_item_id) ?? {}
+      const item = items.find((i) => i.id === v.menu_item_id)
+      if (item) {
+        const price = item.price + v.price_delta
+        if (v.name === 'Small') entry.small = price
+        else if (v.name === 'Medium') entry.medium = price
+        else if (v.name === 'Large') entry.large = price
+      }
+      sizesByItem.set(v.menu_item_id, entry)
+    }
+
     const rows = items
       .filter((i) => !i.archived)
       .map((i) => ({
@@ -77,6 +98,7 @@ export default function BulkImportPanel({
         cost: i.cost,
         isVeg: i.is_veg,
         description: i.description,
+        sizes: sizesByItem.get(i.id),
       }))
     downloadMenuExport(cafeName, rows)
   }
@@ -129,6 +151,13 @@ export default function BulkImportPanel({
         is_veg: boolean | null
         sort: number
       }[] = []
+      // Size variants from the file, keyed to whichever item they belong to.
+      // Populated for updates immediately (the item id is already known);
+      // for inserts, held in lockstep with `inserts` and resolved once the
+      // insert returns real ids (see below).
+      type VariantPlan = { itemId: string; price: number; variants: { name: string; price: number }[] }
+      const updateVariantPlans: VariantPlan[] = []
+      const insertVariantSpecs: ({ price: number; variants: { name: string; price: number }[] } | null)[] = []
 
       for (const cat of result.byCategory) {
         const categoryId = existingByLower.get(cat.name.trim().toLowerCase())!
@@ -137,6 +166,9 @@ export default function BulkImportPanel({
           const existingMatch = existingItemByKey.get(key)
           if (existingMatch) {
             updates.push({ id: existingMatch.id, price: item.price, description: item.description, is_veg: item.isVeg, cost: item.cost })
+            if (item.variants.length > 0) {
+              updateVariantPlans.push({ itemId: existingMatch.id, price: item.price, variants: item.variants })
+            }
           } else {
             const sort = nextSort.get(categoryId) ?? 0
             nextSort.set(categoryId, sort + 1)
@@ -151,13 +183,21 @@ export default function BulkImportPanel({
               is_veg: item.isVeg,
               sort,
             })
+            insertVariantSpecs.push(item.variants.length > 0 ? { price: item.price, variants: item.variants } : null)
           }
         }
       }
 
+      const variantPlans: VariantPlan[] = [...updateVariantPlans]
+
       if (inserts.length) {
-        const { error } = await supabase.from('menu_items').insert(inserts)
+        const { data: insertedRows, error } = await supabase.from('menu_items').insert(inserts).select('id')
         if (error) throw new Error(error.message)
+        // Bulk insert returns rows in the same order they were submitted.
+        ;(insertedRows ?? []).forEach((row, i) => {
+          const spec = insertVariantSpecs[i]
+          if (spec) variantPlans.push({ itemId: row.id, price: spec.price, variants: spec.variants })
+        })
       }
       if (updates.length) {
         const results = await Promise.all(
@@ -169,6 +209,37 @@ export default function BulkImportPanel({
               .update({ price: u.price, description: u.description, is_veg: u.is_veg, ...(u.cost != null ? { cost: u.cost } : {}) })
               .eq('id', u.id),
           ),
+        )
+        const failed = results.find((r) => r.error)
+        if (failed?.error) throw new Error(failed.error.message)
+      }
+
+      // Write Small/Medium/Large variants for whichever rows specified at
+      // least one — scoped delete (by name) so unrelated variants an owner
+      // added by hand (add-ons, custom sizes) are never touched by a
+      // re-import that doesn't mention sizes for that item.
+      if (variantPlans.length) {
+        const results = await Promise.all(
+          variantPlans.map(async (p) => {
+            const del = await supabase
+              .from('menu_item_variants')
+              .delete()
+              .eq('menu_item_id', p.itemId)
+              .in('name', ['Small', 'Medium', 'Large'])
+            if (del.error) return del
+            // sort keeps them in Small/Medium/Large order in the per-item
+            // editor, which orders variants by this column — without it every
+            // row here would default to sort=0 and display in arbitrary order.
+            const sortByName: Record<string, number> = { Small: 0, Medium: 1, Large: 2 }
+            return supabase.from('menu_item_variants').insert(
+              p.variants.map((v) => ({
+                menu_item_id: p.itemId,
+                name: v.name,
+                price_delta: v.price - p.price,
+                sort: sortByName[v.name] ?? 0,
+              })),
+            )
+          }),
         )
         const failed = results.find((r) => r.error)
         if (failed?.error) throw new Error(failed.error.message)
@@ -321,6 +392,11 @@ export default function BulkImportPanel({
                 underneath with a price. Start a new category the same way whenever you want. Blank rows are fine.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <b>Small / Medium / Large</b> are only for items that come in more than one size — fill in whichever
+                apply (each is the actual price for that size) and they become size options automatically. Leave
+                them blank for a single-price item; Price alone is used, same as before.
+              </p>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
                 <b>Profit</b> (₹ you make per item, e.g. 20 on a ₹100 burger) is optional and never shown to customers —
                 fill it in and Reports auto-calculates your net profit as items sell. You can enter Cost Price instead if you prefer; either works.
               </p>
@@ -358,6 +434,9 @@ export default function BulkImportPanel({
                         <li key={i} className="text-[13.5px] text-muted-foreground">
                           • {it.name} — ₹{it.price}
                           {it.cost != null && <span className="text-[12px]"> (profit ₹{it.price - it.cost})</span>}
+                          {it.variants.length > 0 && (
+                            <span className="text-[12px]"> · {it.variants.map((v) => `${v.name} ₹${v.price}`).join(', ')}</span>
+                          )}
                         </li>
                       ))}
                     </ul>
