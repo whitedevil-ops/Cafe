@@ -9,9 +9,10 @@ export type PaymentsReport = {
   by_method: { method: string; amount: number; transactions: number }[]
   aging: { bucket: string; amount: number; orders: number }[]
   outstanding_bills: { order_id: string; short_code: string; type: string; total: number; paid: number; due: number; created_at: string }[]
+  wallet_topups: { cash: number; online: number; total: number; cash_transactions: number; online_transactions: number; transactions: number }
 }
 
-const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', counter: 'Pay at counter', upi: 'UPI', split: 'Split' }
+const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', counter: 'Pay at counter', upi: 'UPI', split: 'Split', wallet: 'Wallet' }
 const TYPE_LABEL: Record<string, string> = { dine_in: 'Dine-in', takeaway: 'Takeaway' }
 
 export default function PaymentsClient({
@@ -65,6 +66,18 @@ export default function PaymentsClient({
         ],
         rows: report.outstanding_bills.map((b) => ({ ...b, type: TYPE_LABEL[b.type] ?? b.type, placed: formatDate(b.created_at, timezone) })),
       },
+      {
+        name: 'Wallet top-ups', title: 'Wallet top-ups (not counted in revenue — see Collected by method for spend)',
+        columns: [
+          { header: 'Source', key: 'source', kind: 'text' },
+          { header: 'Amount (₹)', key: 'amount', kind: 'money' },
+          { header: 'Top-ups', key: 'count', kind: 'qty' },
+        ],
+        rows: [
+          { source: 'Cash', amount: report.wallet_topups?.cash ?? 0, count: report.wallet_topups?.cash_transactions ?? 0 },
+          { source: 'Online', amount: report.wallet_topups?.online ?? 0, count: report.wallet_topups?.online_transactions ?? 0 },
+        ],
+      },
     ]
     void downloadReport({ cafeName, reportName: 'Payments-Outstanding', from, to }, sheets)
   }
@@ -114,6 +127,22 @@ export default function PaymentsClient({
               </Section>
             )}
           </div>
+
+          {(report.wallet_topups?.transactions ?? 0) > 0 && (
+            <Section title="Wallet top-ups">
+              <p className="mb-2 text-[12px] text-muted-foreground">
+                Money customers put into their wallets in this range — not counted in &quot;Collected&quot; above, since
+                it&apos;s prepayment for a future order, not revenue yet. That revenue is recognized once, correctly,
+                when the balance is later spent (already included in &quot;Collected by method&quot; as Wallet).
+              </p>
+              <List
+                rows={[
+                  { label: `Cash (${report.wallet_topups.cash_transactions} top-up${report.wallet_topups.cash_transactions === 1 ? '' : 's'})`, value: report.wallet_topups.cash },
+                  { label: `Online (${report.wallet_topups.online_transactions} top-up${report.wallet_topups.online_transactions === 1 ? '' : 's'})`, value: report.wallet_topups.online },
+                ]}
+              />
+            </Section>
+          )}
 
           <Section title={`Outstanding bills (${report.outstanding_bills.length}${report.outstanding_bills.length >= 100 ? '+' : ''})`}>
             {report.outstanding_bills.length === 0 ? (
