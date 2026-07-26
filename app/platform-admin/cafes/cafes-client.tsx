@@ -15,6 +15,7 @@ export type CafeRow = {
   verified: boolean
   status: string
   created_at: string
+  owner_id: string | null
   owner_name: string | null
   owner_email: string | null
   owner_phone: string | null
@@ -60,6 +61,24 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, status, verified, plan])
 
+  // Group by owner_id (falling back to the café's own id when an owner
+  // somehow has none, so those cafés each get their own group instead of
+  // being merged together) — a single owner can run up to a plan's
+  // max_owned_cafes locations, so the directory reads owner-first, café
+  // second. Insertion order is preserved, and op_list_cafes already orders
+  // by created_at desc, so each group naturally lands at the position of
+  // its owner's most-recently-created café — no re-sort needed here.
+  const ownerGroups = useMemo(() => {
+    const groups = new Map<string, { ownerId: string | null; name: string | null; email: string | null; phone: string | null; cafes: CafeRow[] }>()
+    for (const c of cafes) {
+      const key = c.owner_id ?? `cafe:${c.cafe_id}`
+      const existing = groups.get(key)
+      if (existing) existing.cafes.push(c)
+      else groups.set(key, { ownerId: c.owner_id, name: c.owner_name, email: c.owner_email, phone: c.owner_phone, cafes: [c] })
+    }
+    return [...groups.values()]
+  }, [cafes])
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight text-foreground">Cafés</h1>
@@ -102,11 +121,10 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-subtle text-left text-[12.5px] text-muted-foreground">
                 <th className="px-4 py-3 font-medium">Café</th>
-                <th className="px-4 py-3 font-medium">Owner</th>
                 <th className="px-4 py-3 font-medium">City</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -116,39 +134,59 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
               </tr>
             </thead>
             <tbody>
-              {cafes.map((c) => (
-                <tr key={c.cafe_id} className="border-b border-border last:border-0 hover:bg-surface-subtle">
-                  <td className="px-4 py-3">
-                    <Link href={`/platform-admin/cafes/${c.cafe_id}`} className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary">
-                      {c.verified && <ShieldCheck size={13} className="shrink-0 text-primary" />}
-                      {c.name}
-                    </Link>
-                    <p className="text-[11.5px] text-muted-foreground">{c.cafe_id.slice(0, 8)}…</p>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <p className="text-foreground">{c.owner_name ?? '—'}</p>
-                    <p className="text-[12px]">{c.owner_email ?? ''}</p>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">{c.plan}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-[12px] font-medium capitalize ${STATUS_BADGE[c.status] ?? 'bg-surface-subtle text-muted-foreground'}`}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.staff_count}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.orders_count}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {formatDate(c.created_at)}
-                  </td>
-                </tr>
+              {ownerGroups.map((g) => (
+                <OwnerGroupRows key={g.ownerId ?? g.cafes[0].cafe_id} group={g} />
               ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  )
+}
+
+type OwnerGroup = { ownerId: string | null; name: string | null; email: string | null; phone: string | null; cafes: CafeRow[] }
+
+function OwnerGroupRows({ group }: { group: OwnerGroup }) {
+  return (
+    <>
+      <tr className="border-b border-border bg-surface-subtle/60">
+        <td colSpan={7} className="px-4 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-[13px] font-semibold text-foreground">{group.name ?? 'Unnamed owner'}</span>
+            <span className="text-[12px] text-muted-foreground">{group.email ?? '—'}</span>
+            {group.phone && <span className="text-[12px] text-muted-foreground">· {group.phone}</span>}
+            {group.cafes.length > 1 && (
+              <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[11px] font-medium text-primary">
+                {group.cafes.length} cafés
+              </span>
+            )}
+          </div>
+        </td>
+      </tr>
+      {group.cafes.map((c) => (
+        <tr key={c.cafe_id} className="border-b border-border last:border-0 hover:bg-surface-subtle">
+          <td className="px-4 py-3 pl-7">
+            <Link href={`/platform-admin/cafes/${c.cafe_id}`} className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary">
+              {c.verified && <ShieldCheck size={13} className="shrink-0 text-primary" />}
+              {c.name}
+            </Link>
+            <p className="text-[11.5px] text-muted-foreground">{c.cafe_id.slice(0, 8)}…</p>
+          </td>
+          <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
+          <td className="px-4 py-3">
+            <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">{c.plan}</span>
+          </td>
+          <td className="px-4 py-3">
+            <span className={`rounded-full px-2 py-0.5 text-[12px] font-medium capitalize ${STATUS_BADGE[c.status] ?? 'bg-surface-subtle text-muted-foreground'}`}>
+              {c.status}
+            </span>
+          </td>
+          <td className="px-4 py-3 text-muted-foreground">{c.staff_count}</td>
+          <td className="px-4 py-3 text-muted-foreground">{c.orders_count}</td>
+          <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
+        </tr>
+      ))}
+    </>
   )
 }

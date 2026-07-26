@@ -45,6 +45,7 @@ const FEATURES: { key: string; label: string }[] = [
   { key: 'online_payments', label: 'Online Payments (Razorpay)' },
   { key: 'coupons', label: 'Coupons' },
   { key: 'loyalty', label: 'Loyalty & Rewards' },
+  { key: 'wallet', label: 'Customer Wallet' },
   { key: 'sms_bills', label: 'SMS Bill Receipts' },
   { key: 'feedback', label: 'Customer Feedback' },
   { key: 'expenses', label: 'Expenses Tracking' },

@@ -361,6 +361,9 @@ with expected(kind, name, fix) as (values
   ('column',   'wallet_transactions.source',            '0093'),
   ('column',   'wallet_transactions.paid_amount',        '0093'),
   ('function', 'wallet_cash_topup',                     '0093')
+  -- op_list_cafes owner_id (0094) is a return-column change, not a new
+  -- object — nothing new to check-schema here; the price update is data,
+  -- not schema.
 )
 select
   e.kind,
