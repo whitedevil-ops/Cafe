@@ -1,12 +1,15 @@
 'use client'
 
-import { createClient } from '@/utils/supabase/client'
-
 const MAX_EDGE = 1024
 const MAX_BYTES = 2 * 1024 * 1024
 
-// Downscale + re-encode in the browser so a 5MB phone photo becomes a small webp
-// before it ever leaves the device. Returns null if the file isn't a usable image.
+// Downscale + re-encode in the browser so any phone photo — 1MB, 10MB,
+// whatever the camera produces — becomes a small webp before it ever leaves
+// the device. The resize to MAX_EDGE already does most of the work (a
+// 12MP photo becomes ~1MP), but a single fixed quality could still miss on
+// an unusually detailed image, so quality steps down until it actually
+// fits rather than rejecting the upload. Returns null only if the file
+// isn't a usable image at all.
 async function compress(file: File): Promise<Blob | null> {
   if (!file.type.startsWith('image/')) return null
   const bitmap = await createImageBitmap(file).catch(() => null)
@@ -22,13 +25,17 @@ async function compress(file: File): Promise<Blob | null> {
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h)
   bitmap.close()
 
-  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/webp', 0.82))
-  if (blob && blob.size <= MAX_BYTES) return blob
+  for (const quality of [0.82, 0.7, 0.6, 0.5, 0.4, 0.3]) {
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/webp', quality))
+    if (blob && blob.size <= MAX_BYTES) return blob
+  }
   return null
 }
 
-// Uploads under the café's folder (RLS checks the first path segment) and
-// returns the public URL, or an error message.
+// Compresses client-side, then hands off to the server (/api/images/upload),
+// which checks café membership and uploads to Cloudinary — Cloudinary has no
+// per-folder RLS the way Supabase Storage did, so that check has to happen
+// server-side instead of being enforced by a storage policy.
 async function uploadToCafeFolder(
   cafeId: string,
   file: File,
@@ -37,15 +44,15 @@ async function uploadToCafeFolder(
   const blob = await compress(file)
   if (!blob) return { error: 'Please choose an image file (max 2MB after compression).' }
 
-  const path = `${cafeId}/${prefix}-${crypto.randomUUID()}.webp`
-  const supabase = createClient()
-  const { error } = await supabase.storage
-    .from('menu-images')
-    .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
-  if (error) return { error: error.message }
+  const form = new FormData()
+  form.append('cafeId', cafeId)
+  form.append('prefix', prefix)
+  form.append('file', blob, `${prefix}.webp`)
 
-  const { data } = supabase.storage.from('menu-images').getPublicUrl(path)
-  return { url: data.publicUrl }
+  const res = await fetch('/api/images/upload', { method: 'POST', body: form })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) return { error: body.error ?? 'Upload failed.' }
+  return { url: body.url as string }
 }
 
 export function uploadMenuImage(cafeId: string, file: File) {

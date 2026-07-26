@@ -8,17 +8,21 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
   : undefined;
 
+// New uploads go to Cloudinary — Supabase's remotePattern stays too, since
+// existing images (uploaded before this change) still point at supabase.co
+// URLs until the migration script moves them.
+const cloudinaryEnabled = Boolean(process.env.CLOUDINARY_CLOUD_NAME);
+
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: supabaseHost
-      ? [
-          {
-            protocol: "https",
-            hostname: supabaseHost,
-            pathname: "/storage/v1/object/public/**",
-          },
-        ]
-      : [],
+    remotePatterns: [
+      ...(supabaseHost
+        ? [{ protocol: "https" as const, hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }]
+        : []),
+      ...(cloudinaryEnabled
+        ? [{ protocol: "https" as const, hostname: "res.cloudinary.com", pathname: "/**" }]
+        : []),
+    ],
     // Required from Next 16 onward: only these quality values may be requested.
     // 65 for grid thumbnails (the bulk of the payload on a 300-item menu over
     // Indian mobile data), 85 for the detail sheet's large hero image.
