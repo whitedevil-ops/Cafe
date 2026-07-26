@@ -36,6 +36,7 @@ export default async function BillsPage({
   return (
     <BillsClient
       cafeId={cafe.cafeId}
+      cafeName={cafe.name}
       timezone={cafe.timezone}
       role={cafe.role}
       initial={(data as BillsPayload) ?? null}

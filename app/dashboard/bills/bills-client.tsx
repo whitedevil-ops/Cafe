@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { FileDown, Search, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO, formatDateTime } from '@/lib/datetime'
+import { downloadBulkReceiptsPdf, type ReceiptData } from '@/lib/pdf-export'
 import { BillDetailDrawer } from './bill-detail-drawer'
 
 export type Bill = {
@@ -61,6 +62,7 @@ const money = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
 export default function BillsClient({
   cafeId,
+  cafeName,
   timezone,
   role,
   initial,
@@ -68,6 +70,7 @@ export default function BillsClient({
   initialRange,
 }: {
   cafeId: string
+  cafeName: string
   timezone: string
   role: string
   initial: BillsPayload | null
@@ -85,6 +88,8 @@ export default function BillsClient({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openBill, setOpenBill] = useState<string | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null)
 
   const bounds = useCallback(
     (r: Range): { from: string; to: string } => {
@@ -124,6 +129,31 @@ export default function BillsClient({
     },
     [supabase, cafeId, bounds, payment],
   )
+
+  const downloadPdf = useCallback(async () => {
+    setPdfBusy(true)
+    setPdfNotice(null)
+    const { from, to } = bounds(range)
+    const { data, error: err } = await supabase.rpc('list_bill_receipts', {
+      p_cafe_id: cafeId,
+      p_from: from,
+      p_to: to,
+      p_type: type,
+      p_payment: payment,
+    })
+    setPdfBusy(false)
+    if (err) return setPdfNotice(err.message)
+
+    const result = data as { receipts: ReceiptData[]; total: number; is_truncated: boolean } | null
+    const receipts = result?.receipts ?? []
+    if (receipts.length === 0) return setPdfNotice('No bills in this range to export.')
+
+    downloadBulkReceiptsPdf(receipts, { cafeName, fromISO: from, toISO: to })
+
+    if (result?.is_truncated) {
+      setPdfNotice(`Included the first ${receipts.length} of ${result.total} bills — narrow the date range to get the rest.`)
+    }
+  }, [supabase, cafeId, cafeName, bounds, range, type, payment])
 
   const bills = payload?.bills ?? []
   const s = payload?.summary
@@ -186,19 +216,34 @@ export default function BillsClient({
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {ranges.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => { setRange(r.key); if (r.key !== 'custom') void load(r.key, type, search) }}
-            className={`min-h-9 rounded-[var(--radius)] border px-3 text-[12.5px] font-medium transition-colors ${
-              range === r.key ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {ranges.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => { setRange(r.key); if (r.key !== 'custom') void load(r.key, type, search) }}
+              className={`min-h-9 rounded-[var(--radius)] border px-3 text-[12.5px] font-medium transition-colors ${
+                range === r.key ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground hover:bg-surface-subtle'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => void downloadPdf()}
+          disabled={pdfBusy}
+          title="Download every bill matching the filters above as one PDF"
+          className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-60"
+        >
+          <FileDown size={14} />
+          {pdfBusy ? 'Preparing…' : 'Download PDF'}
+        </button>
       </div>
+
+      {pdfNotice && (
+        <p className="mt-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">{pdfNotice}</p>
+      )}
 
       {range === 'custom' && (
         <div className="mt-3 flex flex-wrap items-end gap-2">

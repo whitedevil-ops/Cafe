@@ -2,44 +2,12 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { FeedbackForm } from '@/components/receipt/feedback-form'
+import { ReceiptDownloadButton } from '@/components/receipt/download-button'
+import type { ReceiptData } from '@/lib/pdf-export'
 
 export const dynamic = 'force-dynamic'
 
-type Receipt = {
-  cafe: {
-    name: string; legal_name: string | null; trade_name: string | null
-    address: string | null; city: string | null; state: string | null; pincode: string | null
-    gstin: string | null; logo_url: string | null; phone: string | null
-    gst_registered: boolean; tax_inclusive: boolean; timezone: string | null
-  }
-  order: {
-    short_code: string
-    created_at: string
-    order_type: string
-    payment_status: string
-    payment_method: string | null
-    subtotal: number
-    discount: number
-    tax: number
-    service_charge: number
-    total: number
-    coupon_code: string | null
-    table_label: string | null
-    phone_masked: string | null
-  }
-  gst_invoice: {
-    invoice_number: string
-    issued_at: string
-    taxable_amount: number
-    cgst: number
-    sgst: number
-    place_of_supply: string
-  } | null
-  items: {
-    name: string; qty: number; price: number; modifiers: { name: string; price: number }[]
-    hsn_sac: string | null; tax_percent: number | null; taxable_value: number | null; tax_amount: number | null
-  }[]
-}
+type Receipt = ReceiptData
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -169,6 +137,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         <p className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground">
           Thank you for visiting!
         </p>
+
+        <ReceiptDownloadButton receipt={r} />
       </div>
 
       <FeedbackForm token={token} />
