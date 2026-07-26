@@ -55,7 +55,7 @@ const STATUS_LABEL: Record<Bill['bill_status'], string> = {
   REFUNDED: 'Refunded',
   CANCELLED: 'Cancelled',
 }
-const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', upi: 'UPI', counter: 'At counter', split: 'Split' }
+const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', upi: 'UPI', counter: 'At counter', split: 'Split', wallet: 'Wallet' }
 
 const money = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
