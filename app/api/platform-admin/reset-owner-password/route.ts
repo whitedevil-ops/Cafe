@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const { data: owner } = await supabase.from('profiles').select('id, email').eq('id', cafe.owner_id).maybeSingle()
   if (!owner?.email) return NextResponse.json({ error: 'owner has no email on file' }, { status: 400 })
 
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
   const { error } = await supabase.auth.resetPasswordForEmail(owner.email, { redirectTo: `${base}/login` })
 
   await supabase.rpc('op_log_password_reset', {

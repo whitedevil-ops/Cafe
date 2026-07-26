@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const target = detail as { email: string | null } | null
   if (!target?.email) return NextResponse.json({ error: 'admin has no email on file' }, { status: 400 })
 
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
   const { error } = await supabase.auth.resetPasswordForEmail(target.email, { redirectTo: `${base}/login` })
 
   await supabase.rpc('op_log_admin_password_reset', {

@@ -14,7 +14,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+// Falls back to the real production domain, not localhost — Vercel was
+// found to be missing NEXT_PUBLIC_APP_URL, which had canonical/OG tags and
+// the sitemap pointing at localhost:3000 in production (Search Console
+// flagged all 8 sitemap URLs as errors because of it).
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://khaopiyo.ventron.in";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

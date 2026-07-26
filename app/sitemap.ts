@@ -1,6 +1,9 @@
 import type { MetadataRoute } from 'next'
 
-const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+// Falls back to the real production domain, not localhost — if
+// NEXT_PUBLIC_APP_URL is ever unset in Vercel (as it was found to be),
+// this is what actually gets crawled instead of an unreachable URL.
+const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()

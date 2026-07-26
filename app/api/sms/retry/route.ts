@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!order?.phone) return NextResponse.json({ error: 'order has no phone number' }, { status: 400 })
 
   const cafe = Array.isArray(order.cafes) ? order.cafes[0] : order.cafes
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
   const text = billSmsText(
     cafe?.name ?? 'Your café',
     order.short_code,

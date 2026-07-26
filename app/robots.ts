@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 
-const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+// Falls back to the real production domain, not localhost — see sitemap.ts.
+const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
 // Marketing pages are indexable; the app (dashboard, POS, kitchen, QR) is not (§42).
 export default function robots(): MetadataRoute.Robots {
