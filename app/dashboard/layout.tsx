@@ -33,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
   const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
   const navFeatures: Record<string, boolean> = {}
-  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'expenses', 'wallet', 'reservations']) {
+  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
     navFeatures[key] = overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false)
   }
 
@@ -66,7 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const ALL_SCREENS = [
     'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
     'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
-    'expenses', 'profile', 'qr_codes', 'billing', 'settings',
+    'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
   ]
 
   return (

@@ -378,7 +378,9 @@ with expected(kind, name, fix) as (values
   ('table',    'reservations',                         '0100'),
   ('function', 'create_reservation',                   '0100'),
   ('function', 'set_reservation_status',                '0100'),
-  ('function', 'list_reservations',                     '0100')
+  ('function', 'list_reservations',                     '0100'),
+  -- advanced analytics (0101)
+  ('function', 'advanced_analytics_report',             '0101')
 )
 select
   e.kind,

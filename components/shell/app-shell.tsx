@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
   BookOpenText, Users, ChartBar, Wallet, PiggyBank, Package, Soup, Tag, Gift, Truck, Star,
-  Store, QrCode, Settings as SettingsIcon, CreditCard, CalendarClock,
+  Store, QrCode, Settings as SettingsIcon, CreditCard, CalendarClock, TrendingUp,
   PanelLeftClose, PanelLeft, CircleHelp, ChevronDown, LogOut, Menu as MenuIcon,
 } from 'lucide-react'
 import type { CafeOption } from '@/lib/cafe'
@@ -25,7 +25,7 @@ const ICON = 17
 const ALL_SCREEN_KEYS = new Set([
   'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
   'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
-  'expenses', 'profile', 'qr_codes', 'billing', 'settings',
+  'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
 ])
 
 // Reports keeps no featureKey on purpose — its index and most sub-pages
@@ -61,6 +61,7 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
         { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty', screenKey: 'loyalty' },
         { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet', screenKey: 'wallet' },
         { label: 'Reservations', href: '/dashboard/reservations', icon: <CalendarClock size={ICON} />, featureKey: 'reservations', screenKey: 'reservations' },
+        { label: 'Analytics', href: '/dashboard/analytics', icon: <TrendingUp size={ICON} />, featureKey: 'advanced_analytics', screenKey: 'analytics' },
         { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} />, screenKey: 'reports' },
         { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses', screenKey: 'expenses' },
       ],
