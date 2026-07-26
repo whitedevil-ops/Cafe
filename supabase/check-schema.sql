@@ -380,7 +380,11 @@ with expected(kind, name, fix) as (values
   ('function', 'set_reservation_status',                '0100'),
   ('function', 'list_reservations',                     '0100'),
   -- advanced analytics (0101)
-  ('function', 'advanced_analytics_report',             '0101')
+  ('function', 'advanced_analytics_report',             '0101'),
+  -- platform-admin café deletion (0102)
+  ('table',    'cafe_deletions',                        '0102'),
+  ('function', 'op_delete_cafe',                        '0102'),
+  ('function', 'list_cafe_deletions',                   '0102')
 )
 select
   e.kind,

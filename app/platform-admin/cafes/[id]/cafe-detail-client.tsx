@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ShieldCheck, ShieldOff, ArrowLeft, Key, StickyNote } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
+import { DeleteCafeDialog } from '@/components/platform-admin/delete-cafe-dialog'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 
 export type CafeDetail = {
@@ -90,6 +92,7 @@ export default function CafeDetailClient({
   permissions: Record<string, boolean>
 }) {
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
   const { toast } = useToast()
   const confirm = useConfirm()
   const [data, setData] = useState(detail)
@@ -100,6 +103,9 @@ export default function CafeDetailClient({
   const [addingNote, setAddingNote] = useState(false)
   const [subEndsAt, setSubEndsAt] = useState(data.account.subscription_ends_at?.slice(0, 10) ?? '')
   const [resettingPw, setResettingPw] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   async function refresh() {
     const { data: fresh } = await supabase.rpc('op_get_cafe_detail', { p_cafe_id: cafeId })
@@ -188,6 +194,16 @@ export default function CafeDetailClient({
     const body = await res.json().catch(() => ({}))
     if (!res.ok) return toast(body.error ?? 'Could not send reset link.', 'error')
     toast(`Reset link sent to ${body.email}.`)
+  }
+
+  async function confirmDelete() {
+    setDeleteSubmitting(true)
+    setDeleteError(null)
+    const { error } = await supabase.rpc('op_delete_cafe', { p_cafe_id: cafeId, p_confirm_name: data.business.name })
+    setDeleteSubmitting(false)
+    if (error) return setDeleteError(error.message)
+    toast(`${data.business.name} permanently deleted.`)
+    router.push('/platform-admin/cafes')
   }
 
   const overrideByKey = new Map(data.features.overrides.map((o) => [o.feature_key, o.enabled]))
@@ -431,6 +447,24 @@ export default function CafeDetailClient({
         )}
       </section>
 
+      {/* Danger zone — permanent deletion, distinct from the reversible
+          status actions above (Suspend/Disable/Archive). */}
+      {permissions['cafes.delete'] && (
+        <section className="mt-6 rounded-xl border border-destructive/30 bg-destructive-subtle/40 p-5">
+          <p className="text-sm font-medium text-destructive">Danger zone</p>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            Permanently deletes this café and everything tied to it. Not reversible — for a café that should just
+            stop operating, use Archive above instead.
+          </p>
+          <button
+            onClick={() => setDeleting(true)}
+            className="mt-3 min-h-10 rounded-[var(--radius)] border border-destructive px-3.5 text-[13px] font-medium text-destructive hover:bg-destructive-subtle"
+          >
+            Delete this café permanently
+          </button>
+        </section>
+      )}
+
       {statusDialog && (
         <ReasonDialog
           title={`${statusDialog.label} ${data.business.name}?`}
@@ -441,6 +475,22 @@ export default function CafeDetailClient({
           error={dialogError}
           onClose={() => setStatusDialog(null)}
           onConfirm={submitStatusChange}
+        />
+      )}
+
+      {deleting && (
+        <DeleteCafeDialog
+          cafeName={data.business.name}
+          usage={{
+            staff_count: data.usage.staff_count,
+            orders_count: data.usage.orders_count,
+            customers_count: data.usage.customers_count,
+            menu_items_count: data.usage.menu_items_count,
+          }}
+          submitting={deleteSubmitting}
+          error={deleteError}
+          onClose={() => { setDeleting(false); setDeleteError(null) }}
+          onConfirm={confirmDelete}
         />
       )}
     </div>
