@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
   const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
   const navFeatures: Record<string, boolean> = {}
-  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'expenses']) {
+  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'expenses', 'wallet']) {
     navFeatures[key] = overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false)
   }
 
