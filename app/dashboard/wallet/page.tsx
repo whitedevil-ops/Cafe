@@ -33,7 +33,7 @@ export default async function WalletPage() {
       role={cafe.role}
       timezone={cafe.timezone}
       initialTiers={(tiers ?? []) as Tier[]}
-      initialOverview={(overview ?? { total_outstanding: 0, wallets: [] }) as WalletOverview}
+      initialOverview={(overview ?? { total_outstanding: 0, cash_collected_total: 0, wallets: [] }) as WalletOverview}
     />
   )
 }

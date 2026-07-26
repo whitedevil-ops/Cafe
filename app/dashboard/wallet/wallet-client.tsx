@@ -12,8 +12,9 @@ import { formatDayMonth } from '@/lib/datetime'
 
 export type Tier = { id: string; pay_amount: number; credit_amount: number; active: boolean; sort: number }
 export type WalletRow = { customer_id: string; name: string | null; phone: string | null; balance: number }
-export type WalletOverview = { total_outstanding: number; wallets: WalletRow[] }
+export type WalletOverview = { total_outstanding: number; cash_collected_total: number; wallets: WalletRow[] }
 type Transaction = { id: string; kind: string; amount: number; reason: string | null; created_at: string }
+type CashTopupResult = { paid: number; credited: number; bonus: number; matched_tier: boolean; shift_recorded: boolean }
 
 function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; onClick: () => void }) {
   return (
@@ -44,6 +45,10 @@ export default function WalletClient({
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const isAdmin = role === 'owner' || role === 'manager'
+  // Taking cash at the counter is a front-of-house action, same trust level
+  // as opening a shift or moving cash in the drawer (0029) — not restricted
+  // to owner/manager the way tier setup and goodwill adjustments are.
+  const canCashTopup = isAdmin || role === 'cashier'
 
   const [tiers, setTiers] = useState(initialTiers)
   const [payAmount, setPayAmount] = useState('')
@@ -52,6 +57,12 @@ export default function WalletClient({
   const [tierError, setTierError] = useState<string | null>(null)
 
   const [overview, setOverview] = useState(initialOverview)
+
+  const [topupPhone, setTopupPhone] = useState('')
+  const [topupName, setTopupName] = useState('')
+  const [topupAmount, setTopupAmount] = useState('')
+  const [toppingUp, setToppingUp] = useState(false)
+  const [topupError, setTopupError] = useState<string | null>(null)
 
   const [adjustPhone, setAdjustPhone] = useState('')
   const [adjustAmount, setAdjustAmount] = useState('')
@@ -66,6 +77,42 @@ export default function WalletClient({
   async function refreshOverview() {
     const { data } = await supabase.rpc('wallet_overview', { p_cafe_id: cafeId })
     if (data) setOverview(data as WalletOverview)
+  }
+
+  // Mirrors the server's exact-match rule so the amount typed shows what it'll
+  // credit before submitting — the server recomputes this itself, so a stale
+  // tier list here can never cause a wrong credit, only a wrong preview.
+  const topupPreview = useMemo(() => {
+    const paid = Math.round(Number(topupAmount))
+    if (!paid || paid <= 0) return null
+    const tier = tiers.find((t) => t.active && t.pay_amount === paid)
+    return { credited: tier?.credit_amount ?? paid, bonus: tier ? tier.credit_amount - tier.pay_amount : 0 }
+  }, [topupAmount, tiers])
+
+  async function cashTopup() {
+    const phone = topupPhone.trim()
+    const amt = Math.round(Number(topupAmount))
+    if (!/^[6-9]\d{9}$/.test(phone)) return setTopupError('Enter a valid 10-digit phone number.')
+    if (!amt || amt <= 0) return setTopupError('Enter the amount received.')
+    setToppingUp(true)
+    setTopupError(null)
+
+    const { data, error } = await supabase.rpc('wallet_cash_topup', {
+      p_cafe_id: cafeId, p_customer_phone: phone, p_customer_name: topupName.trim() || null, p_amount_paid: amt,
+    })
+    setToppingUp(false)
+    if (error) return setTopupError(error.message)
+
+    const result = data as CashTopupResult
+    toast(
+      result.bonus > 0
+        ? `Credited ₹${result.credited} (+₹${result.bonus} bonus).${result.shift_recorded ? '' : ' No open shift — cash wasn’t logged in the register.'}`
+        : `Credited ₹${result.credited}.${result.shift_recorded ? '' : ' No open shift — cash wasn’t logged in the register.'}`,
+    )
+    setTopupPhone('')
+    setTopupName('')
+    setTopupAmount('')
+    void refreshOverview()
   }
 
   async function createTier() {
@@ -153,15 +200,26 @@ export default function WalletClient({
         </p>
       )}
 
-      <Card className="mt-6">
-        <CardHeader
-          title="Outstanding balance"
-          description="Total stored value across every customer wallet — money already collected that customers haven't spent yet."
-        />
-        <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-          ₹{overview.total_outstanding.toLocaleString('en-IN')}
-        </p>
-      </Card>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Outstanding balance"
+            description="Total stored value across every customer wallet — money already collected that customers haven't spent yet."
+          />
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+            ₹{overview.total_outstanding.toLocaleString('en-IN')}
+          </p>
+        </Card>
+        <Card>
+          <CardHeader
+            title="Cash collected via top-ups"
+            description="Real cash taken at the counter for wallet top-ups (excludes any bonus credited) — also booked into your open shift's drawer."
+          />
+          <p className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
+            ₹{overview.cash_collected_total.toLocaleString('en-IN')}
+          </p>
+        </Card>
+      </div>
 
       {isAdmin && (
         <Card className="mt-6">
@@ -226,6 +284,27 @@ export default function WalletClient({
           </ul>
         )}
       </div>
+
+      {canCashTopup && (
+        <Card className="mt-8">
+          <CardHeader title="Take a cash top-up" description="A customer pays cash at the counter — type what they paid and the tier bonus is applied automatically." />
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <Input label="Customer phone" inputMode="numeric" value={topupPhone} onChange={(e) => setTopupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="98765 43210" />
+            <Input label="Customer name (optional)" value={topupName} onChange={(e) => setTopupName(e.target.value)} placeholder="Vineet" />
+            <Input label="Amount received (₹)" type="number" min={1} value={topupAmount} onChange={(e) => setTopupAmount(e.target.value)} placeholder="3000" />
+          </div>
+          {topupPreview && (
+            <p className="mt-3 text-[13px] text-muted-foreground">
+              → credits <span className="font-semibold text-foreground">₹{topupPreview.credited.toLocaleString('en-IN')}</span>
+              {topupPreview.bonus > 0
+                ? <span className="text-primary"> (+₹{topupPreview.bonus} bonus)</span>
+                : <span> (no matching tier — no bonus)</span>}
+            </p>
+          )}
+          {topupError && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{topupError}</p>}
+          <Button className="mt-4" loading={toppingUp} onClick={cashTopup}>Take top-up</Button>
+        </Card>
+      )}
 
       {isAdmin && (
         <Card className="mt-8">

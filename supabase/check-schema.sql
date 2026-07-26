@@ -356,7 +356,11 @@ with expected(kind, name, fix) as (values
   ('function', 'wallet_pay_order',                     '0091'),
   ('function', 'wallet_pay_for_order',                 '0091'),
   ('function', 'create_wallet_tier',                   '0091'),
-  ('function', 'wallet_overview',                      '0091')
+  ('function', 'wallet_overview',                      '0091'),
+  -- wallet cash top-ups (0093)
+  ('column',   'wallet_transactions.source',            '0093'),
+  ('column',   'wallet_transactions.paid_amount',        '0093'),
+  ('function', 'wallet_cash_topup',                     '0093')
 )
 select
   e.kind,
