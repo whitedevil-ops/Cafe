@@ -364,6 +364,13 @@ with expected(kind, name, fix) as (values
   -- op_list_cafes owner_id (0094) is a return-column change, not a new
   -- object — nothing new to check-schema here; the price update is data,
   -- not schema.
+  -- per-role screen access (0096)
+  ('table',    'cafe_role_screens',                    '0096'),
+  ('function', 'default_role_screens',                 '0096'),
+  ('function', 'all_screen_keys',                      '0096'),
+  ('function', 'my_screen_access',                     '0096'),
+  ('function', 'role_screen_overview',                 '0096'),
+  ('function', 'set_role_screen',                      '0096')
 )
 select
   e.kind,

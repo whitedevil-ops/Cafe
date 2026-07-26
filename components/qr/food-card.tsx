@@ -48,6 +48,14 @@ export function FoodCard({
       className={`group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-shadow ${
         soldOut ? 'opacity-60' : 'hover:shadow-[var(--shadow-md)]'
       }`}
+      // content-visibility: auto tells the browser to skip rendering (and
+      // fetching images for) cards far outside the viewport — the native,
+      // zero-JS equivalent of list virtualization. contain-intrinsic-size
+      // reserves roughly a card's real height so the scrollbar/scroll
+      // position don't jump once an off-screen card is skipped. Priority
+      // cards (first 4, above the fold) are excluded since they should
+      // never be deferred. Unsupported browsers just render normally.
+      style={priority ? undefined : { contentVisibility: 'auto', containIntrinsicSize: '0 260px' }}
     >
       {/* The action anchors to the IMAGE box, not the card, so it can't drift
           as descriptions of different lengths change the card's height. */}

@@ -3,6 +3,7 @@ import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import SettingsClient, { type StaffMember, type StaffInvite } from './settings-client'
 import type { KotPrinter, KitchenStation, BridgeToken } from './kot-printing-panel'
+import type { RoleScreenOverview } from './role-access-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export default async function SettingsPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }] =
+  const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }] =
     await Promise.all([
       supabase
         .from('cafes')
@@ -30,6 +31,9 @@ export default async function SettingsPage() {
         .select('id, name, last_seen_at')
         .eq('cafe_id', cafe.cafeId)
         .is('revoked_at', null),
+      (cafe.role === 'owner' || cafe.role === 'manager')
+        ? supabase.rpc('role_screen_overview', { p_cafe_id: cafe.cafeId })
+        : Promise.resolve({ data: null }),
     ])
 
   const staff: StaffMember[] = (members ?? []).map((m) => {
@@ -63,6 +67,7 @@ export default async function SettingsPage() {
         stations: (stations ?? []) as KitchenStation[],
         tokens: (tokens ?? []) as BridgeToken[],
       }}
+      roleOverview={(roleOverview ?? {}) as RoleScreenOverview}
     />
   )
 }

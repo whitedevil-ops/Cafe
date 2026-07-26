@@ -14,54 +14,71 @@ import type { CafeOption } from '@/lib/cafe'
 import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
 
-type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string }
+type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string; screenKey: string }
 type NavGroup = { heading: string; items: NavItem[] }
 
 const ICON = 17
+
+// Mirrors supabase's all_screen_keys() (0096) — used only to compute an
+// unfiltered-by-role nav tree so a blocked screen's item can still be found
+// and checked against the real screenAccess set (see `blocked` below).
+const ALL_SCREEN_KEYS = new Set([
+  'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
+  'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reports', 'expenses',
+  'profile', 'qr_codes', 'billing', 'settings',
+])
 
 // Reports keeps no featureKey on purpose — its index and most sub-pages
 // (sales, items, payments, recommendations) are baseline for every plan;
 // only 4 of its sub-pages gate on 'advanced_reports', so hiding the whole
 // nav entry behind that key would wrongly hide the baseline reports too.
-function buildNav(cashEnabled: boolean, features: Record<string, boolean>): NavGroup[] {
+//
+// screenKey is the second, independent gate: which screens the CURRENT
+// STAFF MEMBER's role is allowed to see (owner/manager-configurable in
+// Settings → Staff → Role access), separate from featureKey's plan gate.
+// Every key here must exist in supabase's all_screen_keys() (0096).
+function buildNav(cashEnabled: boolean, features: Record<string, boolean>, screenAccess: Set<string>): NavGroup[] {
   const overview: NavItem[] = [
-    { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={ICON} /> },
-    { label: 'POS', href: '/dashboard/pos', icon: <ShoppingCart size={ICON} /> },
-    { label: 'Live tables', href: '/dashboard/tables', icon: <Grid2x2 size={ICON} /> },
-    { label: 'Bills', href: '/dashboard/bills', icon: <ReceiptText size={ICON} />, badge: 'New' },
-    ...(cashEnabled ? [{ label: 'Shift & cash', href: '/dashboard/shift', icon: <Banknote size={ICON} /> }] : []),
-    { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} /> },
+    { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={ICON} />, screenKey: 'dashboard' },
+    { label: 'POS', href: '/dashboard/pos', icon: <ShoppingCart size={ICON} />, screenKey: 'pos' },
+    { label: 'Live tables', href: '/dashboard/tables', icon: <Grid2x2 size={ICON} />, screenKey: 'tables' },
+    { label: 'Bills', href: '/dashboard/bills', icon: <ReceiptText size={ICON} />, badge: 'New', screenKey: 'bills' },
+    ...(cashEnabled ? [{ label: 'Shift & cash', href: '/dashboard/shift', icon: <Banknote size={ICON} />, screenKey: 'shift' }] : []),
+    { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} />, screenKey: 'kitchen' },
   ]
   const groups: NavGroup[] = [
     { heading: 'Operations', items: overview },
     {
       heading: 'Management',
       items: [
-        { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} /> },
-        { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} />, featureKey: 'crm' },
-        { label: 'Feedback', href: '/dashboard/feedback', icon: <Star size={ICON} />, featureKey: 'feedback' },
-        { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} />, featureKey: 'inventory' },
-        { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} />, featureKey: 'inventory' },
-        { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} />, featureKey: 'inventory' },
-        { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} />, featureKey: 'coupons' },
-        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty' },
-        { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet' },
-        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} /> },
-        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses' },
+        { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} />, screenKey: 'menu' },
+        { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} />, featureKey: 'crm', screenKey: 'customers' },
+        { label: 'Feedback', href: '/dashboard/feedback', icon: <Star size={ICON} />, featureKey: 'feedback', screenKey: 'feedback' },
+        { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} />, featureKey: 'inventory', screenKey: 'inventory' },
+        { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} />, featureKey: 'inventory', screenKey: 'purchases' },
+        { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} />, featureKey: 'inventory', screenKey: 'recipes' },
+        { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} />, featureKey: 'coupons', screenKey: 'coupons' },
+        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty', screenKey: 'loyalty' },
+        { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet', screenKey: 'wallet' },
+        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} />, screenKey: 'reports' },
+        { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses', screenKey: 'expenses' },
       ],
     },
     {
       heading: 'Business',
       items: [
-        { label: 'Café profile', href: '/dashboard/profile', icon: <Store size={ICON} /> },
-        { label: 'QR codes', href: '/dashboard/tables/manage', icon: <QrCode size={ICON} /> },
-        { label: 'Billing', href: '/dashboard/billing', icon: <CreditCard size={ICON} /> },
-        { label: 'Settings', href: '/dashboard/settings', icon: <SettingsIcon size={ICON} /> },
+        { label: 'Café profile', href: '/dashboard/profile', icon: <Store size={ICON} />, screenKey: 'profile' },
+        { label: 'QR codes', href: '/dashboard/tables/manage', icon: <QrCode size={ICON} />, screenKey: 'qr_codes' },
+        { label: 'Billing', href: '/dashboard/billing', icon: <CreditCard size={ICON} />, screenKey: 'billing' },
+        { label: 'Settings', href: '/dashboard/settings', icon: <SettingsIcon size={ICON} />, screenKey: 'settings' },
       ],
     },
   ]
   return groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => !i.featureKey || features[i.featureKey]) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => (!i.featureKey || features[i.featureKey]) && screenAccess.has(i.screenKey)),
+    }))
     .filter((g) => g.items.length > 0)
 }
 
@@ -82,6 +99,7 @@ export function AppShell({
   timezone,
   cashEnabled,
   features,
+  screenAccess,
   cafes,
   canAddCafe,
   userName,
@@ -93,14 +111,30 @@ export function AppShell({
   timezone: string
   cashEnabled: boolean
   features: Record<string, boolean>
+  screenAccess: string[]
   cafes: CafeOption[]
   canAddCafe: boolean
   userName: string
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const groups = useMemo(() => buildNav(cashEnabled, features), [cashEnabled, features])
-  const active = activeHref(pathname, groups)
+  const screenSet = useMemo(() => new Set(screenAccess), [screenAccess])
+  const groups = useMemo(() => buildNav(cashEnabled, features, screenSet), [cashEnabled, features, screenSet])
+  // Unfiltered-by-role nav, used only to identify which item a URL belongs
+  // to — buildNav's plan (featureKey) filtering still applies, but nothing
+  // here is hidden for role reasons, so a blocked screen can still be found
+  // and matched against screenSet below (matching against `groups`, which
+  // is ALREADY role-filtered, would make a blocked item invisible to
+  // activeHref and silently fail to detect the block).
+  const allRoleGroups = useMemo(() => buildNav(cashEnabled, features, ALL_SCREEN_KEYS), [cashEnabled, features])
+  const active = activeHref(pathname, allRoleGroups)
+  const activeItem = allRoleGroups.flatMap((g) => g.items).find((i) => i.href === active)
+  // A direct URL visit (not a nav click) to a screen this role can't see —
+  // the nav already hides the link, this catches typing/bookmarking the
+  // URL directly. A workflow boundary, not the security backstop: the
+  // sensitive RPCs behind each screen still enforce their own role checks
+  // independently of what this layer shows or hides.
+  const blocked = pathname.startsWith('/dashboard') && Boolean(activeItem) && !screenSet.has(activeItem!.screenKey)
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -287,7 +321,21 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          {blocked ? (
+            <div className="grid min-h-[60dvh] place-items-center px-6 text-center">
+              <div>
+                <p className="text-sm font-medium text-destructive">Access restricted</p>
+                <h1 className="mt-2 text-xl font-semibold text-foreground">Your role can&apos;t open this section</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Ask an owner or manager to grant access from Settings → Staff → Role access.
+                </p>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   )

@@ -16,11 +16,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }] = await Promise.all([
+  const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }] = await Promise.all([
     supabase.from('cafes').select('cash_management_enabled, plan').eq('id', cafe.cafeId).maybeSingle(),
     supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
     supabase.rpc('owned_cafe_capacity'),
     supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),
+    supabase.rpc('my_screen_access', { p_cafe_id: cafe.cafeId }),
   ])
   const canAddCafe = Boolean((capacity as { can_add?: boolean } | null)?.can_add)
 
@@ -58,6 +59,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     )
   }
 
+  // Fail OPEN (full access) if the RPC errors — e.g. mid-deploy before its
+  // migration has run — rather than lock every existing staff session out
+  // of the whole dashboard because a lookup hiccuped, same posture as the
+  // QR ordering kill-switch check.
+  const ALL_SCREENS = [
+    'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
+    'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reports', 'expenses',
+    'profile', 'qr_codes', 'billing', 'settings',
+  ]
+
   return (
     <AppShell
       cafeName={cafe.name}
@@ -66,6 +77,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       timezone={cafe.timezone}
       cashEnabled={cafeRow?.cash_management_enabled ?? false}
       features={navFeatures}
+      screenAccess={(screenAccess as string[] | null) ?? ALL_SCREENS}
       cafes={myCafes}
       canAddCafe={canAddCafe}
       userName={profile?.full_name ?? ''}
