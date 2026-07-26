@@ -25,7 +25,7 @@ export default async function FeedbackPage() {
   const [{ data: entries }, { data: summary }] = await Promise.all([
     supabase
       .from('feedback')
-      .select('id, rating, comment, created_at, orders(short_code)')
+      .select('id, rating, comment, created_at, orders(short_code, phone, customers(name))')
       .eq('cafe_id', cafe.cafeId)
       .order('created_at', { ascending: false })
       .limit(200),

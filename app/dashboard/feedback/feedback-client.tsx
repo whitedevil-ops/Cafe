@@ -15,7 +15,7 @@ export type FeedbackEntry = {
   rating: number
   comment: string | null
   created_at: string
-  orders: Rel<{ short_code: string }>
+  orders: Rel<{ short_code: string; phone: string | null; customers: Rel<{ name: string | null }> }>
 }
 
 export type FeedbackSummary = {
@@ -107,6 +107,7 @@ export default function FeedbackClient({
           <ul className="mt-3 space-y-3">
             {entries.map((e) => {
               const order = one(e.orders)
+              const customer = order ? one(order.customers) : null
               return (
                 <li key={e.id} className="rounded-[var(--radius-lg)] border border-border bg-surface p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -115,6 +116,11 @@ export default function FeedbackClient({
                       {order && `#${order.short_code} · `}{formatDate(e.created_at, timezone)}
                     </span>
                   </div>
+                  {(customer?.name || order?.phone) && (
+                    <p className="mt-1 text-[12.5px] text-muted-foreground">
+                      {customer?.name || 'Unnamed customer'}{order?.phone ? ` · ${order.phone}` : ''}
+                    </p>
+                  )}
                   {e.comment && <p className="mt-2 text-[13.5px] text-foreground">{e.comment}</p>}
                 </li>
               )
