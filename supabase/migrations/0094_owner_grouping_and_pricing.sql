@@ -17,7 +17,12 @@
 --    the old 12,500 (which would silently become a 59.5% renewal price).
 -- ============================================================================
 
-create or replace function op_list_cafes(
+-- Adding owner_id widens the OUT-parameter row type, which CREATE OR REPLACE
+-- refuses to do in-place (Postgres error 42P13) — the old signature has to
+-- be dropped first.
+drop function if exists op_list_cafes(text, text, boolean, text, timestamptz, timestamptz);
+
+create function op_list_cafes(
   p_search  text default null,
   p_status  text default null,
   p_verified boolean default null,
