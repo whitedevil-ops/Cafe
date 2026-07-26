@@ -36,16 +36,18 @@ export type CafeDetail = {
 // callers, plus public_cafe_ordering_enabled for qr_ordering) — this list
 // intentionally excludes keys platform_plans.features still carries but
 // nothing reads: kds (core kitchen infra, every tier defaults true by
-// design — paywalling it risks breaking a live kitchen), reservations and
-// advanced_analytics (no feature exists behind either, toggling would be
-// pure decoration), and multi_staff (seat limits are real, but enforced via
-// the numeric platform_plans.max_staff column, not this boolean).
+// design — paywalling it risks breaking a live kitchen), advanced_analytics
+// (no feature exists behind it yet, toggling would be pure decoration), and
+// multi_staff (seat limits are real, but enforced via the numeric
+// platform_plans.max_staff column, not this boolean). reservations now has
+// a real feature (0100) and is included below.
 const FEATURES: { key: string; label: string }[] = [
   { key: 'qr_ordering', label: 'QR Ordering (kill switch)' },
   { key: 'online_payments', label: 'Online Payments (Razorpay)' },
   { key: 'coupons', label: 'Coupons' },
   { key: 'loyalty', label: 'Loyalty & Rewards' },
   { key: 'wallet', label: 'Customer Wallet' },
+  { key: 'reservations', label: 'Table Reservations' },
   { key: 'sms_bills', label: 'SMS Bill Receipts' },
   { key: 'feedback', label: 'Customer Feedback' },
   { key: 'expenses', label: 'Expenses Tracking' },

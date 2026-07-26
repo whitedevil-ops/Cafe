@@ -374,6 +374,11 @@ with expected(kind, name, fix) as (values
   -- 0097/0098 are function-body/return-value fixes to already-registered
   -- objects (list_bills 0039, refund_order/order_settlement 0028) — nothing
   -- new to check-schema here.
+  -- reservations (0100)
+  ('table',    'reservations',                         '0100'),
+  ('function', 'create_reservation',                   '0100'),
+  ('function', 'set_reservation_status',                '0100'),
+  ('function', 'list_reservations',                     '0100')
 )
 select
   e.kind,

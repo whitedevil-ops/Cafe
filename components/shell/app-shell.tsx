@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
   BookOpenText, Users, ChartBar, Wallet, PiggyBank, Package, Soup, Tag, Gift, Truck, Star,
-  Store, QrCode, Settings as SettingsIcon, CreditCard,
+  Store, QrCode, Settings as SettingsIcon, CreditCard, CalendarClock,
   PanelLeftClose, PanelLeft, CircleHelp, ChevronDown, LogOut, Menu as MenuIcon,
 } from 'lucide-react'
 import type { CafeOption } from '@/lib/cafe'
@@ -24,8 +24,8 @@ const ICON = 17
 // and checked against the real screenAccess set (see `blocked` below).
 const ALL_SCREEN_KEYS = new Set([
   'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
-  'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reports', 'expenses',
-  'profile', 'qr_codes', 'billing', 'settings',
+  'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
+  'expenses', 'profile', 'qr_codes', 'billing', 'settings',
 ])
 
 // Reports keeps no featureKey on purpose — its index and most sub-pages
@@ -60,6 +60,7 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
         { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} />, featureKey: 'coupons', screenKey: 'coupons' },
         { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty', screenKey: 'loyalty' },
         { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet', screenKey: 'wallet' },
+        { label: 'Reservations', href: '/dashboard/reservations', icon: <CalendarClock size={ICON} />, featureKey: 'reservations', screenKey: 'reservations' },
         { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} />, screenKey: 'reports' },
         { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses', screenKey: 'expenses' },
       ],
