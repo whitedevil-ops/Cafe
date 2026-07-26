@@ -27,7 +27,7 @@ function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; on
   )
 }
 
-const KIND_LABEL: Record<string, string> = { topup: 'Top-up', spend: 'Order payment', adjustment: 'Adjustment' }
+const KIND_LABEL: Record<string, string> = { topup: 'Top-up', spend: 'Order payment', adjustment: 'Adjustment', refund: 'Refund credit' }
 
 export default function WalletClient({
   cafeId,

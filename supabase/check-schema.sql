@@ -371,6 +371,9 @@ with expected(kind, name, fix) as (values
   ('function', 'my_screen_access',                     '0096'),
   ('function', 'role_screen_overview',                 '0096'),
   ('function', 'set_role_screen',                      '0096')
+  -- 0097/0098 are function-body/return-value fixes to already-registered
+  -- objects (list_bills 0039, refund_order/order_settlement 0028) — nothing
+  -- new to check-schema here.
 )
 select
   e.kind,

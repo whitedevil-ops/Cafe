@@ -21,6 +21,7 @@ export function RefundDialog({
   alreadyRefunded,
   items,
   defaultMethod,
+  hasCustomer,
   submitting,
   error,
   onClose,
@@ -32,6 +33,7 @@ export function RefundDialog({
   alreadyRefunded: number
   items: RefundableItem[]
   defaultMethod: string | null
+  hasCustomer: boolean
   submitting: boolean
   error: string | null
   onClose: () => void
@@ -175,8 +177,8 @@ export function RefundDialog({
 
           <div className="mt-5">
             <span className="text-[12px] text-muted-foreground">Refund method</span>
-            <div className="mt-1.5 flex gap-2">
-              {['cash', 'card', 'upi'].map((m) => (
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {[...['cash', 'card', 'upi'], ...(hasCustomer ? ['wallet'] : [])].map((m) => (
                 <button
                   key={m}
                   onClick={() => setMethod(m)}
@@ -188,6 +190,11 @@ export function RefundDialog({
                 </button>
               ))}
             </div>
+            {method === 'wallet' && (
+              <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                Credited straight to the customer&apos;s wallet balance — store credit, not cash in hand.
+              </p>
+            )}
           </div>
 
           <div className="mt-5">

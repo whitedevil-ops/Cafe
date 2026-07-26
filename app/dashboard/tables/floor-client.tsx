@@ -116,6 +116,7 @@ export default function FloorClient({
     subtotal: number
     alreadyRefunded: number
     items: RefundableItem[]
+    actualMethod: string | null
   } | null>(null)
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
@@ -410,7 +411,7 @@ export default function FloorClient({
       refundedByItem.set(r.order_item_id, (refundedByItem.get(r.order_item_id) ?? 0) + r.qty)
     }
 
-    const s = settlement as { refunded: number } | null
+    const s = settlement as { refunded: number; actual_method: string | null } | null
     setRefundContext({
       subtotal: orderRow?.subtotal ?? o.total,
       alreadyRefunded: s?.refunded ?? 0,
@@ -421,6 +422,11 @@ export default function FloorClient({
         price: l.price,
         refundedQty: refundedByItem.get(l.id) ?? 0,
       })),
+      // The order's ACTUAL settlement method, not the stale orders.payment_method
+      // (which record_payment keeps in sync but the Razorpay webhook and wallet
+      // payments never did) — so a wallet-paid order pre-selects "wallet" here
+      // instead of whatever method the order happened to start with.
+      actualMethod: s?.actual_method && s.actual_method !== 'split' ? s.actual_method : null,
     })
     setRefunding(o)
   }
@@ -969,7 +975,8 @@ export default function FloorClient({
           orderSubtotal={refundContext.subtotal}
           alreadyRefunded={refundContext.alreadyRefunded}
           items={refundContext.items}
-          defaultMethod={refunding.payment_method}
+          defaultMethod={refundContext.actualMethod ?? refunding.payment_method}
+          hasCustomer={Boolean(refunding.customer_id)}
           submitting={refundSubmitting}
           error={refundError}
           onClose={() => { setRefunding(null); setRefundContext(null) }}
