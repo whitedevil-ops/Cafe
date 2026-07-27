@@ -171,10 +171,12 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     if (explicitPrice !== null) {
       return { price: explicitPrice, variants: withCost }
     }
-    // No base price given — use the first filled size as the base, and
-    // don't re-list it as a variant of itself.
-    const [, ...rest] = withCost
-    return { price: withCost[0].price, variants: rest }
+    // No base price given — use the first filled size as the base price.
+    // It STILL becomes its own variant (delta 0) rather than being
+    // dropped: the POS requires picking one of the listed variants
+    // whenever an item has any, with no "no variant" option, so omitting
+    // it here made that size literally unselectable at the till.
+    return { price: withCost[0].price, variants: withCost }
   }
 
   // Parses the optional cost cell for a row; invalid (negative/non-numeric)

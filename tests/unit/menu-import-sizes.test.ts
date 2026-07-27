@@ -30,7 +30,10 @@ describe('menu import — optional size columns (flat format)', () => {
     ])
   })
 
-  it('uses the first filled size as the base price when Price is blank, without a redundant self-variant', () => {
+  it('uses the first filled size as the base price when Price is blank, but still lists it as a variant', () => {
+    // The POS requires picking one of an item's variants whenever it has
+    // any, with no "no variant" option — dropping the base size here would
+    // make it literally unselectable at the till (the reported bug).
     const rows = [
       ['Category', 'Item', 'Price', 'Small', 'Medium', 'Large'],
       ['Drinks', 'Cold Coffee', '', '80', '110', '130'],
@@ -39,6 +42,7 @@ describe('menu import — optional size columns (flat format)', () => {
     const item = r.byCategory.flatMap((c) => c.items)[0]
     expect(item.price).toBe(80)
     expect(item.variants).toEqual([
+      { name: 'Small', price: 80, cost: null },
       { name: 'Medium', price: 110, cost: null },
       { name: 'Large', price: 130, cost: null },
     ])
@@ -81,7 +85,11 @@ describe('menu import — optional size columns (heading format)', () => {
     expect(item.name).toBe('Cold Coffee')
     expect(item.category).toBe('DRINKS')
     expect(item.price).toBe(80)
-    expect(item.variants).toEqual([{ name: 'Medium', price: 110, cost: null }, { name: 'Large', price: 130, cost: null }])
+    expect(item.variants).toEqual([
+      { name: 'Small', price: 80, cost: null },
+      { name: 'Medium', price: 110, cost: null },
+      { name: 'Large', price: 130, cost: null },
+    ])
   })
 
   it('still treats a fully blank row as a category heading', () => {
