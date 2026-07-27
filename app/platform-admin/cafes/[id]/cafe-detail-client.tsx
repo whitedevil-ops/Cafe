@@ -103,6 +103,7 @@ export default function CafeDetailClient({
   const [addingNote, setAddingNote] = useState(false)
   const [subEndsAt, setSubEndsAt] = useState(data.account.subscription_ends_at?.slice(0, 10) ?? '')
   const [resettingPw, setResettingPw] = useState(false)
+  const [bulkSetting, setBulkSetting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -166,6 +167,26 @@ export default function CafeDetailClient({
     const { error } = await supabase.rpc('op_clear_feature_override', { p_cafe_id: cafeId, p_feature_key: key })
     if (error) return toast(error.message, 'error')
     toast('Reverted to plan default.')
+    void refresh()
+  }
+
+  async function setAllFeatures(enabled: boolean) {
+    const ok = await confirm({
+      title: enabled ? 'Turn on every feature?' : 'Turn off every feature?',
+      description: enabled
+        ? 'Sets an explicit override to ON for all features below, for this café only.'
+        : 'Sets an explicit override to OFF for all features below, for this café only — this can take away things the café is actively using.',
+      confirmLabel: enabled ? 'Turn all on' : 'Turn all off',
+    })
+    if (!ok) return
+    setBulkSetting(true)
+    const results = await Promise.all(
+      FEATURES.map((f) => supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: f.key, p_enabled: enabled })),
+    )
+    setBulkSetting(false)
+    const failed = results.find((r) => r.error)
+    if (failed?.error) return toast(failed.error.message, 'error')
+    toast(enabled ? 'All features turned on.' : 'All features turned off.')
     void refresh()
   }
 
@@ -377,8 +398,30 @@ export default function CafeDetailClient({
 
       {/* Feature control */}
       <section className="mt-6 rounded-xl border border-border bg-surface p-5">
-        <p className="text-sm font-medium text-foreground">Feature control</p>
-        <p className="mt-1 text-[12.5px] text-muted-foreground">Overrides beat the plan default. Toggling sets an explicit override for this café only.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Feature control</p>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">Overrides beat the plan default. Toggling sets an explicit override for this café only.</p>
+          </div>
+          {permissions['cafes.edit'] && (
+            <div className="flex shrink-0 gap-2">
+              <button
+                onClick={() => void setAllFeatures(true)}
+                disabled={bulkSetting}
+                className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
+              >
+                Turn all on
+              </button>
+              <button
+                onClick={() => void setAllFeatures(false)}
+                disabled={bulkSetting}
+                className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
+              >
+                Turn all off
+              </button>
+            </div>
+          )}
+        </div>
         <ul className="mt-3 divide-y divide-border">
           {FEATURES.map((f) => {
             const override = overrideByKey.has(f.key) ? overrideByKey.get(f.key)! : null
@@ -391,11 +434,11 @@ export default function CafeDetailClient({
                 </div>
                 <div className="flex items-center gap-2">
                   {override !== null && permissions['cafes.edit'] && (
-                    <button onClick={() => clearOverride(f.key)} className="text-[11.5px] text-muted-foreground hover:underline">Reset</button>
+                    <button onClick={() => clearOverride(f.key)} disabled={bulkSetting} className="text-[11.5px] text-muted-foreground hover:underline disabled:opacity-40">Reset</button>
                   )}
                   <button
                     onClick={() => toggleFeature(f.key, override)}
-                    disabled={!permissions['cafes.edit']}
+                    disabled={!permissions['cafes.edit'] || bulkSetting}
                     className={`h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
                   >
                     <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
