@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Star, Check } from 'lucide-react'
+import { Star, Check, ExternalLink } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 
-export function FeedbackForm({ token }: { token: string }) {
+export function FeedbackForm({ token, googleReviewUrl }: { token: string; googleReviewUrl?: string | null }) {
   const [rating, setRating] = useState(0)
   const [hover, setHover] = useState(0)
   const [comment, setComment] = useState('')
@@ -29,8 +29,22 @@ export function FeedbackForm({ token }: { token: string }) {
 
   if (submitted) {
     return (
-      <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl border border-success bg-success-subtle px-4 py-5 text-success">
-        <Check size={18} /> <span className="text-[13.5px] font-medium">Thanks for letting us know!</span>
+      <div className="mt-5 space-y-3">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-success bg-success-subtle px-4 py-5 text-success">
+          <Check size={18} /> <span className="text-[13.5px] font-medium">Thanks for letting us know!</span>
+        </div>
+        {rating >= 4 && googleReviewUrl && (
+          <a
+            href={googleReviewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-4 text-[13.5px] font-medium text-foreground hover:bg-surface-subtle"
+          >
+            <Star size={16} className="fill-warning text-warning" />
+            Glad you enjoyed it — leave us a Google review
+            <ExternalLink size={14} className="text-muted-foreground" />
+          </a>
+        )}
       </div>
     )
   }

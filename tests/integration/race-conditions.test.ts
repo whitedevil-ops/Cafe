@@ -44,6 +44,16 @@ describe.skipIf(!hasAdmin)('concurrency race-condition regression guards (live)'
     if (cafeErr || !cafe) throw new Error(`fixture: could not create test café — ${cafeErr?.message}`)
     cafeId = cafe.id
 
+    // redeem_reward/staff_place_order both authorize off cafe_members, not
+    // cafes.owner_id — the real onboarding flow inserts this row via the
+    // "bootstrap owner" RLS policy right after creating the café. Without
+    // it every attempt() call below fails closed with "not authorized for
+    // this café" before either race even gets a chance to run.
+    const { error: memberErr } = await admin
+      .from('cafe_members')
+      .insert({ cafe_id: cafeId, user_id: ownerUserId, role: 'owner' })
+    if (memberErr) throw new Error(`fixture: could not add owner membership — ${memberErr.message}`)
+
     owner = createClient(URL!, KEY, { auth: { persistSession: false } })
     const { data: session, error: signInErr } = await owner.auth.signInWithPassword({ email, password })
     if (signInErr || !session.session) throw new Error(`fixture: owner sign-in failed — ${signInErr?.message}`)

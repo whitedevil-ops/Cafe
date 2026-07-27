@@ -141,7 +141,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         <ReceiptDownloadButton receipt={r} />
       </div>
 
-      <FeedbackForm token={token} />
+      <FeedbackForm token={token} googleReviewUrl={r.cafe.google_review_url} />
     </main>
   )
 }

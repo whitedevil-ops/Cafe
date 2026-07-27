@@ -3,7 +3,7 @@ import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { hasFeature } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
-import LoyaltyClient, { type Reward } from './loyalty-client'
+import LoyaltyClient, { type Reward, type Referral } from './loyalty-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,9 +18,12 @@ export default async function LoyaltyPage() {
     return <UpgradeRequired feature="Loyalty & rewards" plan={planRow?.plan ?? 'current'} />
   }
 
-  const [{ data: settings }, { data: rewards }] = await Promise.all([
-    supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100').eq('id', cafe.cafeId).single(),
+  const referralAllowed = await hasFeature(cafe.cafeId, 'referral')
+
+  const [{ data: settings }, { data: rewards }, { data: referrals }] = await Promise.all([
+    supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100, referral_enabled, referral_reward_amount, plan').eq('id', cafe.cafeId).single(),
     supabase.from('rewards').select('id, name, points_cost, active, created_at').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
+    referralAllowed ? supabase.rpc('list_referrals', { p_cafe_id: cafe.cafeId }) : Promise.resolve({ data: [] }),
   ])
 
   return (
@@ -30,6 +33,11 @@ export default async function LoyaltyPage() {
       initialEnabled={settings?.loyalty_enabled ?? false}
       initialPointsPer100={settings?.loyalty_points_per_100 ?? 10}
       initialRewards={(rewards ?? []) as Reward[]}
+      referralAllowed={referralAllowed}
+      referralPlan={settings?.plan ?? 'current'}
+      initialReferralEnabled={settings?.referral_enabled ?? false}
+      initialReferralReward={settings?.referral_reward_amount ?? 50}
+      initialReferrals={(referrals ?? []) as Referral[]}
     />
   )
 }

@@ -56,6 +56,7 @@ const FEATURES: { key: string; label: string }[] = [
   { key: 'crm', label: 'Customer Directory (CRM)' },
   { key: 'inventory', label: 'Inventory, Recipes & Purchases' },
   { key: 'advanced_reports', label: 'Advanced Reports' },
+  { key: 'referral', label: 'Refer & Earn (Scale default)' },
 ]
 
 // Same three headings as the café dashboard's own sidebar (components/shell/
@@ -74,7 +75,7 @@ const FEATURES: { key: string; label: string }[] = [
 //   concern (Business, where subscription Billing itself lives).
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
   { heading: 'Operations', keys: ['qr_ordering', 'sms_bills'] },
-  { heading: 'Management', keys: ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'wallet', 'reservations', 'advanced_analytics', 'advanced_reports', 'expenses'] },
+  { heading: 'Management', keys: ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'wallet', 'reservations', 'advanced_analytics', 'advanced_reports', 'expenses', 'referral'] },
   { heading: 'Business', keys: ['online_payments'] },
 ]
 

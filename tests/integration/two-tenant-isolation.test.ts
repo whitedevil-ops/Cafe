@@ -42,6 +42,16 @@ describe.skipIf(!hasAdmin)('two-tenant cross-isolation (live)', () => {
         .insert({ owner_id: userRes.user.id, slug: `test-${label}-${Date.now()}`, name: `Isolation test ${label}` })
         .select('id').single()
       if (cafeErr || !cafe) throw new Error(`fixture: could not create ${label} café — ${cafeErr?.message}`)
+      // The real onboarding flow has the owner's own client insert this row via
+      // the "bootstrap owner" RLS policy right after creating the café — every
+      // staff-facing RPC (staff_place_order included) authorizes off
+      // cafe_members, not cafes.owner_id. Skipping this step is what made the
+      // fixture's own order-placement call fail with "not authorized for this
+      // café" — not a real regression in the RPC's auth check.
+      const { error: memberErr } = await admin
+        .from('cafe_members')
+        .insert({ cafe_id: cafe.id, user_id: userRes.user.id, role: 'owner' })
+      if (memberErr) throw new Error(`fixture: could not add ${label} owner membership — ${memberErr.message}`)
       const client = createClient(URL!, KEY!, { auth: { persistSession: false } })
       const { error: signInErr } = await client.auth.signInWithPassword({ email, password })
       if (signInErr) throw new Error(`fixture: ${label} sign-in failed — ${signInErr.message}`)

@@ -396,9 +396,30 @@ with expected(kind, name, fix) as (values
   -- 0107 is a function-body fix to an already-registered function
   -- (get_recommendations, 0055) — nothing new to check-schema here.
   -- word-boundary keyword matching helper (0108)
-  ('function', 'contains_word',                         '0108')
+  ('function', 'contains_word',                         '0108'),
   -- 0108 also re-bodies get_recommendations (already registered, 0055) —
   -- nothing further to check-schema for that part.
+  -- Google review funnel (0109)
+  ('column',   'cafes.google_review_url',               '0109'),
+  -- 0109 also re-bodies get_receipt (already registered, 0039) — nothing
+  -- further to check-schema for that part.
+  -- Referral program (0110)
+  ('column',   'cafes.referral_enabled',                '0110'),
+  ('column',   'cafes.referral_reward_amount',           '0110'),
+  ('column',   'customers.referral_code',                '0110'),
+  ('table',    'customer_referrals',                     '0110'),
+  ('function', 'customer_referral_state',                '0110'),
+  ('function', 'list_referrals',                         '0110'),
+  ('function', 'award_referral_reward_on_payment',        '0110'),
+  -- 0110 also re-bodies customer_start_session (already registered, 0089)
+  -- with an added 5th param — nothing further to check-schema for that part.
+  -- referral gated to Scale plan (0111) is a data-only update to
+  -- platform_plans.features — nothing new to check-schema there.
+  -- backend entitlement enforcement for referral (0112)
+  ('function', 'cafe_plan_feature',                       '0112')
+  -- 0112 also re-bodies customer_referral_state, award_referral_reward_on_
+  -- payment, and customer_start_session (all already registered) —
+  -- nothing further to check-schema for those parts.
 )
 select
   e.kind,

@@ -50,6 +50,7 @@ export type CafeProfile = {
   dine_in: boolean
   takeaway: boolean
   receipt_footer: string
+  google_review_url: string
 }
 
 export type Hours = Record<string, { open: string; close: string; closed: boolean }>
@@ -159,6 +160,7 @@ export default function ProfileClient({
       pincode: form.pincode.trim() || null,
       dine_in: form.dine_in,
       takeaway: form.takeaway,
+      google_review_url: form.google_review_url.trim() || null,
     }
 
     const { error: cafeErr } = await supabase.from('cafes').update(cafeUpdate).eq('id', cafeId)
@@ -281,6 +283,14 @@ export default function ProfileClient({
                   <Input label="Business phone" type="tel" value={form.phone} onChange={set('phone')} disabled={dis} />
                 </div>
                 <Input label="Website" placeholder="https://…" value={form.website} onChange={set('website')} disabled={dis} />
+                <Input
+                  label="Google review link"
+                  placeholder="https://g.page/r/…/review"
+                  value={form.google_review_url}
+                  onChange={set('google_review_url')}
+                  disabled={dis}
+                  hint="Shown to customers who rate their visit 4 or 5 stars, after they submit feedback."
+                />
 
                 <div className="border-t border-border pt-4">
                   <Input label="Address line 1" value={form.address} onChange={set('address')} disabled={dis} />
