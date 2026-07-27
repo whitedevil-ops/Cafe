@@ -61,11 +61,21 @@ const FEATURES: { key: string; label: string }[] = [
 // Same three headings as the café dashboard's own sidebar (components/shell/
 // app-shell.tsx) — Operations/Management/Business — so an operator reads this
 // list the same way a café owner reads their own nav, not a separate taxonomy.
-// Every FEATURES key appears in exactly one group.
+// Every FEATURES key appears in exactly one group, matched against the real
+// nav item each key actually gates there:
+//   Management: Customers(crm), Feedback, Inventory/Purchases/Recipes(inventory),
+//   Coupons, Loyalty, Wallet, Reservations, Analytics(advanced_analytics),
+//   Reports(advanced_reports gates 4 of its sub-pages), Expenses — all 10 of
+//   these are literally in app-shell's Management group, not Business.
+//   qr_ordering/sms_bills/online_payments gate no nav item directly (they're
+//   capabilities within the ordering/billing flow, not their own screen) —
+//   placed by what they're closest to in spirit: the first two affect live
+//   order-taking (Operations), online_payments is a billing/financial
+//   concern (Business, where subscription Billing itself lives).
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
-  { heading: 'Operations', keys: ['qr_ordering', 'online_payments', 'sms_bills'] },
-  { heading: 'Management', keys: ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'wallet', 'reservations'] },
-  { heading: 'Business', keys: ['advanced_analytics', 'advanced_reports', 'expenses'] },
+  { heading: 'Operations', keys: ['qr_ordering', 'sms_bills'] },
+  { heading: 'Management', keys: ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'wallet', 'reservations', 'advanced_analytics', 'advanced_reports', 'expenses'] },
+  { heading: 'Business', keys: ['online_payments'] },
 ]
 
 // Not gated on anything — every café gets these regardless of plan, so
