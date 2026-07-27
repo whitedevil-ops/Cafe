@@ -392,7 +392,13 @@ with expected(kind, name, fix) as (values
   -- 0105 is a function-body fix to 0104 (CTE-scope bug) — nothing new here.
   -- per-variant cost (0106)
   ('column',   'menu_item_variants.cost_delta',         '0106'),
-  ('column',   'order_items.variant_id',                '0106')
+  ('column',   'order_items.variant_id',                '0106'),
+  -- 0107 is a function-body fix to an already-registered function
+  -- (get_recommendations, 0055) — nothing new to check-schema here.
+  -- word-boundary keyword matching helper (0108)
+  ('function', 'contains_word',                         '0108')
+  -- 0108 also re-bodies get_recommendations (already registered, 0055) —
+  -- nothing further to check-schema for that part.
 )
 select
   e.kind,
