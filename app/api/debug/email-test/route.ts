@@ -7,8 +7,20 @@ import { sendEmail, emailConfigured } from '@/lib/email'
 export async function GET() {
   const hasKey = Boolean(process.env.RESEND_API_KEY)
   const from = process.env.EMAIL_FROM ?? null
+  const key = process.env.RESEND_API_KEY ?? ''
+  const keyInfo = {
+    length: key.length,
+    hasNewline: /[\r\n]/.test(key),
+    hasLeadingOrTrailingSpace: key !== key.trim(),
+    startsWith: key.slice(0, 6),
+    endsWith: key.slice(-4),
+  }
+  const deploy = {
+    sha: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+    message: process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null,
+  }
   if (!emailConfigured()) {
-    return NextResponse.json({ configured: false, hasKey, from })
+    return NextResponse.json({ configured: false, hasKey, from, keyInfo, deploy })
   }
   const result = await sendEmail(
     'originalblockbuster04@gmail.com',
@@ -16,5 +28,5 @@ export async function GET() {
     '<p>test</p>',
     'test',
   )
-  return NextResponse.json({ configured: true, hasKey, from, result })
+  return NextResponse.json({ configured: true, hasKey, from, keyInfo, deploy, result })
 }
