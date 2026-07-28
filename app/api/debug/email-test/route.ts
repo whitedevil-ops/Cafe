@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { sendEmail, emailConfigured } from '@/lib/email'
 
+export const dynamic = 'force-dynamic'
+
 // TEMPORARY — diagnosing why Resend sends are failing in production.
 // Returns only the raw provider error + which env vars are present, never
 // the key itself. Delete once email delivery is confirmed working.
