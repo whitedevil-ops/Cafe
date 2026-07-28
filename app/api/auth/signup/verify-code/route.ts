@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, adminConfigured } from '@/utils/supabase/admin'
+import { sendEmail, emailConfigured, welcomeEmail } from '@/lib/email'
 
 // Verifies the code from /request-code, then creates the Supabase user
 // directly with email_confirm: true — bypassing Supabase Auth's own
@@ -45,6 +46,16 @@ export async function POST(req: NextRequest) {
   })
   if (createErr) {
     return NextResponse.json({ error: createErr.message }, { status: 400 })
+  }
+
+  // Best-effort — the account is already created at this point, so a welcome
+  // email failing (quota, transient provider error) must never surface as a
+  // signup failure to the new owner. Still awaited (not fire-and-forget):
+  // serverless functions can be frozen right after the response is sent, so
+  // an un-awaited send here could simply never complete.
+  if (emailConfigured()) {
+    const { subject, html, text } = welcomeEmail(full_name)
+    await sendEmail(email, subject, html, text)
   }
 
   return NextResponse.json({ ok: true })

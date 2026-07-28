@@ -53,6 +53,18 @@ export function signupCodeEmail(code: string) {
   }
 }
 
+export function welcomeEmail(fullName: string) {
+  const firstName = fullName.trim().split(/\s+/)[0] || fullName
+  return {
+    subject: 'Welcome to KhaoPiyo',
+    text: `Hi ${firstName}, welcome to KhaoPiyo! Your account is verified — next, set up your café profile and menu from the dashboard, then you're ready to start taking orders.`,
+    html: wrapper(`
+      <p style="font-size:15px;margin:0 0 12px">Hi ${firstName}, welcome to KhaoPiyo!</p>
+      <p style="font-size:14px;color:#555;margin:0 0 16px">Your account is verified. Next, set up your café profile and menu from the dashboard — then you're ready to start taking orders.</p>
+    `),
+  }
+}
+
 export function planExpiryReminderEmail(cafeName: string, planName: string, expiresOn: string, daysLeft: number) {
   return {
     subject: `${cafeName}'s KhaoPiyo plan expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
