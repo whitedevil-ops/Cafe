@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
+import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // resolved once here for every nav-relevant key instead of one RPC round
   // trip per key — this only decides whether to SHOW a nav link (a courtesy),
   // every gated page still independently re-checks via hasFeature() server-side.
-  const { data: planRow } = await supabase.from('platform_plans').select('features').eq('key', cafeRow?.plan ?? '').maybeSingle()
+  const { data: planRow } = await supabase.from('platform_plans').select('name, features').eq('key', cafeRow?.plan ?? '').maybeSingle()
   const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
   const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
   const navFeatures: Record<string, boolean> = {}
@@ -38,6 +39,32 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   if (cafe.status !== 'active') {
+    // Auto-suspension from the expiry cron (0114 + check-expiry/route.ts)
+    // sets this exact status_reason — distinguished from a manual operator
+    // suspension (which keeps the generic message below, since "renew your
+    // plan" would be misleading if the real reason is something else).
+    const isExpiry = cafe.status === 'suspended' && cafe.statusReason === 'Subscription expired'
+    if (isExpiry) {
+      const planKey = cafeRow?.plan ?? 'trial'
+      const planName = planRow?.name ?? planKey
+      return (
+        <div className="grid w-full min-h-dvh place-items-center bg-background px-6 py-12 text-center">
+          <div className="w-full max-w-lg">
+            <p className="text-sm font-medium text-destructive">Account access paused</p>
+            <h1 className="mt-2 text-xl font-semibold text-foreground">
+              {planKey === 'trial' ? 'Your trial period has ended' : `Your ${planName} plan has ended`}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Renew to get back to billing, QR ordering, and your kitchen display.
+            </p>
+            <ExpiryRenewal cafeId={cafe.cafeId} />
+            <form action="/auth/signout" method="post" className="mt-6">
+              <button className="text-sm font-medium text-primary hover:underline">Sign out</button>
+            </form>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="grid w-full min-h-dvh place-items-center bg-background px-6 text-center">
         <div>

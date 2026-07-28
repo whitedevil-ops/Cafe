@@ -416,10 +416,18 @@ with expected(kind, name, fix) as (values
   -- referral gated to Scale plan (0111) is a data-only update to
   -- platform_plans.features — nothing new to check-schema there.
   -- backend entitlement enforcement for referral (0112)
-  ('function', 'cafe_plan_feature',                       '0112')
+  ('function', 'cafe_plan_feature',                       '0112'),
   -- 0112 also re-bodies customer_referral_state, award_referral_reward_on_
   -- payment, and customer_start_session (all already registered) —
   -- nothing further to check-schema for those parts.
+  -- signup email OTP (0113)
+  ('table',    'signup_otp_challenges',                   '0113'),
+  ('function', 'issue_signup_otp',                        '0113'),
+  ('function', 'verify_signup_otp',                       '0113'),
+  -- plan-expiry reminder dedupe (0114)
+  ('column',   'cafes.expiry_reminder_sent_at',            '0114')
+  -- 0114 also re-bodies op_extend_subscription (already registered, 0019) —
+  -- nothing further to check-schema for that part.
 )
 select
   e.kind,
