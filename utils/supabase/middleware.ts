@@ -48,12 +48,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Signed-in users shouldn't sit on the auth pages.
-  if (user && (path === '/login' || path === '/signup')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
-
+  // Deliberately NOT redirecting a signed-in user away from /login or
+  // /signup here. Both pages already sign out on arrival client-side
+  // (see their own useEffect) specifically so switching accounts, or a
+  // second browser tab landing on the marketing site while another tab
+  // is signed in, always reaches a real login form — cookies are shared
+  // per browser, not per tab, so a middleware redirect here ran BEFORE
+  // that page-level logic ever got a chance to fire, silently defeating
+  // it. Confirmed live: a second tab clicking "Log in" landed straight on
+  // /dashboard instead of the login form.
   return response
 }
