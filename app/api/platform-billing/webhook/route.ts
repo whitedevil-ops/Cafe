@@ -83,6 +83,7 @@ export async function POST(req: Request) {
           status: 'active',
           subscription_ends_at: currentEnd,
           expiry_reminder_sent_at: null,
+          expiry_reminder_30d_sent_at: null,
           ...(planKey ? { plan: planKey } : {}),
         })
         .eq('id', cafe.id)

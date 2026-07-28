@@ -425,8 +425,12 @@ with expected(kind, name, fix) as (values
   ('function', 'issue_signup_otp',                        '0113'),
   ('function', 'verify_signup_otp',                       '0113'),
   -- plan-expiry reminder dedupe (0114)
-  ('column',   'cafes.expiry_reminder_sent_at',            '0114')
+  ('column',   'cafes.expiry_reminder_sent_at',            '0114'),
   -- 0114 also re-bodies op_extend_subscription (already registered, 0019) —
+  -- nothing further to check-schema for that part.
+  -- 30-day-out plan-expiry reminder dedupe (0115)
+  ('column',   'cafes.expiry_reminder_30d_sent_at',        '0115')
+  -- 0115 also re-bodies op_extend_subscription (already registered, 0019) —
   -- nothing further to check-schema for that part.
 )
 select

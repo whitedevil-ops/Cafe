@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { createClient as createServiceClient, SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail, emailConfigured, planExpiryReminderEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
@@ -24,10 +24,57 @@ export const dynamic = 'force-dynamic'
 // the trusted signal there, so a merely-stale subscription_ends_at from a
 // missed webhook doesn't suspend a paying customer on its own.
 //
-// Also emails the café owner once per expiry cycle when subscription_ends_at
-// is within 7 days — expiry_reminder_sent_at (0114) is the dedupe guard,
-// reset to null whenever the date actually changes (op_extend_subscription,
-// or a renewal webhook) so a renewed café gets a fresh reminder next cycle.
+// Also emails the café owner twice per expiry cycle: once ~30 days out (a
+// heads-up) and once within 7 days (urgent). Each has its own dedupe column
+// (0114/0115) so the two are independent — expiry_reminder_30d_sent_at and
+// expiry_reminder_sent_at both reset to null whenever the date actually
+// changes (op_extend_subscription, or a renewal webhook) so a renewed café
+// gets both reminders fresh next cycle.
+async function sendExpiryReminders(
+  admin: SupabaseClient,
+  windowDays: number,
+  dedupeColumn: 'expiry_reminder_30d_sent_at' | 'expiry_reminder_sent_at',
+): Promise<number> {
+  const now = new Date()
+  const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000)
+  const { data: expiringSoon } = await admin
+    .from('cafes')
+    .select('id, name, plan, owner_id, subscription_ends_at')
+    .eq('status', 'active')
+    .is(dedupeColumn, null)
+    .gte('subscription_ends_at', now.toISOString())
+    .lte('subscription_ends_at', windowEnd.toISOString())
+
+  if (!expiringSoon || expiringSoon.length === 0) return 0
+
+  const ownerIds = [...new Set(expiringSoon.map((c) => c.owner_id).filter(Boolean))]
+  const planKeys = [...new Set(expiringSoon.map((c) => c.plan).filter(Boolean))]
+  const [{ data: owners }, { data: plans }] = await Promise.all([
+    admin.from('profiles').select('id, email').in('id', ownerIds),
+    admin.from('platform_plans').select('key, name').in('key', planKeys),
+  ])
+  const ownerEmail = new Map((owners ?? []).map((o) => [o.id as string, o.email as string | null]))
+  const planName = new Map((plans ?? []).map((p) => [p.key as string, p.name as string]))
+
+  let reminded = 0
+  for (const cafe of expiringSoon) {
+    const email = ownerEmail.get(cafe.owner_id as string)
+    if (!email) continue
+    const endsAt = new Date(cafe.subscription_ends_at as string)
+    const daysLeft = Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+    const expiresOn = endsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const { subject, html, text } = planExpiryReminderEmail(
+      cafe.name as string, planName.get(cafe.plan as string) ?? (cafe.plan as string), expiresOn, daysLeft,
+    )
+    const result = await sendEmail(email, subject, html, text)
+    if (result.ok) {
+      await admin.from('cafes').update({ [dedupeColumn]: now.toISOString() }).eq('id', cafe.id)
+      reminded++
+    }
+  }
+  return reminded
+}
+
 export async function GET(req: Request) {
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret) {
@@ -62,42 +109,8 @@ export async function GET(req: Request) {
 
   let reminded = 0
   if (emailConfigured()) {
-    const now = new Date()
-    const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-    const { data: expiringSoon } = await admin
-      .from('cafes')
-      .select('id, name, plan, owner_id, subscription_ends_at')
-      .eq('status', 'active')
-      .is('expiry_reminder_sent_at', null)
-      .gte('subscription_ends_at', now.toISOString())
-      .lte('subscription_ends_at', weekOut.toISOString())
-
-    if (expiringSoon && expiringSoon.length > 0) {
-      const ownerIds = [...new Set(expiringSoon.map((c) => c.owner_id).filter(Boolean))]
-      const planKeys = [...new Set(expiringSoon.map((c) => c.plan).filter(Boolean))]
-      const [{ data: owners }, { data: plans }] = await Promise.all([
-        admin.from('profiles').select('id, email').in('id', ownerIds),
-        admin.from('platform_plans').select('key, name').in('key', planKeys),
-      ])
-      const ownerEmail = new Map((owners ?? []).map((o) => [o.id as string, o.email as string | null]))
-      const planName = new Map((plans ?? []).map((p) => [p.key as string, p.name as string]))
-
-      for (const cafe of expiringSoon) {
-        const email = ownerEmail.get(cafe.owner_id as string)
-        if (!email) continue
-        const endsAt = new Date(cafe.subscription_ends_at as string)
-        const daysLeft = Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
-        const expiresOn = endsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-        const { subject, html, text } = planExpiryReminderEmail(
-          cafe.name as string, planName.get(cafe.plan as string) ?? (cafe.plan as string), expiresOn, daysLeft,
-        )
-        const result = await sendEmail(email, subject, html, text)
-        if (result.ok) {
-          await admin.from('cafes').update({ expiry_reminder_sent_at: now.toISOString() }).eq('id', cafe.id)
-          reminded++
-        }
-      }
-    }
+    reminded += await sendExpiryReminders(admin, 30, 'expiry_reminder_30d_sent_at')
+    reminded += await sendExpiryReminders(admin, 7, 'expiry_reminder_sent_at')
   }
 
   return NextResponse.json({ ok: true, suspended: ids.length, reminded })
