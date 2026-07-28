@@ -15,6 +15,9 @@ export function SiteFooter() {
             <nav className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">Product</span>
               <Link href="/pos-billing-software" className="hover:text-foreground">POS &amp; billing software</Link>
+              <Link href="/qr-code-ordering-system" className="hover:text-foreground">QR ordering system</Link>
+              <Link href="/restaurant-inventory-management-software" className="hover:text-foreground">Inventory management</Link>
+              <Link href="/gst-billing-software-for-restaurants" className="hover:text-foreground">GST billing software</Link>
               <Link href="/petpooja-alternative" className="hover:text-foreground">Petpooja alternative</Link>
               <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
             </nav>

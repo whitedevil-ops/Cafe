@@ -184,6 +184,28 @@ export default function PosBillingSoftwarePage() {
         </div>
       </section>
 
+      <section className="border-t border-border bg-surface">
+        <div className="mx-auto w-full max-w-4xl px-6 py-16">
+          <h2 className="text-[clamp(1.25rem,3vw,1.75rem)] font-semibold tracking-tight text-foreground">
+            Go deeper on a specific module
+          </h2>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <Link href="/qr-code-ordering-system" className="rounded-xl border border-border bg-background p-5 hover:border-border-strong">
+              <p className="text-sm font-medium text-foreground">QR ordering system</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">Scan, order, pay from the table.</p>
+            </Link>
+            <Link href="/restaurant-inventory-management-software" className="rounded-xl border border-border bg-background p-5 hover:border-border-strong">
+              <p className="text-sm font-medium text-foreground">Inventory management</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">Recipes, stock, food costing.</p>
+            </Link>
+            <Link href="/gst-billing-software-for-restaurants" className="rounded-xl border border-border bg-background p-5 hover:border-border-strong">
+              <p className="text-sm font-medium text-foreground">GST billing software</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">Compliant tax invoices, every bill.</p>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <SiteFooter />
     </div>
   )
