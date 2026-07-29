@@ -14,6 +14,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/qr-code-ordering-system`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/restaurant-inventory-management-software`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/gst-billing-software-for-restaurants`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/digital-menu-software`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/cloud-kitchen-pos-software`, lastModified: now, changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/signup`, lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${base}/login`, lastModified: now, changeFrequency: 'yearly', priority: 0.5 },
     { url: `${base}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },

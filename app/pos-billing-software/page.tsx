@@ -152,8 +152,8 @@ export default function PosBillingSoftwarePage() {
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             {[
               ['Starter', '₹999', 'per month — billing, QR ordering, up to 3 staff'],
-              ['Growth', '₹2,499', 'per month — loyalty, coupons, inventory, up to 8 staff'],
-              ['Scale', '₹4,999', 'per month — multi-outlet, advanced analytics, no staff cap'],
+              ['Growth', '₹2,499', 'per month — loyalty, coupons, online payments, up to 8 staff'],
+              ['Scale', '₹4,999', 'per month — multi-outlet, inventory, no staff cap'],
             ].map(([name, price, desc]) => (
               <div key={name} className="rounded-xl border border-border bg-background p-6 text-left">
                 <p className="text-sm font-medium text-foreground">{name}</p>

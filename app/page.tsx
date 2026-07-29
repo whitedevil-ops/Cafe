@@ -38,9 +38,47 @@ const steps = [
   ['Build loyalty', 'Turn first visits into regulars with points and offers.'],
 ]
 
+const faqs = [
+  {
+    q: 'What is KhaoPiyo?',
+    a: 'KhaoPiyo is a cloud POS and café operations platform — billing, QR ordering, digital menus, kitchen display (KOT/KDS), customer CRM, loyalty and analytics in one connected system, built for cafés, cloud kitchens and casual-dining restaurants in India.',
+  },
+  {
+    q: 'Who makes KhaoPiyo?',
+    a: 'KhaoPiyo is built by Ventron, a technology company based in Hisar, Haryana, India, founded by Vineet Sharma.',
+  },
+  {
+    q: 'Who is KhaoPiyo for?',
+    a: 'Independent cafés, small restaurant chains, and takeaway or cloud kitchens in India that want one system for billing, ordering and operations instead of a bill book, a spreadsheet, and a separate ordering app.',
+  },
+  {
+    q: 'How much does KhaoPiyo cost?',
+    a: 'Flat monthly plans: Starter at ₹999, Growth at ₹2,499, and Scale at ₹4,999 — shown upfront, with no hardware to buy and no separate setup fee.',
+  },
+  {
+    q: 'Is there a free trial?',
+    a: 'Yes — sign up and set up your café for free; you only move to a paid plan once you\'re ready.',
+  },
+  {
+    q: 'Is KhaoPiyo actually live, or still in development?',
+    a: 'It\'s live. KhaoPiyo\'s first café is Brewora Café in Hisar, Haryana, running real day-to-day billing, QR ordering, and GST invoicing.',
+  },
+]
+
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
+}
+
 export default function Home() {
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <SiteHeader />
 
       {/* Hero */}
@@ -186,6 +224,23 @@ export default function Home() {
           <Link href="/signup">
             <Button size="lg">Start free</Button>
           </Link>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="border-t border-border bg-surface">
+        <div className="mx-auto w-full max-w-3xl px-6 py-20">
+          <h2 className="text-[clamp(1.5rem,3.5vw,2rem)] font-semibold tracking-tight text-foreground">
+            Frequently asked questions
+          </h2>
+          <div className="mt-10 divide-y divide-border border-t border-border">
+            {faqs.map((f) => (
+              <div key={f.q} className="py-5">
+                <h3 className="text-[15px] font-medium text-foreground">{f.q}</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{f.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

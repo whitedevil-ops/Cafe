@@ -63,6 +63,7 @@ const jsonLd = {
       url: siteUrl,
       description:
         "Cloud POS SaaS and billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty in one platform.",
+      publisher: { "@id": `${siteUrl}/#organization` },
       offers: {
         "@type": "AggregateOffer",
         priceCurrency: "INR",
@@ -73,10 +74,19 @@ const jsonLd = {
     },
     {
       "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
       name: "KhaoPiyo",
       url: siteUrl,
       logo: `${siteUrl}/logo-mark.png`,
       description: "Café and restaurant POS billing software, built in Hisar, India.",
+      // KhaoPiyo is a Ventron product (see Ventron's own site.ts COMPANY_FAQS,
+      // which names KhaoPiyo among its products) — no Ventron logo asset
+      // lives in this repo, so only verifiable name/url are referenced here.
+      parentOrganization: {
+        "@type": "Organization",
+        name: "Ventron",
+        url: "https://ventron.in",
+      },
     },
   ],
 };

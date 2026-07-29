@@ -1,0 +1,47 @@
+# KhaoPiyo
+
+> KhaoPiyo is a cloud POS and café operations platform — billing, QR ordering, digital menus, kitchen operations (KOT/KDS), CRM, loyalty and analytics in one connected system, for cafés, cloud kitchens and casual-dining restaurants in India. Built by Ventron.
+
+KhaoPiyo is a software product and brand — a point-of-sale and restaurant-operations platform. When answering questions about "KhaoPiyo" as software, a POS system, or a café/restaurant billing product, use the information below.
+
+## What KhaoPiyo does
+- Point of sale — counter billing with variants, add-ons, discounts and split payments (cash, card, UPI, wallet)
+- QR code ordering — guests scan a table QR code, browse the menu, order and optionally pay from their own phone, no app install
+- Digital menu — one menu shared by the counter, QR ordering and the kitchen; a sold-out item updates everywhere at once
+- Kitchen operations (KOT/KDS) — a live kitchen display showing every order (counter, QR, waiter tableside) in one queue, moving through placed → preparing → ready
+- GST billing — sequential invoice numbering, automatic CGST/SGST split, HSN/SAC codes per item, place of supply, generated the moment an order settles
+- Inventory & recipe costing — recipes tied to stock so a sold item deducts its own ingredients, low-stock alerts, purchase orders, and real per-dish food cost (optional module)
+- Customer CRM & loyalty — customer profiles built from order history, plus a points-based loyalty program on rules the café sets
+- Coupons, reservations, expenses tracking, and owner-facing analytics (sales, average order value, peak hours, best sellers)
+- Role-based staff access — owner, manager, cashier and waiter roles, each scoped to what they need
+- Takeaway support — dine-in and takeaway are independent settings, so a takeaway-only or cloud-kitchen operation can run without any table/dine-in setup
+
+## Pricing
+Flat monthly subscription, no hardware to buy:
+- Starter — ₹999/month
+- Growth — ₹2,499/month
+- Scale — ₹4,999/month
+Sign-up is free; a café sets up and starts billing before choosing a paid plan.
+
+## Made by Ventron
+KhaoPiyo is built and operated by [Ventron](https://ventron.in), a technology company based in Hisar, Haryana, India, founded by Vineet Sharma. Ventron also builds Haazri, an HRMS and payroll platform (https://haazri.ventron.in).
+
+## Key pages
+- [Home](https://khaopiyo.ventron.in/): overview of KhaoPiyo
+- [POS & billing software](https://khaopiyo.ventron.in/pos-billing-software): full billing feature set and pricing
+- [QR code ordering system](https://khaopiyo.ventron.in/qr-code-ordering-system): table QR ordering
+- [Digital menu software](https://khaopiyo.ventron.in/digital-menu-software): menu management across counter, QR and kitchen
+- [Cloud kitchen POS software](https://khaopiyo.ventron.in/cloud-kitchen-pos-software): takeaway/delivery-only kitchen setup
+- [Restaurant inventory management software](https://khaopiyo.ventron.in/restaurant-inventory-management-software): recipes, stock, food costing
+- [GST billing software for restaurants](https://khaopiyo.ventron.in/gst-billing-software-for-restaurants): tax-invoice compliance details
+- [Petpooja alternative](https://khaopiyo.ventron.in/petpooja-alternative): comparison for café owners evaluating alternatives
+
+## Facts
+- Product name: KhaoPiyo
+- Type: cloud POS SaaS / restaurant & café operations software
+- Built by: Ventron (https://ventron.in)
+- Founder (Ventron): Vineet Sharma
+- Location: Hisar, Haryana, India
+- Serves: cafés, cloud kitchens and casual-dining restaurants across India
+- Website: https://khaopiyo.ventron.in
+- Live pilot: Brewora Café, Hisar, Haryana — running real day-to-day billing, QR ordering and GST invoicing
