@@ -9,12 +9,12 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 export const metadata: Metadata = {
   title: 'Petpooja Alternative — Simpler POS Billing for Cafés',
   description:
-    'Comparing Petpooja alternatives? KhaoPiyo is cloud-first café POS billing software — flat monthly pricing, no bundled hardware or setup fees, GST invoicing and QR ordering built in.',
+    'Comparing Petpooja alternatives? KhaoPiyo is cloud-first café POS billing — flat monthly pricing, no bundled hardware, GST invoicing and QR ordering built in.',
   alternates: { canonical: '/petpooja-alternative' },
   openGraph: {
     title: 'Petpooja Alternative — Simpler POS Billing for Cafés · KhaoPiyo',
     description:
-      'Cloud-first café POS billing software with flat monthly pricing, GST invoicing and QR ordering — an alternative to Petpooja and other legacy restaurant POS platforms.',
+      'Cloud-first café POS billing with flat monthly pricing, GST invoicing and QR ordering — an alternative to Petpooja and other legacy restaurant POS platforms.',
     url: `${siteUrl}/petpooja-alternative`,
     type: 'website',
   },

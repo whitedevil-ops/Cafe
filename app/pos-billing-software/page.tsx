@@ -9,7 +9,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 export const metadata: Metadata = {
   title: 'POS & Billing Software for Cafés and Restaurants',
   description:
-    'A cloud POS SaaS for cafés and restaurants — instant GST-compliant bills, QR ordering, CGST/SGST invoices, inventory and staff roles, on a monthly subscription. Built and running live in Hisar, India.',
+    'A cloud POS SaaS for cafés and restaurants — instant GST-compliant bills, QR ordering, CGST/SGST invoices, inventory and staff roles on a monthly subscription.',
   keywords: [
     'POS SaaS', 'restaurant POS SaaS', 'POS billing software', 'billing SaaS India',
     'cafe billing software', 'GST billing software', 'cloud POS subscription',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'POS & Billing Software for Cafés and Restaurants · KhaoPiyo',
     description:
-      'A cloud POS SaaS — GST-compliant billing, QR ordering, inventory and staff management for cafés and restaurants, on a monthly subscription with no hardware lock-in.',
+      'A cloud POS SaaS — GST-compliant billing, QR ordering, inventory and staff management for cafés and restaurants on a monthly subscription, no hardware lock-in.',
     url: `${siteUrl}/pos-billing-software`,
     type: 'website',
   },

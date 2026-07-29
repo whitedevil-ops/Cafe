@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: "%s · KhaoPiyo",
   },
   description:
-    "Cloud POS SaaS for cafés and restaurants — billing, QR ordering, GST invoicing, inventory, CRM and loyalty in one platform. Built in Hisar, India — a modern alternative to Petpooja and legacy POS billing systems.",
+    "Cloud POS billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty. A modern Petpooja alternative built in India.",
   keywords: [
     "POS SaaS", "restaurant POS SaaS", "POS billing software", "billing SaaS India",
     "restaurant billing software", "cafe billing software", "cafe POS software",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     siteName: "KhaoPiyo",
     title: "KhaoPiyo — POS & Billing Software for Cafés and Restaurants",
     description:
-      "Cloud POS SaaS for cafés and restaurants — billing, QR ordering, GST invoicing, inventory, CRM and loyalty in one platform. Built for Indian cafés and restaurants.",
+      "Cloud POS SaaS for cafés and restaurants — billing, QR ordering, GST invoicing, inventory, CRM and loyalty. Built for Indian cafés and restaurants.",
     type: "website",
     locale: "en_IN",
     url: siteUrl,
