@@ -432,6 +432,9 @@ with expected(kind, name, fix) as (values
   ('column',   'cafes.expiry_reminder_30d_sent_at',        '0115')
   -- 0115 also re-bodies op_extend_subscription (already registered, 0019) —
   -- nothing further to check-schema for that part.
+  -- 0116 also re-bodies op_create_admin (already registered, 0079), adding
+  -- the permission-key allowlist check — nothing further to check-schema for
+  -- that part.
 )
 select
   e.kind,

@@ -62,6 +62,79 @@ const PERMISSION_GROUPS: { label: string; keys: { key: string; label: string }[]
 
 const roleLabel = (role: string) => ROLES.find((r) => r.key === role)?.label ?? role
 
+// Mirrors role_default_permissions() in supabase/migrations/0079 exactly —
+// lets the Add Admin dialog pre-check the new admin's permissions per role
+// without a round trip, and lets submit() send only the keys where the
+// creator actually diverged from the role default (a real override), rather
+// than pinning every key regardless of whether it matches the role — so a
+// later role change on this admin still does something.
+const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  super_admin: {
+    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': true,
+    'users.view': true, 'health.view': true,
+    'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
+    'audit.view': true,
+    'admins.view': true, 'admins.create': true, 'admins.edit': true, 'admins.disable': true,
+  },
+  operations_admin: {
+    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': false,
+    'users.view': true, 'health.view': true,
+    'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
+    'audit.view': false,
+    'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+  },
+  support_admin: {
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'users.view': true, 'health.view': true,
+    'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
+    'audit.view': false,
+    'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+  },
+  billing_admin: {
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'users.view': false, 'health.view': false,
+    'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
+    'audit.view': false,
+    'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+  },
+  read_only: {
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'users.view': true, 'health.view': true,
+    'plans.view': true, 'plans.change': false, 'subscriptions.view': true, 'subscriptions.manage': false,
+    'audit.view': false,
+    'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+  },
+}
+
+function PermissionCheckboxes({
+  values, onChange,
+}: { values: Record<string, boolean>; onChange: (key: string, checked: boolean) => void }) {
+  return (
+    <div className="space-y-4">
+      {PERMISSION_GROUPS.map((g) => (
+        <div key={g.label}>
+          <p className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">{g.label}</p>
+          <ul className="mt-1.5 space-y-1">
+            {g.keys.map((k) => (
+              <li key={k.key}>
+                <label className="flex items-center gap-2.5 text-[13.5px] text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={!!values[k.key]}
+                    onChange={(e) => onChange(k.key, e.target.checked)}
+                    className="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+                  />
+                  {k.label}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminsClient({
   initialAdmins,
   permissions,
@@ -286,10 +359,18 @@ function AddAdminDialog({ selfRole, onClose, onCreated }: { selfRole: string; on
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [role, setRole] = useState('support_admin')
+  const [permissions, setPermissions] = useState<Record<string, boolean>>(ROLE_DEFAULT_PERMISSIONS.support_admin)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const availableRoles = ROLES.filter((r) => r.key !== 'super_admin' || selfRole === 'super_admin')
+
+  function changeRole(nextRole: string) {
+    setRole(nextRole)
+    // Reset to the new role's defaults — any custom checkboxes ticked under
+    // the old role don't silently carry over as overrides on the new one.
+    setPermissions(ROLE_DEFAULT_PERMISSIONS[nextRole] ?? {})
+  }
 
   async function submit() {
     setError(null)
@@ -298,11 +379,22 @@ function AddAdminDialog({ selfRole, onClose, onCreated }: { selfRole: string; on
     if (password.length < 8) return setError('Password must be at least 8 characters.')
     if (password !== confirmPassword) return setError('Passwords do not match.')
 
+    // Only send keys where the box actually diverges from the role default —
+    // keeps `permissions` a true override set, so changing this admin's role
+    // later still changes anything they didn't specifically customize here.
+    const roleDefaults = ROLE_DEFAULT_PERMISSIONS[role] ?? {}
+    const overrides = Object.fromEntries(
+      Object.entries(permissions).filter(([key, value]) => roleDefaults[key] !== value),
+    )
+
     setSubmitting(true)
     const res = await fetch('/api/platform-admin/admins/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ full_name: fullName.trim(), email: email.trim(), password, confirm_password: confirmPassword, role }),
+      body: JSON.stringify({
+        full_name: fullName.trim(), email: email.trim(), password, confirm_password: confirmPassword,
+        role, permissions: overrides,
+      }),
     })
     setSubmitting(false)
     const body = await res.json().catch(() => ({}))
@@ -318,11 +410,18 @@ function AddAdminDialog({ selfRole, onClose, onCreated }: { selfRole: string; on
         <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} /></Field>
         <Field label="Confirm password"><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputCls} /></Field>
         <Field label="Role">
-          <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
+          <select value={role} onChange={(e) => changeRole(e.target.value)} className={inputCls}>
             {availableRoles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </select>
           <p className="mt-1 text-[12px] text-muted-foreground">{ROLES.find((r) => r.key === role)?.blurb}</p>
         </Field>
+        <div>
+          <span className="text-[12.5px] font-medium text-muted-foreground">What they can do</span>
+          <p className="mt-1 text-[12px] text-muted-foreground">Pre-filled from the role above — tick or untick anything to customize just this admin.</p>
+          <div className="mt-2 max-h-64 overflow-y-auto rounded-[var(--radius)] border border-border p-3">
+            <PermissionCheckboxes values={permissions} onChange={(key, checked) => setPermissions((v) => ({ ...v, [key]: checked }))} />
+          </div>
+        </div>
         {error && <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground">Cancel</button>
@@ -413,26 +512,7 @@ function PermissionsDialog({
         <p className="mt-4 text-[13px] text-muted-foreground">Loading…</p>
       ) : (
         <div className="mt-4 space-y-4">
-          {PERMISSION_GROUPS.map((g) => (
-            <div key={g.label}>
-              <p className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">{g.label}</p>
-              <ul className="mt-1.5 space-y-1">
-                {g.keys.map((k) => (
-                  <li key={k.key}>
-                    <label className="flex items-center gap-2.5 text-[13.5px] text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={!!values[k.key]}
-                        onChange={(e) => setValues((v) => ({ ...v, [k.key]: e.target.checked }))}
-                        className="h-4 w-4 rounded border-border-strong text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
-                      />
-                      {k.label}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <PermissionCheckboxes values={values} onChange={(key, checked) => setValues((v) => ({ ...v, [key]: checked }))} />
           {error && <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
           <div className="flex gap-2 pt-1">
             <button onClick={onClose} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground">Cancel</button>

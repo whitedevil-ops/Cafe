@@ -15,11 +15,13 @@ export async function POST(req: NextRequest) {
     password?: string
     confirm_password?: string
     role?: string
+    permissions?: Record<string, boolean>
   }
   const full_name = (body.full_name ?? '').trim()
   const email = (body.email ?? '').trim().toLowerCase()
   const password = body.password ?? ''
   const role = body.role ?? ''
+  const permissions = body.permissions ?? {}
 
   if (!full_name) return NextResponse.json({ error: 'full name is required' }, { status: 400 })
   if (!email) return NextResponse.json({ error: 'email is required' }, { status: 400 })
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
     p_full_name: full_name,
     p_email: email,
     p_role: role,
-    p_permissions: {},
+    p_permissions: permissions,
   })
 
   if (rpcError) {
