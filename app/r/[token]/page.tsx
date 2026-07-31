@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { FeedbackForm } from '@/components/receipt/feedback-form'
 import { ReceiptDownloadButton } from '@/components/receipt/download-button'
+import { AutoPrint } from '@/components/receipt/auto-print'
 import type { ReceiptData } from '@/lib/pdf-export'
 
 export const dynamic = 'force-dynamic'
@@ -25,8 +26,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
   const when = formatDateTime(r.order.created_at, r.cafe.timezone ?? DEFAULT_TIMEZONE)
 
   return (
-    <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-5 py-8">
-      <div className="rounded-2xl border border-border bg-surface p-6">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-5 py-8 print:min-h-0 print:max-w-full print:px-0 print:py-0">
+      <AutoPrint />
+      <div className="rounded-2xl border border-border bg-surface p-6 print:rounded-none print:border-0 print:bg-transparent print:p-0">
         <header className="border-b border-border pb-4 text-center">
           {r.cafe.logo_url && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -141,7 +143,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         <ReceiptDownloadButton receipt={r} />
       </div>
 
-      <FeedbackForm token={token} googleReviewUrl={r.cafe.google_review_url} />
+      <div className="print:hidden">
+        <FeedbackForm token={token} googleReviewUrl={r.cafe.google_review_url} />
+      </div>
     </main>
   )
 }

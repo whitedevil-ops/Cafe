@@ -855,7 +855,10 @@ export default function FloorClient({
                   </ul>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-base font-semibold text-foreground">₹{o.total}</span>
-                    <a href={`/r/${o.receipt_token}`} target="_blank" className="text-[13px] text-primary hover:underline">View bill →</a>
+                    <div className="flex items-center gap-3">
+                      <a href={`/r/${o.receipt_token}`} target="_blank" className="text-[13px] text-primary hover:underline">View bill →</a>
+                      <a href={`/r/${o.receipt_token}?print=1`} target="_blank" className="text-[13px] text-primary hover:underline">Print</a>
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!fullyPaid && entering?.orderId === o.id ? (
@@ -946,7 +949,10 @@ export default function FloorClient({
                       <li key={o.id} className="rounded-lg border border-border p-3 text-[13px]">
                         <div className="flex justify-between">
                           <span className="text-foreground">#{o.short_code} · ₹{o.total}</span>
-                          <a href={`/r/${o.receipt_token}`} target="_blank" className="text-primary hover:underline">Bill</a>
+                          <div className="flex items-center gap-3">
+                            <a href={`/r/${o.receipt_token}`} target="_blank" className="text-primary hover:underline">Bill</a>
+                            <a href={`/r/${o.receipt_token}?print=1`} target="_blank" className="text-primary hover:underline">Print</a>
+                          </div>
                         </div>
                         {log && (
                           <div className="mt-1.5 flex items-center justify-between text-[12px]">

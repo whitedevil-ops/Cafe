@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, ExternalLink, Copy } from 'lucide-react'
+import { X, ExternalLink, Copy, Printer } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { formatDateTime } from '@/lib/datetime'
@@ -183,6 +183,10 @@ export function BillDetailDrawer({
               <a href={`/r/${o.receipt_token}`} target="_blank" rel="noreferrer"
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground">
                 <ExternalLink size={14} /> View digital bill
+              </a>
+              <a href={`/r/${o.receipt_token}?print=1`} target="_blank" rel="noreferrer"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-4 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
+                <Printer size={14} /> Print bill
               </a>
               <button
                 onClick={() => { void navigator.clipboard.writeText(billLink); toast('Bill link copied.') }}

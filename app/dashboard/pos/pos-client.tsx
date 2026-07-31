@@ -877,6 +877,9 @@ export default function PosClient({
           <a href={`/r/${success.token}`} target="_blank" className="text-[13px] font-semibold text-primary hover:underline">
             View bill →
           </a>
+          <a href={`/r/${success.token}?print=1`} target="_blank" className="text-[13px] font-semibold text-primary hover:underline">
+            Print bill
+          </a>
         </div>
       )}
     </div>
