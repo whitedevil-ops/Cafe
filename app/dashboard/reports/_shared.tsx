@@ -165,6 +165,7 @@ export function List({ rows }: { rows: { label: string; value: number }[] }) {
 // of its siblings.
 export const REPORT_LINKS: { href: string; label: string; ownerOnly?: boolean }[] = [
   { href: '/dashboard/reports', label: 'Overview' },
+  { href: '/dashboard/reports/day-close', label: 'Day Close' },
   { href: '/dashboard/reports/sales', label: 'Sales' },
   { href: '/dashboard/reports/items', label: 'Items & Categories' },
   { href: '/dashboard/reports/payments', label: 'Payments & Aging' },
