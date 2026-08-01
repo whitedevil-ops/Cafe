@@ -106,13 +106,22 @@ export default function Home() {
           <p className="mt-4 text-[13px] text-muted-foreground">
             No card required · Your data stays yours
           </p>
-          <a
-            href="/downloads/KhaoPiyo-Setup.exe"
-            download
-            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
-          >
-            <Download size={14} /> Download for Windows (.exe)
-          </a>
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            <a
+              href="/downloads/KhaoPiyo-Setup.exe"
+              download
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
+            >
+              <Download size={14} /> Download for Windows (.exe)
+            </a>
+            <a
+              href="/downloads/KhaoPiyo.dmg"
+              download
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
+            >
+              <Download size={14} /> Download for Mac (.dmg)
+            </a>
+          </div>
         </div>
 
         {/* Real product mock — a live-orders board, not a stock illustration */}

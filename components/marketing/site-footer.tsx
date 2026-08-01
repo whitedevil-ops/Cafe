@@ -23,6 +23,7 @@ export function SiteFooter() {
               <Link href="/petpooja-alternative" className="hover:text-foreground">Petpooja alternative</Link>
               <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
               <a href="/downloads/KhaoPiyo-Setup.exe" download className="hover:text-foreground">Download for Windows</a>
+              <a href="/downloads/KhaoPiyo.dmg" download className="hover:text-foreground">Download for Mac</a>
             </nav>
             <nav className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">Account</span>
