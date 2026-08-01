@@ -58,6 +58,10 @@ const PERMISSION_GROUPS: { label: string; keys: { key: string; label: string }[]
     { key: 'admins.edit', label: 'Edit Admins' },
     { key: 'admins.disable', label: 'Disable Admins' },
   ] },
+  { label: 'Leads', keys: [
+    { key: 'leads.view', label: 'View Leads' },
+    { key: 'leads.manage', label: 'Manage Notification Emails' },
+  ] },
 ]
 
 const roleLabel = (role: string) => ROLES.find((r) => r.key === role)?.label ?? role
@@ -75,6 +79,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': true,
     'admins.view': true, 'admins.create': true, 'admins.edit': true, 'admins.disable': true,
+    'leads.view': true, 'leads.manage': true,
   },
   operations_admin: {
     'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': false,
@@ -82,6 +87,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+    'leads.view': true, 'leads.manage': false,
   },
   support_admin: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
@@ -89,6 +95,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+    'leads.view': false, 'leads.manage': false,
   },
   billing_admin: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
@@ -96,6 +103,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+    'leads.view': false, 'leads.manage': false,
   },
   read_only: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
@@ -103,6 +111,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'plans.view': true, 'plans.change': false, 'subscriptions.view': true, 'subscriptions.manage': false,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+    'leads.view': true, 'leads.manage': false,
   },
 }
 

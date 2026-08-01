@@ -88,7 +88,7 @@ function LoginForm() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New here?{' '}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
+        <Link href="/get-started" className="font-medium text-primary hover:underline">
           Register your café
         </Link>
       </p>

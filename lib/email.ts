@@ -11,7 +11,7 @@ export function emailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM)
 }
 
-export async function sendEmail(to: string, subject: string, html: string, text: string): Promise<EmailResult> {
+export async function sendEmail(to: string | string[], subject: string, html: string, text: string): Promise<EmailResult> {
   if (!emailConfigured()) {
     return {
       ok: false,
@@ -61,6 +61,39 @@ export function welcomeEmail(fullName: string) {
     html: wrapper(`
       <p style="font-size:15px;margin:0 0 12px">Hi ${firstName}, welcome to KhaoPiyo!</p>
       <p style="font-size:14px;color:#555;margin:0 0 16px">Your account is verified. Next, set up your café profile and menu from the dashboard — then you're ready to start taking orders.</p>
+    `),
+  }
+}
+
+export function leadNotificationEmail(lead: {
+  full_name: string
+  phone: string
+  email?: string | null
+  business_name?: string | null
+  city?: string | null
+  message?: string | null
+}) {
+  const row = (label: string, value?: string | null) =>
+    value ? `<p style="font-size:14px;margin:0 0 6px"><strong>${label}:</strong> ${value}</p>` : ''
+  return {
+    subject: `New lead: ${lead.full_name}${lead.business_name ? ` (${lead.business_name})` : ''}`,
+    text: [
+      `New lead from the KhaoPiyo website:`,
+      `Name: ${lead.full_name}`,
+      `Phone: ${lead.phone}`,
+      lead.email ? `Email: ${lead.email}` : null,
+      lead.business_name ? `Business: ${lead.business_name}` : null,
+      lead.city ? `City: ${lead.city}` : null,
+      lead.message ? `Message: ${lead.message}` : null,
+    ].filter(Boolean).join('\n'),
+    html: wrapper(`
+      <p style="font-size:15px;margin:0 0 12px">New lead from the website</p>
+      ${row('Name', lead.full_name)}
+      ${row('Phone', lead.phone)}
+      ${row('Email', lead.email)}
+      ${row('Business', lead.business_name)}
+      ${row('City', lead.city)}
+      ${row('Message', lead.message)}
     `),
   }
 }

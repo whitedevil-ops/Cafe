@@ -25,7 +25,7 @@ export function SiteFooter() {
             </nav>
             <nav className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">Account</span>
-              <Link href="/signup" className="hover:text-foreground">Start free</Link>
+              <Link href="/get-started" className="hover:text-foreground">Start free</Link>
               <Link href="/login" className="hover:text-foreground">Log in</Link>
             </nav>
             <nav className="flex flex-col gap-2">

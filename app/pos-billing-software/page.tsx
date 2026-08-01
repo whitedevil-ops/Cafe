@@ -107,7 +107,7 @@ export default function PosBillingSoftwarePage() {
           of a bill book, a spreadsheet, and a separate ordering app.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
           <Link href="/petpooja-alternative">
@@ -163,7 +163,7 @@ export default function PosBillingSoftwarePage() {
             ))}
           </div>
           <div className="mt-8">
-            <Link href="/signup">
+            <Link href="/get-started">
               <Button size="lg">Start free</Button>
             </Link>
           </div>

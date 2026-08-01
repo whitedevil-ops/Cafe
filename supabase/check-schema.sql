@@ -1,4 +1,4 @@
--- ============================================================================
+﻿-- ============================================================================
 -- SCHEMA DRIFT CHECK — run any time, read-only, instant.
 -- Lists every object the deployed code depends on and whether prod has it.
 -- Any row with present = false names the migration to run. After running
@@ -429,12 +429,24 @@ with expected(kind, name, fix) as (values
   -- 0114 also re-bodies op_extend_subscription (already registered, 0019) —
   -- nothing further to check-schema for that part.
   -- 30-day-out plan-expiry reminder dedupe (0115)
-  ('column',   'cafes.expiry_reminder_30d_sent_at',        '0115')
+  ('column',   'cafes.expiry_reminder_30d_sent_at',        '0115'),
   -- 0115 also re-bodies op_extend_subscription (already registered, 0019) —
   -- nothing further to check-schema for that part.
   -- 0116 also re-bodies op_create_admin (already registered, 0079), adding
   -- the permission-key allowlist check — nothing further to check-schema for
   -- that part.
+  -- leads instead of direct self-registration (0117)
+  ('table',    'leads',                                  '0117'),
+  ('table',    'lead_notification_emails',                '0117'),
+  ('function', 'submit_lead',                             '0117'),
+  ('function', 'op_list_leads',                            '0117'),
+  ('function', 'op_update_lead_status',                    '0117'),
+  ('function', 'op_list_lead_notification_emails',         '0117'),
+  ('function', 'op_add_lead_notification_email',           '0117'),
+  ('function', 'op_remove_lead_notification_email',        '0117')
+  -- 0117 also re-bodies role_default_permissions/op_update_admin_permissions/
+  -- op_create_admin (already registered, 0079/0116) to add leads.view/
+  -- leads.manage -- nothing further to check-schema for that part.
 )
 select
   e.kind,

@@ -107,7 +107,7 @@ export default function CloudKitchenPosPage() {
           takeaway or delivery-only kitchen actually needs, and leave the rest off.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
           <Link href="/pos-billing-software">

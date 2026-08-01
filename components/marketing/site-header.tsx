@@ -19,7 +19,7 @@ export function SiteHeader() {
           <Link href="/login">
             <Button variant="ghost" size="sm">Log in</Button>
           </Link>
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="sm">Start free</Button>
           </Link>
         </div>

@@ -58,6 +58,7 @@ export default async function PlatformAdminLayout({
     ['Health', '/platform-admin/health', ctx.permissions['health.view']],
     ['Users', '/platform-admin/users', ctx.permissions['users.view']],
     ['Admins', '/platform-admin/admins', ctx.permissions['admins.view']],
+    ['Leads', '/platform-admin/leads', ctx.permissions['leads.view']],
     ['Audit logs', '/platform-admin/audit-logs', ctx.permissions['audit.view']],
   ].filter(([, , show]) => show) as [string, string, boolean][]
 

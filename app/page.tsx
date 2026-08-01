@@ -95,7 +95,7 @@ export default function Home() {
             platform. Take your first order today.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/signup">
+            <Link href="/get-started">
               <Button size="lg">Start free</Button>
             </Link>
             <a href="#how">
@@ -221,7 +221,7 @@ export default function Home() {
           lock-in, cancel anytime.
         </p>
         <div className="mt-8">
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
         </div>

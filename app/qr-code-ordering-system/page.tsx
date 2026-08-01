@@ -107,7 +107,7 @@ export default function QrOrderingPage() {
           in the kitchen and stays live on the guest&apos;s phone until it&apos;s served.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
           <Link href="/pos-billing-software">

@@ -78,7 +78,7 @@ export default function PetpoojaAlternativePage() {
           afternoon — cloud-first, flat pricing, no bundled hardware — that&apos;s where KhaoPiyo fits.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/signup">
+          <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
           <Link href="/pos-billing-software">
@@ -144,7 +144,7 @@ export default function PetpoojaAlternativePage() {
             no onboarding call required.
           </p>
           <div className="mt-8">
-            <Link href="/signup">
+            <Link href="/get-started">
               <Button size="lg">Start free</Button>
             </Link>
           </div>
