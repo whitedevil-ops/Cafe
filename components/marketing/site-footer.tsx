@@ -22,6 +22,7 @@ export function SiteFooter() {
               <Link href="/gst-billing-software-for-restaurants" className="hover:text-foreground">GST billing software</Link>
               <Link href="/petpooja-alternative" className="hover:text-foreground">Petpooja alternative</Link>
               <Link href="/#pricing" className="hover:text-foreground">Pricing</Link>
+              <a href="/downloads/KhaoPiyo-Setup.exe" download className="hover:text-foreground">Download for Windows</a>
             </nav>
             <nav className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">Account</span>

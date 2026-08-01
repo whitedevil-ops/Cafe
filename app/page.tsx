@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
@@ -105,6 +106,13 @@ export default function Home() {
           <p className="mt-4 text-[13px] text-muted-foreground">
             No card required · Your data stays yours
           </p>
+          <a
+            href="/downloads/KhaoPiyo-Setup.exe"
+            download
+            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
+          >
+            <Download size={14} /> Download for Windows (.exe)
+          </a>
         </div>
 
         {/* Real product mock — a live-orders board, not a stock illustration */}
