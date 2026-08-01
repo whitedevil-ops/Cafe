@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { Apple } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
@@ -14,6 +13,16 @@ function WindowsIcon({ className }: { className?: string }) {
       <rect x="48" y="0" width="40" height="40" />
       <rect x="0" y="48" width="40" height="40" />
       <rect x="48" y="48" width="40" height="40" />
+    </svg>
+  )
+}
+
+// lucide-react's "Apple" icon is a loose outline, not the recognizable
+// silhouette — this is the actual bitten-apple mark shape.
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zm3.53-3.257c.843-1.026 1.4-2.454 1.245-3.874-1.207.052-2.662.805-3.532 1.831-.78.907-1.454 2.36-1.273 3.75 1.36.104 2.715-.688 3.56-1.707z" />
     </svg>
   )
 }
@@ -134,7 +143,7 @@ export default function Home() {
               download
               className="inline-flex h-11 items-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-subtle"
             >
-              <Apple className="h-4 w-4" />
+              <AppleIcon className="h-4 w-4" />
               Download for Mac
             </a>
           </div>
