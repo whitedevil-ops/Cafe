@@ -1,8 +1,22 @@
 import Link from 'next/link'
-import { Download } from 'lucide-react'
+import { Apple } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
+
+// No official Windows logo in lucide-react — this is the generic four-pane
+// flag shape widely used for "Windows" download buttons across the web,
+// not Microsoft's trademarked asset.
+function WindowsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 88 88" fill="currentColor" className={className} aria-hidden>
+      <rect x="0" y="0" width="40" height="40" />
+      <rect x="48" y="0" width="40" height="40" />
+      <rect x="0" y="48" width="40" height="40" />
+      <rect x="48" y="48" width="40" height="40" />
+    </svg>
+  )
+}
 
 const features = [
   {
@@ -106,20 +120,22 @@ export default function Home() {
           <p className="mt-4 text-[13px] text-muted-foreground">
             No card required · Your data stays yours
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
             <a
               href="/downloads/KhaoPiyo-Setup.exe"
               download
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
+              className="inline-flex h-11 items-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-subtle"
             >
-              <Download size={14} /> Download for Windows (.exe)
+              <WindowsIcon className="h-4 w-4" />
+              Download for Windows
             </a>
             <a
               href="/downloads/KhaoPiyo.dmg"
               download
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline"
+              className="inline-flex h-11 items-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-subtle"
             >
-              <Download size={14} /> Download for Mac (.dmg)
+              <Apple className="h-4 w-4" />
+              Download for Mac
             </a>
           </div>
         </div>
