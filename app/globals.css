@@ -103,6 +103,7 @@
 }
 
 @theme inline {
+  --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-background:       var(--background);
   --color-surface:          var(--surface);
   --color-surface-subtle:   var(--surface-subtle);
