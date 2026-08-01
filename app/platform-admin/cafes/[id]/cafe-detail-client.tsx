@@ -123,6 +123,9 @@ export default function CafeDetailClient({
   const [note, setNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [subEndsAt, setSubEndsAt] = useState(data.account.subscription_ends_at?.slice(0, 10) ?? '')
+  const [planKey, setPlanKey] = useState(data.account.plan)
+  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10))
+  const [applyingPlan, setApplyingPlan] = useState(false)
   const [resettingPw, setResettingPw] = useState(false)
   const [bulkSetting, setBulkSetting] = useState(false)
   const [featureTab, setFeatureTab] = useState<'plan' | 'manual'>('plan')
@@ -161,10 +164,14 @@ export default function CafeDetailClient({
     void refresh()
   }
 
-  async function changePlan(planKey: string) {
-    const { error } = await supabase.rpc('op_change_plan', { p_cafe_id: cafeId, p_plan_key: planKey })
+  async function applyPlan() {
+    setApplyingPlan(true)
+    const { data: newEndsAt, error } = await supabase.rpc('op_change_plan', {
+      p_cafe_id: cafeId, p_plan_key: planKey, p_effective_date: new Date(effectiveDate).toISOString(),
+    })
+    setApplyingPlan(false)
     if (error) return toast(error.message, 'error')
-    toast(`Plan changed to ${planKey}.`)
+    toast(`Plan set to ${planKey} — active until ${fmt(newEndsAt as string)}.`)
     void refresh()
   }
 
@@ -338,13 +345,13 @@ export default function CafeDetailClient({
         )}
 
         {(permissions['plans.change'] || permissions['subscriptions.manage']) && (
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+          <div className="mt-4 space-y-3 border-t border-border pt-4">
             {permissions['plans.change'] && (
-              <>
-                <label className="text-[13px] text-muted-foreground">Change plan:</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-[13px] text-muted-foreground">Change / renew plan:</label>
                 <select
-                  value={data.account.plan}
-                  onChange={(e) => changePlan(e.target.value)}
+                  value={planKey}
+                  onChange={(e) => setPlanKey(e.target.value)}
                   className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
                 >
                   {plans.map((p) => (
@@ -353,14 +360,31 @@ export default function CafeDetailClient({
                     </option>
                   ))}
                 </select>
-              </>
+                <label className="ml-2 text-[13px] text-muted-foreground">effective</label>
+                <input
+                  type="date"
+                  value={effectiveDate}
+                  onChange={(e) => setEffectiveDate(e.target.value)}
+                  className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                />
+                <button
+                  onClick={applyPlan}
+                  disabled={applyingPlan}
+                  className="h-9 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground disabled:opacity-40"
+                >
+                  {applyingPlan ? 'Applying…' : 'Apply'}
+                </button>
+                <p className="w-full text-[11.5px] text-muted-foreground">
+                  Suspension date is calculated automatically from the effective date — 14 days for Trial, 365 days for annual plans, 30 days otherwise. Renews a café already suspended for expiry.
+                </p>
+              </div>
             )}
             {permissions['subscriptions.manage'] && (
-              <>
-                <label className="ml-4 text-[13px] text-muted-foreground">Subscription ends:</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-[13px] text-muted-foreground">Manually override subscription end date:</label>
                 <input type="date" value={subEndsAt} onChange={(e) => setSubEndsAt(e.target.value)} className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
-                <button onClick={extendSubscription} className="h-9 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground">Save</button>
-              </>
+                <button onClick={extendSubscription} className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface-subtle px-3 text-[12.5px] font-medium text-foreground hover:bg-surface">Save override</button>
+              </div>
             )}
           </div>
         )}

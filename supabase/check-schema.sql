@@ -443,10 +443,17 @@ with expected(kind, name, fix) as (values
   ('function', 'op_update_lead_status',                    '0117'),
   ('function', 'op_list_lead_notification_emails',         '0117'),
   ('function', 'op_add_lead_notification_email',           '0117'),
-  ('function', 'op_remove_lead_notification_email',        '0117')
+  ('function', 'op_remove_lead_notification_email',        '0117'),
   -- 0117 also re-bodies role_default_permissions/op_update_admin_permissions/
   -- op_create_admin (already registered, 0079/0116) to add leads.view/
   -- leads.manage -- nothing further to check-schema for that part.
+  -- trial auto-start + auto-calculated plan/renewal dates (0118)
+  ('function', 'ensure_trial_started',                     '0118')
+  -- 0118 also re-bodies op_change_plan (already registered, 0079) to add
+  -- p_effective_date + auto-calculated subscription_ends_at, and
+  -- op_extend_subscription (already registered, 0079) to restore its
+  -- has_platform_permission('subscriptions.manage') check -- nothing
+  -- further to check-schema for either part.
 )
 select
   e.kind,

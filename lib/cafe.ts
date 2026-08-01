@@ -24,12 +24,13 @@ type MembershipRow = {
   cafe_id: string
   created_at: string
   cafes:
-    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null }
-    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null }[]
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null; trial_ends_at: string | null; subscription_ends_at: string | null }
+    | { name: string; slug: string; status: string; status_reason: string | null; timezone: string | null; onboarding_step: string | null; trial_ends_at: string | null; subscription_ends_at: string | null }[]
     | null
 }
 
-const SELECT_COLS = 'role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone, onboarding_step)'
+const SELECT_COLS =
+  'role, cafe_id, created_at, cafes(name, slug, status, status_reason, timezone, onboarding_step, trial_ends_at, subscription_ends_at)'
 
 // A café still mid-onboarding (details submitted but the wizard not
 // finished) isn't a usable workspace yet — treated the same as "no
@@ -104,6 +105,15 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
 
   const cafe = Array.isArray(row.cafes) ? row.cafes[0] : row.cafes
   if (!cafe) return null
+
+  // Lazily starts the 14-day trial clock on the owner's first dashboard load
+  // after login — cheaper than hooking every possible sign-in path, and
+  // naturally a no-op after the first call since the RPC only writes when
+  // both dates are still null (see migration 0118).
+  if (row.role === 'owner' && cafe.trial_ends_at === null && cafe.subscription_ends_at === null) {
+    const supabase = await createClient()
+    await supabase.rpc('ensure_trial_started', { p_cafe_id: row.cafe_id })
+  }
 
   return {
     userId: m.userId,
