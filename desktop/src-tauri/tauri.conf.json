@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "KhaoPiyo",
+  "version": "1.0.0",
+  "identifier": "in.ventron.khaopiyo",
+  "build": {
+    "frontendDist": null
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "KhaoPiyo",
+        "url": "https://khaopiyo.ventron.in",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1000,
+        "minHeight": 650,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI3RjA0OTY1OTlFNEIxMjgKUldRb3NlU1paVW53Si94bFN6SmJDZk1qMmxJdDV6UHBMdHZrZkpJK1FvS1VvRE8xbVg1Y2VVMisK",
+      "endpoints": [
+        "https://github.com/whitedevil-ops/Cafe/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

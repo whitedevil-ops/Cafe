@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Desktop wrapper (Tauri) — a separate Rust/Cargo project, not JS/TS at all.
+    "desktop/**",
   ]),
 ]);
 

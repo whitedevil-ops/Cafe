@@ -1,0 +1,46 @@
+name: Build macOS (desktop app)
+
+# Manual trigger only — the desktop app is a thin native window over
+# https://khaopiyo.ventron.in (no local frontend), so this never needs to run
+# on every push. Run it from the Actions tab (or `gh workflow run`) whenever
+# desktop/src-tauri itself changes.
+#
+# Unsigned build: there's no Apple Developer account wired in yet, so the
+# resulting .app/.dmg will trigger Gatekeeper's "unidentified developer"
+# warning on a fresh Mac (right-click > Open gets past it). Add codesign /
+# notarization secrets here later if that changes.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (both Apple targets, for a universal binary)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build universal macOS app
+        working-directory: desktop/src-tauri
+        run: cargo tauri build --target universal-apple-darwin
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: KhaoPiyo-macOS
+          path: |
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+          if-no-files-found: error
