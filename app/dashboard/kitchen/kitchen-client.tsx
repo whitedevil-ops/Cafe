@@ -151,10 +151,14 @@ export default function KitchenClient({
   async function advance(o: Order) {
     const to = NEXT[o.status].to
     setOrders((list) => (to === 'completed' ? list.filter((x) => x.id !== o.id) : list.map((x) => (x.id === o.id ? { ...x, status: to as Order['status'] } : x))))
-    await supabase
+    const { error } = await supabase
       .from('orders')
       .update({ status: to, done_at: to === 'completed' ? new Date().toISOString() : null })
       .eq('id', o.id)
+    if (error) {
+      setOrders((list) => (list.some((x) => x.id === o.id) ? list.map((x) => (x.id === o.id ? { ...x, status: o.status } : x)) : [...list, o]))
+      toast(error.message, 'error')
+    }
   }
 
   async function confirmCancel(reason: string) {

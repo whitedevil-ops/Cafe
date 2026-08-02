@@ -339,8 +339,14 @@ export default function FloorClient({
   async function advance(o: SessionOrder) {
     const to = NEXT[o.status]?.to
     if (!to) return
+    const from = o.status
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, status: to as SessionOrder['status'] } : x)))
-    await supabase.from('orders').update({ status: to, done_at: to === 'completed' ? new Date().toISOString() : null }).eq('id', o.id)
+    const { error } = await supabase.from('orders').update({ status: to, done_at: to === 'completed' ? new Date().toISOString() : null }).eq('id', o.id)
+    if (error) {
+      setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, status: from } : x)))
+      toast(error.message, 'error')
+      return
+    }
     void poll()
   }
 
@@ -476,7 +482,11 @@ export default function FloorClient({
   async function toggleReserve(t: FloorTable) {
     const to = t.status === 'reserved' ? 'available' : 'reserved'
     setTables((list) => list.map((x) => (x.id === t.id ? { ...x, status: to } : x)))
-    await supabase.from('cafe_tables').update({ status: to }).eq('id', t.id)
+    const { error } = await supabase.from('cafe_tables').update({ status: to }).eq('id', t.id)
+    if (error) {
+      setTables((list) => list.map((x) => (x.id === t.id ? { ...x, status: t.status } : x)))
+      toast(error.message, 'error')
+    }
   }
 
   async function submitQuickAdd(
@@ -511,7 +521,11 @@ export default function FloorClient({
 
   async function retrySms(logId: string) {
     setSms((list) => list.map((l) => (l.id === logId ? { ...l, status: 'pending' } : l)))
-    await fetch('/api/sms/retry', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ log_id: logId }) })
+    const res = await fetch('/api/sms/retry', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ log_id: logId }) })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast(body.error ?? 'Could not retry the SMS.', 'error')
+    }
     void poll()
   }
 

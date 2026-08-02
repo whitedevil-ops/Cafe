@@ -516,13 +516,17 @@ export default function PosClient({
     setCustomerPhone(row.customer_phone ?? '')
     setCustomerName(row.customer_name ?? '')
     setHeldOrdersOpen(false)
-    void supabase.from('held_orders').delete().eq('id', id).then(() => fetchHeld())
+    void supabase.from('held_orders').delete().eq('id', id).then(({ error }) => {
+      if (error) toast(`Resumed, but couldn't clear the held slot: ${error.message}`, 'error')
+      void fetchHeld()
+    })
   }
 
   async function discardHeld(id: string) {
     const ok = await confirm({ title: 'Discard held order?', description: 'This cannot be undone.', confirmLabel: 'Discard', destructive: true })
     if (!ok) return
-    await supabase.from('held_orders').delete().eq('id', id)
+    const { error } = await supabase.from('held_orders').delete().eq('id', id)
+    if (error) return toast(error.message, 'error')
     void fetchHeld()
   }
 

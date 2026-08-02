@@ -82,9 +82,13 @@ export default function RecipesClient({
   }
 
   async function removeIngredient(id: string) {
+    const removed = recipes.find((r) => r.id === id)
     setRecipes((list) => list.filter((r) => r.id !== id))
     const { error: err } = await supabase.from('recipe_items').delete().eq('id', id)
-    if (err) return toast(err.message, 'error')
+    if (err) {
+      if (removed) setRecipes((list) => (list.some((r) => r.id === id) ? list : [...list, removed]))
+      return toast(err.message, 'error')
+    }
     void refreshCosts()
   }
 

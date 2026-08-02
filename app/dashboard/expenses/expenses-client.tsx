@@ -83,10 +83,16 @@ export default function ExpensesClient({
   }
 
   async function removeExpense(id: string) {
+    const removed = expenses.find((e) => e.id === id)
     setConfirmingDelete(null)
     setExpenses((list) => list.filter((e) => e.id !== id))
     const { error: err } = await supabase.rpc('delete_expense', { p_expense_id: id })
-    if (err) toast(err.message, 'error')
+    if (err) {
+      if (removed) {
+        setExpenses((list) => (list.some((e) => e.id === id) ? list : [...list, removed].sort((a, b) => b.spent_on.localeCompare(a.spent_on))))
+      }
+      toast(err.message, 'error')
+    }
   }
 
   return (

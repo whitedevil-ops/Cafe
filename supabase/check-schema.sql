@@ -454,6 +454,10 @@ with expected(kind, name, fix) as (values
   -- op_extend_subscription (already registered, 0079) to restore its
   -- has_platform_permission('subscriptions.manage') check -- nothing
   -- further to check-schema for either part.
+  --
+  -- 0119 is a grant-only fix (wallet_confirm_topup 0091/0093 was reachable
+  -- by `authenticated`, not just the intended service_role webhook caller)
+  -- -- no new/renamed object, nothing further to check-schema for it.
 )
 select
   e.kind,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Wallet, CreditCard, Landmark, Coins, Info, Check, Copy, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export type PaymentsConfig = {
   accept_cash: boolean
@@ -53,6 +54,7 @@ export function PaymentsPanel({
 }) {
   const router = useRouter()
   const { toast } = useToast()
+  const confirm = useConfirm()
   const connected = value.razorpay_status === 'connected'
   const rzp = RZP_BADGE[value.razorpay_status]
 
@@ -87,6 +89,13 @@ export function PaymentsPanel({
   }
 
   async function disconnect() {
+    const ok = await confirm({
+      title: 'Disconnect Razorpay?',
+      description: 'Online payments stop immediately — customers will only be able to pay at the counter until you reconnect.',
+      confirmLabel: 'Disconnect',
+      destructive: true,
+    })
+    if (!ok) return
     setBusy(true)
     const res = await fetch('/api/payments/razorpay/disconnect', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cafe_id: cafeId }),

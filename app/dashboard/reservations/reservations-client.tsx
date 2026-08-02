@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { CalendarClock, Phone } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -55,6 +56,7 @@ export default function ReservationsClient({
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
+  const confirm = useConfirm()
   const canManage = role === 'owner' || role === 'manager' || role === 'cashier' || role === 'waiter'
 
   const [reservations, setReservations] = useState(initialReservations)
@@ -110,7 +112,18 @@ export default function ReservationsClient({
   }
 
   async function setStatus(r: Reservation, status: string) {
-    const reason = status === 'cancelled' || status === 'no_show' ? window.prompt('Reason (optional):') ?? undefined : undefined
+    const destructive = status === 'cancelled' || status === 'no_show'
+    let reason: string | undefined
+    if (destructive) {
+      const ok = await confirm({
+        title: `${STATUS_LABEL[status]} this reservation?`,
+        description: `${r.customer_name}'s reservation (${r.party_size} ${r.party_size === 1 ? 'guest' : 'guests'}) will be marked ${STATUS_LABEL[status].toLowerCase()}.`,
+        confirmLabel: STATUS_LABEL[status],
+        destructive: true,
+      })
+      if (!ok) return
+      reason = window.prompt('Reason (optional):') ?? undefined
+    }
     setReservations((list) => list.map((x) => (x.id === r.id ? { ...x, status } : x)))
     const { error } = await supabase.rpc('set_reservation_status', { p_reservation_id: r.id, p_status: status, p_reason: reason ?? null })
     if (error) {

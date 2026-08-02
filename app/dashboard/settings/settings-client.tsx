@@ -121,7 +121,14 @@ export default function SettingsClient({
     toast(`Password reset for ${m.name ?? m.email}.`)
   }
 
-  async function removeInvite(id: string) {
+  async function removeInvite(id: string, email: string) {
+    const ok = await confirm({
+      title: `Cancel invite for ${email}?`,
+      description: 'They will no longer be able to join by signing up with this email.',
+      confirmLabel: 'Cancel invite',
+      destructive: true,
+    })
+    if (!ok) return
     const { error } = await supabase.from('cafe_invites').delete().eq('id', id)
     if (error) return setStaffError(error.message)
     setInvites((list) => list.filter((i) => i.id !== id))
@@ -307,7 +314,7 @@ export default function SettingsClient({
                   )}
                   {isAdmin && (
                     <button
-                      onClick={() => removeInvite(iv.id)}
+                      onClick={() => removeInvite(iv.id, iv.email)}
                       className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive"
                     >
                       Cancel
