@@ -20,7 +20,7 @@ import type { PosVariant, PosAddon } from './page'
 const NEW_ITEM_DAYS = 14
 
 type FullItem = PosItem & { category_id: string | null }
-type Line = CartLine & { itemId: string; variantId: string | null; addonIds: string[] }
+type Line = CartLine & { itemId: string; variantId: string | null; addonIds: string[]; pointsCost?: number }
 type HeldRow = {
   id: string
   order_type: 'dine_in' | 'takeaway'
@@ -62,7 +62,7 @@ export default function PosClient({
   tables: PosTable[]
   areas: PosArea[]
   loyaltyEnabled: boolean
-  rewards: { id: string; name: string; points_cost: number }[]
+  rewards: { id: string; name: string; points_cost: number; menu_item_id: string | null; variant_id: string | null }[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const confirm = useConfirm()
@@ -102,7 +102,6 @@ export default function PosClient({
   const [customerName, setCustomerName] = useState('')
   const [customerLookup, setCustomerLookup] = useState<CustomerLookup | null>(null)
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false)
-  const [redeeming, setRedeeming] = useState(false)
 
   const [discountType, setDiscountType] = useState<'percent' | 'flat' | null>(null)
   const [discountValue, setDiscountValue] = useState('')
@@ -618,17 +617,38 @@ export default function PosClient({
     setTimeout(() => setApplicableCoupons(null), 150)
   }
 
-  async function redeemReward(rewardId: string) {
-    if (!customerPhone) return
-    setRedeeming(true)
-    const { data, error } = await supabase.rpc('redeem_reward', {
-      p_cafe_id: cafeId, p_customer_phone: customerPhone, p_reward_id: rewardId,
+  // Redeeming a reward is a local cart edit only — no network call, nothing
+  // spent yet. The real point debit happens server-side inside
+  // staff_place_order, atomically with the order it's attached to, so an
+  // abandoned order never costs the customer anything. The displayed
+  // balance below (pendingRewardPoints) is a preview, derived from the cart,
+  // never the source of truth.
+  function redeemReward(rewardId: string) {
+    const reward = rewards.find((r) => r.id === rewardId)
+    if (!reward?.menu_item_id) return toast('This reward has no linked item — fix it in Loyalty settings.', 'error')
+    const item = items.find((i) => i.id === reward.menu_item_id)
+    if (!item) return toast('This reward\'s item is no longer available.', 'error')
+    const v = reward.variant_id ? variantsByItem.get(reward.menu_item_id)?.find((x) => x.id === reward.variant_id) : null
+    const key = `reward:${reward.id}`
+    setCart((c) => {
+      const found = c.find((l) => l.key === key)
+      if (found) return c.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l))
+      return [
+        ...c,
+        {
+          key,
+          itemId: reward.menu_item_id!,
+          variantId: reward.variant_id,
+          addonIds: [],
+          name: item.name,
+          modLabel: [v?.name, 'Reward'].filter(Boolean).join(' · '),
+          unitPrice: 0,
+          qty: 1,
+          rewardId: reward.id,
+          pointsCost: reward.points_cost,
+        },
+      ]
     })
-    setRedeeming(false)
-    if (error) return toast(error.message, 'error')
-    const r = data as { reward: string; points_spent: number; remaining_balance: number }
-    toast(`Redeemed "${r.reward}" — ${r.remaining_balance} points left.`)
-    setCustomerLookup((c) => (c ? { ...c, points: r.remaining_balance } : c))
   }
 
   async function placeOrder() {
@@ -645,7 +665,7 @@ export default function PosClient({
     if (!requestId.current) requestId.current = crypto.randomUUID()
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
-      p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null })),
+      p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null, reward_id: l.rewardId || null })),
       p_order_type: orderType,
       p_table_id: orderType === 'dine_in' ? selectedTableId : null,
       p_payment_method: method,
@@ -685,6 +705,19 @@ export default function PosClient({
   const cartCount = cart.reduce((s, l) => s + l.qty, 0)
   const cartTotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
 
+  // Preview only — the real balance lives server-side and is only ever
+  // actually spent inside staff_place_order. Deriving this from the cart
+  // (rather than mutating customerLookup.points on redeem) means remove/
+  // qty-change/hold/resume all show the right number for free, and it
+  // naturally tightens the reward pills' own "can afford this" filter.
+  const pendingRewardPoints = useMemo(
+    () => cart.reduce((s, l) => s + (l.rewardId ? (l.pointsCost ?? 0) * l.qty : 0), 0),
+    [cart],
+  )
+  const displayedCustomerLookup = customerLookup
+    ? { ...customerLookup, points: Math.max(0, (customerLookup.points ?? 0) - pendingRewardPoints) }
+    : null
+
   const cartProps = {
     tableLabel: selectedTable?.label ?? null,
     tableArea: selectedAreaName,
@@ -711,7 +744,7 @@ export default function PosClient({
     onCustomerPhone: setCustomerPhone,
     customerName,
     onCustomerName: setCustomerName,
-    customerLookup,
+    customerLookup: displayedCustomerLookup,
     lookingUpCustomer,
     role,
     discountType,
@@ -732,7 +765,6 @@ export default function PosClient({
     onPickApplicableCoupon: pickApplicableCoupon,
     rewards: loyaltyEnabled ? rewards : [],
     onRedeemReward: redeemReward,
-    redeeming,
     onPlaceOrder: placeOrder,
     placing,
     error,

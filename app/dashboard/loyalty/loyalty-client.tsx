@@ -9,7 +9,17 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card, CardHeader } from '@/components/ui/card'
 
-export type Reward = { id: string; name: string; points_cost: number; active: boolean; created_at: string }
+export type Reward = {
+  id: string
+  name: string
+  points_cost: number
+  active: boolean
+  created_at: string
+  menu_item_id: string | null
+  variant_id: string | null
+}
+export type MenuItemOption = { id: string; name: string }
+export type MenuItemVariantOption = { id: string; menu_item_id: string; name: string }
 export type Referral = {
   referrer_name: string | null; referrer_phone: string | null
   referee_name: string | null; referee_phone: string | null
@@ -34,6 +44,8 @@ export default function LoyaltyClient({
   initialEnabled,
   initialPointsPer100,
   initialRewards,
+  menuItems,
+  menuItemVariants,
   referralAllowed,
   referralPlan,
   initialReferralEnabled,
@@ -45,6 +57,8 @@ export default function LoyaltyClient({
   initialEnabled: boolean
   initialPointsPer100: number
   initialRewards: Reward[]
+  menuItems: MenuItemOption[]
+  menuItemVariants: MenuItemVariantOption[]
   referralAllowed: boolean
   referralPlan: string
   initialReferralEnabled: boolean
@@ -62,8 +76,17 @@ export default function LoyaltyClient({
   const [rewards, setRewards] = useState(initialRewards)
   const [rewardName, setRewardName] = useState('')
   const [rewardCost, setRewardCost] = useState('')
+  const [rewardItemId, setRewardItemId] = useState('')
+  const [rewardVariantId, setRewardVariantId] = useState('')
   const [savingReward, setSavingReward] = useState(false)
   const [rewardError, setRewardError] = useState<string | null>(null)
+
+  const variantsByItem = useMemo(() => {
+    const m = new Map<string, MenuItemVariantOption[]>()
+    menuItemVariants.forEach((v) => m.set(v.menu_item_id, [...(m.get(v.menu_item_id) ?? []), v]))
+    return m
+  }, [menuItemVariants])
+  const rewardItemVariants = rewardItemId ? (variantsByItem.get(rewardItemId) ?? []) : []
 
   const [adjustPhone, setAdjustPhone] = useState('')
   const [adjustPoints, setAdjustPoints] = useState('')
@@ -98,16 +121,21 @@ export default function LoyaltyClient({
     const cost = Math.round(Number(rewardCost))
     if (!rewardName.trim()) return setRewardError('Enter a reward name.')
     if (!cost || cost <= 0) return setRewardError('Points cost must be greater than 0.')
+    if (!rewardItemId) return setRewardError('Pick which menu item this reward gives for free.')
+    if (rewardItemVariants.length > 0 && !rewardVariantId) return setRewardError('This item has sizes — pick one.')
     setSavingReward(true)
     setRewardError(null)
     const { data, error } = await supabase.rpc('create_reward', {
       p_cafe_id: cafeId, p_name: rewardName.trim(), p_points_cost: cost,
+      p_menu_item_id: rewardItemId, p_variant_id: rewardVariantId || null,
     })
     setSavingReward(false)
     if (error) return setRewardError(error.message)
     setRewards((list) => [...list, data as Reward].sort((a, b) => a.points_cost - b.points_cost))
     setRewardName('')
     setRewardCost('')
+    setRewardItemId('')
+    setRewardVariantId('')
     toast(`Reward "${(data as Reward).name}" created.`)
   }
 
@@ -198,10 +226,40 @@ export default function LoyaltyClient({
 
       {isAdmin && (
         <Card className="mt-6">
-          <CardHeader title="Create a reward" description="What a customer can redeem their points for." />
+          <CardHeader title="Create a reward" description="A specific menu item a customer gets free for their points — it'll appear on the bill at ₹0 and go to the kitchen like any other order." />
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <Input label="Reward name" value={rewardName} onChange={(e) => setRewardName(e.target.value)} placeholder="Free coffee" className="min-w-[180px] flex-1" />
             <Input label="Points cost" type="number" min={1} value={rewardCost} onChange={(e) => setRewardCost(e.target.value)} className="max-w-[140px]" />
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div className="min-w-[180px] flex-1 space-y-1.5">
+              <label className="block text-[13px] font-medium text-foreground">Menu item</label>
+              <select
+                value={rewardItemId}
+                onChange={(e) => { setRewardItemId(e.target.value); setRewardVariantId('') }}
+                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="">Choose an item…</option>
+                {menuItems.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
+              </select>
+            </div>
+            {rewardItemVariants.length > 0 && (
+              <div className="min-w-[140px] space-y-1.5">
+                <label className="block text-[13px] font-medium text-foreground">Size</label>
+                <select
+                  value={rewardVariantId}
+                  onChange={(e) => setRewardVariantId(e.target.value)}
+                  className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                >
+                  <option value="">Choose a size…</option>
+                  {rewardItemVariants.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Button loading={savingReward} onClick={createReward}>Create</Button>
           </div>
           {rewardError && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{rewardError}</p>}
@@ -214,20 +272,30 @@ export default function LoyaltyClient({
           <p className="mt-3 text-sm text-muted-foreground">No rewards yet.</p>
         ) : (
           <ul className="mt-3 space-y-3">
-            {rewards.map((r) => (
-              <li key={r.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius)] bg-primary-subtle text-primary">
-                    <Gift size={16} />
+            {rewards.map((r) => {
+              const item = r.menu_item_id ? menuItems.find((i) => i.id === r.menu_item_id) : null
+              const variant = r.variant_id ? menuItemVariants.find((v) => v.id === r.variant_id) : null
+              return (
+                <li key={r.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius)] bg-primary-subtle text-primary">
+                      <Gift size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[13.5px] font-medium text-foreground">{r.name}</p>
+                      {r.menu_item_id ? (
+                        <p className="text-[12px] text-muted-foreground">
+                          {r.points_cost} points · {item?.name ?? 'item'}{variant ? ` (${variant.name})` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-[12px] text-warning">Needs a linked item — recreate this reward</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[13.5px] font-medium text-foreground">{r.name}</p>
-                    <p className="text-[12px] text-muted-foreground">{r.points_cost} points</p>
-                  </div>
-                </div>
-                <Toggle on={r.active} disabled={!isAdmin} onClick={() => toggleReward(r)} />
-              </li>
-            ))}
+                  <Toggle on={r.active} disabled={!isAdmin} onClick={() => toggleReward(r)} />
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

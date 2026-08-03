@@ -10,6 +10,7 @@ export type CartLine = {
   unitPrice: number
   qty: number
   note?: string
+  rewardId?: string | null
 }
 export type PosTable = {
   id: string
@@ -80,7 +81,6 @@ export function CartPanel({
   onPickApplicableCoupon,
   rewards,
   onRedeemReward,
-  redeeming,
   onPlaceOrder,
   placing,
   error,
@@ -135,7 +135,6 @@ export function CartPanel({
   onPickApplicableCoupon: (code: string) => void
   rewards: { id: string; name: string; points_cost: number }[]
   onRedeemReward: (rewardId: string) => void
-  redeeming: boolean
   onPlaceOrder: () => void
   placing: boolean
   error: string | null
@@ -313,9 +312,8 @@ export function CartPanel({
               .map((r) => (
                 <button
                   key={r.id}
-                  disabled={redeeming}
                   onClick={() => onRedeemReward(r.id)}
-                  className="inline-flex items-center gap-1 rounded-full border border-primary px-2.5 py-1 text-[11.5px] font-medium text-primary hover:bg-primary-subtle disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-full border border-primary px-2.5 py-1 text-[11.5px] font-medium text-primary hover:bg-primary-subtle"
                 >
                   <Gift size={11} /> {r.name} · {r.points_cost}pts
                 </button>
@@ -335,7 +333,7 @@ export function CartPanel({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
                     {l.modLabel && <p className="truncate text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
-                    <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>
+                    {!l.rewardId && <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>}
                   </div>
                   <div className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong px-1">
                     <button onClick={() => onQty(l.key, -1)} aria-label="Decrease" className="grid h-8 w-8 place-items-center text-muted-foreground">
@@ -346,7 +344,13 @@ export function CartPanel({
                       <Plus size={13} />
                     </button>
                   </div>
-                  <span className="w-14 shrink-0 text-right text-[13.5px] font-semibold text-foreground">₹{l.unitPrice * l.qty}</span>
+                  {l.rewardId ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary bg-primary-subtle px-2 py-0.5 text-[11.5px] font-medium text-primary">
+                      <Gift size={11} /> Free
+                    </span>
+                  ) : (
+                    <span className="w-14 shrink-0 text-right text-[13.5px] font-semibold text-foreground">₹{l.unitPrice * l.qty}</span>
+                  )}
                   <button onClick={() => onRemove(l.key)} aria-label={`Remove ${l.name}`} className="grid h-8 w-8 shrink-0 place-items-center text-muted-foreground hover:text-destructive">
                     <X size={14} />
                   </button>

@@ -458,6 +458,16 @@ with expected(kind, name, fix) as (values
   -- 0119 is a grant-only fix (wallet_confirm_topup 0091/0093 was reachable
   -- by `authenticated`, not just the intended service_role webhook caller)
   -- -- no new/renamed object, nothing further to check-schema for it.
+  --
+  -- reward redemption is now atomic + tied to a real menu item (0120)
+  ('column',   'rewards.menu_item_id',                   '0120'),
+  ('column',   'rewards.variant_id',                      '0120'),
+  ('column',   'order_items.reward_id',                   '0120')
+  -- 0120 also re-bodies create_reward (already registered, 0064) with two
+  -- new required/optional params, staff_place_order (already registered,
+  -- 0016) to redeem a reward atomically inside the order, and get_receipt
+  -- (already registered, 0010) to add an is_reward flag per item -- nothing
+  -- further to check-schema for any of those three.
 )
 select
   e.kind,

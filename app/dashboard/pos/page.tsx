@@ -32,7 +32,15 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false),
     supabase.from('floor_areas').select('id, name, sort').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
-    supabase.from('rewards').select('id, name, points_cost').eq('cafe_id', cafe.cafeId).eq('active', true).order('points_cost'),
+    supabase
+      .from('rewards')
+      .select('id, name, points_cost, menu_item_id, variant_id')
+      .eq('cafe_id', cafe.cafeId)
+      .eq('active', true)
+      // A reward created before 0120 has no linked item — nothing to add to
+      // the cart, so it's excluded here rather than rendering an inert pill.
+      .not('menu_item_id', 'is', null)
+      .order('points_cost'),
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)

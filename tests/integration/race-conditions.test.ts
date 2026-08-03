@@ -100,6 +100,57 @@ describe.skipIf(!hasAdmin)('concurrency race-condition regression guards (live)'
     expect(finalBalance, 'balance must never go negative from a race').toBeGreaterThanOrEqual(0)
   })
 
+  it('two concurrent staff_place_order calls redeeming the same reward cannot both succeed', { timeout: 30000 }, async () => {
+    const phone = '9812345679'
+    const { data: customer, error: custErr } = await admin
+      .from('customers').insert({ cafe_id: cafeId, phone, name: 'Race Reward Customer' }).select('id').single()
+    if (custErr || !customer) throw new Error(`fixture: could not create customer — ${custErr?.message}`)
+
+    const { data: account, error: acctErr } = await admin
+      .from('loyalty_accounts').insert({ cafe_id: cafeId, customer_id: customer.id }).select('id').single()
+    if (acctErr || !account) throw new Error(`fixture: could not create loyalty account — ${acctErr?.message}`)
+
+    // Exactly enough points for ONE redemption, never two.
+    const { error: earnErr } = await admin
+      .from('loyalty_transactions')
+      .insert({ cafe_id: cafeId, account_id: account.id, kind: 'earn', points: 100, reason: 'fixture' })
+    if (earnErr) throw new Error(`fixture: could not credit points — ${earnErr.message}`)
+
+    const { data: item, error: itemErr } = await admin
+      .from('menu_items').insert({ cafe_id: cafeId, name: 'Race Reward Item', price: 150, available: true }).select('id').single()
+    if (itemErr || !item) throw new Error(`fixture: could not create menu item — ${itemErr?.message}`)
+
+    const { data: reward, error: rewardErr } = await admin
+      .from('rewards').insert({ cafe_id: cafeId, name: 'Race order reward', points_cost: 100, menu_item_id: item.id }).select('id').single()
+    if (rewardErr || !reward) throw new Error(`fixture: could not create reward — ${rewardErr?.message}`)
+
+    const attempt = () => owner.rpc('staff_place_order', {
+      p_cafe_id: cafeId,
+      p_items: [{ item_id: item.id, qty: 1, reward_id: reward.id }],
+      p_order_type: 'takeaway',
+      p_customer_phone: phone,
+    })
+    const [a, b] = await Promise.all([attempt(), attempt()])
+
+    const succeeded = [a, b].filter((r) => !r.error)
+    const failed = [a, b].filter((r) => r.error)
+    expect(succeeded.length, 'exactly one concurrent order should win the reward').toBe(1)
+    expect(failed.length, 'the other concurrent order should be rejected for insufficient points').toBe(1)
+
+    const { data: balanceRow } = await admin
+      .from('loyalty_transactions').select('points').eq('account_id', account.id)
+    const finalBalance = (balanceRow ?? []).reduce((s, r) => s + (r.points as number), 0)
+    expect(finalBalance, 'balance must never go negative from a race').toBeGreaterThanOrEqual(0)
+
+    // The redeemed line must actually be a real, free order_items row tied
+    // to the reward — this is the entire point of the fix (was: only a
+    // points debit, nothing ever added to any order).
+    const { data: orderItems } = await admin
+      .from('order_items').select('price, reward_id').eq('reward_id', reward.id)
+    expect(orderItems?.length, 'exactly one order should have redeemed this reward').toBe(1)
+    expect(orderItems?.[0].price, 'a redeemed reward line must be priced at ₹0').toBe(0)
+  })
+
   it('two concurrent orders redeeming a single-use coupon cannot both succeed', { timeout: 30000 }, async () => {
     const { data: item, error: itemErr } = await admin
       .from('menu_items').insert({ cafe_id: cafeId, name: 'Race Item', price: 100, available: true }).select('id').single()
