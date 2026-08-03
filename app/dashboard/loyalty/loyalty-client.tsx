@@ -121,13 +121,12 @@ export default function LoyaltyClient({
     const cost = Math.round(Number(rewardCost))
     if (!rewardName.trim()) return setRewardError('Enter a reward name.')
     if (!cost || cost <= 0) return setRewardError('Points cost must be greater than 0.')
-    if (!rewardItemId) return setRewardError('Pick which menu item this reward gives for free.')
-    if (rewardItemVariants.length > 0 && !rewardVariantId) return setRewardError('This item has sizes — pick one.')
+    if (rewardItemId && rewardItemVariants.length > 0 && !rewardVariantId) return setRewardError('This item has sizes — pick one.')
     setSavingReward(true)
     setRewardError(null)
     const { data, error } = await supabase.rpc('create_reward', {
       p_cafe_id: cafeId, p_name: rewardName.trim(), p_points_cost: cost,
-      p_menu_item_id: rewardItemId, p_variant_id: rewardVariantId || null,
+      p_menu_item_id: rewardItemId || null, p_variant_id: rewardVariantId || null,
     })
     setSavingReward(false)
     if (error) return setRewardError(error.message)
@@ -226,20 +225,20 @@ export default function LoyaltyClient({
 
       {isAdmin && (
         <Card className="mt-6">
-          <CardHeader title="Create a reward" description="A specific menu item a customer gets free for their points — it'll appear on the bill at ₹0 and go to the kitchen like any other order." />
+          <CardHeader title="Create a reward" description="What a customer redeems their points for. Link a menu item and it'll appear free on the bill and go to the kitchen automatically — leave it blank for a points-only reward you hand over yourself." />
           <div className="mt-5 flex flex-wrap items-end gap-3">
             <Input label="Reward name" value={rewardName} onChange={(e) => setRewardName(e.target.value)} placeholder="Free coffee" className="min-w-[180px] flex-1" />
             <Input label="Points cost" type="number" min={1} value={rewardCost} onChange={(e) => setRewardCost(e.target.value)} className="max-w-[140px]" />
           </div>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] flex-1 space-y-1.5">
-              <label className="block text-[13px] font-medium text-foreground">Menu item</label>
+              <label className="block text-[13px] font-medium text-foreground">Menu item (optional)</label>
               <select
                 value={rewardItemId}
                 onChange={(e) => { setRewardItemId(e.target.value); setRewardVariantId('') }}
                 className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
               >
-                <option value="">Choose an item…</option>
+                <option value="">No linked item — hand it over yourself</option>
                 {menuItems.map((i) => (
                   <option key={i.id} value={i.id}>{i.name}</option>
                 ))}
@@ -283,13 +282,9 @@ export default function LoyaltyClient({
                     </div>
                     <div>
                       <p className="text-[13.5px] font-medium text-foreground">{r.name}</p>
-                      {r.menu_item_id ? (
-                        <p className="text-[12px] text-muted-foreground">
-                          {r.points_cost} points · {item?.name ?? 'item'}{variant ? ` (${variant.name})` : ''}
-                        </p>
-                      ) : (
-                        <p className="text-[12px] text-warning">Needs a linked item — recreate this reward</p>
-                      )}
+                      <p className="text-[12px] text-muted-foreground">
+                        {r.points_cost} points{r.menu_item_id ? ` · ${item?.name ?? 'item'}${variant ? ` (${variant.name})` : ''}` : ' · hand it over yourself'}
+                      </p>
                     </div>
                   </div>
                   <Toggle on={r.active} disabled={!isAdmin} onClick={() => toggleReward(r)} />

@@ -617,15 +617,33 @@ export default function PosClient({
     setTimeout(() => setApplicableCoupons(null), 150)
   }
 
-  // Redeeming a reward is a local cart edit only — no network call, nothing
-  // spent yet. The real point debit happens server-side inside
-  // staff_place_order, atomically with the order it's attached to, so an
-  // abandoned order never costs the customer anything. The displayed
-  // balance below (pendingRewardPoints) is a preview, derived from the cart,
-  // never the source of truth.
-  function redeemReward(rewardId: string) {
+  // Rewards linked to a menu item: redeeming is a local cart edit only — no
+  // network call, nothing spent yet. The real point debit happens
+  // server-side inside staff_place_order, atomically with the order it's
+  // attached to, so an abandoned order never costs the customer anything.
+  // The displayed balance (pendingRewardPoints) is a preview, derived from
+  // the cart, never the source of truth.
+  //
+  // Rewards with no linked item (0121: optional again) have no cart line to
+  // add — they fall back to the original standalone redeem_reward RPC,
+  // exactly like before this whole fix: points are spent immediately, staff
+  // hand over whatever it is themselves, nothing appears on the order.
+  async function redeemReward(rewardId: string) {
     const reward = rewards.find((r) => r.id === rewardId)
-    if (!reward?.menu_item_id) return toast('This reward has no linked item — fix it in Loyalty settings.', 'error')
+    if (!reward) return
+
+    if (!reward.menu_item_id) {
+      if (!customerPhone) return
+      const { data, error } = await supabase.rpc('redeem_reward', {
+        p_cafe_id: cafeId, p_customer_phone: customerPhone, p_reward_id: rewardId,
+      })
+      if (error) return toast(error.message, 'error')
+      const r = data as { reward: string; points_spent: number; remaining_balance: number }
+      toast(`Redeemed "${r.reward}" — ${r.remaining_balance} points left.`)
+      setCustomerLookup((c) => (c ? { ...c, points: r.remaining_balance } : c))
+      return
+    }
+
     const item = items.find((i) => i.id === reward.menu_item_id)
     if (!item) return toast('This reward\'s item is no longer available.', 'error')
     const v = reward.variant_id ? variantsByItem.get(reward.menu_item_id)?.find((x) => x.id === reward.variant_id) : null

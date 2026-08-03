@@ -468,6 +468,10 @@ with expected(kind, name, fix) as (values
   -- 0016) to redeem a reward atomically inside the order, and get_receipt
   -- (already registered, 0010) to add an is_reward flag per item -- nothing
   -- further to check-schema for any of those three.
+  --
+  -- 0121 makes rewards.menu_item_id optional again (re-bodies create_reward,
+  -- already registered, 0064) -- same type signature as 0120, no new
+  -- object, nothing further to check-schema for it.
 )
 select
   e.kind,

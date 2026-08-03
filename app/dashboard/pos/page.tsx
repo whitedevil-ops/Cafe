@@ -32,14 +32,14 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false),
     supabase.from('floor_areas').select('id, name, sort').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
+    // A reward with no linked item is still valid (0121) — redeeming it
+    // falls back to the original standalone redeem_reward RPC (deduct
+    // points, staff hand it over themselves) instead of a cart line.
     supabase
       .from('rewards')
       .select('id, name, points_cost, menu_item_id, variant_id')
       .eq('cafe_id', cafe.cafeId)
       .eq('active', true)
-      // A reward created before 0120 has no linked item — nothing to add to
-      // the cart, so it's excluded here rather than rendering an inert pill.
-      .not('menu_item_id', 'is', null)
       .order('points_cost'),
   ])
 
