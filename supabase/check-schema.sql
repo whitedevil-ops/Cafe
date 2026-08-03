@@ -472,6 +472,9 @@ with expected(kind, name, fix) as (values
   -- 0121 makes rewards.menu_item_id optional again (re-bodies create_reward,
   -- already registered, 0064) -- same type signature as 0120, no new
   -- object, nothing further to check-schema for it.
+  --
+  -- lets owner/manager hard-delete a reward, not just deactivate (0122)
+  ('function', 'delete_reward',                            '0122')
 )
 select
   e.kind,

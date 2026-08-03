@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Gift, Award, Users, Lock } from 'lucide-react'
+import { Gift, Award, Users, Lock, Trash2 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -67,6 +68,7 @@ export default function LoyaltyClient({
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
+  const confirm = useConfirm()
   const isAdmin = role === 'owner' || role === 'manager'
 
   const [enabled, setEnabled] = useState(initialEnabled)
@@ -145,6 +147,20 @@ export default function LoyaltyClient({
       setRewards((list) => list.map((x) => (x.id === r.id ? { ...x, active: r.active } : x)))
       toast(error.message, 'error')
     }
+  }
+
+  async function deleteReward(r: Reward) {
+    const ok = await confirm({
+      title: `Delete "${r.name}"?`,
+      description: 'This cannot be undone. Past orders that redeemed it keep their own record — only the reward itself goes away.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    const { error } = await supabase.rpc('delete_reward', { p_reward_id: r.id })
+    if (error) return toast(error.message, 'error')
+    setRewards((list) => list.filter((x) => x.id !== r.id))
+    toast(`"${r.name}" deleted.`)
   }
 
   async function adjustCustomerPoints() {
@@ -287,7 +303,18 @@ export default function LoyaltyClient({
                       </p>
                     </div>
                   </div>
-                  <Toggle on={r.active} disabled={!isAdmin} onClick={() => toggleReward(r)} />
+                  <div className="flex shrink-0 items-center gap-3">
+                    {isAdmin && (
+                      <button
+                        onClick={() => deleteReward(r)}
+                        aria-label={`Delete ${r.name}`}
+                        className="grid h-9 w-9 place-items-center text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                    <Toggle on={r.active} disabled={!isAdmin} onClick={() => toggleReward(r)} />
+                  </div>
                 </li>
               )
             })}
