@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMenuFile, parseOptionList, type ImportIssue } from '@/lib/menu-import'
+import { parseMenuFile, parseOptionList, findHeaderRow, pickMenuSheet, type ImportIssue } from '@/lib/menu-import'
 import { effectiveOptionCost, optionToDeltas, optionFromDeltas } from '@/lib/menu-options'
 
 // Free-form Choices / Add-ons columns. These replaced the fixed
@@ -511,6 +511,17 @@ describe('menu import — migrating from another POS', () => {
     expect(r.byCategory[0].items.map((i) => i.name)).toEqual(['Margherita'])
   })
 
+  it('recognises the other names systems give the flag', () => {
+    for (const header of ['Active', 'Enabled', 'Is Available', 'Availability']) {
+      const r = parseMenuFile([
+        ['Category', 'Title', 'Price', header],
+        ['Pizza', 'Margherita', '99', '1'],
+        ['Pizza', 'Retired', '149', '0'],
+      ])
+      expect(r.skippedInactive, header).toBe(1)
+    }
+  })
+
   it('keeps a row whose active cell is blank', () => {
     const r = parseMenuFile([
       ['Category', 'Title', 'Base Item Price', 'IsActive'],
@@ -610,6 +621,72 @@ describe('menu import — migrating from another POS', () => {
       ['Add On Burger', 'Cheese Slice', '20'],
     ])
     expect(r.byCategory[0].items[0].addons).toEqual([{ name: 'Cheese Slice', price: 99 }])
+  })
+})
+
+// "Just upload what your old system gave you." Before any column matters, two
+// things break a foreign export: the header isn't on row 1, and the menu isn't
+// on the first sheet.
+describe('menu import — uploading a foreign file untouched', () => {
+  it('skips a title block above the header', () => {
+    const r = parseMenuFile([
+      ['ZORKO — Hansi, Hisar'],
+      ['Menu export'],
+      [],
+      ['Generated on 09 Aug 2026'],
+      ['Category', 'Item Name', 'Price'],
+      ['Pizza', 'Margherita', '99'],
+      ['Pizza', 'Four Cheese', '169'],
+    ])
+    expect(r.issues).toEqual([])
+    expect(r.totalItems).toBe(2)
+    expect(r.byCategory[0].items.map((i) => i.name)).toEqual(['Margherita', 'Four Cheese'])
+  })
+
+  it('leaves a normal sheet alone — the header really is row 1', () => {
+    expect(findHeaderRow([['Category', 'Item', 'Price'], ['Pizza', 'Margherita', '99']])).toBe(0)
+  })
+
+  it('falls back to row 0 when nothing looks like a header', () => {
+    expect(findHeaderRow([['a', 'b'], ['c', 'd']])).toBe(0)
+  })
+
+  it('needs both a name and a price before calling a row the header', () => {
+    // A lone title row mentioning "Menu" must not be mistaken for headers.
+    expect(findHeaderRow([['Our Menu', 'Spring 2026'], ['Category', 'Item', 'Price'], ['Pizza', 'X', '99']])).toBe(1)
+  })
+
+  it('picks the sheet that holds the menu, not the first one', () => {
+    const cover = { rows: [['ZORKO'], ['Exported by Petpooja']] }
+    const menu = { rows: [['Category', 'Title', 'Base Item Price'], ['Pizza', 'Margherita', '99']] }
+    expect(pickMenuSheet([cover, menu])).toBe(menu)
+  })
+
+  it('prefers the sheet with more data when two look alike', () => {
+    const small = { rows: [['Category', 'Item', 'Price'], ['Pizza', 'A', '99']] }
+    const big = { rows: [['Category', 'Item', 'Price'], ...Array.from({ length: 40 }, (_, i) => ['Pizza', `Item ${i}`, '99'])] }
+    expect(pickMenuSheet([small, big])).toBe(big)
+  })
+
+  it('never picks our own template\'s instructions tab', () => {
+    const menu = { rows: [['Category / Item', 'Size / Choice', 'Price', 'Margin'], ['Margherita', '6 Slice', '99', '40']] }
+    const guide = { rows: [['How to fill in your menu'], ['Price', 'What the guest pays, in ₹.'], ['Margin', 'The ₹ you keep.']] }
+    expect(pickMenuSheet([guide, menu])).toBe(menu)
+  })
+})
+
+describe('menu import — price column synonyms', () => {
+  it('reads MRP as the price', () => {
+    const r = parseMenuFile([['Category', 'Item', 'MRP'], ['Pizza', 'Margherita', '99']])
+    expect(r.byCategory[0].items[0].price).toBe(99)
+  })
+
+  it('never takes "Discounted Price" over the real price', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Discounted Price', 'Base Item Price'],
+      ['Pizza', 'Margherita', '79', '99'],
+    ])
+    expect(r.byCategory[0].items[0].price).toBe(99)
   })
 })
 

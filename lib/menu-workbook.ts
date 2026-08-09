@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { safeText } from './xlsx-export'
+import { pickMenuSheet } from './menu-import'
 
 function download(wb: XLSX.WorkBook, filename: string) {
   XLSX.writeFile(wb, filename)
@@ -262,9 +263,17 @@ export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
 // Reads an uploaded .csv or .xlsx File into a plain array-of-arrays, the input
 // shape parseMenuFile expects — one place that understands the file format,
 // so the parser itself stays format-agnostic.
+//
+// Every sheet is read, not just the first. An export from another system puts
+// the menu wherever it likes, and pickMenuSheet chooses the one that actually
+// looks like a menu — which also keeps our own template's "How to fill this in"
+// tab out of the import no matter what order the tabs end up in.
 export async function readWorkbookRows(file: File): Promise<unknown[][]> {
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf, { type: 'array' })
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+  const sheets = wb.SheetNames.map((name) => ({
+    name,
+    rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' }) as unknown[][],
+  }))
+  return pickMenuSheet(sheets)?.rows ?? []
 }

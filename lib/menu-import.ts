@@ -166,8 +166,76 @@ export function parseOptionList(
   return [...byName.values()]
 }
 
-export function parseMenuFile(rows: unknown[][]): ParseResult {
+// ── Finding the actual table inside someone else's file ─────────────────────
+// An export from another system rarely starts with the header on row 1 of the
+// first sheet: there's a report title, the restaurant's name, a blank line, a
+// "generated on" stamp. And a workbook often holds the menu on a later tab.
+// Both are decided by scoring rather than by position, so an owner can upload
+// what their old system gave them without editing it first.
+
+const CONCEPTS: ((h: string) => boolean)[] = [
+  (h) => /(^|\W)(item|name|title|product|dish)(\W|$)/.test(h),
+  (h) => /price|amount|\brate\b|mrp/.test(h),
+  (h) => /category|section/.test(h),
+  (h) => /desc/.test(h),
+  (h) => /veg|food type/.test(h),
+]
+
+/** How much a row reads like a header — how many distinct menu concepts it names. */
+function headerScore(row: unknown[]): number {
+  const cells = row.map((c) => normalize(c).toLowerCase()).filter(Boolean)
+  if (cells.length < 2) return 0
+  const hit = CONCEPTS.map((test) => cells.some(test))
+  // A name and a price are the minimum that makes a table a menu; without both
+  // this is a title or a stray line, not the header.
+  if (!hit[0] || !hit[1]) return 0
+  return hit.filter(Boolean).length
+}
+
+/**
+ * Index of the header row, skipping any preamble. Falls back to 0 so a file we
+ * can't read confidently behaves exactly as before rather than silently
+ * shifting rows.
+ */
+export function findHeaderRow(rows: unknown[][], maxScan = 15): number {
+  let best = 0
+  let bestScore = 0
+  for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
+    const score = headerScore(rows[i] ?? [])
+    if (score > bestScore) {
+      bestScore = score
+      best = i
+    }
+  }
+  return bestScore > 0 ? best : 0
+}
+
+/**
+ * The sheet in a workbook that actually holds the menu. Scores each by how
+ * header-like its best row is, then by how much data follows — so a cover sheet
+ * or our own template's "How to fill this in" tab never wins.
+ */
+export function pickMenuSheet<T extends { rows: unknown[][] }>(sheets: T[]): T | null {
+  let best: T | null = null
+  let bestRank = -1
+  for (const sheet of sheets) {
+    const at = findHeaderRow(sheet.rows)
+    const score = headerScore(sheet.rows[at] ?? [])
+    const body = Math.max(0, sheet.rows.length - at - 1)
+    if (score === 0 || body === 0) continue
+    const rank = score * 1000 + Math.min(body, 999)
+    if (rank > bestRank) {
+      bestRank = rank
+      best = sheet
+    }
+  }
+  return best ?? sheets[0] ?? null
+}
+
+export function parseMenuFile(input: unknown[][]): ParseResult {
   const issues: ImportIssue[] = []
+  // Drop anything above the header — a report title, a blank line, a date stamp.
+  const rows = input.slice(findHeaderRow(input))
   const [headerRow, ...dataRows] = rows
   const header = (headerRow ?? []).map((h) => normalize(h))
 
@@ -182,9 +250,12 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     const hit = findColumn(header, strict)
     return hit !== -1 ? hit : findColumn(header, loose)
   }
-  const catCol = firstOf(exactly('category', 'category name'), (h) => h.includes('category'))
+  const catCol = firstOf(
+    exactly('category', 'category name', 'menu category', 'section', 'course'),
+    (h) => h.includes('category'),
+  )
   const itemCol = firstOf(
-    exactly('item', 'item name', 'name', 'title', 'item title', 'product', 'product name', 'dish'),
+    exactly('item', 'item name', 'name', 'title', 'item title', 'product', 'product name', 'dish', 'dish name'),
     (h) =>
       (h.includes('item') || h.includes('name')) &&
       !h.includes('price') && !h.includes('cost') && !h.includes('type') &&
@@ -207,7 +278,16 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   // and stored exactly like a directly-supplied cost. If a file somehow has
   // both, the explicit Cost Price column wins.
   const profitCol = findColumn(header, (h) => isMarginWord(h) && !isSizeSpecific(h))
-  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h))
+  // A "Discounted Price" column is an offer price, not what the item sells for,
+  // so it must never win over the real one. Other systems also call the price
+  // MRP or Rate, hence the exact-name pass.
+  const isRealPrice = (h: string) =>
+    !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h) &&
+    !h.includes('discount') && !h.includes('offer') && !h.includes('old ')
+  const priceCol = firstOf(
+    exactly('price', 'base price', 'base item price', 'item price', 'selling price', 'mrp', 'rate', 'default price'),
+    (h) => (h.includes('price') || h === 'mrp' || h.includes('rate')) && isRealPrice(h),
+  )
   // POS exports label this "Food Type" and fill it with Veg / Non-veg.
   const vegCol = findColumn(header, (h) => h.includes('veg') || h.trim() === 'food type')
   // A POS keeps discontinued dishes on file with an inactive flag — the Zorko
@@ -215,7 +295,10 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   // café with a menu two-thirds full of things it no longer sells. Matched on
   // exact header names so "Platform Status" and the like can't be mistaken for
   // it, and only an explicitly false value skips a row; blank means keep.
-  const activeCol = findColumn(header, exactly('isactive', 'is active', 'active', 'enabled'))
+  const activeCol = findColumn(
+    header,
+    exactly('isactive', 'is active', 'active', 'enabled', 'is enabled', 'is available', 'available', 'availability'),
+  )
   const FALSEY = ['0', 'false', 'no', 'n', 'inactive', 'disabled', 'off']
   const isInactive = (raw: unknown) => activeCol !== -1 && FALSEY.includes(normalize(raw).toLowerCase())
   const descCol = findColumn(header, (h) => h.includes('desc'))
