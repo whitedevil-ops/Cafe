@@ -31,15 +31,17 @@ function download(wb: XLSX.WorkBook, filename: string) {
 // Choices are the full price of that option; add-ons are what they ADD,
 // which is exactly how a printed menu board writes them.
 
-const TEMPLATE_HEADER = ['Category / Item', 'Price', 'Margin', 'Sizes / Choices', 'Add-ons', 'Veg Type', 'Description']
-const TEMPLATE_COLS = [{ wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 32 }, { wch: 24 }, { wch: 10 }, { wch: 38 }]
+const TEMPLATE_HEADER = ['Category / Item', 'Size / Choice', 'Price', 'Margin', 'Add-ons', 'Veg Type', 'Description']
+const TEMPLATE_COLS = [{ wch: 26 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 24 }, { wch: 10 }, { wch: 38 }]
 
 // Plain language, one idea per line, no jargon. Read top to bottom.
 const GUIDE_ROWS: string[][] = [
   ['How to fill in your menu'],
   ['Type everything on the "Menu" tab. This tab is only notes — nothing here is imported.'],
   [''],
-  ['THE BASIC IDEA'],
+  ['THE ONE RULE'],
+  ['', 'One row for each thing a guest can order, with its own price and its own margin.'],
+  [''],
   ['1.', 'Type a category name on its own row, like BURGERS. Leave the rest of that row empty.'],
   ['2.', 'List that category\'s items underneath it, one per row, with a price.'],
   ['3.', 'Start the next category the same way. Blank rows are fine.'],
@@ -47,64 +49,60 @@ const GUIDE_ROWS: string[][] = [
   [''],
   ['WHAT EACH COLUMN IS FOR'],
   ['Category / Item', 'A category name on its own row, or an item name.'],
+  ['Size / Choice', 'Only if the item is sold in more than one way. See below.'],
   ['Price', 'What the guest pays, in ₹. Just the number.'],
-  ['Margin', 'Optional. The ₹ you keep on that item. Only you ever see this.'],
-  ['', 'See "WHERE DO I WRITE THE MARGIN?" below.'],
-  ['Sizes / Choices', 'Optional. Fill in if the item is sold in more than one way.'],
+  ['Margin', 'Optional. The ₹ you keep on that row. Only you ever see this.'],
   ['Add-ons', 'Optional. Extras a guest can add on top.'],
   ['Veg Type', 'Veg or Non-Veg. Leave blank if it does not apply.'],
   ['Description', 'Optional. One short line, shown to guests.'],
   [''],
-  ['SIZES / CHOICES'],
-  ['', 'Write the name, then its price. Put a comma between each one.'],
-  ['', 'Small 89, Medium 119, Large 149'],
-  ['', 'Steam 69, Fried 79'],
-  ['', '6 Slice 99, 8 Slice 139'],
-  ['', 'The number is that option\'s FULL price, not an extra. The guest picks one.'],
-  ['', 'Fill this in and you can leave Price empty — the first one becomes the price.'],
+  ['SOLD IN MORE THAN ONE WAY?'],
+  ['', 'Give it one row per option. Repeat the item name, and name the option.'],
+  [''],
+  ['', 'Cold Coffee     Small     89    50'],
+  ['', 'Cold Coffee     Medium    119   60'],
+  ['', 'Cold Coffee     Large     149   75'],
+  [''],
+  ['', 'That is one item with three sizes. The guest picks one.'],
+  ['', 'Every row has its own price and its own margin, so they can all differ.'],
+  ['', 'Call the options anything you like — Small, 6 Slice, Steam, Fried, Half, Full.'],
+  ['', 'Fill in Add-ons, Veg Type and Description on the first row only.'],
   [''],
   ['ADD-ONS'],
-  ['', 'Same style, but the number is what it ADDS — like the +20 on a menu board.'],
+  ['', 'Extras the guest can add on top. Write the name, then what it ADDS.'],
+  ['', 'Put a comma between each one.'],
   ['', 'Cheese Slice 20, Extra Dip 20'],
   ['', 'With Ice-cream 29'],
-  [''],
-  ['WHERE DO I WRITE THE MARGIN?'],
-  ['', 'In the Margin column. That is true whether or not the item has sizes.'],
-  ['', 'Margherita: Price 99, Margin 40 — you keep ₹40 on it.'],
-  ['', 'Veg Momos: no Price, Margin 25 — you keep ₹25 on Steam, and more on Fried,'],
-  ['', 'because both cost you the same to make but Fried sells for more.'],
-  ['', 'Leave Margin blank if you do not want to track it. Nothing else needs it.'],
-  [''],
-  ['Want to set the margin for each size yourself?'],
-  ['', 'Put it after a slash, inside Sizes / Choices, and leave the Margin column empty.'],
-  ['', 'Small 89/50, Medium 119/60, Large 149/75'],
-  ['', 'Small keeps ₹50, Medium keeps ₹60, Large keeps ₹75.'],
+  ['', 'Just like the +20 printed on a menu board.'],
   [''],
   ['GOOD TO KNOW'],
   ['', 'Only a name and a price are required. Leave anything else blank.'],
+  ['', 'Margin is optional. Skip it and everything still works — you just will not'],
+  ['', 'see profit in Reports for that item.'],
   ['', 'Importing again updates the items you already have — it will not duplicate them.'],
-  ['', 'Leave a Sizes or Add-ons cell empty and that item keeps whatever it has now.'],
+  ['', 'Leave an Add-ons cell empty and that item keeps whatever it has now.'],
 ]
 
 export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
     TEMPLATE_HEADER,
     ['BURGERS', '', '', '', '', '', ''],
-    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Crispy patty, lettuce and mayo'],
-    ['Cheese Burger', 179, 75, '', '', 'Veg', ''],
+    ['Classic Veg Burger', '', 149, 60, 'Cheese Slice 20', 'Veg', 'Crispy patty, lettuce and mayo'],
+    ['Cheese Burger', '', 179, 75, '', 'Veg', ''],
     ['PIZZA', '', '', '', '', '', ''],
-    // Margin filled in on rows that ALSO have sizes. Leaving it blank on every
-    // such row made the Margin column look like it didn't apply to them, and
-    // "where do I write the margin?" was the first thing it prompted.
-    ['Margherita', 99, 40, '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
+    // One row per thing a guest can actually order, each with its own price and
+    // its own margin. Repeat the item name on each of its rows.
+    ['Margherita', '6 Slice', 99, 40, 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
+    ['Margherita', '8 Slice', 139, 80, '', '', ''],
     ['MOMOS', '', '', '', '', '', ''],
-    ['Veg Momos', '', 25, 'Steam 69, Fried 79', 'Extra Dip 20', 'Veg', ''],
+    ['Veg Momos', 'Steam', 69, 25, 'Extra Dip 20', 'Veg', ''],
+    ['Veg Momos', 'Fried', 79, 35, '', '', ''],
     ['COLD DRINKS', '', '', '', '', '', ''],
-    // A café that sells by size needs to see its own case here: dropping the
-    // fixed Small/Medium/Large columns otherwise reads as losing the feature.
-    // This row doubles as the one worked example of a per-size margin.
-    ['Cold Coffee', '', '', 'Small 89/50, Medium 119/60, Large 149/75', 'With Ice-cream 29', 'Veg', ''],
-    ['Coca Cola', 60, 25, '', '', 'Veg', ''],
+    // A café that sells by size needs to see its own case here.
+    ['Cold Coffee', 'Small', 89, 50, 'With Ice-cream 29', 'Veg', ''],
+    ['Cold Coffee', 'Medium', 119, 60, '', '', ''],
+    ['Cold Coffee', 'Large', 149, 75, '', '', ''],
+    ['Coca Cola', '', 60, 25, '', 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = TEMPLATE_COLS
@@ -172,20 +170,33 @@ function optionCell(opts: { name: string; price: number; cost?: number | null }[
 // property is why choices and add-ons are cells rather than extra rows: rows
 // would detach from their item the first time anyone sorted by price.
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
-  // Same column names as the template, so the two sheets read alike.
-  const header = ['Category', 'Item', 'Price', 'Margin', 'Sizes / Choices', 'Add-ons', 'Veg Type', 'Description']
-  const body = rows.map((r) => [
-    safeText(r.category),
-    safeText(r.name),
-    r.price,
-    r.cost != null ? r.price - r.cost : '',
-    safeText(optionCell(r.choices)),
-    safeText(optionCell(r.addons)),
-    r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
-    safeText(r.description ?? ''),
-  ])
+  // Same columns as the template, so the two sheets read alike — and one row
+  // per thing a guest can order, each showing its own price and margin.
+  const header = ['Category', 'Item', 'Size / Choice', 'Price', 'Margin', 'Add-ons', 'Veg Type', 'Description']
+  const margin = (price: number, cost: number | null) => (cost != null ? price - cost : '')
+  const body = rows.flatMap((r) => {
+    const shared = [
+      safeText(optionCell(r.addons)),
+      r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
+      safeText(r.description ?? ''),
+    ]
+    if (!r.choices?.length) {
+      return [[safeText(r.category), safeText(r.name), '', r.price, margin(r.price, r.cost), ...shared]]
+    }
+    // Add-ons, veg and description belong to the item, so they sit on its first
+    // row only — repeating them would imply they differ per size, and the
+    // importer reads them from the first row that supplies them anyway.
+    return r.choices.map((c, i) => [
+      safeText(r.category),
+      safeText(r.name),
+      safeText(c.name),
+      c.price,
+      margin(c.price, c.cost),
+      ...(i === 0 ? shared : ['', '', '']),
+    ])
+  })
   const ws = XLSX.utils.aoa_to_sheet([header, ...body])
-  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
   download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))

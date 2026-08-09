@@ -237,7 +237,11 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     priceRaw: unknown,
     row: number,
     label: string,
+    isOptionRow: boolean,
   ): { price: number | null; variants: { name: string; price: number; cost: number | null }[] } {
+    // The row IS one option, so its Size cell is a name and its Price is that
+    // option's own price. Nothing to expand.
+    if (isOptionRow) return { price: parsePrice(priceRaw), variants: [] }
     if (choicesCol !== -1) {
       const opts = parseOptionList(cellAt(raw, choicesCol), row, label, issues)
       if (opts.length > 0) {
@@ -318,17 +322,52 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const isFlat = catCol !== -1 && itemCol !== -1 && catCol !== itemCol
   const mergedCol = isFlat ? -1 : (itemCol !== -1 ? itemCol : catCol !== -1 ? catCol : 0)
 
-  const groups = new Map<string, ParsedItem[]>()
+  // Does the Size / Choice column hold one option name per row (current
+  // format), or the older all-in-one-cell list with prices baked in?
+  //
+  // Decided once for the whole column rather than per cell, because a single
+  // cell is genuinely ambiguous — "6 Slice 99" could be a legacy entry or an
+  // option a café happens to have named that. Looking at every cell resolves
+  // it: a list format gives itself away with separators, or by every cell
+  // ending in a price.
+  const choiceCells = choicesCol === -1 ? [] : dataRows.map((r) => text(cellAt(r, choicesCol))).filter(Boolean)
+  const choicesAreLegacyList =
+    choiceCells.length > 0 &&
+    (choiceCells.some((c) => /[,;\n]/.test(c)) || choiceCells.every((c) => /\d\s*$/.test(c)))
+
+  /** The option this row describes — "6 Slice", "Steam", "Large". */
+  function rowOptionName(raw: unknown[]): string | null {
+    if (choicesCol === -1 || choicesAreLegacyList) return null
+    return text(cellAt(raw, choicesCol)) || null
+  }
+
+  // One spreadsheet row. Several rows sharing a category + item name are one
+  // menu item with several options — that grouping happens after the sweep, so
+  // it survives an owner sorting or filtering the sheet in Excel.
+  type RowRec = {
+    row: number
+    category: string
+    name: string
+    /** Non-null when this row is one option of the item. */
+    option: string | null
+    price: number
+    cost: number | null
+    isVeg: boolean | null
+    description: string | null
+    /** Options from the older all-in-one-cell format, or Small/Medium/Large columns. */
+    listVariants: { name: string; price: number; cost: number | null }[]
+    addons: { name: string; price: number }[]
+  }
+  const records: RowRec[] = []
   const order: string[] = []
+  const seenCategory = new Set<string>()
   let currentCategory: string | null = null
 
-  function addTo(category: string, item: ParsedItem) {
-    const key = category
-    if (!groups.has(key)) {
-      groups.set(key, [])
-      order.push(key)
+  function noteCategory(name: string) {
+    if (!seenCategory.has(name)) {
+      seenCategory.add(name)
+      order.push(name)
     }
-    groups.get(key)!.push(item)
   }
 
   dataRows.forEach((raw, i) => {
@@ -349,13 +388,16 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
       return opts.map((o) => ({ name: o.name, price: o.price }))
     }
 
+    const priceRaw = cell(priceCol)
+    const option = rowOptionName(raw)
+
     if (isFlat) {
       const name = text(cell(itemCol))
       if (!name) return // no item name at all — nothing to import from this row
-      const priceRaw = cell(priceCol)
-      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, name)
+      const label = option ? `${name} — ${option}` : name
+      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, label, option !== null)
       if (price === null) {
-        issues.push({ row: rowNum, message: `"${name}" — missing or invalid price, skipped.` })
+        issues.push({ row: rowNum, message: `"${label}" — missing or invalid price, skipped.` })
         return
       }
       const cat = text(cell(catCol)) || currentCategory || 'Uncategorised'
@@ -363,85 +405,141 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         issues.push({ row: rowNum, message: `"${name}" has no category and none carried over — filed under Uncategorised.` })
       }
       currentCategory = cat
-      addTo(cat, {
+      noteCategory(cat)
+      records.push({
         row: rowNum,
         category: cat,
         name,
+        option,
         price,
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? text(cell(descCol)) || null : null,
-        variants,
-        addons: readAddons(name),
+        listVariants: variants,
+        addons: readAddons(label),
       })
     } else {
       const mergedText = text(cell(mergedCol))
-      const priceRaw = cell(priceCol)
       const priceText = normalize(priceRaw)
-      // An item priced only through its choices ("Veg Momos — Steam 69, Fried
-      // 79") has a blank Price cell, so the Choices cell has to count as
-      // "priced" here too, or it would be mistaken for a category heading.
+      // A row carrying only an old-style list ("Steam 69, Fried 79") has a
+      // blank Price, so that cell has to count as "priced" here too or it
+      // would be mistaken for a category heading.
       const anySizeFilled =
         (hasSizeCols && sizeCols.some((s) => normalize(cellAt(raw, s.col)) !== '')) ||
         normalize(cell(choicesCol)) !== ''
       if (!mergedText) return
 
       if (!priceText && !anySizeFilled) {
-        // No price and no choices → it's a category heading, per spec.
+        // No price and no options → it's a category heading, per spec.
         currentCategory = mergedText
-        if (!groups.has(mergedText)) {
-          groups.set(mergedText, [])
-          order.push(mergedText)
-        }
+        noteCategory(mergedText)
         return
       }
 
-      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, mergedText)
+      const label = option ? `${mergedText} — ${option}` : mergedText
+      const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, label, option !== null)
       if (price === null) {
-        issues.push({ row: rowNum, message: `"${mergedText}" — invalid price "${priceRaw}", skipped.` })
+        issues.push({ row: rowNum, message: `"${label}" — invalid price "${priceRaw}", skipped.` })
         return
       }
       if (currentCategory === null) {
         issues.push({ row: rowNum, message: `"${mergedText}" appears before any category heading — filed under Uncategorised.` })
       }
       const cat = currentCategory ?? 'Uncategorised'
-      addTo(cat, {
+      noteCategory(cat)
+      records.push({
         row: rowNum,
         category: cat,
         name: mergedText,
+        option,
         price,
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
         description: descCol !== -1 ? text(cell(descCol)) || null : null,
-        variants,
-        addons: readAddons(mergedText),
+        listVariants: variants,
+        addons: readAddons(label),
       })
     }
   })
 
-  // Within-file duplicate detection (same category + name twice) — keep the
-  // last occurrence, since that's what a spreadsheet edit usually means.
-  for (const [cat, items] of groups) {
-    const seen = new Map<string, number>()
-    items.forEach((it, idx) => {
-      const key = it.name.toLowerCase()
-      if (seen.has(key)) {
-        const prevIdx = seen.get(key)!
-        issues.push({
-          row: it.row,
-          message: `"${it.name}" appears more than once in "${cat}" — using row ${it.row}, ignoring row ${items[prevIdx].row}.`,
-        })
-        items[prevIdx] = it // overwrite the earlier one in place
-        items.splice(idx, 1)
-      } else {
-        seen.set(key, idx)
+  // ── Rows → items ───────────────────────────────────────────────────────────
+  // Rows sharing a category + item name are one item. Keyed rather than
+  // position-based, so an item's options stay together even after the sheet has
+  // been sorted or filtered — the reason the export repeats the category on
+  // every row in the first place.
+  const byKey = new Map<string, RowRec[]>()
+  const keyOrder: string[] = []
+  for (const r of records) {
+    const key = `${r.category.toLowerCase()}::${r.name.toLowerCase()}`
+    if (!byKey.has(key)) {
+      byKey.set(key, [])
+      keyOrder.push(key)
+    }
+    byKey.get(key)!.push(r)
+  }
+
+  const itemsByCategory = new Map<string, ParsedItem[]>()
+  for (const key of keyOrder) {
+    const rows = byKey.get(key)!
+    const optionRows = rows.filter((r) => r.option !== null)
+    const plainRows = rows.filter((r) => r.option === null)
+
+    // Same option (or the same item twice with no options) listed twice: keep
+    // the last, matching how a spreadsheet edit usually reads.
+    const dedupe = <T extends { row: number; option: string | null }>(list: T[], what: (t: T) => string) => {
+      const seen = new Map<string, T>()
+      for (const r of list) {
+        const k = (r.option ?? '').toLowerCase()
+        const prev = seen.get(k)
+        if (prev) {
+          issues.push({ row: r.row, message: `${what(r)} appears more than once — using row ${r.row}, ignoring row ${prev.row}.` })
+        }
+        seen.set(k, r)
       }
-    })
+      return [...seen.values()]
+    }
+
+    const options = dedupe(optionRows, (r) => `"${r.name} — ${r.option}"`)
+    const plain = dedupe(plainRows, (r) => `"${r.name}"`)
+    const lead = options[0] ?? plain[0]
+    if (!lead) continue
+
+    // An item's own price is its first option's; each option's margin then
+    // becomes a difference from that, which is exactly how the database stores
+    // it (menu_items.cost plus menu_item_variants.cost_delta).
+    const variants = options.length > 0
+      ? options.map((r) => ({ name: r.option!, price: r.price, cost: r.cost }))
+      : lead.listVariants
+
+    // Details belong to the item, not to one of its sizes — take the first row
+    // that actually supplies each, so an owner only has to fill them in once.
+    const firstWith = <T,>(pick: (r: RowRec) => T | null | undefined): T | null => {
+      for (const r of rows) {
+        const v = pick(r)
+        if (v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)) return v
+      }
+      return null
+    }
+
+    const item: ParsedItem = {
+      row: lead.row,
+      category: lead.category,
+      name: lead.name,
+      price: lead.price,
+      cost: lead.cost,
+      isVeg: firstWith((r) => r.isVeg),
+      description: firstWith((r) => r.description),
+      variants,
+      addons: firstWith((r) => r.addons) ?? [],
+    }
+    const list = itemsByCategory.get(lead.category) ?? []
+    list.push(item)
+    itemsByCategory.set(lead.category, list)
   }
 
   const byCategory = order
-    .filter((name) => (groups.get(name) ?? []).length > 0)
-    .map((name) => ({ name, items: groups.get(name)! }))
+    .filter((name) => (itemsByCategory.get(name) ?? []).length > 0)
+    .map((name) => ({ name, items: itemsByCategory.get(name)! }))
 
   const totalItems = byCategory.reduce((s, c) => s + c.items.length, 0)
 

@@ -7,6 +7,108 @@ import { effectiveOptionCost } from '@/lib/menu-workbook'
 // one menu's options are S/M/L, the next one's are "6 Slice", "Steam"/"Fried",
 // "3 Slices", "With Ice-cream".
 
+// The current format: one row per thing a guest can order, each carrying its
+// own price and margin. Rows sharing a category + item name are one item.
+describe('menu import — one row per option', () => {
+  const SHEET = [
+    ['Category / Item', 'Size / Choice', 'Price', 'Margin', 'Add-ons', 'Veg Type', 'Description'],
+    ['PIZZA', '', '', '', '', '', ''],
+    ['Margherita', '6 Slice', '99', '40', 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
+    ['Margherita', '8 Slice', '139', '80', '', '', ''],
+    ['COLD DRINKS', '', '', '', '', '', ''],
+    ['Cold Coffee', 'Small', '89', '50', 'With Ice-cream 29', 'Veg', ''],
+    ['Cold Coffee', 'Medium', '119', '60', '', '', ''],
+    ['Cold Coffee', 'Large', '149', '75', '', '', ''],
+    ['Coca Cola', '', '60', '25', '', 'Veg', ''],
+  ]
+
+  it('groups rows sharing an item name into one item with several options', () => {
+    const r = parseMenuFile(SHEET)
+    expect(r.issues).toEqual([])
+    expect(r.totalItems).toBe(3) // Margherita, Cold Coffee, Coca Cola
+    const by = Object.fromEntries(r.byCategory.flatMap((c) => c.items).map((i) => [i.name, i]))
+    expect(by['Margherita'].variants).toEqual([
+      { name: '6 Slice', price: 99, cost: 59 },
+      { name: '8 Slice', price: 139, cost: 59 },
+    ])
+    expect(by['Cold Coffee'].variants).toEqual([
+      { name: 'Small', price: 89, cost: 39 },
+      { name: 'Medium', price: 119, cost: 59 },
+      { name: 'Large', price: 149, cost: 74 },
+    ])
+    expect(by['Coca Cola'].variants).toEqual([])
+  })
+
+  it('takes the item price from its first option', () => {
+    const by = Object.fromEntries(parseMenuFile(SHEET).byCategory.flatMap((c) => c.items).map((i) => [i.name, i]))
+    expect(by['Margherita'].price).toBe(99)
+    expect(by['Cold Coffee'].price).toBe(89)
+  })
+
+  it('reads add-ons, veg and description from whichever row supplies them', () => {
+    const by = Object.fromEntries(parseMenuFile(SHEET).byCategory.flatMap((c) => c.items).map((i) => [i.name, i]))
+    expect(by['Cold Coffee'].addons).toEqual([{ name: 'With Ice-cream', price: 29 }])
+    expect(by['Cold Coffee'].isVeg).toBe(true)
+    expect(by['Margherita'].description).toBe('Tomato and mozzarella')
+  })
+
+  it('keeps an item together even when its rows are not adjacent', () => {
+    // What sorting the sheet by price in Excel does. Grouping is by name, not
+    // position, so the item survives it.
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Size / Choice', 'Price', 'Margin'],
+      ['COLD DRINKS', 'Cold Coffee', 'Small', '89', '50'],
+      ['COLD DRINKS', 'Iced Tea', 'Regular', '99', '40'],
+      ['COLD DRINKS', 'Cold Coffee', 'Large', '149', '75'],
+    ])
+    const by = Object.fromEntries(r.byCategory.flatMap((c) => c.items).map((i) => [i.name, i]))
+    expect(by['Cold Coffee'].variants.map((v) => v.name)).toEqual(['Small', 'Large'])
+    expect(by['Iced Tea'].variants.map((v) => v.name)).toEqual(['Regular'])
+  })
+
+  it('flags the same option listed twice and keeps the last', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Size / Choice', 'Price'],
+      ['DRINKS', 'Cold Coffee', 'Small', '89'],
+      ['DRINKS', 'Cold Coffee', 'Small', '95'],
+    ])
+    expect(r.byCategory[0].items[0].variants).toEqual([{ name: 'Small', price: 95, cost: null }])
+    expect(r.issues.some((i) => /more than once/.test(i.message))).toBe(true)
+  })
+
+  it('still lets the same option name exist under two different items', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Size / Choice', 'Price'],
+      ['DRINKS', 'Cold Coffee', 'Large', '149'],
+      ['DRINKS', 'Iced Tea', 'Large', '129'],
+    ])
+    expect(r.issues).toEqual([])
+    expect(r.totalItems).toBe(2)
+  })
+
+  it('skips an option row with no price and says so', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Size / Choice', 'Price'],
+      ['DRINKS', 'Cold Coffee', 'Small', '89'],
+      ['DRINKS', 'Cold Coffee', 'Large', ''],
+    ])
+    expect(r.byCategory[0].items[0].variants).toEqual([{ name: 'Small', price: 89, cost: null }])
+    expect(r.issues.some((i) => /Cold Coffee — Large/.test(i.message))).toBe(true)
+  })
+
+  it('does not mistake an option row for a category heading', () => {
+    const r = parseMenuFile([
+      ['Category / Item', 'Size / Choice', 'Price'],
+      ['MOMOS', '', ''],
+      ['Veg Momos', 'Steam', '69'],
+      ['Veg Momos', 'Fried', '79'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['MOMOS'])
+    expect(r.totalItems).toBe(1)
+    expect(r.byCategory[0].items[0].variants).toHaveLength(2)
+  })
+})
+
 describe('parseOptionList', () => {
   const parse = (text: string) => {
     const issues: ImportIssue[] = []

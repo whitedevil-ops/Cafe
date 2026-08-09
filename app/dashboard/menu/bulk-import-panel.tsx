@@ -442,13 +442,14 @@ export default function BulkImportPanel({
                   harder than the job is. */}
               <div className="space-y-2 pt-2 text-[12.5px] leading-relaxed text-muted-foreground">
                 <p>
-                  Category name on its own row, its items underneath with a price. That&apos;s the whole format —
-                  only a name and a price are required.
+                  One row for each thing a guest can order, with its own price and margin. Category names go on
+                  their own row.
                 </p>
                 <p>
-                  Sold more than one way? List them in <b>Sizes / Choices</b>, each as name then price:{' '}
-                  <code className="rounded bg-surface-subtle px-1">Small 89, Medium 119, Large 149</code>. Extras go in{' '}
-                  <b>Add-ons</b> the same way: <code className="rounded bg-surface-subtle px-1">Cheese Slice 20</code>.
+                  Sold more than one way? Give it a row per option — repeat the item name and fill in{' '}
+                  <b>Size / Choice</b>: <code className="rounded bg-surface-subtle px-1">Cold Coffee · Small · 89</code>,{' '}
+                  <code className="rounded bg-surface-subtle px-1">Cold Coffee · Large · 149</code>. Extras go in{' '}
+                  <b>Add-ons</b> as name then price: <code className="rounded bg-surface-subtle px-1">Cheese Slice 20</code>.
                 </p>
                 <p>The template&apos;s second tab explains the rest. Older sheets still import fine.</p>
               </div>
