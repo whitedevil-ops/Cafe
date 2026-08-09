@@ -4,6 +4,7 @@ import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { FeedbackForm } from '@/components/receipt/feedback-form'
 import { ReceiptDownloadButton } from '@/components/receipt/download-button'
 import { AutoPrint } from '@/components/receipt/auto-print'
+import { SpinWheel } from '@/components/qr/spin-wheel'
 import type { ReceiptData } from '@/lib/pdf-export'
 
 export const dynamic = 'force-dynamic'
@@ -151,6 +152,14 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         </p>
 
         <ReceiptDownloadButton receipt={r} />
+      </div>
+
+      {/* The bill is where a guest who paid cash at the counter comes back to,
+          so the wheel lives here too — the confirmation screen is still
+          showing "unpaid" at the moment they hand over the money. Hides itself
+          unless this café runs a wheel and the bill is settled. */}
+      <div className="mt-6 print:hidden">
+        <SpinWheel receiptToken={token} />
       </div>
 
       <div className="print:hidden">

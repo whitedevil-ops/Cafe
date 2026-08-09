@@ -13,6 +13,7 @@ import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot,
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
 import { getOrCreateDeviceId, type CustomerSession } from '@/lib/customer-session'
 import { CustomerLoginGate } from '@/components/qr/customer-login-gate'
+import { SpinWheel } from '@/components/qr/spin-wheel'
 
 export type PublicItem = QrItem
 export type Variant = QrVariant
@@ -609,6 +610,12 @@ export default function MenuClient({
           >
             View your bill →
           </a>
+        )}
+        {/* Hides itself unless this café runs a wheel and the bill is paid.
+            Keyed on `paid` so it re-checks the moment an online or wallet
+            payment lands, rather than staying hidden from its first look. */}
+        {placed.receiptToken && (
+          <SpinWheel key={String(placed.paid)} receiptToken={placed.receiptToken} />
         )}
         {placed.method === 'wallet' && placed.paid ? (
           <p className="rounded-[var(--radius)] bg-success-subtle px-3 py-2 text-[13px] text-success">Paid from your wallet — thank you!</p>

@@ -2,6 +2,7 @@
 
 import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { SpinClaim, type HeldPrize } from '@/components/pos/spin-claim'
 
 export type CartLine = {
   key: string
@@ -63,6 +64,11 @@ export function CartPanel({
   customerLookup,
   lookingUpCustomer,
   role,
+  cafeId,
+  spinPrize,
+  spinDiscount,
+  onHoldSpinPrize,
+  onClearSpinPrize,
   discountType,
   discountValue,
   onDiscountType,
@@ -117,6 +123,12 @@ export function CartPanel({
   customerLookup: CustomerLookup | null
   lookingUpCustomer: boolean
   role: string
+  cafeId: string
+  spinPrize: HeldPrize | null
+  /** Previewed here, but the server recomputes and is the authority. */
+  spinDiscount: number
+  onHoldSpinPrize: (prize: HeldPrize) => void
+  onClearSpinPrize: () => void
   discountType: 'percent' | 'flat' | null
   discountValue: string
   onDiscountType: (t: 'percent' | 'flat' | null) => void
@@ -151,8 +163,11 @@ export function CartPanel({
     : discountType === 'flat'
       ? Math.min(Math.round(parsedDiscount), subtotal)
       : 0
-  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal - discount) : 0
-  const base = subtotal - discount - couponDiscount
+  // Mirrors the server's order: staff discount, then the spin prize (which is
+  // never measured against the role cap), then the coupon on what's left.
+  const spinOff = Math.min(spinDiscount, subtotal - discount)
+  const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal - discount - spinOff) : 0
+  const base = subtotal - discount - spinOff - couponDiscount
   const tax = Math.round((base * taxPercent) / 100)
   const svc = Math.round((base * serviceChargePercent) / 100)
   const total = base + tax + svc
@@ -389,6 +404,13 @@ export function CartPanel({
           </div>
         )}
 
+        <SpinClaim
+          cafeId={cafeId}
+          held={spinPrize}
+          onHold={onHoldSpinPrize}
+          onClear={onClearSpinPrize}
+        />
+
         <div className="mb-3">
           <div className="flex gap-1.5">
             {(['percent', 'flat'] as const).map((t) => (
@@ -490,6 +512,12 @@ export function CartPanel({
             <div className="flex justify-between text-primary">
               <span>Discount</span>
               <span>−₹{discount}</span>
+            </div>
+          )}
+          {spinOff > 0 && (
+            <div className="flex justify-between text-primary">
+              <span>Spin prize ({spinPrize?.code})</span>
+              <span>−₹{spinOff}</span>
             </div>
           )}
           {couponDiscount > 0 && (

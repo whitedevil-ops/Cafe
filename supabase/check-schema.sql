@@ -506,7 +506,10 @@ with expected(kind, name, fix) as (values
   ('function', 'get_spin_wheel',                           '0125'),
   ('function', 'spin_the_wheel',                           '0125'),
   ('function', 'find_spin_prize',                          '0125'),
-  ('function', 'redeem_spin_prize',                        '0125')
+  ('function', 'redeem_spin_prize',                        '0125'),
+  -- 0126 recreates staff_place_order with p_spin_code; the old 13-arg
+  -- signature is dropped, so exactly one overload must remain.
+  ('function', 'staff_place_order',                        '0126')
 )
 select
   e.kind,

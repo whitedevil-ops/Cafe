@@ -12,6 +12,7 @@ import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import { ComboPicker } from '@/components/pos/combo-picker'
+import type { HeldPrize } from '@/components/pos/spin-claim'
 import { businessDayStartISO } from '@/lib/datetime'
 import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import type { PosVariant, PosAddon } from './page'
@@ -123,6 +124,9 @@ export default function PosClient({
 
   const [couponCode, setCouponCode] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
+  // Attached, not yet spent — staff_place_order redeems it in the same
+  // transaction as the order, so nothing is burned until a bill exists.
+  const [spinPrize, setSpinPrize] = useState<HeldPrize | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
   const [couponError, setCouponError] = useState<string | null>(null)
   const [applicableCoupons, setApplicableCoupons] = useState<
@@ -149,6 +153,7 @@ export default function PosClient({
         tender?: Tender; pendingReason?: string
         discountType?: 'percent' | 'flat' | null; discountValue?: string
         couponCode?: string; appliedCoupon?: { code: string; discount: number; name: string | null } | null
+        spinPrize?: HeldPrize | null
       }
       // One-time hydration from storage on mount, not an ongoing sync loop —
       // the pattern this lint rule warns about doesn't apply here.
@@ -164,6 +169,7 @@ export default function PosClient({
       if (d.discountValue) setDiscountValue(d.discountValue)
       if (d.couponCode) setCouponCode(d.couponCode)
       if (d.appliedCoupon) setAppliedCoupon(d.appliedCoupon)
+      if (d.spinPrize) setSpinPrize(d.spinPrize)
     } catch {
       // Corrupt or inaccessible storage — start with a normal empty cart.
     }
@@ -181,19 +187,19 @@ export default function PosClient({
       return
     }
     try {
-      const isEmpty = cart.length === 0 && !customerPhone && !customerName && !discountType && !couponCode && !appliedCoupon
+      const isEmpty = cart.length === 0 && !customerPhone && !customerName && !discountType && !couponCode && !appliedCoupon && !spinPrize
       if (isEmpty) {
         sessionStorage.removeItem(draftKey)
       } else {
         sessionStorage.setItem(draftKey, JSON.stringify({
           cart, customerPhone, customerName, orderType, selectedTableId,
-          tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon,
+          tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize,
         }))
       }
     } catch {
       // Storage unavailable (private browsing, quota) — draft just won't persist.
     }
-  }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, draftKey])
+  }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize, draftKey])
 
   const [combobuilding, setCombobuilding] = useState<Combo | null>(null)
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
@@ -742,6 +748,10 @@ export default function PosClient({
     setPlacing(true)
     setError(null)
     if (!requestId.current) requestId.current = crypto.randomUUID()
+    // p_spin_code is sent only when a prize is actually attached. PostgREST
+    // picks the overload from the keys it receives, so an ordinary bill still
+    // resolves against the pre-0126 signature — the till keeps working if the
+    // code ships ahead of the migration, and only a spin claim would fail.
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
       p_items: cart.map((l) =>
@@ -760,6 +770,7 @@ export default function PosClient({
       p_pending_reason: reason,
       p_client_request_id: requestId.current,
       p_coupon_code: appliedCoupon?.code ?? null,
+      ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
@@ -777,6 +788,7 @@ export default function PosClient({
     setCouponCode('')
     setAppliedCoupon(null)
     setCouponError(null)
+    setSpinPrize(null)
     setTender('cash')
     setPendingReason('')
     void pollTables()
@@ -797,6 +809,23 @@ export default function PosClient({
     () => cart.reduce((s, l) => s + (l.rewardId ? (l.pointsCost ?? 0) * l.qty : 0), 0),
     [cart],
   )
+  // Mirrors 0126's rule so the till shows a truthful total before the bill
+  // exists. The server recomputes it and is the authority — a free-item prize
+  // whose item isn't on the bill shows ₹0 here and is refused there.
+  const spinDiscount = useMemo(() => {
+    if (!spinPrize) return 0
+    if (spinPrize.kind === 'flat') return spinPrize.value
+    if (spinPrize.kind === 'percent') return Math.round((cartTotal * spinPrize.value) / 100)
+    if (spinPrize.kind === 'item') {
+      const won = cart.filter(
+        (l) => l.itemId === spinPrize.menu_item_id &&
+          (!spinPrize.variant_id || l.variantId === spinPrize.variant_id),
+      )
+      return won.length ? Math.max(...won.map((l) => l.unitPrice)) : 0
+    }
+    return 0
+  }, [spinPrize, cart, cartTotal])
+
   const displayedCustomerLookup = customerLookup
     ? { ...customerLookup, points: Math.max(0, (customerLookup.points ?? 0) - pendingRewardPoints) }
     : null
@@ -830,6 +859,11 @@ export default function PosClient({
     customerLookup: displayedCustomerLookup,
     lookingUpCustomer,
     role,
+    cafeId,
+    spinPrize,
+    spinDiscount,
+    onHoldSpinPrize: setSpinPrize,
+    onClearSpinPrize: () => setSpinPrize(null),
     discountType,
     discountValue,
     onDiscountType: setDiscountType,
