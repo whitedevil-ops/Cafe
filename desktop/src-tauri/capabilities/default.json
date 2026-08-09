@@ -3,5 +3,8 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["https://khaopiyo.ventron.in"]
+  },
   "permissions": ["core:default", "updater:default"]
 }

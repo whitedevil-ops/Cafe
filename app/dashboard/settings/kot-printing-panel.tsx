@@ -1,9 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { printKot } from '@/components/kitchen/print-ticket'
+import { isDesktopApp } from '@/lib/is-desktop'
+import { getDesktopPrinter, setDesktopPrinter, listSerialPorts, testPrintNative } from '@/lib/desktop-print'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -65,10 +68,27 @@ export default function KotPrintingPanel({
   // interpolating it inline would render one string on the server and another
   // in the browser. Falls back to the production host until it resolves.
   const [origin, setOrigin] = useState('https://khaopiyo.ventron.in')
+  const [desktop, setDesktop] = useState(false)
+  const [ports, setPorts] = useState<string[]>([])
+  const [serialPort, setSerialPort] = useState('')
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin)
   }, [])
+
+  const refreshPorts = useCallback(async () => {
+    setPorts(await listSerialPorts())
+  }, [])
+
+  useEffect(() => {
+    if (!isDesktopApp()) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDesktop(true)
+    const saved = getDesktopPrinter()
+    if (saved?.kind === 'serial') setSerialPort(saved.port)
+    void refreshPorts()
+  }, [refreshPorts])
 
   const [enabled, setEnabled] = useState(initialEnabled)
   const [printers, setPrinters] = useState(initialPrinters)
@@ -340,6 +360,57 @@ export default function KotPrintingPanel({
               </div>
             )}
           </div>
+
+          {/* Only inside the desktop app, and only there because this is a
+              property of the machine: two counters running the same café get
+              different COM ports from Windows, so it cannot live in the
+              database with the printer. */}
+          {desktop && (
+            <div className="rounded-[var(--radius)] border border-primary bg-primary-subtle p-3">
+              <h3 className="text-[13.5px] font-semibold text-primary">Direct printing (this computer)</h3>
+              <p className="mt-1 max-w-lg text-[12px] leading-relaxed text-foreground">
+                The desktop app can send tickets straight to the printer — no print dialog, and no Windows
+                driver needed. Pick the port Windows gave your printer when you paired it.
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <select
+                  value={serialPort}
+                  onChange={(e) => {
+                    const port = e.target.value
+                    setSerialPort(port)
+                    setDesktopPrinter(port ? { kind: 'serial', port } : null)
+                    toast(port ? `Tickets will print to ${port}.` : 'Direct printing off — the print dialog will be used.')
+                  }}
+                  className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[13px] text-foreground"
+                >
+                  <option value="">Off — use the print dialog</option>
+                  {ports.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <Button variant="secondary" size="sm" onClick={() => void refreshPorts()}>Rescan</Button>
+                {serialPort && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await testPrintNative(printers[0]?.paper_width ?? '58mm', timezone)
+                        toast(`Sent a test ticket to ${serialPort}.`)
+                      } catch (e) {
+                        toast(e instanceof Error ? e.message : 'Could not reach the printer.', 'error')
+                      }
+                    }}
+                  >
+                    Test this port
+                  </Button>
+                )}
+              </div>
+              {ports.length === 0 && (
+                <p className="mt-2 text-[11.5px] text-foreground">
+                  No COM ports found. Pair the printer in Windows Bluetooth settings first, then Rescan.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Collapsed by default: a café only needs this once, but when they
               need it they are standing at the counter, not reading the repo. */}

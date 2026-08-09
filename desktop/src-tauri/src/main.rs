@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod escpos;
+mod printing;
+
 use tauri_plugin_updater::UpdaterExt;
 
 /// Check for a new version once, shortly after launch, and install it silently.
@@ -33,6 +36,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            printing::list_serial_ports,
+            printing::print_ticket,
+        ])
         .setup(|app| {
             spawn_update_check(app.handle());
             Ok(())

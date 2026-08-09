@@ -1,4 +1,5 @@
 import { kotHtml, type KotTicket } from '@/lib/kot-print'
+import { printKotNative } from '@/lib/desktop-print'
 
 /**
  * Print a kitchen ticket through the browser's own print path.
@@ -12,7 +13,17 @@ import { kotHtml, type KotTicket } from '@/lib/kot-print'
  * actually came out — the browser is not told — so callers must not claim a
  * ticket printed, only that it was sent.
  */
-export function printKot(ticket: KotTicket): Promise<void> {
+export async function printKot(ticket: KotTicket): Promise<void> {
+  // The desktop app can write to the printer directly, with no dialog and no
+  // driver. It returns false when this is a browser, or when nobody has picked
+  // a printer on this machine yet, and only then do we fall back to the print
+  // dialog below. A configured-but-failing printer throws instead, because
+  // "your printer is unplugged" must not turn into an unexpected dialog.
+  if (await printKotNative(ticket)) return
+  return printViaDialog(ticket)
+}
+
+function printViaDialog(ticket: KotTicket): Promise<void> {
   return new Promise((resolve) => {
     const frame = document.createElement('iframe')
     // Off-screen rather than display:none — a hidden frame has no layout in
