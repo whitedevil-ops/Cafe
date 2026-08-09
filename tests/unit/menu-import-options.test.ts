@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseMenuFile, parseOptionList, type ImportIssue } from '@/lib/menu-import'
+import { effectiveOptionCost } from '@/lib/menu-workbook'
 
 // Free-form Choices / Add-ons columns. These replaced the fixed
 // Small/Medium/Large columns because no fixed set of sizes fits every café:
@@ -175,6 +176,61 @@ describe('menu import — a café that does use Small/Medium/Large', () => {
       { name: 'Medium', price: 119, cost: 59 },
       { name: 'Large', price: 149, cost: 74 },
     ])
+  })
+})
+
+// Each option can carry its own margin — a Small and a Large, or a Steam and a
+// Fried, rarely earn the same. The export side has to mirror what the database
+// computes (menu_item_effective_cost, migration 0106) or the sheet and the
+// Profitability report disagree.
+describe('per-option margins', () => {
+  it('gives every choice its own margin through the /margin suffix', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Margin', 'Choices (pick one)'],
+      ["MOMO'S", 'Veg Momos', '', '', 'Steam 69/30, Fried 79/25, Kurkure 99/40'],
+    ])
+    expect(r.issues).toEqual([])
+    expect(r.byCategory[0].items[0].variants).toEqual([
+      { name: 'Steam', price: 69, cost: 39 },
+      { name: 'Fried', price: 79, cost: 54 },
+      { name: 'Kurkure', price: 99, cost: 59 },
+    ])
+  })
+
+  it('lets some choices carry a margin and others not', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Choices (pick one)'],
+      ['PIZZA', 'Margherita', '99', '6 Slice 99/45, 8 Slice 139'],
+    ])
+    expect(r.byCategory[0].items[0].variants).toEqual([
+      { name: '6 Slice', price: 99, cost: 54 },
+      { name: '8 Slice', price: 139, cost: null },
+    ])
+  })
+
+  describe('effectiveOptionCost mirrors menu_item_effective_cost', () => {
+    it('adds the delta to the item cost', () => {
+      expect(effectiveOptionCost(89, -50)).toBe(39)
+      expect(effectiveOptionCost(50, 25)).toBe(75)
+    })
+
+    it('treats a null item cost as 0 when the choice carries a delta', () => {
+      // The reported case: margins given on the choices only, item Margin
+      // blank. The delta holds the whole cost and must still show up.
+      expect(effectiveOptionCost(null, 39)).toBe(39)
+    })
+
+    it('is null only when neither side records anything', () => {
+      expect(effectiveOptionCost(null, 0)).toBeNull()
+    })
+
+    it('clamps below zero, exactly as greatest(0, ...) does in SQL', () => {
+      expect(effectiveOptionCost(20, -50)).toBe(0)
+    })
+
+    it('keeps a zero item cost distinct from no item cost', () => {
+      expect(effectiveOptionCost(0, 0)).toBe(0)
+    })
   })
 })
 

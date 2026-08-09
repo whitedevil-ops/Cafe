@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
-import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
+import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows, effectiveOptionCost } from '@/lib/menu-workbook'
 import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -89,10 +89,9 @@ export default function BulkImportPanel({
         {
           name: v.name,
           price: item.price + v.price_delta,
-          // Only surface a choice's cost if the item itself has one to be
-          // relative to — an item with no cost of its own has no meaningful
-          // "extra" cost per choice either.
-          cost: item.cost != null ? item.cost + v.cost_delta : null,
+          // Mirrors menu_item_effective_cost exactly — a choice can carry the
+          // whole cost on its delta with the item's own cost still null.
+          cost: effectiveOptionCost(item.cost, v.cost_delta),
         },
       ])
     }
