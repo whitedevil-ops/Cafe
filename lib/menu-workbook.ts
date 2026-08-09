@@ -17,21 +17,25 @@ function download(wb: XLSX.WorkBook, filename: string) {
 // filled become that item's size options — Price can be left blank too, in
 // which case the first filled size becomes the item's listed price.
 //
-// Each size's own Cost column is optional independently of both the size
-// price and the item's own Profit column — leave it blank if a size doesn't
-// cost anything different to make.
+// Margin, not cost: an owner thinks "I make ₹60 on this burger", not "it
+// costs me ₹89". The parser (menu-import.ts) accepts either a Profit or a
+// Cost column and derives the other, so an older sheet with Cost columns
+// still imports — the sheets we HAND OUT just ask the easier question.
+//
+// Each size's own Margin is optional independently of both the size price and
+// the item's own Margin — leave it blank if a size's margin isn't different.
 export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
-    ['Category / Item', 'Price', 'Small', 'Small Cost', 'Medium', 'Medium Cost', 'Large', 'Large Cost', 'Profit', 'Veg Type', 'Description'],
+    ['Category / Item', 'Price', 'Margin', 'Small', 'Small Margin', 'Medium', 'Medium Margin', 'Large', 'Large Margin', 'Veg Type', 'Description'],
     ['BURGERS', '', '', '', '', '', '', '', '', '', ''],
-    ['Classic Veg Burger', 149, '', '', '', '', '', '', 89, 'Veg', 'Classic vegetable burger'],
-    ['Cheese Burger', 179, '', '', '', '', '', '', 104, 'Veg', 'Burger with cheese'],
+    ['Classic Veg Burger', 149, 60, '', '', '', '', '', '', 'Veg', 'Margin = what you keep after making it'],
+    ['Cheese Burger', 179, 75, '', '', '', '', '', '', 'Veg', 'Burger with cheese'],
     ['COLD DRINKS', '', '', '', '', '', '', '', '', '', ''],
-    ['Cold Coffee', '', 80, 30, 110, '', 130, 55, '', 'Veg', 'Only fill sizes/size-costs that apply — the rest can stay blank'],
-    ['Coca Cola', 60, '', '', '', '', '', '', 35, 'Veg', ''],
+    ['Cold Coffee', '', '', 80, 50, 110, '', 130, 75, 'Veg', 'Only fill the sizes that apply — the rest can stay blank'],
+    ['Coca Cola', 60, 25, '', '', '', '', '', '', 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 9 }, { wch: 10 }, { wch: 9 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 14 }, { wch: 9 }, { wch: 13 }, { wch: 12 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu template')
   download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
@@ -57,23 +61,27 @@ export type ExportRow = {
 // Flat/repeated-category shape — safe to sort, filter, and bulk-edit in Excel
 // without breaking category grouping, then re-import without duplicating.
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
-  const header = ['Category', 'Item', 'Price', 'Small', 'Small Cost', 'Medium', 'Medium Cost', 'Large', 'Large Cost', 'Profit', 'Veg Type', 'Description']
+  // Margin, not cost — the number an owner can sanity-check at a glance, and
+  // the same thing the template asks for. Price sits next to its own Margin
+  // so each pair reads together.
+  const margin = (price?: number, cost?: number) => (price != null && cost != null ? price - cost : '')
+  const header = ['Category', 'Item', 'Price', 'Margin', 'Small', 'Small Margin', 'Medium', 'Medium Margin', 'Large', 'Large Margin', 'Veg Type', 'Description']
   const body = rows.map((r) => [
     safeText(r.category),
     safeText(r.name),
     r.price,
-    r.sizes?.small ?? '',
-    r.sizes?.smallCost ?? '',
-    r.sizes?.medium ?? '',
-    r.sizes?.mediumCost ?? '',
-    r.sizes?.large ?? '',
-    r.sizes?.largeCost ?? '',
     r.cost != null ? r.price - r.cost : '',
+    r.sizes?.small ?? '',
+    margin(r.sizes?.small, r.sizes?.smallCost),
+    r.sizes?.medium ?? '',
+    margin(r.sizes?.medium, r.sizes?.mediumCost),
+    r.sizes?.large ?? '',
+    margin(r.sizes?.large, r.sizes?.largeCost),
     r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
     safeText(r.description ?? ''),
   ])
   const ws = XLSX.utils.aoa_to_sheet([header, ...body])
-  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 10 }, { wch: 9 }, { wch: 11 }, { wch: 9 }, { wch: 10 }, { wch: 9 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 14 }, { wch: 9 }, { wch: 13 }, { wch: 12 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
   download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))
@@ -82,6 +90,8 @@ export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
 export type ComboExportRow = {
   combo: string
   comboPrice: number
+  /** Owner's own margin figure. Never shown to a customer. */
+  comboMargin: number | null
   active: boolean
   /** The slot's label as printed on the menu board — "Any Pizza". */
   label: string
@@ -104,10 +114,11 @@ export type ComboExportRow = {
 // of dropdowns in Menu → Combos; the spreadsheet is for reviewing pricing and
 // sharing it, not for round-tripping.
 export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
-  const header = ['Combo', 'Combo Price', 'Status', 'Includes', 'Type', 'Item / Category', 'Size', 'Qty', 'Unit Price', 'Line Total']
+  const header = ['Combo', 'Combo Price', 'Margin', 'Status', 'Includes', 'Type', 'Item / Category', 'Size', 'Qty', 'Unit Price', 'Line Total']
   const body = rows.map((r) => [
     safeText(r.combo),
     r.comboPrice,
+    r.comboMargin ?? '',
     r.active ? 'Live' : 'Off',
     safeText(r.label),
     r.kind === 'fixed' ? 'Specific item' : 'Guest chooses',
@@ -121,26 +132,27 @@ export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
   // Per-combo parts total vs. the combo price — the number an owner actually
   // wants from this sheet ("what am I giving away?"). Only counts fixed rows;
   // a choice row's price depends on what the guest picks.
-  const totals = new Map<string, { price: number; fixed: number; hasChoice: boolean }>()
+  const totals = new Map<string, { price: number; margin: number | null; fixed: number; hasChoice: boolean }>()
   for (const r of rows) {
-    const t = totals.get(r.combo) ?? { price: r.comboPrice, fixed: 0, hasChoice: false }
+    const t = totals.get(r.combo) ?? { price: r.comboPrice, margin: r.comboMargin, fixed: 0, hasChoice: false }
     if (r.unitPrice != null) t.fixed += r.unitPrice * r.qty
     else t.hasChoice = true
     totals.set(r.combo, t)
   }
   const summary: (string | number)[][] = [
     [],
-    ['Combo', 'Combo Price', 'Fixed items cost', 'Note'],
+    ['Combo', 'Combo Price', 'Your margin', 'Menu value of fixed items', 'Note'],
     ...[...totals.entries()].map(([name, t]) => [
       safeText(name),
       t.price,
+      t.margin ?? '',
       t.fixed,
       t.hasChoice ? 'Plus whatever the guest chooses' : `Saving vs. separately: ₹${Math.max(0, t.fixed - t.price)}`,
     ]),
   ]
 
   const ws = XLSX.utils.aoa_to_sheet([header, ...body, ...summary])
-  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 15 }, { wch: 26 }, { wch: 10 }, { wch: 6 }, { wch: 11 }, { wch: 11 }]
+  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 24 }, { wch: 15 }, { wch: 26 }, { wch: 10 }, { wch: 6 }, { wch: 11 }, { wch: 11 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Combos')
   download(wb, `${cafeName || 'cafe'}-combos.xlsx`.replace(/\s+/g, '-'))

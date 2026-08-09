@@ -69,24 +69,27 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const issues: ImportIssue[] = []
   const [headerRow, ...dataRows] = rows
   const header = (headerRow ?? []).map((h) => normalize(h))
-  const headerLower = header.map((h) => h.toLowerCase())
 
   const catCol = findColumn(header, (h) => h.includes('category'))
   const itemCol = findColumn(header, (h) => h.includes('item') || h.includes('name'))
   const sizeWords = ['small', 'medium', 'med', 'large']
   const isSizeSpecific = (h: string) => sizeWords.some((w) => h.includes(w))
+  // "Margin" and "Profit" mean the same thing here — the sheets we hand out
+  // say Margin (it's the question an owner can answer without doing sums),
+  // but older exports said Profit and must keep importing.
+  const isMarginWord = (h: string) => h.includes('profit') || h.includes('margin')
   // "Cost Price" contains "price", so cost must be matched first and price must
   // exclude it — otherwise the cost column would be read as the selling price.
   // Excludes size-specific columns ("Small Cost") so they aren't double-matched
   // as the item's own base cost.
   const costCol = findColumn(header, (h) => h.includes('cost') && !isSizeSpecific(h))
-  // Profit is an alternative way to supply the same number: an owner who
+  // Margin is an alternative way to supply the same number: an owner who
   // thinks "I make ₹20 on this burger" rather than "this costs me ₹80" can
-  // fill in Profit instead of Cost Price — cost is derived (price − profit)
+  // fill in Margin instead of Cost Price — cost is derived (price − margin)
   // and stored exactly like a directly-supplied cost. If a file somehow has
   // both, the explicit Cost Price column wins.
-  const profitCol = findColumn(header, (h) => h.includes('profit') && !isSizeSpecific(h))
-  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isSizeSpecific(h))
+  const profitCol = findColumn(header, (h) => isMarginWord(h) && !isSizeSpecific(h))
+  const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
   // Optional size columns — absolute prices (and optionally an absolute
@@ -102,9 +105,11 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   )
     .map(([name, word]) => ({
       name,
-      col: findColumn(header, (h) => h.includes(word) && !h.includes('cost') && !h.includes('profit')),
+      // The size's own price column — must exclude its Cost/Margin sibling,
+      // or "Small Margin" would be read as the Small price.
+      col: findColumn(header, (h) => h.includes(word) && !h.includes('cost') && !isMarginWord(h)),
       costCol: findColumn(header, (h) => h.includes(word) && h.includes('cost')),
-      profitCol: findColumn(header, (h) => h.includes(word) && h.includes('profit')),
+      profitCol: findColumn(header, (h) => h.includes(word) && isMarginWord(h)),
     }))
     .filter((s) => s.col !== -1)
   const hasSizeCols = sizeCols.length > 0

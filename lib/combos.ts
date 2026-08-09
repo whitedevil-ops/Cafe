@@ -27,6 +27,12 @@ export type Combo = {
   image_url: string | null
   active: boolean
   sort: number
+  /**
+   * The owner's own margin figure (migration 0124). Optional here because the
+   * POS and QR menu deliberately never select it — it's a back-office number,
+   * so it must not travel to a customer's browser.
+   */
+  margin?: number | null
 }
 
 /** One chosen item filling one unit of a choice slot. A slot with qty 2 gets two of these. */

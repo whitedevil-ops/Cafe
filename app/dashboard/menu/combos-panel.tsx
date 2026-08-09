@@ -28,14 +28,28 @@ type ComboDraft = {
   name: string
   description: string
   price: string
+  margin: string
   slots: SlotDraft[]
 }
 
 const emptySlot: SlotDraft = { label: '', kind: 'choice', menu_item_id: '', variant_id: '', category_id: '', qty: '1' }
-const emptyCombo: ComboDraft = { name: '', description: '', price: '', slots: [] }
+const emptyCombo: ComboDraft = { name: '', description: '', price: '', margin: '', slots: [] }
 
 const SELECT_CLS =
   'h-10 w-full min-w-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground'
+
+// The modal is a real sequence — you can't price a bundle before you know
+// what's in it — so the steps are numbered rather than just spaced apart.
+function StepHeading({ n, title }: { n: number; title: string }) {
+  return (
+    <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
+      <span className="grid h-5 w-5 place-items-center rounded-full bg-primary-subtle text-[11px] font-semibold text-primary">
+        {n}
+      </span>
+      {title}
+    </p>
+  )
+}
 
 export default function CombosPanel({
   cafeId,
@@ -86,6 +100,27 @@ export default function CombosPanel({
     return list.map((s) => (s.qty > 1 ? `${s.label} × ${s.qty}` : s.label)).join(' · ')
   }
 
+  /**
+   * What the specific items in the draft would cost at menu price. Choice rows
+   * are excluded and reported separately — "Any Pizza" costs whatever the guest
+   * picks, so there's no single number for it.
+   */
+  function draftFixedValue(list: SlotDraft[]) {
+    let total = 0
+    let hasChoice = false
+    for (const s of list) {
+      if (s.kind !== 'fixed' || !s.menu_item_id) {
+        if (s.kind === 'choice') hasChoice = true
+        continue
+      }
+      const item = itemById.get(s.menu_item_id)
+      if (!item) continue
+      const delta = s.variant_id ? (variants.find((v) => v.id === s.variant_id)?.price_delta ?? 0) : 0
+      total += (item.price + delta) * (Math.round(Number(s.qty)) || 1)
+    }
+    return { total, hasChoice }
+  }
+
   function openNew() {
     setError(null)
     setDraft({ ...emptyCombo, slots: [{ ...emptySlot }] })
@@ -98,6 +133,7 @@ export default function CombosPanel({
       name: c.name,
       description: c.description ?? '',
       price: String(c.price),
+      margin: c.margin == null ? '' : String(c.margin),
       slots: slotsOfCombo(c.id).map((s) => ({
         label: s.label,
         kind: s.kind,
@@ -117,9 +153,14 @@ export default function CombosPanel({
   async function save() {
     if (!draft) return
     const price = Math.round(Number(draft.price))
+    // Blank margin is fine — it's the owner's own planning figure, not required
+    // to sell the combo.
+    const margin = draft.margin.trim() === '' ? null : Math.round(Number(draft.margin))
     if (!draft.name.trim()) return setError('Enter a combo name.')
-    if (!Number.isFinite(price) || price < 0) return setError('Enter a valid combo price.')
     if (draft.slots.length === 0) return setError('Add at least one item to the combo.')
+    if (!Number.isFinite(price) || price < 0) return setError('Enter a valid combo price.')
+    if (margin != null && (!Number.isFinite(margin) || margin < 0)) return setError('Enter a valid margin.')
+    if (margin != null && margin > price) return setError('Margin cannot be more than the combo price.')
 
     // Mirror the server-side checks in sync_combo_slots so a mistake surfaces
     // immediately instead of as a round-trip error.
@@ -149,11 +190,11 @@ export default function CombosPanel({
     const { data, error: err } = draft.id
       ? await supabase.rpc('update_combo', {
           p_combo_id: draft.id, p_name: draft.name.trim(), p_price: price,
-          p_slots: payload, p_description: draft.description.trim() || null,
+          p_slots: payload, p_description: draft.description.trim() || null, p_margin: margin,
         })
       : await supabase.rpc('create_combo', {
           p_cafe_id: cafeId, p_name: draft.name.trim(), p_price: price,
-          p_slots: payload, p_description: draft.description.trim() || null,
+          p_slots: payload, p_description: draft.description.trim() || null, p_margin: margin,
         })
     setBusy(false)
     if (err) return setError(err.message)
@@ -177,6 +218,7 @@ export default function CombosPanel({
         rows.push({
           combo: c.name,
           comboPrice: c.price,
+          comboMargin: c.margin ?? null,
           active: c.active,
           label: s.label,
           kind: s.kind,
@@ -287,29 +329,26 @@ export default function CombosPanel({
           <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-[var(--shadow-lg)] sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
             <h2 className="text-[15px] font-semibold text-foreground">{draft.id ? 'Edit combo' : 'New combo'}</h2>
 
-            <div className="mt-4 space-y-3">
-              <Input label="Combo name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Meal for Two" />
-              <Input label="Description (optional)" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Perfect for sharing" />
-              <Input
-                label="Combo price (₹)" type="number" min={0} value={draft.price}
-                onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-                hint="What the guest pays for the whole bundle. The saving vs. buying separately is applied automatically."
-                className="max-w-[200px]"
-              />
+            <div className="mt-4">
+              <StepHeading n={1} title="Name it" />
+              <div className="mt-3 space-y-3">
+                <Input label="Combo name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Meal for Two" />
+                <Input label="Description (optional)" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Perfect for sharing" />
+              </div>
             </div>
 
             <div className="mt-5 border-t border-border pt-4">
               <div className="flex items-center justify-between">
-                <p className="text-[13px] font-medium text-foreground">What&apos;s included</p>
+                <StepHeading n={2} title="Pick what's in it" />
                 <button
                   onClick={() => setDraft({ ...draft, slots: [...draft.slots, { ...emptySlot }] })}
                   className="text-[13px] font-medium text-primary hover:underline"
                 >
-                  + Add row
+                  + Add item
                 </button>
               </div>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                A row is either a specific item, or a choice the guest makes from a category.
+                Each row is either a specific item, or a choice the guest makes from a category.
               </p>
 
               <div className="mt-3 space-y-3">
@@ -402,6 +441,37 @@ export default function CombosPanel({
                   )
                 })}
               </div>
+            </div>
+
+            <div className="mt-5 border-t border-border pt-4">
+              <StepHeading n={3} title="Price it" />
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Input
+                  label="Combo price (₹)" type="number" min={0} value={draft.price}
+                  onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+                  hint="What the guest pays for the whole bundle."
+                  className="w-[150px]"
+                />
+                <Input
+                  label="Your margin (₹)" type="number" min={0} value={draft.margin}
+                  onChange={(e) => setDraft({ ...draft, margin: e.target.value })}
+                  hint="Optional. Only you see this — never shown to guests."
+                  className="w-[150px]"
+                />
+              </div>
+              {(() => {
+                const { total, hasChoice } = draftFixedValue(draft.slots)
+                const price = Math.round(Number(draft.price))
+                if (total === 0) return null
+                const saving = Number.isFinite(price) && price > 0 ? Math.max(0, total - price) : null
+                return (
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    Specific items add up to <span className="font-medium text-foreground">₹{total}</span> at menu price
+                    {hasChoice && ', plus whatever the guest chooses'}
+                    {saving != null && !hasChoice && saving > 0 && <> — guests save ₹{saving}</>}.
+                  </p>
+                )
+              })()}
             </div>
 
             {error && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}

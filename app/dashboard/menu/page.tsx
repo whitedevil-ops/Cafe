@@ -15,7 +15,9 @@ export default async function MenuPage() {
   const [{ data: categories }, { data: items }, { data: combos }] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase.from('menu_items').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
-    supabase.from('combos').select('id, name, description, price, image_url, active, sort').eq('cafe_id', cafe.cafeId).order('sort'),
+    // `margin` is included here and nowhere else — the POS and QR menu select
+    // combos without it so the owner's own figure never reaches a guest.
+    supabase.from('combos').select('id, name, description, price, margin, image_url, active, sort').eq('cafe_id', cafe.cafeId).order('sort'),
   ])
 
   // Slots for every combo, and variants for every item, in one round each —

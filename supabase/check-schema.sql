@@ -485,13 +485,18 @@ with expected(kind, name, fix) as (values
   ('function', 'create_combo',                             '0123'),
   ('function', 'update_combo',                             '0123'),
   ('function', 'set_combo_active',                         '0123'),
-  ('function', 'delete_combo',                             '0123')
+  ('function', 'delete_combo',                             '0123'),
   -- 0123 also re-bodies place_order (0016) and staff_place_order (0016) to
   -- expand a combo p_items element into real component rows,
   -- apply_order_taxes (0037) to clamp each line's discount share to the line
   -- (a ₹0 line could previously land a negative taxable_value), and
   -- get_receipt (0010) to carry combo_group/combo_name per item -- nothing
   -- further to check-schema for any of those.
+  --
+  -- owner-recorded margin on a combo (0124)
+  ('column',   'combos.margin',                            '0124')
+  -- 0124 also re-bodies create_combo/update_combo (already registered, 0123)
+  -- with an added p_margin -- nothing further to check-schema for that part.
 )
 select
   e.kind,

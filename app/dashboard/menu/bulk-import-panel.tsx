@@ -410,13 +410,14 @@ export default function BulkImportPanel({
                 them blank for a single-price item; Price alone is used, same as before.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Profit</b> (₹ you make per item, e.g. 20 on a ₹100 burger) is optional and never shown to customers —
-                fill it in and Reports auto-calculates your net profit as items sell. You can enter Cost Price instead if you prefer; either works.
+                <b>Margin</b> is simply the ₹ you make per item — 20 on a ₹100 burger. It&apos;s optional, never shown
+                to customers, and Reports uses it to work out your net profit as items sell. (An older sheet with a
+                Profit or Cost Price column still imports fine.)
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Small Cost / Medium Cost / Large Cost</b> work the same way, per size — only fill one in if that
-                size actually costs you something different to make. Leave it blank and that size just costs the
-                same as the item&apos;s own Profit/Cost Price above.
+                <b>Small Margin / Medium Margin / Large Margin</b> work the same way, per size — only fill one in if
+                that size earns you something different. Leave it blank and that size just uses the item&apos;s own
+                Margin above.
               </p>
             </div>
           )}
