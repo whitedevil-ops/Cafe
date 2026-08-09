@@ -9,8 +9,10 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import BulkImportPanel from './bulk-import-panel'
+import CombosPanel, { type VariantRow } from './combos-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
+import type { Combo, ComboSlot } from '@/lib/combos'
 
 type VariantDraft = { id?: string; name: string; price_delta: string; cost_delta: string }
 type AddonDraft = { id?: string; name: string; price: string }
@@ -55,12 +57,18 @@ export default function MenuManager({
   role,
   initialCategories,
   initialItems,
+  initialCombos,
+  initialComboSlots,
+  variants,
 }: {
   cafeId: string
   cafeName: string
   role: string
   initialCategories: MenuCategory[]
   initialItems: MenuItemRow[]
+  initialCombos: Combo[]
+  initialComboSlots: ComboSlot[]
+  variants: VariantRow[]
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
@@ -78,6 +86,7 @@ export default function MenuManager({
 
   const [draft, setDraft] = useState<ItemDraft | null>(null)
   const [manageCats, setManageCats] = useState(false)
+  const [manageCombos, setManageCombos] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [busy, setBusy] = useState(false)
@@ -446,6 +455,9 @@ export default function MenuManager({
           <Button variant="secondary" size="md" onClick={() => setManageCats((v) => !v)}>
             Categories
           </Button>
+          <Button variant="secondary" size="md" onClick={() => setManageCombos((v) => !v)}>
+            Combos
+          </Button>
           <Button size="md" onClick={() => setDraft({ ...emptyDraft })}>
             Add item
           </Button>
@@ -535,6 +547,18 @@ export default function MenuManager({
             </div>
           )}
         </div>
+      )}
+
+      {manageCombos && (
+        <CombosPanel
+          cafeId={cafeId}
+          canManage={canSeeCost}
+          categories={categories}
+          items={items}
+          variants={variants}
+          initialCombos={initialCombos}
+          initialSlots={initialComboSlots}
+        />
       )}
 
       {/* Toolbar */}

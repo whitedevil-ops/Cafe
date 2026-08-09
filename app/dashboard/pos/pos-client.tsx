@@ -11,7 +11,9 @@ import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLoo
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
+import { ComboPicker } from '@/components/pos/combo-picker'
 import { businessDayStartISO } from '@/lib/datetime'
+import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import type { PosVariant, PosAddon } from './page'
 
 // Same freshness window as the customer QR menu (menu-client.tsx) — one
@@ -20,7 +22,16 @@ import type { PosVariant, PosAddon } from './page'
 const NEW_ITEM_DAYS = 14
 
 type FullItem = PosItem & { category_id: string | null }
-type Line = CartLine & { itemId: string; variantId: string | null; addonIds: string[]; pointsCost?: number }
+type Line = CartLine & {
+  itemId: string
+  variantId: string | null
+  addonIds: string[]
+  pointsCost?: number
+  // Combo lines carry the whole bundle: one cart line, expanded server-side
+  // into real component rows by expand_combo_line.
+  comboId?: string | null
+  selections?: ComboSelection[]
+}
 type HeldRow = {
   id: string
   order_type: 'dine_in' | 'takeaway'
@@ -47,6 +58,8 @@ export default function PosClient({
   areas,
   loyaltyEnabled,
   rewards,
+  combos,
+  comboSlots,
 }: {
   cafeId: string
   role: string
@@ -63,6 +76,8 @@ export default function PosClient({
   areas: PosArea[]
   loyaltyEnabled: boolean
   rewards: { id: string; name: string; points_cost: number; menu_item_id: string | null; variant_id: string | null }[]
+  combos: Combo[]
+  comboSlots: ComboSlot[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const confirm = useConfirm()
@@ -180,6 +195,7 @@ export default function PosClient({
     }
   }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, draftKey])
 
+  const [combobuilding, setCombobuilding] = useState<Combo | null>(null)
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
   const [heldOrdersOpen, setHeldOrdersOpen] = useState(false)
   const [holding, setHolding] = useState(false)
@@ -220,13 +236,15 @@ export default function PosClient({
 
   const qtyByItem = useMemo(() => {
     const m = new Map<string, number>()
-    for (const l of cart) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.qty)
+    for (const l of cart) if (l.itemId) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.qty)
     return m
   }, [cart])
 
   // ── Smart cross-sell (deterministic, server-side, fail-safe) ─────────────
   const [recs, setRecs] = useState<Recommendation[]>([])
-  const cartItemIds = useMemo(() => [...new Set(cart.map((l) => l.itemId))], [cart])
+  // Combo lines carry no single itemId — exclude them rather than sending an
+  // empty id into the recommendation lookup.
+  const cartItemIds = useMemo(() => [...new Set(cart.map((l) => l.itemId).filter(Boolean))], [cart])
   useEffect(() => {
     let cancelled = false
     const t = setTimeout(async () => {
@@ -257,6 +275,37 @@ export default function PosClient({
       if (found) return c.map((l) => (l.key === item.id ? { ...l, qty: l.qty + 1 } : l))
       return [...c, { key: item.id, itemId: item.id, variantId: null, addonIds: [], name: item.name, modLabel: '', unitPrice: item.price, qty: 1 }]
     })
+  }
+
+  // A combo is one cart line carrying its whole configuration; the server
+  // expands it into real component rows and prices the bundle itself.
+  function addCombo(combo: Combo, selections: ComboSelection[]) {
+    const key = comboCartKey(combo.id, selections)
+    const label = comboSelectionLabel(selections, (itemId, variantId) => {
+      const name = items.find((i) => i.id === itemId)?.name ?? 'Item'
+      const v = variantId ? variantsByItem.get(itemId)?.find((x) => x.id === variantId)?.name : null
+      return v ? `${name} (${v})` : name
+    })
+    setCart((c) => {
+      const found = c.find((l) => l.key === key)
+      if (found) return c.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l))
+      return [
+        ...c,
+        {
+          key,
+          itemId: '',
+          variantId: null,
+          addonIds: [],
+          name: combo.name,
+          modLabel: label,
+          unitPrice: combo.price,
+          qty: 1,
+          comboId: combo.id,
+          selections,
+        },
+      ]
+    })
+    setCombobuilding(null)
   }
 
   function confirmCustom(item: FullItem, variantId: string | null, addonIds: string[]) {
@@ -547,9 +596,21 @@ export default function PosClient({
   // this order doesn't contain, e.g. a coffee-only offer on a burgers order.
   function cartCategoryIds(): string[] {
     const ids = new Set<string>()
-    for (const line of cart) {
-      const cat = items.find((i) => i.id === line.itemId)?.category_id
+    const addFor = (itemId: string) => {
+      const cat = items.find((i) => i.id === itemId)?.category_id
       if (cat) ids.add(cat)
+    }
+    for (const line of cart) {
+      if (line.comboId) {
+        // Match what the server derives from the expanded component rows, so
+        // a category-scoped coupon previews the same way it will resolve.
+        for (const s of slotsOf(comboSlots, line.comboId)) {
+          if (s.kind === 'fixed' && s.menu_item_id) addFor(s.menu_item_id)
+        }
+        for (const sel of line.selections ?? []) addFor(sel.item_id)
+        continue
+      }
+      addFor(line.itemId)
     }
     return [...ids]
   }
@@ -683,7 +744,11 @@ export default function PosClient({
     if (!requestId.current) requestId.current = crypto.randomUUID()
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
-      p_items: cart.map((l) => ({ item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null, reward_id: l.rewardId || null })),
+      p_items: cart.map((l) =>
+        l.comboId
+          ? { combo_id: l.comboId, qty: l.qty, selections: l.selections ?? [] }
+          : { item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null, reward_id: l.rewardId || null },
+      ),
       p_order_type: orderType,
       p_table_id: orderType === 'dine_in' ? selectedTableId : null,
       p_payment_method: method,
@@ -793,7 +858,9 @@ export default function PosClient({
   }
 
   const activeTables = liveTables.filter((t) => t.sessionId).length
+  const showingCombos = activeCategory === '__combos'
   const activeLabel = activeCategory === 'all' ? 'All Items'
+    : activeCategory === '__combos' ? 'Combos'
     : activeCategory === '__bestsellers' ? 'Best Sellers'
     : activeCategory === '__new' ? 'New Arrivals'
     : (categories.find((c) => c.id === activeCategory)?.name ?? 'Items')
@@ -823,6 +890,7 @@ export default function PosClient({
                 categories={categories}
                 bestsellerCount={bestsellerCount}
                 newCount={newItemIds.size}
+                comboCount={combos.length}
                 activeId={activeCategory}
                 onSelect={setActiveCategory}
                 totalCount={items.length}
@@ -833,9 +901,33 @@ export default function PosClient({
           <div className="flex-1 overflow-y-auto p-5 pb-24 lg:pb-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{activeLabel}</h2>
-              <span className="text-[12.5px] text-muted-foreground">{visible.length} item{visible.length === 1 ? '' : 's'}</span>
+              <span className="text-[12.5px] text-muted-foreground">
+                {showingCombos
+                  ? `${combos.length} combo${combos.length === 1 ? '' : 's'}`
+                  : `${visible.length} item${visible.length === 1 ? '' : 's'}`}
+              </span>
             </div>
-            {visible.length === 0 ? (
+            {showingCombos ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {combos.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCombobuilding(c)}
+                    className="rounded-[var(--radius-lg)] border border-border bg-surface p-4 text-left transition-colors hover:border-primary hover:bg-primary-subtle/30"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[14px] font-semibold text-foreground">{c.name}</p>
+                      <span className="shrink-0 text-[14px] font-semibold text-primary">₹{c.price}</span>
+                    </div>
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      {slotsOf(comboSlots, c.id)
+                        .map((s) => (s.qty > 1 ? `${s.label} × ${s.qty}` : s.label))
+                        .join(' · ') || 'No items set'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            ) : visible.length === 0 ? (
               <p className="py-16 text-center text-sm text-muted-foreground">No items match.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
@@ -901,6 +993,17 @@ export default function PosClient({
 
       {tableSelectorOpen && (
         <TableSelector tables={liveTables} areas={areas} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />
+      )}
+
+      {combobuilding && (
+        <ComboPicker
+          combo={combobuilding}
+          slots={slotsOf(comboSlots, combobuilding.id)}
+          items={items}
+          variants={variants}
+          onCancel={() => setCombobuilding(null)}
+          onAdd={(selections) => addCombo(combobuilding, selections)}
+        />
       )}
 
       {heldOrdersOpen && (

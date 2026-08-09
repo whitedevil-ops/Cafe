@@ -19,6 +19,7 @@
 // building per-café tag invalidation for a small café's edit frequency.
 import { unstable_cache } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import type { Combo, ComboSlot } from '@/lib/combos'
 
 function createAnonClient() {
   return createSupabaseClient(
@@ -41,6 +42,8 @@ export type CachedCafeMenu = {
   }[]
   variants: { id: string; menu_item_id: string; name: string; price_delta: number }[]
   addons: { id: string; menu_item_id: string; name: string; price: number }[]
+  combos: Combo[]
+  comboSlots: ComboSlot[]
   popularIds: string[]
 }
 
@@ -48,7 +51,7 @@ export const getCachedCafeMenu = unstable_cache(
   async (cafeId: string): Promise<CachedCafeMenu> => {
     const supabase = createAnonClient()
 
-    const [{ data: cafe }, { data: categories }, { data: items }] = await Promise.all([
+    const [{ data: cafe }, { data: categories }, { data: items }, { data: combos }] = await Promise.all([
       supabase.from('cafes').select('name, logo_url, upsell_threshold, accept_pay_counter, online_payments_enabled, razorpay_status').eq('id', cafeId).maybeSingle(),
       supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafeId).order('sort'),
       supabase
@@ -57,15 +60,21 @@ export const getCachedCafeMenu = unstable_cache(
         .eq('cafe_id', cafeId)
         .eq('archived', false)
         .order('sort'),
+      supabase.from('combos').select('id, name, description, price, image_url, active, sort')
+        .eq('cafe_id', cafeId).eq('active', true).order('sort'),
     ])
 
     const itemIds = (items ?? []).map((i) => i.id)
-    const [{ data: variants }, { data: addons }, { data: popular }] = await Promise.all([
+    const comboIds = (combos ?? []).map((c) => c.id)
+    const [{ data: variants }, { data: addons }, { data: comboSlots }, { data: popular }] = await Promise.all([
       itemIds.length
         ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
         : Promise.resolve({ data: [] }),
       itemIds.length
         ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
+        : Promise.resolve({ data: [] }),
+      comboIds.length
+        ? supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
         : Promise.resolve({ data: [] }),
       supabase.rpc('public_popular_items', { p_cafe_id: cafeId, p_limit: 12 }),
     ])
@@ -81,6 +90,8 @@ export const getCachedCafeMenu = unstable_cache(
       items: (items ?? []) as CachedCafeMenu['items'],
       variants: (variants ?? []) as CachedCafeMenu['variants'],
       addons: (addons ?? []) as CachedCafeMenu['addons'],
+      combos: (combos ?? []) as Combo[],
+      comboSlots: (comboSlots ?? []) as ComboSlot[],
       popularIds,
     }
   },

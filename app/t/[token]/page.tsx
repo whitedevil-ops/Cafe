@@ -20,7 +20,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   if (tableErr) console.error('[qr] cafe_tables lookup failed:', tableErr.message, 'token=', token)
   if (!table) notFound()
 
-  const { cafe, categories, items, variants, addons, popularIds } = await getCachedCafeMenu(table.cafe_id)
+  const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = await getCachedCafeMenu(table.cafe_id)
   if (!cafe) notFound()
 
   // Operator-facing kill switch (platform-admin Feature control), separate
@@ -62,6 +62,8 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       items={(items ?? []) as PublicItem[]}
       variants={(variants ?? []) as Variant[]}
       addons={(addons ?? []) as Addon[]}
+      combos={combos ?? []}
+      comboSlots={comboSlots ?? []}
       popularIds={popularIds}
     />
   )

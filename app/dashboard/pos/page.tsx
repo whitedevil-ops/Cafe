@@ -6,6 +6,7 @@ import PosClient from './pos-client'
 import type { PosCategory } from '@/components/pos/category-tabs'
 import type { PosItem } from '@/components/pos/product-card'
 import type { PosTable, PosArea } from '@/components/pos/cart-panel'
+import type { Combo, ComboSlot } from '@/lib/combos'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,14 +45,21 @@ export default async function PosPage() {
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
-  const [{ data: variants }, { data: addons }] = await Promise.all([
+  const [{ data: variants }, { data: addons }, { data: combos }] = await Promise.all([
     itemIds.length
       ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
       : Promise.resolve({ data: [] }),
     itemIds.length
       ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
       : Promise.resolve({ data: [] }),
+    supabase.from('combos').select('id, name, description, price, image_url, active, sort')
+      .eq('cafe_id', cafe.cafeId).eq('active', true).order('sort'),
   ])
+
+  const comboIds = (combos ?? []).map((c) => c.id)
+  const { data: comboSlots } = comboIds.length
+    ? await supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
+    : { data: [] }
 
   const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
 
@@ -105,6 +113,8 @@ export default async function PosPage() {
       areas={posAreas}
       loyaltyEnabled={cafeRow?.loyalty_enabled ?? false}
       rewards={rewards ?? []}
+      combos={(combos ?? []) as Combo[]}
+      comboSlots={(comboSlots ?? []) as ComboSlot[]}
     />
   )
 }

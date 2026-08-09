@@ -75,7 +75,17 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           {r.items.map((it, i) => (
             <li key={i} className="flex justify-between gap-3 py-2.5 text-sm">
               <div className="min-w-0">
-                <p className="text-foreground">{it.qty} × {it.name}</p>
+                {/* First component of a combo carries the bundle heading, so
+                    the guest reads "Meal for Two" rather than a loose list of
+                    items they didn't order individually. Components keep
+                    their real prices so the subtotal still adds up and the
+                    saving shows on the Discount line. */}
+                {it.combo_group && it.combo_group !== r.items[i - 1]?.combo_group && (
+                  <p className="mb-0.5 text-[12px] font-medium text-primary">
+                    {it.combo_name ?? 'Combo'}{it.combo_price != null ? ` · ₹${it.combo_price}` : ''}
+                  </p>
+                )}
+                <p className={it.combo_group ? 'pl-2.5 text-foreground' : 'text-foreground'}>{it.qty} × {it.name}</p>
                 {it.modifiers?.length > 0 && (
                   <p className="text-[12px] text-muted-foreground">
                     {it.modifiers.map((m) => m.name).join(', ')}

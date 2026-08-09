@@ -474,7 +474,24 @@ with expected(kind, name, fix) as (values
   -- object, nothing further to check-schema for it.
   --
   -- lets owner/manager hard-delete a reward, not just deactivate (0122)
-  ('function', 'delete_reward',                            '0122')
+  ('function', 'delete_reward',                            '0122'),
+  -- combo meals / bundle deals (0123)
+  ('table',    'combos',                                   '0123'),
+  ('table',    'combo_slots',                              '0123'),
+  ('column',   'order_items.combo_id',                     '0123'),
+  ('column',   'order_items.combo_group',                  '0123'),
+  ('function', 'expand_combo_line',                        '0123'),
+  ('function', 'sync_combo_slots',                         '0123'),
+  ('function', 'create_combo',                             '0123'),
+  ('function', 'update_combo',                             '0123'),
+  ('function', 'set_combo_active',                         '0123'),
+  ('function', 'delete_combo',                             '0123')
+  -- 0123 also re-bodies place_order (0016) and staff_place_order (0016) to
+  -- expand a combo p_items element into real component rows,
+  -- apply_order_taxes (0037) to clamp each line's discount share to the line
+  -- (a ₹0 line could previously land a negative taxable_value), and
+  -- get_receipt (0010) to carry combo_group/combo_name per item -- nothing
+  -- further to check-schema for any of those.
 )
 select
   e.kind,

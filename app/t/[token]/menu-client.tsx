@@ -7,7 +7,9 @@ import { fetchRecommendations, logRecommendationEvent, type Recommendation } fro
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
+import { ComboSheet } from '@/components/qr/combo-sheet'
 import { CustomerFooterNav } from '@/components/qr/customer-footer-nav'
+import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
 import { getOrCreateDeviceId, type CustomerSession } from '@/lib/customer-session'
 import { CustomerLoginGate } from '@/components/qr/customer-login-gate'
@@ -25,6 +27,8 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 }
 const ORDER_STATUS_DONE = ['served', 'completed', 'cancelled']
 
+const COMBOS = '__combos'
+
 type Line = {
   key: string
   itemId: string
@@ -35,6 +39,10 @@ type Line = {
   note: string
   unitPrice: number
   qty: number
+  // Combo lines carry the whole bundle; the server expands them into real
+  // component rows via expand_combo_line (migration 0123).
+  comboId?: string | null
+  selections?: ComboSelection[]
 }
 
 export default function MenuClient({
@@ -50,6 +58,8 @@ export default function MenuClient({
   items,
   variants,
   addons,
+  combos,
+  comboSlots,
   popularIds,
 }: {
   token: string
@@ -64,6 +74,8 @@ export default function MenuClient({
   items: PublicItem[]
   variants: Variant[]
   addons: Addon[]
+  combos: Combo[]
+  comboSlots: ComboSlot[]
   popularIds: string[]
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -85,6 +97,7 @@ export default function MenuClient({
   const [assist, setAssist] = useState<'waiter' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
+  const [comboDetail, setComboDetail] = useState<Combo | null>(null)
   const [reorderNote, setReorderNote] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [activeCat, setActiveCat] = useState<string>('__all')
@@ -207,12 +220,15 @@ export default function MenuClient({
     return () => { cancelled = true }
   }, [session, supabase])
 
+  // Combos lead, then Popular, then real categories — same synthetic
+  // pseudo-category trick already used for Popular.
   const cats = useMemo(() => {
     const withItems = categories.filter((c) => items.some((i) => i.category_id === c.id))
     const uncategorised = items.some((i) => !i.category_id)
     const base = uncategorised ? [...withItems, { id: '__none', name: 'Other' }] : withItems
-    return popularIds.length >= 3 ? [{ id: POPULAR, name: 'Popular' }, ...base] : base
-  }, [categories, items, popularIds])
+    const withPopular = popularIds.length >= 3 ? [{ id: POPULAR, name: 'Popular' }, ...base] : base
+    return combos.length > 0 ? [{ id: COMBOS, name: 'Combos' }, ...withPopular] : withPopular
+  }, [categories, items, popularIds, combos])
 
   const searching = search.trim().length > 0
   const catNameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name.toLowerCase()])), [categories])
@@ -234,7 +250,8 @@ export default function MenuClient({
 
   const sections = useMemo(() => {
     if (searching) return []
-    const visible = activeCat === '__all' ? cats : cats.filter((c) => c.id === activeCat)
+    // Combos render as their own block, not as item cards.
+    const visible = (activeCat === '__all' ? cats : cats.filter((c) => c.id === activeCat)).filter((c) => c.id !== COMBOS)
     return visible
       .map((cat) => ({
         cat,
@@ -245,6 +262,8 @@ export default function MenuClient({
       }))
       .filter((s) => s.items.length > 0)
   }, [searching, activeCat, cats, items, popularIds, byId])
+
+  const showCombos = !searching && combos.length > 0 && (activeCat === '__all' || activeCat === COMBOS)
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const count = cart.reduce((s, l) => s + l.qty, 0)
@@ -272,6 +291,28 @@ export default function MenuClient({
   }
   function changeQty(key: string, delta: number) {
     setCart((c) => c.map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0))
+  }
+
+  function addCombo(combo: Combo, selections: ComboSelection[], qty: number) {
+    const label = comboSelectionLabel(selections, (itemId, variantId) => {
+      const name = byId.get(itemId)?.name ?? 'Item'
+      const v = variantId ? variants.find((x) => x.id === variantId)?.name : null
+      return v ? `${name} (${v})` : name
+    })
+    addLine({
+      key: comboCartKey(combo.id, selections),
+      itemId: '',
+      name: combo.name,
+      variantId: null,
+      addonIds: [],
+      modLabel: label,
+      note: '',
+      unitPrice: combo.price,
+      qty,
+      comboId: combo.id,
+      selections,
+    })
+    setComboDetail(null)
   }
 
   function addPlain(item: PublicItem, isUpsell = false) {
@@ -392,13 +433,17 @@ export default function MenuClient({
     if (!requestId.current) requestId.current = crypto.randomUUID()
     const { data, error } = await supabase.rpc('place_order', {
       p_token: token,
-      p_items: cart.map((l) => ({
-        item_id: l.itemId,
-        qty: l.qty,
-        variant_id: l.variantId,
-        addon_ids: l.addonIds,
-        note: l.note || null,
-      })),
+      p_items: cart.map((l) =>
+        l.comboId
+          ? { combo_id: l.comboId, qty: l.qty, selections: l.selections ?? [] }
+          : {
+              item_id: l.itemId,
+              qty: l.qty,
+              variant_id: l.variantId,
+              addon_ids: l.addonIds,
+              note: l.note || null,
+            },
+      ),
       p_phone: phone || null,
       p_payment_method: 'counter',
       p_upsell_item_id: upsellTaken.current,
@@ -869,7 +914,34 @@ export default function MenuClient({
             </section>
           )
         ) : (
-          sections.map(({ cat, items: catItems }) => (
+          <>
+            {showCombos && (
+              <section className="pt-6">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Combos</h2>
+                <div className="mt-3 grid gap-2.5">
+                  {combos.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setComboDetail(c)}
+                      className="rounded-[var(--radius-lg)] border border-border bg-surface p-4 text-left active:bg-surface-subtle"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[14.5px] font-semibold text-foreground">{c.name}</p>
+                          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                            {slotsOf(comboSlots, c.id)
+                              .map((s) => (s.qty > 1 ? `${s.label} × ${s.qty}` : s.label))
+                              .join(' + ')}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[15px] font-semibold text-primary">₹{c.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {sections.map(({ cat, items: catItems }) => (
             <section key={cat.id} className="pt-6">
               <h2 className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">{cat.name}</h2>
               <Grid>
@@ -887,7 +959,8 @@ export default function MenuClient({
                 ))}
               </Grid>
             </section>
-          ))
+            ))}
+          </>
         )}
       </div>
 
@@ -914,6 +987,16 @@ export default function MenuClient({
           addons={addonsByItem.get(detail.id) ?? []}
           onClose={() => setDetail(null)}
           onAdd={(args) => confirmDetail(detail, args)}
+        />
+      )}
+      {comboDetail && (
+        <ComboSheet
+          combo={comboDetail}
+          slots={slotsOf(comboSlots, comboDetail.id)}
+          items={items}
+          variants={variants}
+          onClose={() => setComboDetail(null)}
+          onAdd={({ selections, qty }) => addCombo(comboDetail, selections, qty)}
         />
       )}
     </main>

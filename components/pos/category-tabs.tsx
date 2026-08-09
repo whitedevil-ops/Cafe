@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutGrid, Flame, Sparkles } from 'lucide-react'
+import { LayoutGrid, Flame, Sparkles, Package } from 'lucide-react'
 import { categoryIcon } from '@/lib/category-icons'
 
 export type PosCategory = { id: string; name: string; count: number }
@@ -47,6 +47,7 @@ export function CategoryTabs({
   categories,
   bestsellerCount,
   newCount,
+  comboCount = 0,
   activeId,
   onSelect,
   totalCount,
@@ -54,6 +55,7 @@ export function CategoryTabs({
   categories: PosCategory[]
   bestsellerCount: number
   newCount: number
+  comboCount?: number
   activeId: string
   onSelect: (id: string) => void
   totalCount: number
@@ -61,6 +63,9 @@ export function CategoryTabs({
   return (
     <div className="flex gap-1.5 overflow-x-auto pb-0.5">
       <Tab id="all" label="All Items" count={totalCount} icon={<LayoutGrid size={14} />} active={activeId === 'all'} onSelect={onSelect} />
+      {comboCount > 0 && (
+        <Tab id="__combos" label="Combos" count={comboCount} icon={<Package size={14} />} active={activeId === '__combos'} onSelect={onSelect} />
+      )}
       {bestsellerCount > 0 && (
         <Tab id="__bestsellers" label="Best Sellers" count={bestsellerCount} icon={<Flame size={14} />} active={activeId === '__bestsellers'} onSelect={onSelect} />
       )}

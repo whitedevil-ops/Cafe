@@ -32,6 +32,9 @@ export type ReceiptData = {
   items: {
     name: string; qty: number; price: number; modifiers: { name: string; price: number }[]
     hsn_sac: string | null; tax_percent: number | null; taxable_value: number | null; tax_amount: number | null
+    // Set on components of a combo (migration 0123) so a receipt can group
+    // them under the bundle they were ordered as.
+    combo_group?: string | null; combo_name?: string | null; combo_price?: number | null
   }[]
 }
 
