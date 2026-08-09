@@ -208,6 +208,39 @@ describe('per-option margins', () => {
     ])
   })
 
+  // The question the template kept prompting: "where do I write the margin
+  // for an item that has sizes?" Answer: the Margin column, same as any other
+  // item — it applies even when the price came from the first choice.
+  it('applies the plain Margin column to an item priced through its choices', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Margin', 'Sizes / Choices'],
+      ["MOMO'S", 'Veg Momos', '', '25', 'Steam 69, Fried 79'],
+    ])
+    const item = r.byCategory[0].items[0]
+    expect(r.issues).toEqual([])
+    expect(item.price).toBe(69)
+    expect(item.cost).toBe(44) // 69 − 25, so Steam keeps exactly the ₹25 asked for
+    // Choices carry no margin of their own, so they all cost the same to make
+    // and the bigger one simply earns more — which is how a café actually works.
+    expect(item.variants).toEqual([
+      { name: 'Steam', price: 69, cost: null },
+      { name: 'Fried', price: 79, cost: null },
+    ])
+  })
+
+  it('lets a per-size margin sit alongside a Margin column without conflict', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Margin', 'Sizes / Choices'],
+      ['COLD DRINKS', 'Cold Coffee', '', '50', 'Small 89/50, Medium 119/60'],
+    ])
+    const item = r.byCategory[0].items[0]
+    expect(item.cost).toBe(39) // 89 − 50
+    expect(item.variants).toEqual([
+      { name: 'Small', price: 89, cost: 39 },
+      { name: 'Medium', price: 119, cost: 59 },
+    ])
+  })
+
   describe('effectiveOptionCost mirrors menu_item_effective_cost', () => {
     it('adds the delta to the item cost', () => {
       expect(effectiveOptionCost(89, -50)).toBe(39)

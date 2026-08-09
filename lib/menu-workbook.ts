@@ -49,6 +49,7 @@ const GUIDE_ROWS: string[][] = [
   ['Category / Item', 'A category name on its own row, or an item name.'],
   ['Price', 'What the guest pays, in ₹. Just the number.'],
   ['Margin', 'Optional. The ₹ you keep on that item. Only you ever see this.'],
+  ['', 'See "WHERE DO I WRITE THE MARGIN?" below.'],
   ['Sizes / Choices', 'Optional. Fill in if the item is sold in more than one way.'],
   ['Add-ons', 'Optional. Extras a guest can add on top.'],
   ['Veg Type', 'Veg or Non-Veg. Leave blank if it does not apply.'],
@@ -67,8 +68,15 @@ const GUIDE_ROWS: string[][] = [
   ['', 'Cheese Slice 20, Extra Dip 20'],
   ['', 'With Ice-cream 29'],
   [''],
-  ['A DIFFERENT MARGIN FOR EACH SIZE?'],
-  ['', 'Put it after a slash. Skip it if you do not need it.'],
+  ['WHERE DO I WRITE THE MARGIN?'],
+  ['', 'In the Margin column. That is true whether or not the item has sizes.'],
+  ['', 'Margherita: Price 99, Margin 40 — you keep ₹40 on it.'],
+  ['', 'Veg Momos: no Price, Margin 25 — you keep ₹25 on Steam, and more on Fried,'],
+  ['', 'because both cost you the same to make but Fried sells for more.'],
+  ['', 'Leave Margin blank if you do not want to track it. Nothing else needs it.'],
+  [''],
+  ['Want to set the margin for each size yourself?'],
+  ['', 'Put it after a slash, inside Sizes / Choices, and leave the Margin column empty.'],
   ['', 'Small 89/50, Medium 119/60, Large 149/75'],
   ['', 'Small keeps ₹50, Medium keeps ₹60, Large keeps ₹75.'],
   [''],
@@ -85,13 +93,17 @@ export function downloadMenuTemplate(cafeName: string) {
     ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Crispy patty, lettuce and mayo'],
     ['Cheese Burger', 179, 75, '', '', 'Veg', ''],
     ['PIZZA', '', '', '', '', '', ''],
-    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
+    // Margin filled in on rows that ALSO have sizes. Leaving it blank on every
+    // such row made the Margin column look like it didn't apply to them, and
+    // "where do I write the margin?" was the first thing it prompted.
+    ['Margherita', 99, 40, '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
     ['MOMOS', '', '', '', '', '', ''],
-    ['Veg Momos', '', '', 'Steam 69, Fried 79', 'Extra Dip 20', 'Veg', ''],
+    ['Veg Momos', '', 25, 'Steam 69, Fried 79', 'Extra Dip 20', 'Veg', ''],
     ['COLD DRINKS', '', '', '', '', '', ''],
     // A café that sells by size needs to see its own case here: dropping the
     // fixed Small/Medium/Large columns otherwise reads as losing the feature.
-    ['Cold Coffee', '', '', 'Small 89, Medium 119, Large 149', 'With Ice-cream 29', 'Veg', ''],
+    // This row doubles as the one worked example of a per-size margin.
+    ['Cold Coffee', '', '', 'Small 89/50, Medium 119/60, Large 149/75', 'With Ice-cream 29', 'Veg', ''],
     ['Coca Cola', 60, 25, '', '', 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
