@@ -1,0 +1,77 @@
+name: Release desktop app
+
+# Cuts a real GitHub Release containing the Windows and macOS installers plus
+# latest.json — the file the app's updater polls. Without this workflow the
+# updater has nothing to find, which is why it never worked before.
+#
+# Triggered by pushing a tag like `desktop-v1.0.1`. Tags rather than every
+# push, because the desktop shell is a thin window over the live site: web
+# changes reach every café instantly and need no release at all. Only changes
+# under desktop/src-tauri are worth shipping this way.
+#
+# Before the first run, two repository secrets must exist:
+#   TAURI_SIGNING_PRIVATE_KEY           — from `cargo tauri signer generate`
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  — the passphrase for that key ('' if none)
+# The matching public key already lives in tauri.conf.json. If they do not
+# match, every café's updater will reject the download as unsigned.
+#
+# See docs/desktop-releases.md.
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      # Builds, signs the updater artifacts, and creates/updates one draft
+      # release shared by both platforms. latest.json is assembled from the
+      # signatures produced on each runner, so it only lists a platform once
+      # that platform's job has succeeded.
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
+          releaseName: 'KhaoPiyo Desktop __VERSION__'
+          releaseBody: |
+            Windows: download the `.msi`.
+            macOS: download the `.dmg`.
+
+            Existing installs update themselves the next time they are opened —
+            no need to download anything.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
