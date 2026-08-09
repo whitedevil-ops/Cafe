@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { printKot } from '@/components/kitchen/print-ticket'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -140,11 +141,26 @@ export default function KotPrintingPanel({
     void refresh()
   }
 
+  // Prints here and now, through this browser, so a café can confirm its
+  // printer works before service rather than discovering it during one. The
+  // old behaviour queued a job for a bridge that was never written, which
+  // meant "Test print" reliably produced nothing at all.
   async function runTestPrint(p: KotPrinter) {
-    const { error } = await supabase.rpc('test_print', { p_printer_id: p.id })
-    if (error) return toast(error.message, 'error')
-    toast(`Test page queued for ${p.name}. It prints once a bridge is connected.`)
-    void refresh()
+    await printKot({
+      kotNumber: 'TEST',
+      orderType: 'dine_in',
+      tableLabel: null,
+      placedAt: new Date().toISOString(),
+      timezone,
+      paperWidth: p.paper_width,
+      station: p.name,
+      copies: p.copies,
+      items: [
+        { qty: 1, name: 'Test ticket', modifiers: ['If you can read this, printing works'] },
+        { qty: 2, name: 'Paper width check' },
+      ],
+      orderNote: 'This is a test — nothing was ordered',
+    })
   }
 
   async function addStation() {
@@ -217,19 +233,16 @@ export default function KotPrintingPanel({
           <div>
             <h3 className="text-[13.5px] font-semibold text-foreground">Print bridge</h3>
             <p className="mt-1 max-w-lg text-[12.5px] leading-relaxed text-muted-foreground">
-              Thermal printers can&apos;t be reached directly from a browser. A small print bridge runs on the
-              café&apos;s computer, collects jobs, and sends them to the printer on your local network. No
-              cloud printing subscription.
+              Optional, and not needed to print. A bridge would let tickets print on their own with no
+              KhaoPiyo window open on the counter machine.
             </p>
-            {/* Said plainly, because the paragraph above otherwise reads as if
-                there is something to download. Pairing works and the queue
-                fills correctly — there is simply nothing on the other end yet,
-                and a café should learn that here rather than from a kitchen
-                that never printed. */}
+            {/* The bridge is genuinely optional now, so this says what a café
+                gets without one rather than apologising for a missing
+                download. */}
             <p className="mt-2 max-w-lg rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
-              The bridge program isn&apos;t released yet. Pairing below issues a token and orders will queue,
-              but nothing prints until it ships. The digital kitchen display is unaffected and needs no
-              printer.
+              You don&apos;t need this. Print KOT on the Kitchen screen prints straight from this browser to
+              any printer Windows can see. The bridge program isn&apos;t released yet; pairing below only
+              issues a token for when it is.
             </p>
 
             {tokens.length === 0 ? (
@@ -365,14 +378,6 @@ export default function KotPrintingPanel({
                             ? <><CircleCheck size={12} /> Last printed {formatDateTime(p.last_seen_at, timezone)}</>
                             : <><CircleAlert size={12} /> Not verified — nothing has printed from this device yet. Saving it only records the settings.</>}
                         </p>
-                        {/* A café that added one of these before the option was
-                            closed off would otherwise just see silence. */}
-                        {p.connection_type !== 'lan' && (
-                          <p className="mt-1 text-[11.5px] text-warning">
-                            {p.connection_type.toUpperCase()} printers aren&apos;t supported yet — this one
-                            won&apos;t receive tickets. Reconnect it over the network to use it.
-                          </p>
-                        )}
                         {p.last_error && (
                           <p className="mt-1 text-[11.5px] text-destructive">Last error: {p.last_error}</p>
                         )}
@@ -410,21 +415,20 @@ export default function KotPrintingPanel({
                     <select value={draft.connection_type}
                       onChange={(e) => setDraft({ ...draft, connection_type: e.target.value as KotPrinter['connection_type'] })}
                       className={inputCls}>
+                      {/* All three print, because none of them are reached by
+                          this app: Windows owns the connection and the browser
+                          prints to whatever it exposes. The field is kept
+                          because it is how a café thinks about its printer, and
+                          because a future bridge will need to know. */}
                       <option value="lan">LAN / Wi-Fi</option>
-                      {/* Disabled rather than hidden: the database accepts both
-                          and the job payload already carries the type, so these
-                          switch on the day a bridge implements them. Leaving
-                          them selectable let a café add a printer that could
-                          never receive a ticket, with auto-print on and no clue
-                          why the kitchen stayed silent. */}
-                      <option value="usb" disabled>USB — not supported yet</option>
-                      <option value="bluetooth" disabled>Bluetooth — not supported yet</option>
+                      <option value="usb">USB</option>
+                      <option value="bluetooth">Bluetooth</option>
                     </select>
                   </Field>
                   <p className="text-[11.5px] leading-relaxed text-muted-foreground sm:col-span-2">
-                    Only network printers work today. Give the printer a fixed IP on the café&apos;s router — it
-                    is also the connection that survives a busy service, since it does not drop when a tablet
-                    sleeps or wanders out of range.
+                    However it connects, pair or plug the printer into this computer first and install its
+                    driver, so it appears in Windows under Printers. Tickets are printed by this browser, so
+                    any printer Windows can see will work — Bluetooth included.
                   </p>
                   {draft.connection_type === 'lan' && (
                     <>

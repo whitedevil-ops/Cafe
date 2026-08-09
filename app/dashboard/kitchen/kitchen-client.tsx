@@ -70,6 +70,17 @@ export default function KitchenClient({
   const [armed, setArmed] = useState(false)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
+  // Off unless the café turns it on, and remembered per café. On by default
+  // would mean a print dialog ambushing whoever happens to open the Kitchen
+  // screen — including the owner on a laptop with no printer attached.
+  const [autoPrint, setAutoPrint] = useState(false)
+  const autoPrintKey = `kp:kds:autoprint:${cafeId}`
+
+  useEffect(() => {
+    // One-time read of a browser preference on mount, not an ongoing sync.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    try { setAutoPrint(localStorage.getItem(autoPrintKey) === '1') } catch {}
+  }, [autoPrintKey])
   const ding = useDing()
   const [cancelling, setCancelling] = useState<Order | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
@@ -128,7 +139,10 @@ export default function KitchenClient({
     if (!ords) return
 
     const fresh = ords.filter((o) => !known.current.has(o.id))
-    if (fresh.length && known.current.size > 0) ding()
+    // known is empty on the very first poll after a mount, so a page refresh
+    // mid-service neither dings nor reprints the whole board.
+    const firstLoad = known.current.size === 0
+    if (fresh.length && !firstLoad) ding()
     ords.forEach((o) => known.current.add(o.id))
     setOrders(ords as Order[])
 
@@ -137,11 +151,36 @@ export default function KitchenClient({
         .from('order_items')
         .select('id, order_id, name, qty, modifiers')
         .in('order_id', ords.map((o) => o.id))
-      if (its) setItems(its as Item[])
+      if (its) {
+        setItems(its as Item[])
+
+        // Auto-print rides on the same fetch rather than its own effect, so a
+        // ticket is only ever printed once its lines are actually in hand —
+        // printing off the orders query alone would emit blank tickets.
+        if (autoPrint && fresh.length && !firstLoad) {
+          for (const o of fresh) {
+            const lines = (its as Item[]).filter((i) => i.order_id === o.id)
+            if (lines.length === 0) continue
+            await printKot({
+              kotNumber: o.short_code,
+              tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
+              orderType: o.type,
+              placedAt: o.created_at,
+              timezone,
+              paperWidth,
+              items: lines.map((i) => ({
+                qty: i.qty,
+                name: i.name,
+                modifiers: (i.modifiers ?? []).map((m) => m.name),
+              })),
+            })
+          }
+        }
+      }
     } else {
       setItems([])
     }
-  }, [supabase, cafeId, ding])
+  }, [supabase, cafeId, ding, tableLabels, timezone, paperWidth, autoPrint])
 
   // Realtime is a supplement, not a replacement: it makes a new order or a
   // status change from another device appear instantly instead of waiting
@@ -204,11 +243,33 @@ export default function KitchenClient({
       <div className="p-5">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Kitchen</h1>
-        {!armed && (
-          <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
-            Tap to enable sound
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {printingEnabled && (
+            <button
+              onClick={() => {
+                const next = !autoPrint
+                setAutoPrint(next)
+                try { localStorage.setItem(autoPrintKey, next ? '1' : '0') } catch {}
+                toast(
+                  next
+                    ? 'New orders will print automatically while this screen stays open.'
+                    : 'Auto-print off — use Print KOT on a ticket.',
+                )
+              }}
+              aria-pressed={autoPrint}
+              className={`min-h-11 rounded-[var(--radius)] border px-4 text-sm font-medium ${
+                autoPrint ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground'
+              }`}
+            >
+              Auto-print {autoPrint ? 'on' : 'off'}
+            </button>
+          )}
+          {!armed && (
+            <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
+              Tap to enable sound
+            </button>
+          )}
+        </div>
       </header>
 
       <PrinterBanner health={printerHealth} />
