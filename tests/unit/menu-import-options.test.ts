@@ -496,6 +496,123 @@ describe('menu import — a POS export with confusing headers', () => {
   })
 })
 
+// A POS keeps discontinued dishes on file and fakes modifier groups with
+// pseudo-categories. Both have to be handled or a café migrating over launches
+// with a menu full of dead items and orderable "Add On Burger" rows.
+describe('menu import — migrating from another POS', () => {
+  it('skips rows the file marks inactive, and says how many', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price', 'IsActive'],
+      ['Pizza', 'Margherita', '99', '1'],
+      ['Pizza', 'Discontinued Pizza', '149', '0'],
+      ['Pizza', 'Old Special', '199', '0'],
+    ])
+    expect(r.skippedInactive).toBe(2)
+    expect(r.byCategory[0].items.map((i) => i.name)).toEqual(['Margherita'])
+  })
+
+  it('keeps a row whose active cell is blank', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price', 'IsActive'],
+      ['Pizza', 'Margherita', '99', ''],
+    ])
+    expect(r.skippedInactive).toBe(0)
+    expect(r.totalItems).toBe(1)
+  })
+
+  it('never mistakes "Platform Status" for the active flag', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price', 'Platform Status'],
+      ['Pizza', 'Margherita', '99', '0'],
+    ])
+    expect(r.skippedInactive).toBe(0)
+    expect(r.totalItems).toBe(1)
+  })
+
+  it('folds an "Add On Burger" category into the burgers as extras', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Burger', 'Classic OG Burger', '49'],
+      ['Burger', 'Korean Burger', '69'],
+      ['Add On Burger', 'Cheese Slice', '20'],
+      ['Add On Burger', 'Cheese Injector', '30'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['Burger'])
+    for (const item of r.byCategory[0].items) {
+      expect(item.addons).toEqual([
+        { name: 'Cheese Slice', price: 20 },
+        { name: 'Cheese Injector', price: 30 },
+      ])
+    }
+    expect(r.foldedAddonGroups).toEqual([{ name: 'Add On Burger', target: 'Burger', addons: 2, items: 2 }])
+  })
+
+  it('handles "Choice of X" and free options the same way', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Mojito', 'Virgin Mojito', '149'],
+      ['Choice of Mojito', 'Spicy Devil', '0'],
+      ['Choice of Mojito', 'Strawberry', '0'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['Mojito'])
+    expect(r.byCategory[0].items[0].addons).toEqual([
+      { name: 'Spicy Devil', price: 0 },
+      { name: 'Strawberry', price: 0 },
+    ])
+  })
+
+  it('matches a plural pseudo-category to a singular one', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Wrap', 'Veggie Wrap', '159'],
+      ['Add On Wraps', 'Cheese', '30'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['Wrap'])
+    expect(r.byCategory[0].items[0].addons).toEqual([{ name: 'Cheese', price: 30 }])
+  })
+
+  it('tolerates a typo in the pseudo-category name', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Cold Coffee', 'Strong Cold Coffee', '69'],
+      ['Add on cold coffe', 'With Chocolate ice cream', '30'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['Cold Coffee'])
+    expect(r.byCategory[0].items[0].addons).toEqual([{ name: 'With Chocolate ice cream', price: 30 }])
+  })
+
+  it('prefers an exact category over a near-matching one', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Pizza Mania', 'Mania Special', '79'],
+      ['Pizza', 'Margherita', '99'],
+      ['Add On Pizza', 'Extra Cheese', '40'],
+    ])
+    const by = Object.fromEntries(r.byCategory.map((c) => [c.name, c]))
+    expect(by['Pizza'].items[0].addons).toEqual([{ name: 'Extra Cheese', price: 40 }])
+    expect(by['Pizza Mania'].items[0].addons).toEqual([])
+  })
+
+  it('leaves the group alone when no matching category exists, rather than dropping it', () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price'],
+      ['Pizza', 'Margherita', '99'],
+      ['Add On Shawarma', 'Extra Sauce', '20'],
+    ])
+    expect(r.byCategory.map((c) => c.name)).toEqual(['Pizza', 'Add On Shawarma'])
+    expect(r.foldedAddonGroups).toEqual([])
+  })
+
+  it("does not overwrite an add-on the item already states for itself", () => {
+    const r = parseMenuFile([
+      ['Category', 'Title', 'Base Item Price', 'Add-ons'],
+      ['Burger', 'Classic OG Burger', '49', 'Cheese Slice 99'],
+      ['Add On Burger', 'Cheese Slice', '20'],
+    ])
+    expect(r.byCategory[0].items[0].addons).toEqual([{ name: 'Cheese Slice', price: 99 }])
+  })
+})
+
 describe('menu import — backward compatibility', () => {
   it('still reads a sheet that only has Small/Medium/Large columns', () => {
     const r = parseMenuFile([

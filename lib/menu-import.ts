@@ -41,6 +41,10 @@ export type ParseResult = {
   totalItems: number
   updateCount: number
   insertCount: number
+  /** Rows the file itself marks as inactive, left out of the import. */
+  skippedInactive: number
+  /** "Add On Burger" style categories folded into the add-ons of a real category. */
+  foldedAddonGroups: { name: string; target: string; addons: number; items: number }[]
 }
 
 function normalize(s: unknown): string {
@@ -206,6 +210,14 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h))
   // POS exports label this "Food Type" and fill it with Veg / Non-veg.
   const vegCol = findColumn(header, (h) => h.includes('veg') || h.trim() === 'food type')
+  // A POS keeps discontinued dishes on file with an inactive flag — the Zorko
+  // export carries 245 of them among 410 rows. Importing those would launch a
+  // café with a menu two-thirds full of things it no longer sells. Matched on
+  // exact header names so "Platform Status" and the like can't be mistaken for
+  // it, and only an explicitly false value skips a row; blank means keep.
+  const activeCol = findColumn(header, exactly('isactive', 'is active', 'active', 'enabled'))
+  const FALSEY = ['0', 'false', 'no', 'n', 'inactive', 'disabled', 'off']
+  const isInactive = (raw: unknown) => activeCol !== -1 && FALSEY.includes(normalize(raw).toLowerCase())
   const descCol = findColumn(header, (h) => h.includes('desc'))
   // The generic option columns. "Choices" replaced the fixed
   // Small/Medium/Large columns because a café's sizes are its own —
@@ -399,6 +411,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const order: string[] = []
   const seenCategory = new Set<string>()
   let currentCategory: string | null = null
+  let skippedInactive = 0
 
   function noteCategory(name: string) {
     if (!seenCategory.has(name)) {
@@ -412,6 +425,10 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     const cell = (idx: number) => cellAt(raw, idx)
     const allBlank = raw.every((c) => normalize(c) === '')
     if (allBlank) return // blank rows are silently ignored, as specified
+    if (isInactive(cell(activeCol))) {
+      skippedInactive++
+      return
+    }
 
     // Add-ons carry no cost of their own — menu_item_addons stores a name and a
     // price and nothing else — so a "/margin" suffix here has nowhere to go.
@@ -574,13 +591,69 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     itemsByCategory.set(lead.category, list)
   }
 
+  // ── "Add On Burger" categories → add-ons on the burgers ────────────────────
+  // A POS with no modifier concept fakes one with a pseudo-category: Petpooja's
+  // export has 21 of them ("Add On Burger", "Add On Maggi", "Choice of Mojito")
+  // holding 62 rows. Imported literally, a guest sees a category called "Add On
+  // Burger" and can order a ₹20 cheese slice on its own.
+  //
+  // They fold into the add-ons of every item in the category they name. Only
+  // when that category actually exists — otherwise the rows stay as items,
+  // because dropping a café's data on a guess is worse than an odd category.
+  const ADDON_CATEGORY = /^(?:add[\s-]?ons?|choice of|choose)\s+(.+)$/i
+  const norm = (s: string) => s.trim().toLowerCase()
+  const singular = (s: string) => norm(s).replace(/s$/, '')
+  const foldedAddonGroups: ParseResult['foldedAddonGroups'] = []
+
+  for (const catName of [...order]) {
+    const m = catName.match(ADDON_CATEGORY)
+    const source = itemsByCategory.get(catName)
+    if (!m || !source?.length) continue
+
+    const wanted = m[1]
+    const candidates = [...itemsByCategory.keys()].filter((k) => k !== catName && !ADDON_CATEGORY.test(k))
+    // Exact (then singular/plural) before anything looser, so a near-match can
+    // never beat a real one.
+    const target =
+      candidates.find((k) => norm(k) === norm(wanted)) ??
+      candidates.find((k) => singular(k) === singular(wanted)) ??
+      // One name being a prefix of the other catches the typos these files are
+      // full of — this very export has "Add on cold coffe" against a "Cold
+      // Coffee" category. Length-guarded so short words can't collide.
+      candidates.find((k) => {
+        const [a, b] = [norm(k), norm(wanted)]
+        return Math.min(a.length, b.length) >= 5 && (a.startsWith(b) || b.startsWith(a))
+      })
+    if (!target) continue
+
+    const extras = source.map((i) => ({ name: i.name, price: i.price }))
+    const targetItems = itemsByCategory.get(target)!
+    for (const item of targetItems) {
+      const have = new Set(item.addons.map((a) => a.name.toLowerCase()))
+      // An add-on the item already names wins — it was stated about that item
+      // specifically, where these apply to the whole category.
+      item.addons = [...item.addons, ...extras.filter((e) => !have.has(e.name.toLowerCase()))]
+    }
+    itemsByCategory.delete(catName)
+    foldedAddonGroups.push({ name: catName, target, addons: extras.length, items: targetItems.length })
+  }
+
   const byCategory = order
     .filter((name) => (itemsByCategory.get(name) ?? []).length > 0)
     .map((name) => ({ name, items: itemsByCategory.get(name)! }))
 
   const totalItems = byCategory.reduce((s, c) => s + c.items.length, 0)
 
-  return { format: isFlat ? 'flat' : 'heading', byCategory, issues, totalItems, updateCount: 0, insertCount: 0 }
+  return {
+    format: isFlat ? 'flat' : 'heading',
+    byCategory,
+    issues,
+    totalItems,
+    updateCount: 0,
+    insertCount: 0,
+    skippedInactive,
+    foldedAddonGroups,
+  }
 }
 
 // Cross-references parsed items against the café's current menu so the preview

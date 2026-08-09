@@ -463,6 +463,36 @@ export default function BulkImportPanel({
                 {result.updateCount > 0 ? `, ${result.updateCount} will be updated` : ''}
               </div>
 
+              {/* Anything the importer decided on the owner's behalf is stated
+                  before they press Import, never silently. */}
+              {(result.skippedInactive > 0 || result.foldedAddonGroups.length > 0) && (
+                <div className="mt-3 rounded-[var(--radius)] border border-border-strong bg-surface-subtle px-3 py-2.5 text-[12.5px] text-muted-foreground">
+                  {result.skippedInactive > 0 && (
+                    <p>
+                      <b className="text-foreground">{result.skippedInactive} row{result.skippedInactive === 1 ? '' : 's'} skipped</b> —
+                      your file marks them inactive, so they aren&apos;t brought across.
+                    </p>
+                  )}
+                  {result.foldedAddonGroups.length > 0 && (
+                    <div className={result.skippedInactive > 0 ? 'mt-1.5' : ''}>
+                      <p>
+                        <b className="text-foreground">{result.foldedAddonGroups.length} add-on group
+                        {result.foldedAddonGroups.length === 1 ? '' : 's'}</b> turned into extras on the items they belong to,
+                        instead of separate menu items:
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {result.foldedAddonGroups.map((g) => (
+                          <li key={g.name}>
+                            “{g.name}” → {g.addons} extra{g.addons === 1 ? '' : 's'} on {g.items} {g.target} item
+                            {g.items === 1 ? '' : 's'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {result.issues.length > 0 && (
                 <div className="mt-3 rounded-[var(--radius)] border border-warning bg-warning-subtle px-3 py-2.5">
                   <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-warning">
