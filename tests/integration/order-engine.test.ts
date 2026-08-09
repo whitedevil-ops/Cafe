@@ -80,15 +80,24 @@ describe('order engine — live integration against the Brewora demo café', () 
     if (tables.length < 2) throw new Error('Need at least 2 seeded tables for these tests.')
     tableTokens = tables.map((t: { token: string }) => t.token)
 
+    // Pick the Cappuccino that actually carries the fixture's variant, not
+    // simply the first one returned. A real café accumulates duplicate names
+    // over time — Brewora has two Cappuccinos, only one of them sized — and
+    // depending on row order made this fail for reasons unrelated to the code
+    // under test.
     const items = await rest(`menu_items?select=id,price&cafe_id=eq.${cafeId}&name=eq.Cappuccino`)
     if (!items[0]) throw new Error('Cappuccino not found in the demo menu — has the seed changed?')
-    cappuccinoId = items[0].id
-    basePrice = items[0].price
 
-    const variants = await rest(`menu_item_variants?select=id,price_delta&menu_item_id=eq.${cappuccinoId}&name=eq.Large`)
+    const ids = (items as { id: string; price: number }[]).map((i) => i.id)
+    const variants = await rest(
+      `menu_item_variants?select=id,price_delta,menu_item_id&menu_item_id=in.(${ids.join(',')})&name=eq.Large`,
+    )
     if (!variants[0]) throw new Error('Large Cappuccino variant not found.')
     largeVariantId = variants[0].id
     largeDelta = variants[0].price_delta
+
+    cappuccinoId = variants[0].menu_item_id
+    basePrice = (items as { id: string; price: number }[]).find((i) => i.id === cappuccinoId)!.price
 
     const addons = await rest(`menu_item_addons?select=id,price&menu_item_id=eq.${cappuccinoId}&name=eq.Extra%20Espresso%20Shot`)
     if (!addons[0]) throw new Error('Extra Espresso Shot add-on not found.')

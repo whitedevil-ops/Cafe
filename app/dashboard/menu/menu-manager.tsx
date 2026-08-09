@@ -28,7 +28,12 @@ type ItemDraft = {
   description: string
   category_id: string | null
   price: string
-  cost: string
+  /**
+   * The ₹ kept on one, not what it costs to make. The database stores cost,
+   * so this converts on load and save — the same swap the menu sheet and the
+   * size rows already made, so an owner is never asked both questions.
+   */
+  margin: string
   cost_source: 'manual' | 'recipe'
   image_url: string | null
   available: boolean
@@ -53,7 +58,7 @@ const emptyDraft: ItemDraft = {
   description: '',
   category_id: null,
   price: '',
-  cost: '',
+  margin: '',
   cost_source: 'manual',
   image_url: null,
   available: true,
@@ -243,17 +248,38 @@ export default function MenuManager({
     const price = Math.round(Number(draft.price))
     if (!name) return setError('Item name is required.')
     if (!Number.isFinite(price) || price < 0) return setError('Enter a valid price in rupees.')
+    // Refuse rather than clamp: silently storing a cost of 0 would quietly
+    // report this item as pure profit in every report.
+    if (canSeeCost && draft.cost_source === 'manual' && draft.margin.trim() !== '') {
+      const m = Math.round(Number(draft.margin))
+      if (!Number.isFinite(m) || m < 0) return setError('Enter a valid margin in rupees.')
+      if (m > price) return setError("Margin can't be more than the selling price.")
+    }
+    for (const v of draft.variants) {
+      if (!v.name.trim() || v.margin.trim() === '') continue
+      const vp = Math.round(Number(v.price) || 0)
+      const vm = Math.round(Number(v.margin))
+      if (!Number.isFinite(vm) || vm < 0 || vm > vp) {
+        return setError(`"${v.name.trim()}" — margin can't be more than its price.`)
+      }
+    }
 
     setBusy(true)
     setError(null)
     // Only owner/manager may set cost; for others omit the fields entirely so
     // an update can never blank an existing cost.
+    // Margin back to the cost the column actually holds. Clamped to the price
+    // so a slip can't store a negative cost.
+    const marginToCost = () => {
+      const m = Math.max(0, Math.round(Number(draft.margin) || 0))
+      return Math.max(0, price - m)
+    }
     const costPatch = canSeeCost
       ? {
           cost_source: draft.cost_source,
           cost:
-            draft.cost_source === 'manual' && draft.cost.trim() !== ''
-              ? Math.max(0, Math.round(Number(draft.cost)))
+            draft.cost_source === 'manual' && draft.margin.trim() !== ''
+              ? marginToCost()
               : draft.cost_source === 'manual'
                 ? null
                 : undefined, // 'recipe' → leave the stored manual cost untouched
@@ -336,9 +362,9 @@ export default function MenuManager({
     const baseCost =
       d.cost_source === 'recipe'
         ? (d.effectiveCost ?? 0)
-        : d.cost.trim() === ''
+        : d.margin.trim() === ''
           ? 0
-          : Math.round(Number(d.cost) || 0)
+          : Math.max(0, basePrice - Math.round(Number(d.margin) || 0))
     const variants = d.variants
       .filter((v) => v.name.trim())
       .map((v, i) => ({
@@ -372,7 +398,7 @@ export default function MenuManager({
       description: item.description ?? '',
       category_id: item.category_id,
       price: String(item.price),
-      cost: item.cost != null ? String(item.cost) : '',
+      margin: item.cost != null ? String(item.price - item.cost) : '',
       cost_source: item.cost_source ?? 'manual',
       image_url: item.image_url,
       available: item.available,
@@ -823,7 +849,7 @@ export default function MenuManager({
                           draft.cost_source === src ? 'bg-primary-subtle text-primary' : 'text-muted-foreground'
                         }`}
                       >
-                        {src === 'manual' ? 'Manual cost' : 'Recipe calculated'}
+                        {src === 'manual' ? 'I know my margin' : 'Recipe calculated'}
                       </button>
                     ))}
                   </div>
@@ -831,40 +857,49 @@ export default function MenuManager({
                   {draft.cost_source === 'manual' ? (
                     <div className="mt-3">
                       <Input
-                        label="Estimated cost (₹)"
+                        label="Margin (₹)"
                         type="number"
                         inputMode="numeric"
                         min={0}
-                        value={draft.cost}
-                        onChange={(e) => setDraft({ ...draft, cost: e.target.value })}
-                        hint="What it costs you to make one. Used only in Profitability."
+                        value={draft.margin}
+                        onChange={(e) => setDraft({ ...draft, margin: e.target.value })}
+                        hint="What you keep on one. Optional, and only you ever see it."
                       />
                     </div>
                   ) : (
                     <p className="mt-3 rounded-[var(--radius)] bg-surface px-3 py-2 text-[12.5px] text-muted-foreground">
-                      Cost is calculated from this item&apos;s recipe on the <span className="font-medium text-foreground">Recipes</span> page.
+                      Margin is worked out from this item&apos;s recipe on the <span className="font-medium text-foreground">Recipes</span> page.
                     </p>
                   )}
 
                   {(() => {
-                    const p = Number(draft.price) || 0
-                    const c = draft.cost_source === 'manual' ? Number(draft.cost) || 0 : null
-                    if (draft.cost_source !== 'manual' || draft.cost.trim() === '' || p <= 0) return null
-                    const contrib = p - (c ?? 0)
-                    const margin = p > 0 ? (contrib * 100) / p : 0
+                    const p = Math.round(Number(draft.price) || 0)
+                    if (draft.cost_source !== 'manual' || draft.margin.trim() === '' || p <= 0) return null
+                    // The two figures an owner didn't type: what it therefore
+                    // costs to make, and the margin as a percentage.
+                    const kept = Math.round(Number(draft.margin) || 0)
+                    const cost = p - kept
+                    const pct = (kept * 100) / p
                     return (
                       <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                         <div className="rounded-[var(--radius)] bg-surface p-2">
-                          <p className="text-[11px] text-muted-foreground">Gross contribution</p>
-                          <p className={`text-[15px] font-semibold ${contrib < 0 ? 'text-destructive' : 'text-success'}`}>₹{contrib}</p>
+                          <p className="text-[11px] text-muted-foreground">Costs you to make</p>
+                          <p className={`text-[15px] font-semibold ${cost < 0 ? 'text-destructive' : 'text-foreground'}`}>₹{cost}</p>
                         </div>
                         <div className="rounded-[var(--radius)] bg-surface p-2">
-                          <p className="text-[11px] text-muted-foreground">Contribution margin</p>
-                          <p className={`text-[15px] font-semibold ${margin < 0 ? 'text-destructive' : 'text-foreground'}`}>{margin.toFixed(1)}%</p>
+                          <p className="text-[11px] text-muted-foreground">Margin</p>
+                          <p className={`text-[15px] font-semibold ${pct < 0 ? 'text-destructive' : 'text-success'}`}>{pct.toFixed(1)}%</p>
                         </div>
                       </div>
                     )
                   })()}
+                  {draft.cost_source === 'manual' &&
+                    draft.margin.trim() !== '' &&
+                    Math.round(Number(draft.margin) || 0) > Math.round(Number(draft.price) || 0) && (
+                      <p className="mt-2 text-[12px] text-destructive">
+                        Margin can&apos;t be more than the selling price.
+                      </p>
+                    )}
                 </div>
               )}
 
