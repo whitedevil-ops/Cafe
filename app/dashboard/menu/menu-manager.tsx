@@ -552,6 +552,7 @@ export default function MenuManager({
       {manageCombos && (
         <CombosPanel
           cafeId={cafeId}
+          cafeName={cafeName}
           canManage={canSeeCost}
           categories={categories}
           items={items}

@@ -79,6 +79,73 @@ export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
   download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))
 }
 
+export type ComboExportRow = {
+  combo: string
+  comboPrice: number
+  active: boolean
+  /** The slot's label as printed on the menu board — "Any Pizza". */
+  label: string
+  kind: 'fixed' | 'choice'
+  /** Item name for a fixed slot; category name for a choice slot. */
+  target: string
+  size: string | null
+  qty: number
+  /** Unit price for a fixed slot. Null for a choice — it varies by pick. */
+  unitPrice: number | null
+}
+
+// One row per combo row (slot), with the combo's own name/price repeated —
+// the same flat shape as the menu export, for the same reason: an owner can
+// sort and filter it in Excel without the grouping falling apart.
+//
+// Export only, deliberately: a combo's rows reference specific menu items and
+// categories by identity, so a re-import would have to resolve names back to
+// ids and silently guess when one didn't match. Building a combo is a handful
+// of dropdowns in Menu → Combos; the spreadsheet is for reviewing pricing and
+// sharing it, not for round-tripping.
+export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
+  const header = ['Combo', 'Combo Price', 'Status', 'Includes', 'Type', 'Item / Category', 'Size', 'Qty', 'Unit Price', 'Line Total']
+  const body = rows.map((r) => [
+    safeText(r.combo),
+    r.comboPrice,
+    r.active ? 'Live' : 'Off',
+    safeText(r.label),
+    r.kind === 'fixed' ? 'Specific item' : 'Guest chooses',
+    safeText(r.target),
+    safeText(r.size ?? ''),
+    r.qty,
+    r.unitPrice ?? '',
+    r.unitPrice != null ? r.unitPrice * r.qty : '',
+  ])
+
+  // Per-combo parts total vs. the combo price — the number an owner actually
+  // wants from this sheet ("what am I giving away?"). Only counts fixed rows;
+  // a choice row's price depends on what the guest picks.
+  const totals = new Map<string, { price: number; fixed: number; hasChoice: boolean }>()
+  for (const r of rows) {
+    const t = totals.get(r.combo) ?? { price: r.comboPrice, fixed: 0, hasChoice: false }
+    if (r.unitPrice != null) t.fixed += r.unitPrice * r.qty
+    else t.hasChoice = true
+    totals.set(r.combo, t)
+  }
+  const summary: (string | number)[][] = [
+    [],
+    ['Combo', 'Combo Price', 'Fixed items cost', 'Note'],
+    ...[...totals.entries()].map(([name, t]) => [
+      safeText(name),
+      t.price,
+      t.fixed,
+      t.hasChoice ? 'Plus whatever the guest chooses' : `Saving vs. separately: ₹${Math.max(0, t.fixed - t.price)}`,
+    ]),
+  ]
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...body, ...summary])
+  ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 8 }, { wch: 24 }, { wch: 15 }, { wch: 26 }, { wch: 10 }, { wch: 6 }, { wch: 11 }, { wch: 11 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Combos')
+  download(wb, `${cafeName || 'cafe'}-combos.xlsx`.replace(/\s+/g, '-'))
+}
+
 // Reads an uploaded .csv or .xlsx File into a plain array-of-arrays, the input
 // shape parseMenuFile expects — one place that understands the file format,
 // so the parser itself stays format-agnostic.

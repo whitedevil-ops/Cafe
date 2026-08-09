@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Package, Trash2 } from 'lucide-react'
+import { Package, Trash2, Download } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { downloadCombosExport, type ComboExportRow } from '@/lib/menu-workbook'
 import type { Combo, ComboSlot } from '@/lib/combos'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -38,6 +39,7 @@ const SELECT_CLS =
 
 export default function CombosPanel({
   cafeId,
+  cafeName,
   canManage,
   categories,
   items,
@@ -46,6 +48,7 @@ export default function CombosPanel({
   initialSlots,
 }: {
   cafeId: string
+  cafeName: string
   canManage: boolean
   categories: MenuCategory[]
   items: MenuItemRow[]
@@ -165,6 +168,32 @@ export default function CombosPanel({
     toast(draft.id ? 'Combo updated.' : `Combo "${saved.name}" created.`)
   }
 
+  function exportToExcel() {
+    const rows: ComboExportRow[] = []
+    for (const c of combos) {
+      for (const s of slotsOfCombo(c.id)) {
+        const item = s.menu_item_id ? itemById.get(s.menu_item_id) : null
+        const variant = s.variant_id ? variants.find((v) => v.id === s.variant_id) : null
+        rows.push({
+          combo: c.name,
+          comboPrice: c.price,
+          active: c.active,
+          label: s.label,
+          kind: s.kind,
+          target:
+            s.kind === 'fixed'
+              ? (item?.name ?? '(item removed)')
+              : (catById.get(s.category_id ?? '')?.name ?? '(category removed)'),
+          size: variant?.name ?? null,
+          qty: s.qty,
+          unitPrice: s.kind === 'fixed' && item ? item.price + (variant?.price_delta ?? 0) : null,
+        })
+      }
+    }
+    if (rows.length === 0) return toast('Nothing to export yet — create a combo first.', 'error')
+    downloadCombosExport(cafeName, rows)
+  }
+
   async function toggleActive(c: Combo) {
     setCombos((list) => list.map((x) => (x.id === c.id ? { ...x, active: !x.active } : x)))
     const { error: err } = await supabase.rpc('set_combo_active', { p_combo_id: c.id, p_active: !c.active })
@@ -199,7 +228,14 @@ export default function CombosPanel({
             choices you allow, and the kitchen still gets each item as its own ticket line.
           </p>
         </div>
-        {canManage && <Button size="sm" onClick={openNew}>Add combo</Button>}
+        <div className="flex shrink-0 gap-2">
+          {combos.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={exportToExcel}>
+              <Download size={14} /> Export
+            </Button>
+          )}
+          {canManage && <Button size="sm" onClick={openNew}>Add combo</Button>}
+        </div>
       </div>
 
       {combos.length === 0 ? (
