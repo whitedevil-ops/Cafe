@@ -496,7 +496,7 @@ export default function BulkImportPanel({
                           {it.addons.length > 0 && (
                             <span className="text-[12px]">
                               {' · '}
-                              {it.addons.map((a) => `+${a.name} ₹${a.price}`).join(', ')}
+                              {it.addons.map((a) => (a.price > 0 ? `+${a.name} ₹${a.price}` : `+${a.name} free`)).join(', ')}
                             </span>
                           )}
                         </li>

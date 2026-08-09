@@ -104,13 +104,32 @@ export type ParsedOption = { name: string; price: number; margin: number | null 
 //
 // Entries split on comma, semicolon, or newline — a newline because Alt+Enter
 // inside a cell is how an owner naturally lists several, and Excel keeps it.
-export function parseOptionList(raw: unknown, row: number, label: string, issues: ImportIssue[]): ParsedOption[] {
+export function parseOptionList(
+  raw: unknown,
+  row: number,
+  label: string,
+  issues: ImportIssue[],
+  /** Add-ons may be free — a pizza's "Onion / Corn / Capsicum" costs nothing. */
+  { allowFree = false }: { allowFree?: boolean } = {},
+): ParsedOption[] {
   const cell = text(raw)
   if (!cell) return []
+  // A menu board separates free choices with slashes — "Onion / Corn / Tomato"
+  // — so a slash is another separator, EXCEPT between two digits where it's the
+  // margin suffix ("Small 89/50"). Done without lookbehind so it still works on
+  // older Safari.
+  const flattened = cell.replace(/(\d?)\s*\/\s*(\d?)/g, (m, before, after) => (before && after ? m : `${before},${after}`))
   const out: ParsedOption[] = []
-  for (const entry of cell.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)) {
+  for (const entry of flattened.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)) {
     const m = entry.match(/^(.+?)[\s:–—-]*[+@]?\s*₹?\s*(\d+(?:\.\d+)?)(?:\s*\/\s*₹?\s*(\d+(?:\.\d+)?))?$/)
     if (!m) {
+      // A name with no price is a free extra — the toppings a pizza lets you
+      // choose at no charge. Only add-ons can be free; a size with no price
+      // would just be a mistake, so there it still reads as an error.
+      if (allowFree) {
+        out.push({ name: entry, price: 0, margin: null })
+        continue
+      }
       issues.push({ row, message: `"${label}" — couldn't read "${entry}". Write each one as Name Price, e.g. "Steam 69".` })
       continue
     }
@@ -379,7 +398,7 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     // Add-ons carry no cost of their own — menu_item_addons stores a name and a
     // price and nothing else — so a "/margin" suffix here has nowhere to go.
     const readAddons = (label: string) => {
-      const opts = parseOptionList(cell(addonsCol), rowNum, label, issues)
+      const opts = parseOptionList(cell(addonsCol), rowNum, label, issues, { allowFree: true })
       for (const o of opts) {
         if (o.margin !== null) {
           issues.push({ row: rowNum, message: `"${label}" — margin on the add-on "${o.name}" isn't tracked, ignored.` })

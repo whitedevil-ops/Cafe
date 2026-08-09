@@ -141,7 +141,11 @@ function optionCell(opts: { name: string; price: number; cost?: number | null }[
       // Names are user text going into a cell the importer re-splits, so a
       // comma inside one would silently fork it into two options. Swapping it
       // for a space is lossy but harmless; losing the option isn't.
-      const name = o.name.replace(/[,;\n]/g, ' ').replace(/\s+/g, ' ').trim()
+      // A slash inside a name would re-split on import too, since a menu board
+      // writes free choices as "Onion / Corn".
+      const name = o.name.replace(/[,;\n/]/g, ' ').replace(/\s+/g, ' ').trim()
+      // A free extra exports as just its name, which is how it was typed.
+      if (o.price === 0 && margin == null) return name
       return margin != null ? `${name} ${o.price}/${margin}` : `${name} ${o.price}`
     })
     .join(', ')

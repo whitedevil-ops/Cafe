@@ -1109,7 +1109,10 @@ function Customizer({
                       />
                       {a.name}
                     </span>
-                    <span className="text-muted-foreground">+₹{a.price}</span>
+                    {/* Free extras (a pizza's toppings) read as "Free", not "+₹0". */}
+                    <span className={a.price > 0 ? 'text-muted-foreground' : 'text-success'}>
+                      {a.price > 0 ? `+₹${a.price}` : 'Free'}
+                    </span>
                   </label>
                 ))}
               </div>

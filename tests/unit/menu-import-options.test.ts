@@ -237,6 +237,52 @@ describe('menu import — Add-ons column', () => {
     expect(item('').addons).toEqual([])
   })
 
+  // A pizza that lets you pick a topping at no charge. The menu board writes
+  // the list with slashes and no prices, and that has to import as-is.
+  it('reads a price-less add-on as a free extra', () => {
+    expect(item('Onion / Corn / Capsicum / Tomato').addons).toEqual([
+      { name: 'Onion', price: 0 },
+      { name: 'Corn', price: 0 },
+      { name: 'Capsicum', price: 0 },
+      { name: 'Tomato', price: 0 },
+    ])
+  })
+
+  it('raises no issue for a free list', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Add-ons'],
+      ['PIZZA', 'Veg Pizza Mania Single Topping', '79', 'Onion / Corn / Capsicum / Tomato'],
+    ])
+    expect(r.issues).toEqual([])
+  })
+
+  it('mixes free and paid extras in one cell', () => {
+    expect(item('Onion / Corn, Cheese Slice 20').addons).toEqual([
+      { name: 'Onion', price: 0 },
+      { name: 'Corn', price: 0 },
+      { name: 'Cheese Slice', price: 20 },
+    ])
+  })
+
+  it('still treats a slash between two numbers as a margin, not a separator', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Size / Choice', 'Price', 'Margin'],
+      ['DRINKS', 'Cold Coffee', 'Small', '89', '50'],
+    ])
+    expect(r.issues).toEqual([])
+    const list = parseOptionList('Small 89/50, Large 149/75', 2, 'x', [])
+    expect(list).toEqual([
+      { name: 'Small', price: 89, margin: 50 },
+      { name: 'Large', price: 149, margin: 75 },
+    ])
+  })
+
+  it('does not invent a free size — a size with no price is still an error', () => {
+    const issues: ImportIssue[] = []
+    expect(parseOptionList('Small, Large', 2, 'Cold Coffee', issues)).toEqual([])
+    expect(issues).toHaveLength(2)
+  })
+
   it('flags a margin on an add-on, since add-ons store no cost', () => {
     const r = parseMenuFile([
       ['Category', 'Item', 'Price', 'Add-ons (extras)'],

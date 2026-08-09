@@ -152,7 +152,11 @@ export function ItemSheet({
                         />
                         {a.name}
                       </span>
-                      <span className="shrink-0 font-medium text-muted-foreground">+₹{a.price}</span>
+                      {/* A free extra — a pizza's choice of toppings — reads as
+                          "Free", never "+₹0". */}
+                      <span className={`shrink-0 font-medium ${a.price > 0 ? 'text-muted-foreground' : 'text-success'}`}>
+                        {a.price > 0 ? `+₹${a.price}` : 'Free'}
+                      </span>
                     </label>
                   ))}
                 </div>
