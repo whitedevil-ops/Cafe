@@ -143,7 +143,7 @@ export default function KotPrintingPanel({
   async function runTestPrint(p: KotPrinter) {
     const { error } = await supabase.rpc('test_print', { p_printer_id: p.id })
     if (error) return toast(error.message, 'error')
-    toast(`Test page queued for ${p.name}. It prints when the bridge next polls.`)
+    toast(`Test page queued for ${p.name}. It prints once a bridge is connected.`)
     void refresh()
   }
 
@@ -217,9 +217,19 @@ export default function KotPrintingPanel({
           <div>
             <h3 className="text-[13.5px] font-semibold text-foreground">Print bridge</h3>
             <p className="mt-1 max-w-lg text-[12.5px] leading-relaxed text-muted-foreground">
-              Thermal printers can&apos;t be reached directly from a browser. A small KhaoPiyo Print Bridge
-              runs on the café&apos;s computer, collects jobs, and sends them to the printer on your local
-              network. No cloud printing subscription.
+              Thermal printers can&apos;t be reached directly from a browser. A small print bridge runs on the
+              café&apos;s computer, collects jobs, and sends them to the printer on your local network. No
+              cloud printing subscription.
+            </p>
+            {/* Said plainly, because the paragraph above otherwise reads as if
+                there is something to download. Pairing works and the queue
+                fills correctly — there is simply nothing on the other end yet,
+                and a café should learn that here rather than from a kitchen
+                that never printed. */}
+            <p className="mt-2 max-w-lg rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
+              The bridge program isn&apos;t released yet. Pairing below issues a token and orders will queue,
+              but nothing prints until it ships. The digital kitchen display is unaffected and needs no
+              printer.
             </p>
 
             {tokens.length === 0 ? (
@@ -343,6 +353,26 @@ export default function KotPrintingPanel({
                           {' · '}{p.copies} cop{p.copies === 1 ? 'y' : 'ies'}
                           {p.auto_print ? ' · Auto print' : ' · Manual only'}
                         </p>
+                        {/* Adding a printer only writes down its settings — a
+                            browser cannot reach a thermal printer to check that
+                            anything is there, which is the whole reason the
+                            bridge exists. So say so, rather than letting a
+                            saved row imply a working connection. last_seen_at
+                            is stamped by /api/print/report, so it means a job
+                            genuinely came out. */}
+                        <p className={`mt-1 flex items-center gap-1.5 text-[11.5px] ${p.last_seen_at ? 'text-success' : 'text-muted-foreground'}`}>
+                          {p.last_seen_at
+                            ? <><CircleCheck size={12} /> Last printed {formatDateTime(p.last_seen_at, timezone)}</>
+                            : <><CircleAlert size={12} /> Not verified — nothing has printed from this device yet. Saving it only records the settings.</>}
+                        </p>
+                        {/* A café that added one of these before the option was
+                            closed off would otherwise just see silence. */}
+                        {p.connection_type !== 'lan' && (
+                          <p className="mt-1 text-[11.5px] text-warning">
+                            {p.connection_type.toUpperCase()} printers aren&apos;t supported yet — this one
+                            won&apos;t receive tickets. Reconnect it over the network to use it.
+                          </p>
+                        )}
                         {p.last_error && (
                           <p className="mt-1 text-[11.5px] text-destructive">Last error: {p.last_error}</p>
                         )}
@@ -381,10 +411,21 @@ export default function KotPrintingPanel({
                       onChange={(e) => setDraft({ ...draft, connection_type: e.target.value as KotPrinter['connection_type'] })}
                       className={inputCls}>
                       <option value="lan">LAN / Wi-Fi</option>
-                      <option value="usb">USB (via bridge)</option>
-                      <option value="bluetooth">Bluetooth (experimental)</option>
+                      {/* Disabled rather than hidden: the database accepts both
+                          and the job payload already carries the type, so these
+                          switch on the day a bridge implements them. Leaving
+                          them selectable let a café add a printer that could
+                          never receive a ticket, with auto-print on and no clue
+                          why the kitchen stayed silent. */}
+                      <option value="usb" disabled>USB — not supported yet</option>
+                      <option value="bluetooth" disabled>Bluetooth — not supported yet</option>
                     </select>
                   </Field>
+                  <p className="text-[11.5px] leading-relaxed text-muted-foreground sm:col-span-2">
+                    Only network printers work today. Give the printer a fixed IP on the café&apos;s router — it
+                    is also the connection that survives a busy service, since it does not drop when a tablet
+                    sleeps or wanders out of range.
+                  </p>
                   {draft.connection_type === 'lan' && (
                     <>
                       <Field label="IP address">
