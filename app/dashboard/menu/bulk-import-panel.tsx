@@ -68,29 +68,37 @@ export default function BulkImportPanel({
   }
 
   async function exportCurrentMenu() {
-    // Variants aren't part of the main item list (fetched on demand per item
-    // elsewhere), so pull Small/Medium/Large for the whole café in one query
-    // here rather than joining them into every list load just for this.
-    const { data: variantRows } = await supabase
-      .from('menu_item_variants')
-      .select('menu_item_id, name, price_delta, cost_delta')
-      .in('menu_item_id', items.map((i) => i.id))
-      .in('name', ['Small', 'Medium', 'Large'])
-    const sizesByItem = new Map<string, NonNullable<Parameters<typeof downloadMenuExport>[1][number]['sizes']>>()
+    // Variants and add-ons aren't part of the main item list (fetched on demand
+    // per item elsewhere), so pull the café's whole set in one round each rather
+    // than joining them into every list load just for this. No name filter —
+    // whatever a café calls its options is what gets exported, which is what
+    // makes the sheet round-trip losslessly.
+    const itemIds = items.map((i) => i.id)
+    const [{ data: variantRows }, { data: addonRows }] = await Promise.all([
+      supabase.from('menu_item_variants').select('menu_item_id, name, price_delta, cost_delta, sort').in('menu_item_id', itemIds).order('sort'),
+      supabase.from('menu_item_addons').select('menu_item_id, name, price, sort').in('menu_item_id', itemIds).order('sort'),
+    ])
+
+    const itemById = new Map(items.map((i) => [i.id, i]))
+    const choicesByItem = new Map<string, { name: string; price: number; cost: number | null }[]>()
     for (const v of variantRows ?? []) {
-      const entry = sizesByItem.get(v.menu_item_id) ?? {}
-      const item = items.find((i) => i.id === v.menu_item_id)
-      if (item) {
-        const price = item.price + v.price_delta
-        // Only surface a size's cost if the item itself has one to be
-        // relative to — an item with no cost of its own has no meaningful
-        // "extra" cost per size either.
-        const cost = item.cost != null ? item.cost + v.cost_delta : undefined
-        if (v.name === 'Small') { entry.small = price; entry.smallCost = cost }
-        else if (v.name === 'Medium') { entry.medium = price; entry.mediumCost = cost }
-        else if (v.name === 'Large') { entry.large = price; entry.largeCost = cost }
-      }
-      sizesByItem.set(v.menu_item_id, entry)
+      const item = itemById.get(v.menu_item_id)
+      if (!item) continue
+      choicesByItem.set(v.menu_item_id, [
+        ...(choicesByItem.get(v.menu_item_id) ?? []),
+        {
+          name: v.name,
+          price: item.price + v.price_delta,
+          // Only surface a choice's cost if the item itself has one to be
+          // relative to — an item with no cost of its own has no meaningful
+          // "extra" cost per choice either.
+          cost: item.cost != null ? item.cost + v.cost_delta : null,
+        },
+      ])
+    }
+    const addonsByItem = new Map<string, { name: string; price: number }[]>()
+    for (const a of addonRows ?? []) {
+      addonsByItem.set(a.menu_item_id, [...(addonsByItem.get(a.menu_item_id) ?? []), { name: a.name, price: a.price }])
     }
 
     const rows = items
@@ -102,7 +110,8 @@ export default function BulkImportPanel({
         cost: i.cost,
         isVeg: i.is_veg,
         description: i.description,
-        sizes: sizesByItem.get(i.id),
+        choices: choicesByItem.get(i.id),
+        addons: addonsByItem.get(i.id),
       }))
     downloadMenuExport(cafeName, rows)
   }
@@ -155,13 +164,19 @@ export default function BulkImportPanel({
         is_veg: boolean | null
         sort: number
       }[] = []
-      // Size variants from the file, keyed to whichever item they belong to.
-      // Populated for updates immediately (the item id is already known);
+      // Choices and add-ons from the file, keyed to whichever item they belong
+      // to. Populated for updates immediately (the item id is already known);
       // for inserts, held in lockstep with `inserts` and resolved once the
       // insert returns real ids (see below).
-      type VariantPlan = { itemId: string; price: number; cost: number | null; variants: { name: string; price: number; cost: number | null }[] }
-      const updateVariantPlans: VariantPlan[] = []
-      const insertVariantSpecs: (Omit<VariantPlan, 'itemId'> | null)[] = []
+      type OptionPlan = {
+        itemId: string
+        price: number
+        cost: number | null
+        variants: { name: string; price: number; cost: number | null }[]
+        addons: { name: string; price: number }[]
+      }
+      const updateOptionPlans: OptionPlan[] = []
+      const insertOptionSpecs: (Omit<OptionPlan, 'itemId'> | null)[] = []
 
       for (const cat of result.byCategory) {
         const categoryId = existingByLower.get(cat.name.trim().toLowerCase())!
@@ -170,12 +185,12 @@ export default function BulkImportPanel({
           const existingMatch = existingItemByKey.get(key)
           if (existingMatch) {
             updates.push({ id: existingMatch.id, price: item.price, description: item.description, is_veg: item.isVeg, cost: item.cost })
-            if (item.variants.length > 0) {
-              // For an update, an item whose file row had no cost/profit of its
-              // own keeps its EXISTING stored cost as the base for size deltas
+            if (item.variants.length > 0 || item.addons.length > 0) {
+              // For an update, an item whose file row had no cost/margin of its
+              // own keeps its EXISTING stored cost as the base for choice deltas
               // (matches the update above, which likewise never blanks cost).
               const baseCost = item.cost ?? existingMatch.cost
-              updateVariantPlans.push({ itemId: existingMatch.id, price: item.price, cost: baseCost, variants: item.variants })
+              updateOptionPlans.push({ itemId: existingMatch.id, price: item.price, cost: baseCost, variants: item.variants, addons: item.addons })
             }
           } else {
             const sort = nextSort.get(categoryId) ?? 0
@@ -191,20 +206,24 @@ export default function BulkImportPanel({
               is_veg: item.isVeg,
               sort,
             })
-            insertVariantSpecs.push(item.variants.length > 0 ? { price: item.price, cost: item.cost, variants: item.variants } : null)
+            insertOptionSpecs.push(
+              item.variants.length > 0 || item.addons.length > 0
+                ? { price: item.price, cost: item.cost, variants: item.variants, addons: item.addons }
+                : null,
+            )
           }
         }
       }
 
-      const variantPlans: VariantPlan[] = [...updateVariantPlans]
+      const optionPlans: OptionPlan[] = [...updateOptionPlans]
 
       if (inserts.length) {
         const { data: insertedRows, error } = await supabase.from('menu_items').insert(inserts).select('id')
         if (error) throw new Error(error.message)
         // Bulk insert returns rows in the same order they were submitted.
         ;(insertedRows ?? []).forEach((row, i) => {
-          const spec = insertVariantSpecs[i]
-          if (spec) variantPlans.push({ itemId: row.id, price: spec.price, cost: spec.cost, variants: spec.variants })
+          const spec = insertOptionSpecs[i]
+          if (spec) optionPlans.push({ itemId: row.id, ...spec })
         })
       }
       if (updates.length) {
@@ -222,36 +241,55 @@ export default function BulkImportPanel({
         if (failed?.error) throw new Error(failed.error.message)
       }
 
-      // Write Small/Medium/Large variants for whichever rows specified at
-      // least one — scoped delete (by name) so unrelated variants an owner
-      // added by hand (add-ons, custom sizes) are never touched by a
-      // re-import that doesn't mention sizes for that item.
-      if (variantPlans.length) {
+      // Write choices and add-ons for whichever rows specified them.
+      //
+      // Option names are free-form now, so the old scoped delete (only ever
+      // removing rows named Small/Medium/Large) has nothing to scope to. The
+      // rule is instead per-cell: a FILLED cell is the complete list for that
+      // item and replaces what's there; a BLANK cell is left alone, so
+      // re-importing a sheet that doesn't mention an item's options never
+      // silently wipes options the owner added by hand.
+      if (optionPlans.length) {
         const results = await Promise.all(
-          variantPlans.map(async (p) => {
-            const del = await supabase
-              .from('menu_item_variants')
-              .delete()
-              .eq('menu_item_id', p.itemId)
-              .in('name', ['Small', 'Medium', 'Large'])
-            if (del.error) return del
-            // sort keeps them in Small/Medium/Large order in the per-item
-            // editor, which orders variants by this column — without it every
-            // row here would default to sort=0 and display in arbitrary order.
-            const sortByName: Record<string, number> = { Small: 0, Medium: 1, Large: 2 }
-            const baseCost = p.cost ?? 0
-            return supabase.from('menu_item_variants').insert(
-              p.variants.map((v) => ({
-                menu_item_id: p.itemId,
-                name: v.name,
-                price_delta: v.price - p.price,
-                // Only a size with its own Cost/Profit cell gets a real delta;
-                // one with no cost data of its own just costs the same as the
-                // base item (delta 0), same default as adding a variant by hand.
-                cost_delta: v.cost != null ? v.cost - baseCost : 0,
-                sort: sortByName[v.name] ?? 0,
-              })),
-            )
+          optionPlans.flatMap((p) => {
+            const jobs: PromiseLike<{ error: { message: string } | null }>[] = []
+            if (p.variants.length > 0) {
+              const baseCost = p.cost ?? 0
+              jobs.push(
+                (async () => {
+                  const del = await supabase.from('menu_item_variants').delete().eq('menu_item_id', p.itemId)
+                  if (del.error) return del
+                  return supabase.from('menu_item_variants').insert(
+                    // sort preserves the order they were written in the cell —
+                    // the per-item editor and the POS both order by this column,
+                    // so without it every row would default to 0 and display
+                    // in arbitrary order.
+                    p.variants.map((v, idx) => ({
+                      menu_item_id: p.itemId,
+                      name: v.name,
+                      price_delta: v.price - p.price,
+                      // Only a choice with its own margin gets a real delta; one
+                      // with no cost data just costs the same as the base item
+                      // (delta 0), same default as adding a variant by hand.
+                      cost_delta: v.cost != null ? v.cost - baseCost : 0,
+                      sort: idx,
+                    })),
+                  )
+                })(),
+              )
+            }
+            if (p.addons.length > 0) {
+              jobs.push(
+                (async () => {
+                  const del = await supabase.from('menu_item_addons').delete().eq('menu_item_id', p.itemId)
+                  if (del.error) return del
+                  return supabase.from('menu_item_addons').insert(
+                    p.addons.map((a, idx) => ({ menu_item_id: p.itemId, name: a.name, price: a.price, sort: idx })),
+                  )
+                })(),
+              )
+            }
+            return jobs
           }),
         )
         const failed = results.find((r) => r.error)
@@ -405,19 +443,27 @@ export default function BulkImportPanel({
                 underneath with a price. Start a new category the same way whenever you want. Blank rows are fine.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Small / Medium / Large</b> are only for items that come in more than one size — fill in whichever
-                apply (each is the actual price for that size) and they become size options automatically. Leave
-                them blank for a single-price item; Price alone is used, same as before.
+                <b>Choices</b> is for an item sold more than one way — whatever your menu calls them. Write each as
+                its name then its price, separated by commas: <code className="rounded bg-surface-subtle px-1">Steam 69, Fried 79</code> or{' '}
+                <code className="rounded bg-surface-subtle px-1">6 Slice 99, 8 Slice 139</code>. The guest picks exactly one, and the
+                price you write is that option&apos;s <b>full price</b>. If you fill this in you can leave Price blank —
+                the first choice becomes the item&apos;s price.
+              </p>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <b>Add-ons</b> works the same way, for optional extras the guest can tick alongside:{' '}
+                <code className="rounded bg-surface-subtle px-1">Cheese Slice 20, Extra Dip 20</code>. Here the price is what it{' '}
+                <b>adds</b> — just like the +20 printed on a menu board. Leave either column blank for an item that
+                doesn&apos;t need it.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
                 <b>Margin</b> is simply the ₹ you make per item — 20 on a ₹100 burger. It&apos;s optional, never shown
-                to customers, and Reports uses it to work out your net profit as items sell. (An older sheet with a
-                Profit or Cost Price column still imports fine.)
+                to customers, and Reports uses it to work out your net profit as items sell. To give one choice its own
+                margin, add it after a slash: <code className="rounded bg-surface-subtle px-1">Steam 69/20</code>. (Older sheets
+                with Profit, Cost Price or Small/Medium/Large columns still import fine.)
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Small Margin / Medium Margin / Large Margin</b> work the same way, per size — only fill one in if
-                that size earns you something different. Leave it blank and that size just uses the item&apos;s own
-                Margin above.
+                Re-importing only replaces the options you actually list. Leave a Choices or Add-ons cell empty and
+                whatever that item already has is left untouched.
               </p>
             </div>
           )}
@@ -452,11 +498,17 @@ export default function BulkImportPanel({
                       {cat.items.map((it, i) => (
                         <li key={i} className="text-[13.5px] text-muted-foreground">
                           • {it.name} — ₹{it.price}
-                          {it.cost != null && <span className="text-[12px]"> (profit ₹{it.price - it.cost})</span>}
+                          {it.cost != null && <span className="text-[12px]"> (margin ₹{it.price - it.cost})</span>}
                           {it.variants.length > 0 && (
                             <span className="text-[12px]">
                               {' · '}
-                              {it.variants.map((v) => `${v.name} ₹${v.price}${v.cost != null ? ` (profit ₹${v.price - v.cost})` : ''}`).join(', ')}
+                              {it.variants.map((v) => `${v.name} ₹${v.price}${v.cost != null ? ` (margin ₹${v.price - v.cost})` : ''}`).join(', ')}
+                            </span>
+                          )}
+                          {it.addons.length > 0 && (
+                            <span className="text-[12px]">
+                              {' · '}
+                              {it.addons.map((a) => `+${a.name} ₹${a.price}`).join(', ')}
                             </span>
                           )}
                         </li>

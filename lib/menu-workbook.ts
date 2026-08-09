@@ -22,20 +22,34 @@ function download(wb: XLSX.WorkBook, filename: string) {
 // Cost column and derives the other, so an older sheet with Cost columns
 // still imports — the sheets we HAND OUT just ask the easier question.
 //
-// Each size's own Margin is optional independently of both the size price and
-// the item's own Margin — leave it blank if a size's margin isn't different.
+// Choices and Add-ons are free text rather than fixed columns, because no
+// fixed set of sizes fits every café: one menu's options are Small/Medium/
+// Large, the next one's are "6 Slice", "Steam"/"Fried", "3 Slices", "With
+// Ice-cream". Each cell lists its own options, one per entry, and the LAST
+// number in an entry is its price — so a name can itself contain digits.
+// Choices are the full price of that option; add-ons are what they ADD,
+// which is exactly how a printed menu board writes them.
+export const OPTION_SYNTAX_HINT = 'Name Price, separated by commas — e.g. "Steam 69, Fried 79". Add "/margin" for costing: "Steam 69/20".'
+
+const TEMPLATE_HEADER = ['Category / Item', 'Price', 'Margin', 'Choices (pick one)', 'Add-ons (extras)', 'Veg Type', 'Description']
+const TEMPLATE_COLS = [{ wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
+
 export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
-    ['Category / Item', 'Price', 'Margin', 'Small', 'Small Margin', 'Medium', 'Medium Margin', 'Large', 'Large Margin', 'Veg Type', 'Description'],
-    ['BURGERS', '', '', '', '', '', '', '', '', '', ''],
-    ['Classic Veg Burger', 149, 60, '', '', '', '', '', '', 'Veg', 'Margin = what you keep after making it'],
-    ['Cheese Burger', 179, 75, '', '', '', '', '', '', 'Veg', 'Burger with cheese'],
-    ['COLD DRINKS', '', '', '', '', '', '', '', '', '', ''],
-    ['Cold Coffee', '', '', 80, 50, 110, '', 130, 75, 'Veg', 'Only fill the sizes that apply — the rest can stay blank'],
-    ['Coca Cola', 60, 25, '', '', '', '', '', '', 'Veg', ''],
+    TEMPLATE_HEADER,
+    ['BURGERS', '', '', '', '', '', ''],
+    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Margin = what you keep after making it'],
+    ['Cheese Burger', 179, 75, '', '', 'Veg', 'No options — leave both option columns blank'],
+    ['PIZZA', '', '', '', '', '', ''],
+    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Choices = the full price of that option'],
+    ['MOMOS', '', '', '', '', '', ''],
+    ['Veg Momos', '', '', 'Steam 69, Fried 79', '', 'Veg', 'No Price needed — the first choice becomes the price'],
+    ['COLD DRINKS', '', '', '', '', '', ''],
+    ['Cold Coffee', 59, 25, '', 'With Ice-cream 29', 'Veg', 'Add-ons = what they ADD to the price'],
+    ['Coca Cola', 60, 25, '', '', 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 14 }, { wch: 9 }, { wch: 13 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = TEMPLATE_COLS
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu template')
   download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
@@ -48,40 +62,46 @@ export type ExportRow = {
   cost: number | null
   isVeg: boolean | null
   description: string | null
-  /** Absolute prices (and optional absolute costs) for any Small/Medium/Large
-      variant this item has — round-trips size options back through
-      Export → edit → re-import. */
-  sizes?: {
-    small?: number; smallCost?: number
-    medium?: number; mediumCost?: number
-    large?: number; largeCost?: number
-  }
+  /** Every choice this item offers, as absolute prices — free-form names, so
+      "6 Slice" and "Steam" round-trip as faithfully as "Small". */
+  choices?: { name: string; price: number; cost: number | null }[]
+  /** Every optional extra, as the amount it ADDS. */
+  addons?: { name: string; price: number }[]
+}
+
+/** "Steam 69, Fried 79/25" — the exact syntax parseOptionList reads back. */
+function optionCell(opts: { name: string; price: number; cost?: number | null }[] | undefined): string {
+  if (!opts?.length) return ''
+  return opts
+    .map((o) => {
+      const margin = o.cost != null ? o.price - o.cost : null
+      // Names are user text going into a cell the importer re-splits, so a
+      // comma inside one would silently fork it into two options. Swapping it
+      // for a space is lossy but harmless; losing the option isn't.
+      const name = o.name.replace(/[,;\n]/g, ' ').replace(/\s+/g, ' ').trim()
+      return margin != null ? `${name} ${o.price}/${margin}` : `${name} ${o.price}`
+    })
+    .join(', ')
 }
 
 // Flat/repeated-category shape — safe to sort, filter, and bulk-edit in Excel
-// without breaking category grouping, then re-import without duplicating.
+// without breaking category grouping, then re-import without duplicating. That
+// property is why choices and add-ons are cells rather than extra rows: rows
+// would detach from their item the first time anyone sorted by price.
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
-  // Margin, not cost — the number an owner can sanity-check at a glance, and
-  // the same thing the template asks for. Price sits next to its own Margin
-  // so each pair reads together.
-  const margin = (price?: number, cost?: number) => (price != null && cost != null ? price - cost : '')
-  const header = ['Category', 'Item', 'Price', 'Margin', 'Small', 'Small Margin', 'Medium', 'Medium Margin', 'Large', 'Large Margin', 'Veg Type', 'Description']
+  const header = ['Category', 'Item', 'Price', 'Margin', 'Choices (pick one)', 'Add-ons (extras)', 'Veg Type', 'Description']
   const body = rows.map((r) => [
     safeText(r.category),
     safeText(r.name),
     r.price,
     r.cost != null ? r.price - r.cost : '',
-    r.sizes?.small ?? '',
-    margin(r.sizes?.small, r.sizes?.smallCost),
-    r.sizes?.medium ?? '',
-    margin(r.sizes?.medium, r.sizes?.mediumCost),
-    r.sizes?.large ?? '',
-    margin(r.sizes?.large, r.sizes?.largeCost),
+    safeText(optionCell(r.choices)),
+    safeText(optionCell(r.addons)),
     r.isVeg === true ? 'Veg' : r.isVeg === false ? 'Non-Veg' : '',
     safeText(r.description ?? ''),
   ])
   const ws = XLSX.utils.aoa_to_sheet([header, ...body])
-  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 14 }, { wch: 9 }, { wch: 13 }, { wch: 12 }, { wch: 34 }]
+  ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
   download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))

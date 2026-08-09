@@ -21,11 +21,14 @@ export type ParsedItem = {
   cost: number | null
   isVeg: boolean | null
   description: string | null
-  /** Size variants (Small/Medium/Large), as absolute prices — empty unless the
-      file has at least one of those columns AND this row filled one in.
-      cost is likewise absolute (not a delta) and null when the file has no
-      per-size Cost/Profit column for that size. */
+  /** The choices a guest picks exactly one of, as ABSOLUTE prices. Names are
+      free-form — "6 Slice", "Steam", "Small" — because a café's menu board
+      decides them, not us. Empty when the row supplied none.
+      cost is likewise absolute (not a delta) and null when unsupplied. */
   variants: { name: string; price: number; cost: number | null }[]
+  /** Optional extras, as the amount each ADDS to the price — "Cheese Slice 20".
+      Empty when the row supplied none. */
+  addons: { name: string; price: number }[]
 }
 export type ImportIssue = { row: number; message: string }
 
@@ -44,8 +47,28 @@ function normalize(s: unknown): string {
   return String(s ?? '').trim()
 }
 
+/**
+ * Undoes the leading apostrophe the export adds (safeText, xlsx-export.ts) to
+ * any text starting with =, +, -, @ so Excel can't read it as a formula.
+ * Without this an item or option called "+Cheese" comes back as "'+Cheese" —
+ * a different name, so a re-import creates a duplicate instead of updating.
+ */
+function unquote(s: string): string {
+  return s.startsWith("'") ? s.slice(1) : s
+}
+
+/** Trimmed text with the export's formula guard undone. */
+function text(s: unknown): string {
+  return unquote(normalize(s))
+}
+
 function findColumn(header: string[], predicate: (h: string) => boolean): number {
   return header.findIndex((h) => predicate(h.toLowerCase()))
+}
+
+/** Reads one cell, tolerating rows Excel truncated to the last filled column. */
+function cellAt(raw: unknown[], idx: number): unknown {
+  return idx >= 0 && idx < raw.length ? raw[idx] : ''
 }
 
 function parsePrice(raw: unknown): number | null {
@@ -63,6 +86,61 @@ function parseVeg(raw: unknown, row: number, issues: ImportIssue[]): boolean | n
   if (['non-veg', 'nonveg', 'non vegetarian', 'nv', 'no'].includes(s)) return false
   issues.push({ row, message: `Veg type "${raw}" not recognized — left unspecified. Use "Veg" or "Non-Veg".` })
   return null
+}
+
+/** One entry from a Choices or Add-ons cell. */
+export type ParsedOption = { name: string; price: number; margin: number | null }
+
+// A café's options are whatever its menu board says — "6 Slice", "Steam",
+// "With Ice-cream", "Injector". They can't be fixed columns, so both lists live
+// in one cell each, one entry per option:
+//
+//   Steam 69, Fried 79          6 Slice 99, 8 Slice 139        Cheese Slice 20
+//
+// The LAST number in an entry is its price, so a name may itself contain
+// digits ("6 Slice 99" → "6 Slice" at ₹99). An optional "/margin" suffix
+// carries costing ("Steam 69/20"). Menu boards write prices as "+20" or "@30",
+// so both are accepted and mean the same as a bare number.
+//
+// Entries split on comma, semicolon, or newline — a newline because Alt+Enter
+// inside a cell is how an owner naturally lists several, and Excel keeps it.
+export function parseOptionList(raw: unknown, row: number, label: string, issues: ImportIssue[]): ParsedOption[] {
+  const cell = text(raw)
+  if (!cell) return []
+  const out: ParsedOption[] = []
+  for (const entry of cell.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)) {
+    const m = entry.match(/^(.+?)[\s:–—-]*[+@]?\s*₹?\s*(\d+(?:\.\d+)?)(?:\s*\/\s*₹?\s*(\d+(?:\.\d+)?))?$/)
+    if (!m) {
+      issues.push({ row, message: `"${label}" — couldn't read "${entry}". Write each one as Name Price, e.g. "Steam 69".` })
+      continue
+    }
+    const name = m[1].trim()
+    const price = Math.round(Number(m[2]))
+    const margin = m[3] === undefined ? null : Math.round(Number(m[3]))
+    if (!name) {
+      issues.push({ row, message: `"${label}" — "${entry}" has a price but no name, skipped.` })
+      continue
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      issues.push({ row, message: `"${label}" — "${entry}" has an invalid price, skipped.` })
+      continue
+    }
+    if (margin !== null && (!Number.isFinite(margin) || margin < 0 || margin > price)) {
+      issues.push({ row, message: `"${label}" — margin in "${entry}" is not a valid amount below its price, ignored.` })
+      out.push({ name, price, margin: null })
+      continue
+    }
+    out.push({ name, price, margin })
+  }
+  // Same rule the rest of the importer follows for duplicates: last one wins.
+  const byName = new Map<string, ParsedOption>()
+  for (const o of out) {
+    if (byName.has(o.name.toLowerCase())) {
+      issues.push({ row, message: `"${label}" — "${o.name}" is listed twice, using the last one.` })
+    }
+    byName.set(o.name.toLowerCase(), o)
+  }
+  return [...byName.values()]
 }
 
 export function parseMenuFile(rows: unknown[][]): ParseResult {
@@ -92,7 +170,13 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h))
   const vegCol = findColumn(header, (h) => h.includes('veg'))
   const descCol = findColumn(header, (h) => h.includes('desc'))
-  // Optional size columns — absolute prices (and optionally an absolute
+  // The generic option columns. "Choices" replaced the fixed
+  // Small/Medium/Large columns because a café's sizes are its own —
+  // "6 Slice", "Steam"/"Fried", "3 Slices" — and no fixed set covers them.
+  // Matched loosely so "Choices (pick one)", "Sizes" and "Options" all work.
+  const choicesCol = findColumn(header, (h) => h.includes('choice') || h.includes('option') || (h.includes('size') && !isMarginWord(h)))
+  const addonsCol = findColumn(header, (h) => h.includes('add-on') || h.includes('addon') || h.includes('add on') || h.includes('extra'))
+  // Legacy size columns — absolute prices (and optionally an absolute
   // Cost/Profit) per size, converted to base + variant deltas at write time
   // (matches how the per-item editor already stores variants). Leave a size
   // blank for an item with only one.
@@ -137,21 +221,37 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
     return null
   }
 
-  // Resolves a row's price and any size variants together, since which size
-  // columns are filled changes what "the price" even means:
-  //  - Price filled: that's the base; every filled size becomes a variant
-  //    (delta = size price − base), even one that happens to match the base.
-  //  - Price blank but a size is filled: the first filled size (Small, then
-  //    Medium, then Large, in that priority) becomes the base instead, so
-  //    the item still gets a valid price — it isn't also re-added as a
-  //    redundant variant of itself.
-  //  - Neither: unchanged from before size columns existed.
+  // Resolves a row's price and its choices together, since whether choices are
+  // given changes what "the price" even means:
+  //  - Price filled: that's the base; every choice becomes a variant
+  //    (delta = choice price − base), even one that happens to match the base.
+  //  - Price blank but choices given: the FIRST choice becomes the base
+  //    instead, so the item still gets a valid price — it isn't also re-added
+  //    as a redundant variant of itself.
+  //  - Neither: unchanged from before options existed.
+  //
+  // The Choices column wins over the legacy Small/Medium/Large columns when a
+  // file somehow has both, since it's the one the current template hands out.
   function resolvePriceAndSizes(
     raw: unknown[],
     priceRaw: unknown,
     row: number,
     label: string,
   ): { price: number | null; variants: { name: string; price: number; cost: number | null }[] } {
+    if (choicesCol !== -1) {
+      const opts = parseOptionList(cellAt(raw, choicesCol), row, label, issues)
+      if (opts.length > 0) {
+        const variants = opts.map((o) => ({
+          name: o.name,
+          price: o.price,
+          cost: o.margin === null ? null : o.price - o.margin,
+        }))
+        const explicit = parsePrice(priceRaw)
+        return { price: explicit ?? variants[0].price, variants }
+      }
+      // Empty Choices cell — fall through to the legacy size columns, so a
+      // sheet mixing the two still imports whatever it has.
+    }
     if (!hasSizeCols) return { price: parsePrice(priceRaw), variants: [] }
 
     const filled = sizeCols
@@ -233,12 +333,24 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
 
   dataRows.forEach((raw, i) => {
     const rowNum = i + 2 // account for header row + 1-indexing, matches what a user sees in Excel
-    const cell = (idx: number) => (idx >= 0 && idx < raw.length ? raw[idx] : '')
+    const cell = (idx: number) => cellAt(raw, idx)
     const allBlank = raw.every((c) => normalize(c) === '')
     if (allBlank) return // blank rows are silently ignored, as specified
 
+    // Add-ons carry no cost of their own — menu_item_addons stores a name and a
+    // price and nothing else — so a "/margin" suffix here has nowhere to go.
+    const readAddons = (label: string) => {
+      const opts = parseOptionList(cell(addonsCol), rowNum, label, issues)
+      for (const o of opts) {
+        if (o.margin !== null) {
+          issues.push({ row: rowNum, message: `"${label}" — margin on the add-on "${o.name}" isn't tracked, ignored.` })
+        }
+      }
+      return opts.map((o) => ({ name: o.name, price: o.price }))
+    }
+
     if (isFlat) {
-      const name = normalize(cell(itemCol))
+      const name = text(cell(itemCol))
       if (!name) return // no item name at all — nothing to import from this row
       const priceRaw = cell(priceCol)
       const { price, variants } = resolvePriceAndSizes(raw, priceRaw, rowNum, name)
@@ -246,8 +358,8 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         issues.push({ row: rowNum, message: `"${name}" — missing or invalid price, skipped.` })
         return
       }
-      const cat = normalize(cell(catCol)) || currentCategory || 'Uncategorised'
-      if (!normalize(cell(catCol)) && currentCategory === null) {
+      const cat = text(cell(catCol)) || currentCategory || 'Uncategorised'
+      if (!text(cell(catCol)) && currentCategory === null) {
         issues.push({ row: rowNum, message: `"${name}" has no category and none carried over — filed under Uncategorised.` })
       }
       currentCategory = cat
@@ -258,18 +370,24 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         price,
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
-        description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
+        description: descCol !== -1 ? text(cell(descCol)) || null : null,
         variants,
+        addons: readAddons(name),
       })
     } else {
-      const mergedText = normalize(cell(mergedCol))
+      const mergedText = text(cell(mergedCol))
       const priceRaw = cell(priceCol)
       const priceText = normalize(priceRaw)
-      const anySizeFilled = hasSizeCols && sizeCols.some((s) => normalize(s.col < raw.length ? raw[s.col] : '') !== '')
+      // An item priced only through its choices ("Veg Momos — Steam 69, Fried
+      // 79") has a blank Price cell, so the Choices cell has to count as
+      // "priced" here too, or it would be mistaken for a category heading.
+      const anySizeFilled =
+        (hasSizeCols && sizeCols.some((s) => normalize(cellAt(raw, s.col)) !== '')) ||
+        normalize(cell(choicesCol)) !== ''
       if (!mergedText) return
 
       if (!priceText && !anySizeFilled) {
-        // No price and no size column filled → it's a category heading, per spec.
+        // No price and no choices → it's a category heading, per spec.
         currentCategory = mergedText
         if (!groups.has(mergedText)) {
           groups.set(mergedText, [])
@@ -294,8 +412,9 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
         price,
         cost: parseCost(raw, rowNum, price),
         isVeg: parseVeg(cell(vegCol), rowNum, issues),
-        description: descCol !== -1 ? normalize(cell(descCol)) || null : null,
+        description: descCol !== -1 ? text(cell(descCol)) || null : null,
         variants,
+        addons: readAddons(mergedText),
       })
     }
   })
