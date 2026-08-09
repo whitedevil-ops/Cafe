@@ -61,6 +61,15 @@ export default function KotPrintingPanel({
   const { toast } = useToast()
   const confirm = useConfirm()
 
+  // Read after mount, not during render: the server has no window, so
+  // interpolating it inline would render one string on the server and another
+  // in the browser. Falls back to the production host until it resolves.
+  const [origin, setOrigin] = useState('https://khaopiyo.ventron.in')
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin)
+  }, [])
+
   const [enabled, setEnabled] = useState(initialEnabled)
   const [printers, setPrinters] = useState(initialPrinters)
   const [stations, setStations] = useState(initialStations)
@@ -331,6 +340,42 @@ export default function KotPrintingPanel({
               </div>
             )}
           </div>
+
+          {/* Collapsed by default: a café only needs this once, but when they
+              need it they are standing at the counter, not reading the repo. */}
+          <details className="rounded-[var(--radius)] border border-border-strong px-3 py-2.5">
+            <summary className="cursor-pointer text-[13px] font-medium text-foreground">
+              Print without the dialog appearing every time
+            </summary>
+            <div className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              <p>
+                One-time setup on the counter computer. Chrome can send tickets straight to the printer
+                with no preview window.
+              </p>
+              <p>
+                <strong className="text-foreground">1.</strong> In Windows → Printers &amp; scanners, turn
+                <strong className="text-foreground"> off</strong> &ldquo;Let Windows manage my default
+                printer&rdquo;, then set the thermal printer as default. With no dialog there is nothing to
+                catch a mistake — every ticket goes to whatever is default.
+              </p>
+              <p>
+                <strong className="text-foreground">2.</strong> Make a desktop shortcut to:
+              </p>
+              <code className="block overflow-x-auto whitespace-pre rounded-[var(--radius-sm)] bg-surface-subtle px-2.5 py-2 font-mono text-[11.5px] text-foreground">
+                {`"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --kiosk-printing --app=${origin}/dashboard/kitchen`}
+              </code>
+              <p>
+                <strong className="text-foreground">3.</strong> Close <em>every</em> Chrome window first,
+                including any in the system tray, then open the shortcut. Chrome reads that setting only
+                when its first window starts — if one is already open, the shortcut silently joins it and
+                the dialog comes back.
+              </p>
+              <p>
+                Then turn on Auto-print on the Kitchen screen. Orders will print on their own as long as
+                that window stays open.
+              </p>
+            </div>
+          </details>
 
           {/* ── Printers ───────────────────────────────────────────────── */}
           <div>
