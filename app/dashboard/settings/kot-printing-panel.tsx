@@ -472,8 +472,11 @@ export default function KotPrintingPanel({
                   </Field>
                   <p className="text-[11.5px] leading-relaxed text-muted-foreground sm:col-span-2">
                     However it connects, pair or plug the printer into this computer first and install its
-                    driver, so it appears in Windows under Printers. Tickets are printed by this browser, so
-                    any printer Windows can see will work — Bluetooth included.
+                    driver, so it appears in Windows under <strong className="text-foreground">Printers &amp;
+                    scanners</strong> — not just under Bluetooth devices. Tickets are printed by this
+                    browser, so any printer Windows can see will work, Bluetooth included. If pairing left
+                    it listed only as a device, Windows has no driver for it yet and nothing will print
+                    until one is installed.
                   </p>
                   {draft.connection_type === 'lan' && (
                     <>
