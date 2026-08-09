@@ -38,15 +38,18 @@ export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
     TEMPLATE_HEADER,
     ['BURGERS', '', '', '', '', '', ''],
-    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Margin = what you keep after making it'],
-    ['Cheese Burger', 179, 75, '', '', 'Veg', 'No options — leave both option columns blank'],
+    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Add-ons = what they ADD to the price'],
+    ['Cheese Burger', 179, 75, '', '', 'Veg', 'No options? Leave both option columns blank'],
     ['PIZZA', '', '', '', '', '', ''],
-    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Choices = the full price of that option'],
+    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', "Choices = that option's FULL price"],
     ['MOMOS', '', '', '', '', '', ''],
     ['Veg Momos', '', '', 'Steam 69, Fried 79', '', 'Veg', 'No Price needed — the first choice becomes the price'],
     ['COLD DRINKS', '', '', '', '', '', ''],
-    ['Cold Coffee', 59, 25, '', 'With Ice-cream 29', 'Veg', 'Add-ons = what they ADD to the price'],
-    ['Coca Cola', 60, 25, '', '', 'Veg', ''],
+    // Sizes get their own worked example: dropping the fixed Small/Medium/Large
+    // columns makes owners who DO sell that way wonder where their sizes went.
+    // They're just three more names in the same column.
+    ['Cold Coffee', '', '', 'Small 89, Medium 119, Large 149', 'With Ice-cream 29', 'Veg', 'Sell by size? Name them here, same as any other choice'],
+    ['Coca Cola', 60, 25, '', '', 'Veg', 'Margin = what you keep after making it'],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = TEMPLATE_COLS

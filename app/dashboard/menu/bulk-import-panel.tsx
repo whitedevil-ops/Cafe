@@ -443,11 +443,12 @@ export default function BulkImportPanel({
                 underneath with a price. Start a new category the same way whenever you want. Blank rows are fine.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Choices</b> is for an item sold more than one way — whatever your menu calls them. Write each as
-                its name then its price, separated by commas: <code className="rounded bg-surface-subtle px-1">Steam 69, Fried 79</code> or{' '}
-                <code className="rounded bg-surface-subtle px-1">6 Slice 99, 8 Slice 139</code>. The guest picks exactly one, and the
-                price you write is that option&apos;s <b>full price</b>. If you fill this in you can leave Price blank —
-                the first choice becomes the item&apos;s price.
+                <b>Choices</b> is for an item sold more than one way — whatever your menu calls them:{' '}
+                <code className="rounded bg-surface-subtle px-1">Small 89, Medium 119, Large 149</code>,{' '}
+                <code className="rounded bg-surface-subtle px-1">Steam 69, Fried 79</code> or{' '}
+                <code className="rounded bg-surface-subtle px-1">6 Slice 99, 8 Slice 139</code>. Write each as its name then its
+                price, separated by commas. The guest picks exactly one, and the price you write is that option&apos;s{' '}
+                <b>full price</b>. If you fill this in you can leave Price blank — the first choice becomes the item&apos;s price.
               </p>
               <p className="text-[12.5px] leading-relaxed text-muted-foreground">
                 <b>Add-ons</b> works the same way, for optional extras the guest can tick alongside:{' '}

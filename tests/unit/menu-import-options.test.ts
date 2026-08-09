@@ -144,6 +144,40 @@ describe('menu import — Add-ons column', () => {
   })
 })
 
+// The obvious worry on seeing a template with no Small/Medium/Large columns:
+// a café that DOES sell by those sizes. Nothing special is needed — they're
+// just three more names in the same free-form column.
+describe('menu import — a café that does use Small/Medium/Large', () => {
+  it('reads S/M/L written in the Choices column like any other names', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item', 'Price', 'Margin', 'Choices (pick one)', 'Add-ons (extras)'],
+      ['COLD DRINKS', 'Cold Coffee', '', '', 'Small 89, Medium 119, Large 149', 'With Ice-cream 29'],
+    ])
+    const item = r.byCategory.flatMap((c) => c.items)[0]
+    expect(r.issues).toEqual([])
+    expect(item.price).toBe(89) // first choice becomes the item price
+    expect(item.variants).toEqual([
+      { name: 'Small', price: 89, cost: null },
+      { name: 'Medium', price: 119, cost: null },
+      { name: 'Large', price: 149, cost: null },
+    ])
+    expect(item.addons).toEqual([{ name: 'With Ice-cream', price: 29 }])
+  })
+
+  it('carries a per-size margin through the /margin suffix', () => {
+    const r = parseMenuFile([
+      ['Category / Item', 'Price', 'Choices (pick one)'],
+      ['COLD DRINKS', '', ''],
+      ['Cold Coffee', '', 'Small 89/50, Medium 119/60, Large 149/75'],
+    ])
+    expect(r.byCategory[0].items[0].variants).toEqual([
+      { name: 'Small', price: 89, cost: 39 },
+      { name: 'Medium', price: 119, cost: 59 },
+      { name: 'Large', price: 149, cost: 74 },
+    ])
+  })
+})
+
 describe('menu import — backward compatibility', () => {
   it('still reads a sheet that only has Small/Medium/Large columns', () => {
     const r = parseMenuFile([
