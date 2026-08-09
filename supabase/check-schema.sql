@@ -497,6 +497,16 @@ with expected(kind, name, fix) as (values
   ('column',   'combos.margin',                            '0124')
   -- 0124 also re-bodies create_combo/update_combo (already registered, 0123)
   -- with an added p_margin -- nothing further to check-schema for that part.
+  ,
+  -- spin & win (0125)
+  ('table',    'spin_wheels',                              '0125'),
+  ('table',    'spin_segments',                            '0125'),
+  ('table',    'spin_results',                             '0125'),
+  ('function', 'save_spin_wheel',                          '0125'),
+  ('function', 'get_spin_wheel',                           '0125'),
+  ('function', 'spin_the_wheel',                           '0125'),
+  ('function', 'find_spin_prize',                          '0125'),
+  ('function', 'redeem_spin_prize',                        '0125')
 )
 select
   e.kind,

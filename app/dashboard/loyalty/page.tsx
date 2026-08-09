@@ -4,6 +4,8 @@ import { createClient } from '@/utils/supabase/server'
 import { hasFeature } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import LoyaltyClient, { type Reward, type Referral } from './loyalty-client'
+import SpinWheelPanel from './spin-wheel-panel'
+import type { SpinSegment, SpinWheel } from '@/lib/spin-wheel'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,12 +22,22 @@ export default async function LoyaltyPage() {
 
   const referralAllowed = await hasFeature(cafe.cafeId, 'referral')
 
-  const [{ data: settings }, { data: rewards }, { data: referrals }, { data: menuItems }] = await Promise.all([
-    supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100, referral_enabled, referral_reward_amount, plan').eq('id', cafe.cafeId).single(),
-    supabase.from('rewards').select('id, name, points_cost, active, created_at, menu_item_id, variant_id').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
-    referralAllowed ? supabase.rpc('list_referrals', { p_cafe_id: cafe.cafeId }) : Promise.resolve({ data: [] }),
-    supabase.from('menu_items').select('id, name').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
-  ])
+  const [{ data: settings }, { data: rewards }, { data: referrals }, { data: menuItems }, { data: wheel }] =
+    await Promise.all([
+      supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100, referral_enabled, referral_reward_amount, plan').eq('id', cafe.cafeId).single(),
+      supabase.from('rewards').select('id, name, points_cost, active, created_at, menu_item_id, variant_id').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
+      referralAllowed ? supabase.rpc('list_referrals', { p_cafe_id: cafe.cafeId }) : Promise.resolve({ data: [] }),
+      supabase.from('menu_items').select('id, name, price, archived').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
+      supabase.from('spin_wheels').select('id, cafe_id, title, active, expiry_days').eq('cafe_id', cafe.cafeId).maybeSingle(),
+    ])
+
+  const { data: wheelSegments } = wheel
+    ? await supabase
+        .from('spin_segments')
+        .select('id, label, kind, menu_item_id, variant_id, value, weight')
+        .eq('wheel_id', wheel.id)
+        .order('sort')
+    : { data: [] }
 
   const itemIds = (menuItems ?? []).map((i) => i.id)
   const { data: menuItemVariants } = itemIds.length
@@ -33,6 +45,7 @@ export default async function LoyaltyPage() {
     : { data: [] }
 
   return (
+    <>
     <LoyaltyClient
       cafeId={cafe.cafeId}
       role={cafe.role}
@@ -47,5 +60,13 @@ export default async function LoyaltyPage() {
       initialReferralReward={settings?.referral_reward_amount ?? 50}
       initialReferrals={(referrals ?? []) as Referral[]}
     />
+    <SpinWheelPanel
+      cafeId={cafe.cafeId}
+      canManage={cafe.role === 'owner' || cafe.role === 'manager'}
+      items={(menuItems ?? []) as { id: string; name: string; price: number; archived: boolean }[]}
+      initialWheel={(wheel ?? null) as SpinWheel | null}
+      initialSegments={(wheelSegments ?? []) as SpinSegment[]}
+    />
+    </>
   )
 }
