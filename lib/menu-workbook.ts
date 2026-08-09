@@ -7,54 +7,104 @@ function download(wb: XLSX.WorkBook, filename: string) {
 
 // The blank starting template — heading style, exactly the shape a
 // non-technical owner can fill in by typing a category name, then item rows
-// underneath, repeating. Pre-filled with the worked example so it's obvious
-// how it works on first open, not just a bare header row.
+// underneath, repeating. Pre-filled with a worked example so it's obvious how
+// it works on first open, not just a bare header row.
 //
-// Small/Medium/Large are optional — only fill them in for an item that
-// actually comes in multiple sizes (like Cold Coffee below); leave all three
-// blank for a single-price item (like the burgers below) and Price alone is
-// used, exactly as before these columns existed. Whichever size columns are
-// filled become that item's size options — Price can be left blank too, in
-// which case the first filled size becomes the item's listed price.
+// Two sheets, and the split matters. The Menu sheet holds nothing but data;
+// every word of explanation lives on a second "How to fill this in" sheet.
+// Instructions used to sit in the Menu sheet's Description cells, which import
+// like any other description — so a café that filled in the template and
+// imported it published "Margin = what you keep after making it" as the text
+// under Coca Cola on the customer menu. Only the FIRST sheet is ever read
+// (readWorkbookRows), so the guide can never be mistaken for menu data.
 //
 // Margin, not cost: an owner thinks "I make ₹60 on this burger", not "it
 // costs me ₹89". The parser (menu-import.ts) accepts either a Profit or a
 // Cost column and derives the other, so an older sheet with Cost columns
 // still imports — the sheets we HAND OUT just ask the easier question.
 //
-// Choices and Add-ons are free text rather than fixed columns, because no
-// fixed set of sizes fits every café: one menu's options are Small/Medium/
+// Sizes/Choices and Add-ons are free text rather than fixed columns, because
+// no fixed set of sizes fits every café: one menu's options are Small/Medium/
 // Large, the next one's are "6 Slice", "Steam"/"Fried", "3 Slices", "With
 // Ice-cream". Each cell lists its own options, one per entry, and the LAST
 // number in an entry is its price — so a name can itself contain digits.
 // Choices are the full price of that option; add-ons are what they ADD,
 // which is exactly how a printed menu board writes them.
-export const OPTION_SYNTAX_HINT = 'Name Price, separated by commas — e.g. "Steam 69, Fried 79". Add "/margin" for costing: "Steam 69/20".'
 
-const TEMPLATE_HEADER = ['Category / Item', 'Price', 'Margin', 'Choices (pick one)', 'Add-ons (extras)', 'Veg Type', 'Description']
-const TEMPLATE_COLS = [{ wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 30 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
+const TEMPLATE_HEADER = ['Category / Item', 'Price', 'Margin', 'Sizes / Choices', 'Add-ons', 'Veg Type', 'Description']
+const TEMPLATE_COLS = [{ wch: 26 }, { wch: 8 }, { wch: 8 }, { wch: 32 }, { wch: 24 }, { wch: 10 }, { wch: 38 }]
+
+// Plain language, one idea per line, no jargon. Read top to bottom.
+const GUIDE_ROWS: string[][] = [
+  ['How to fill in your menu'],
+  ['Type everything on the "Menu" tab. This tab is only notes — nothing here is imported.'],
+  [''],
+  ['THE BASIC IDEA'],
+  ['1.', 'Type a category name on its own row, like BURGERS. Leave the rest of that row empty.'],
+  ['2.', 'List that category\'s items underneath it, one per row, with a price.'],
+  ['3.', 'Start the next category the same way. Blank rows are fine.'],
+  ['4.', 'Replace our example rows with your own before you import.'],
+  [''],
+  ['WHAT EACH COLUMN IS FOR'],
+  ['Category / Item', 'A category name on its own row, or an item name.'],
+  ['Price', 'What the guest pays, in ₹. Just the number.'],
+  ['Margin', 'Optional. The ₹ you keep on that item. Only you ever see this.'],
+  ['Sizes / Choices', 'Optional. Fill in if the item is sold in more than one way.'],
+  ['Add-ons', 'Optional. Extras a guest can add on top.'],
+  ['Veg Type', 'Veg or Non-Veg. Leave blank if it does not apply.'],
+  ['Description', 'Optional. One short line, shown to guests.'],
+  [''],
+  ['SIZES / CHOICES'],
+  ['', 'Write the name, then its price. Put a comma between each one.'],
+  ['', 'Small 89, Medium 119, Large 149'],
+  ['', 'Steam 69, Fried 79'],
+  ['', '6 Slice 99, 8 Slice 139'],
+  ['', 'The number is that option\'s FULL price, not an extra. The guest picks one.'],
+  ['', 'Fill this in and you can leave Price empty — the first one becomes the price.'],
+  [''],
+  ['ADD-ONS'],
+  ['', 'Same style, but the number is what it ADDS — like the +20 on a menu board.'],
+  ['', 'Cheese Slice 20, Extra Dip 20'],
+  ['', 'With Ice-cream 29'],
+  [''],
+  ['A DIFFERENT MARGIN FOR EACH SIZE?'],
+  ['', 'Put it after a slash. Skip it if you do not need it.'],
+  ['', 'Small 89/50, Medium 119/60, Large 149/75'],
+  ['', 'Small keeps ₹50, Medium keeps ₹60, Large keeps ₹75.'],
+  [''],
+  ['GOOD TO KNOW'],
+  ['', 'Only a name and a price are required. Leave anything else blank.'],
+  ['', 'Importing again updates the items you already have — it will not duplicate them.'],
+  ['', 'Leave a Sizes or Add-ons cell empty and that item keeps whatever it has now.'],
+]
 
 export function downloadMenuTemplate(cafeName: string) {
   const rows: (string | number)[][] = [
     TEMPLATE_HEADER,
     ['BURGERS', '', '', '', '', '', ''],
-    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Add-ons = what they ADD to the price'],
-    ['Cheese Burger', 179, 75, '', '', 'Veg', 'No options? Leave both option columns blank'],
+    ['Classic Veg Burger', 149, 60, '', 'Cheese Slice 20', 'Veg', 'Crispy patty, lettuce and mayo'],
+    ['Cheese Burger', 179, 75, '', '', 'Veg', ''],
     ['PIZZA', '', '', '', '', '', ''],
-    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', "Choices = that option's FULL price"],
+    ['Margherita', 99, '', '6 Slice 99, 8 Slice 139', 'Double Cheese 40', 'Veg', 'Tomato and mozzarella'],
     ['MOMOS', '', '', '', '', '', ''],
-    ['Veg Momos', '', '', 'Steam 69, Fried 79', '', 'Veg', 'No Price needed — the first choice becomes the price'],
+    ['Veg Momos', '', '', 'Steam 69, Fried 79', 'Extra Dip 20', 'Veg', ''],
     ['COLD DRINKS', '', '', '', '', '', ''],
-    // Sizes get their own worked example: dropping the fixed Small/Medium/Large
-    // columns makes owners who DO sell that way wonder where their sizes went.
-    // They're just three more names in the same column.
-    ['Cold Coffee', '', '', 'Small 89, Medium 119, Large 149', 'With Ice-cream 29', 'Veg', 'Sell by size? Name them here, same as any other choice'],
-    ['Coca Cola', 60, 25, '', '', 'Veg', 'Margin = what you keep after making it'],
+    // A café that sells by size needs to see its own case here: dropping the
+    // fixed Small/Medium/Large columns otherwise reads as losing the feature.
+    ['Cold Coffee', '', '', 'Small 89, Medium 119, Large 149', 'With Ice-cream 29', 'Veg', ''],
+    ['Coca Cola', 60, 25, '', '', 'Veg', ''],
   ]
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = TEMPLATE_COLS
+
+  const guide = XLSX.utils.aoa_to_sheet(GUIDE_ROWS)
+  guide['!cols'] = [{ wch: 18 }, { wch: 82 }]
+
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Menu template')
+  // Menu first — readWorkbookRows only ever reads sheet 0, which is what keeps
+  // the guide out of the import.
+  XLSX.utils.book_append_sheet(wb, ws, 'Menu')
+  XLSX.utils.book_append_sheet(wb, guide, 'How to fill this in')
   download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
 }
 
@@ -110,7 +160,8 @@ function optionCell(opts: { name: string; price: number; cost?: number | null }[
 // property is why choices and add-ons are cells rather than extra rows: rows
 // would detach from their item the first time anyone sorted by price.
 export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
-  const header = ['Category', 'Item', 'Price', 'Margin', 'Choices (pick one)', 'Add-ons (extras)', 'Veg Type', 'Description']
+  // Same column names as the template, so the two sheets read alike.
+  const header = ['Category', 'Item', 'Price', 'Margin', 'Sizes / Choices', 'Add-ons', 'Veg Type', 'Description']
   const body = rows.map((r) => [
     safeText(r.category),
     safeText(r.name),

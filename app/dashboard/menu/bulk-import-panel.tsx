@@ -437,34 +437,21 @@ export default function BulkImportPanel({
                 <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{fileError}</p>
               )}
 
-              <p className="pt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                In the template, type a category name on its own row (like <b>BURGERS</b>), then list its items
-                underneath with a price. Start a new category the same way whenever you want. Blank rows are fine.
-              </p>
-              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Choices</b> is for an item sold more than one way — whatever your menu calls them:{' '}
-                <code className="rounded bg-surface-subtle px-1">Small 89, Medium 119, Large 149</code>,{' '}
-                <code className="rounded bg-surface-subtle px-1">Steam 69, Fried 79</code> or{' '}
-                <code className="rounded bg-surface-subtle px-1">6 Slice 99, 8 Slice 139</code>. Write each as its name then its
-                price, separated by commas. The guest picks exactly one, and the price you write is that option&apos;s{' '}
-                <b>full price</b>. If you fill this in you can leave Price blank — the first choice becomes the item&apos;s price.
-              </p>
-              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Add-ons</b> works the same way, for optional extras the guest can tick alongside:{' '}
-                <code className="rounded bg-surface-subtle px-1">Cheese Slice 20, Extra Dip 20</code>. Here the price is what it{' '}
-                <b>adds</b> — just like the +20 printed on a menu board. Leave either column blank for an item that
-                doesn&apos;t need it.
-              </p>
-              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                <b>Margin</b> is simply the ₹ you make per item — 20 on a ₹100 burger. It&apos;s optional, never shown
-                to customers, and Reports uses it to work out your net profit as items sell. To give one choice its own
-                margin, add it after a slash: <code className="rounded bg-surface-subtle px-1">Steam 69/20</code>. (Older sheets
-                with Profit, Cost Price or Small/Medium/Large columns still import fine.)
-              </p>
-              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-                Re-importing only replaces the options you actually list. Leave a Choices or Add-ons cell empty and
-                whatever that item already has is left untouched.
-              </p>
+              {/* Deliberately short. The template carries a full "How to fill
+                  this in" tab; repeating it here just makes the screen look
+                  harder than the job is. */}
+              <div className="space-y-2 pt-2 text-[12.5px] leading-relaxed text-muted-foreground">
+                <p>
+                  Category name on its own row, its items underneath with a price. That&apos;s the whole format —
+                  only a name and a price are required.
+                </p>
+                <p>
+                  Sold more than one way? List them in <b>Sizes / Choices</b>, each as name then price:{' '}
+                  <code className="rounded bg-surface-subtle px-1">Small 89, Medium 119, Large 149</code>. Extras go in{' '}
+                  <b>Add-ons</b> the same way: <code className="rounded bg-surface-subtle px-1">Cheese Slice 20</code>.
+                </p>
+                <p>The template&apos;s second tab explains the rest. Older sheets still import fine.</p>
+              </div>
             </div>
           )}
 
