@@ -451,6 +451,51 @@ describe('per-option margins', () => {
   })
 })
 
+// A café switching over exports from its old POS rather than filling in our
+// template. Petpooja's export names the item "Title" and carries four other
+// columns containing the word "item" — loose matching picked "Base Item Price"
+// as the name column, so every item imported called "129" or "99".
+describe('menu import — a POS export with confusing headers', () => {
+  const SHEET = [
+    ['Short Code', 'Title', 'Tax Product Group', 'Food Type', 'Category', 'Sub Category',
+     'Kitchen Dept', 'Description', 'Stock', 'Base Item Price', 'IsActive', 'Item Type',
+     'Item Sort', 'Is Furnished item'],
+    ['HHH22', 'Pizza Di Sicilia', 'FoodHansi', 'Veg', 'Pizza', 'Pizza', 'Food Kitchen',
+     "World's thinnest pizza", '30', '129', '1', '0', '0', '0'],
+    ['HHH23', 'Hot To Hell Pizza', 'FoodHansi', 'Non-Veg', 'Pizza', 'Pizza', 'Food Kitchen',
+     '', '30', '149', '1', '0', '0', '0'],
+  ]
+
+  it('takes the name from Title, not from "Base Item Price"', () => {
+    const items = parseMenuFile(SHEET).byCategory.flatMap((c) => c.items)
+    expect(items.map((i) => i.name)).toEqual(['Pizza Di Sicilia', 'Hot To Hell Pizza'])
+    expect(items.map((i) => i.price)).toEqual([129, 149])
+  })
+
+  it('files them under Category, not Sub Category', () => {
+    expect(parseMenuFile(SHEET).byCategory.map((c) => c.name)).toEqual(['Pizza'])
+  })
+
+  it('reads veg from a "Food Type" column', () => {
+    const items = parseMenuFile(SHEET).byCategory.flatMap((c) => c.items)
+    expect(items.map((i) => i.isVeg)).toEqual([true, false])
+  })
+
+  it('imports the description and raises no issues', () => {
+    const r = parseMenuFile(SHEET)
+    expect(r.issues).toEqual([])
+    expect(r.byCategory[0].items[0].description).toBe("World's thinnest pizza")
+  })
+
+  it('still prefers an explicit "Item Name" header when one exists', () => {
+    const r = parseMenuFile([
+      ['Category', 'Item Name', 'Base Item Price'],
+      ['Pizza', 'Margherita', '99'],
+    ])
+    expect(r.byCategory[0].items[0].name).toBe('Margherita')
+  })
+})
+
 describe('menu import — backward compatibility', () => {
   it('still reads a sheet that only has Small/Medium/Large columns', () => {
     const r = parseMenuFile([

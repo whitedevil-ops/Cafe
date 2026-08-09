@@ -167,8 +167,25 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   const [headerRow, ...dataRows] = rows
   const header = (headerRow ?? []).map((h) => normalize(h))
 
-  const catCol = findColumn(header, (h) => h.includes('category'))
-  const itemCol = findColumn(header, (h) => h.includes('item') || h.includes('name'))
+  // Exact header names win before loose matching, because a POS export is full
+  // of columns that merely CONTAIN these words. A Petpooja export names the
+  // item "Title" and also carries "Base Item Price", "Item Type", "Item Sort"
+  // and "Is Furnished item" — loose matching picked "Base Item Price" as the
+  // name column, so every item imported called "129" or "99". Likewise "Sub
+  // Category" must never beat "Category".
+  const exactly = (...names: string[]) => (h: string) => names.includes(h.trim())
+  const firstOf = (strict: (h: string) => boolean, loose: (h: string) => boolean) => {
+    const hit = findColumn(header, strict)
+    return hit !== -1 ? hit : findColumn(header, loose)
+  }
+  const catCol = firstOf(exactly('category', 'category name'), (h) => h.includes('category'))
+  const itemCol = firstOf(
+    exactly('item', 'item name', 'name', 'title', 'item title', 'product', 'product name', 'dish'),
+    (h) =>
+      (h.includes('item') || h.includes('name')) &&
+      !h.includes('price') && !h.includes('cost') && !h.includes('type') &&
+      !h.includes('sort') && !h.includes('code') && !h.includes('category'),
+  )
   const sizeWords = ['small', 'medium', 'med', 'large']
   const isSizeSpecific = (h: string) => sizeWords.some((w) => h.includes(w))
   // "Margin" and "Profit" mean the same thing here — the sheets we hand out
@@ -187,7 +204,8 @@ export function parseMenuFile(rows: unknown[][]): ParseResult {
   // both, the explicit Cost Price column wins.
   const profitCol = findColumn(header, (h) => isMarginWord(h) && !isSizeSpecific(h))
   const priceCol = findColumn(header, (h) => h.includes('price') && !h.includes('cost') && !isMarginWord(h) && !isSizeSpecific(h))
-  const vegCol = findColumn(header, (h) => h.includes('veg'))
+  // POS exports label this "Food Type" and fill it with Veg / Non-veg.
+  const vegCol = findColumn(header, (h) => h.includes('veg') || h.trim() === 'food type')
   const descCol = findColumn(header, (h) => h.includes('desc'))
   // The generic option columns. "Choices" replaced the fixed
   // Small/Medium/Large columns because a café's sizes are its own —
