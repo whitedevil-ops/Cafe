@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
 import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
 import { effectiveOptionCost, optionToDeltas } from '@/lib/menu-options'
+import { savedFileHint } from '@/lib/is-desktop'
 import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -180,7 +181,7 @@ export default function BulkImportPanel({
         choices: choicesByItem.get(i.id),
         addons: addonsByItem.get(i.id),
       }))
-    downloadMenuExport(cafeName, rows)
+    toast(savedFileHint(downloadMenuExport(cafeName, rows)))
   }
 
   async function confirmImport() {
@@ -466,7 +467,7 @@ export default function BulkImportPanel({
           {!result && (
             <div className="space-y-3">
               <button
-                onClick={() => downloadMenuTemplate(cafeName)}
+                onClick={() => toast(savedFileHint(downloadMenuTemplate(cafeName)))}
                 className="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius)] border border-border-strong px-4 text-left text-sm font-medium text-foreground hover:bg-surface-subtle"
               >
                 <Download size={17} className="shrink-0 text-primary" />

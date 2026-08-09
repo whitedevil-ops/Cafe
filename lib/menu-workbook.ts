@@ -2,8 +2,12 @@ import * as XLSX from 'xlsx'
 import { safeText } from './xlsx-export'
 import { pickMenuSheet } from './menu-import'
 
-function download(wb: XLSX.WorkBook, filename: string) {
+// Returns the filename so callers can name it in a toast. The desktop app's
+// webview saves silently with no download bar, so without that the café gets
+// no sign the export happened at all.
+function download(wb: XLSX.WorkBook, filename: string): string {
   XLSX.writeFile(wb, filename)
+  return filename
 }
 
 // The blank starting template — heading style, exactly the shape a
@@ -116,7 +120,7 @@ export function downloadMenuTemplate(cafeName: string) {
   // the guide out of the import.
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
   XLSX.utils.book_append_sheet(wb, guide, 'How to fill this in')
-  download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
+  return download(wb, `${cafeName || 'cafe'}-menu-template.xlsx`.replace(/\s+/g, '-'))
 }
 
 export type ExportRow = {
@@ -186,7 +190,7 @@ export function downloadMenuExport(cafeName: string, rows: ExportRow[]) {
   ws['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 26 }, { wch: 10 }, { wch: 34 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Menu')
-  download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))
+  return download(wb, `${cafeName || 'cafe'}-menu-export.xlsx`.replace(/\s+/g, '-'))
 }
 
 export type ComboExportRow = {
@@ -257,7 +261,7 @@ export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
   ws['!cols'] = [{ wch: 24 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 24 }, { wch: 15 }, { wch: 26 }, { wch: 10 }, { wch: 6 }, { wch: 11 }, { wch: 11 }]
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Combos')
-  download(wb, `${cafeName || 'cafe'}-combos.xlsx`.replace(/\s+/g, '-'))
+  return download(wb, `${cafeName || 'cafe'}-combos.xlsx`.replace(/\s+/g, '-'))
 }
 
 // Reads an uploaded .csv or .xlsx File into a plain array-of-arrays, the input
