@@ -7,6 +7,7 @@ import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 import { PrinterBanner, type PrinterHealth } from '@/components/kitchen/printer-banner'
 import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
 import { OfflineBanner } from '@/components/offline-banner'
+import { printKot } from '@/components/kitchen/print-ticket'
 
 type Order = {
   id: string
@@ -53,10 +54,14 @@ export default function KitchenClient({
   cafeId,
   tableLabels,
   printingEnabled,
+  paperWidth,
+  timezone,
 }: {
   cafeId: string
   tableLabels: Record<string, string>
   printingEnabled: boolean
+  paperWidth: '58mm' | '80mm'
+  timezone: string
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -89,10 +94,28 @@ export default function KitchenClient({
     }
   }, [supabase, cafeId, printingEnabled])
 
-  async function reprint(o: Order) {
-    const { data, error } = await supabase.rpc('reprint_kot', { p_order_id: o.id })
-    if (error) return toast(error.message, 'error')
-    toast(data === 0 ? 'No printer matched this order.' : `KOT re-queued for order ${o.short_code}.`)
+  // Prints here, in this browser, through the OS print dialog against whatever
+  // printer Windows already has installed — including one paired over
+  // Bluetooth. That is the only printing a web page can do: it cannot open a
+  // socket to a network printer or a serial port, which is what the queue and
+  // its bridge were for. The queue still fills for a future bridge; this is
+  // the path that puts paper in a cook's hand today.
+  async function printTicket(o: Order) {
+    const its = items.filter((i) => i.order_id === o.id)
+    if (its.length === 0) return toast('Nothing to print on this order.', 'error')
+    await printKot({
+      kotNumber: o.short_code,
+      tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
+      orderType: o.type,
+      placedAt: o.created_at,
+      timezone,
+      paperWidth,
+      items: its.map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        modifiers: (i.modifiers ?? []).map((m) => m.name),
+      })),
+    })
   }
 
   const poll = useCallback(async () => {
@@ -249,10 +272,10 @@ export default function KitchenClient({
                   </button>
                   {printingEnabled && (
                     <button
-                      onClick={() => reprint(o)}
+                      onClick={() => void printTicket(o)}
                       className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary"
                     >
-                      Reprint KOT
+                      Print KOT
                     </button>
                   )}
                 </div>
