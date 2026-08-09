@@ -132,24 +132,6 @@ export type ExportRow = {
   addons?: { name: string; price: number }[]
 }
 
-/**
- * What one choice actually costs, mirroring menu_item_effective_cost
- * (migration 0106): `greatest(0, coalesce(item.cost, 0) + variant.cost_delta)`.
- *
- * The mirror has to be exact. An owner can give margins on the choices alone
- * and leave the item's own Margin blank — "Small 89/50, Large 149/75" on an
- * item priced only through its choices — which stores cost on the deltas with
- * menu_items.cost still null. Treating a null item cost as "no cost data" would
- * hide those margins from the export while sales and the Profitability report
- * went on using them.
- *
- * Null only when there is genuinely nothing recorded on either side.
- */
-export function effectiveOptionCost(itemCost: number | null, costDelta: number): number | null {
-  if (itemCost == null && costDelta === 0) return null
-  return Math.max(0, (itemCost ?? 0) + costDelta)
-}
-
 /** "Steam 69, Fried 79/25" — the exact syntax parseOptionList reads back. */
 function optionCell(opts: { name: string; price: number; cost?: number | null }[] | undefined): string {
   if (!opts?.length) return ''

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseMenuFile, parseOptionList, type ImportIssue } from '@/lib/menu-import'
-import { effectiveOptionCost } from '@/lib/menu-workbook'
+import { effectiveOptionCost, optionToDeltas, optionFromDeltas } from '@/lib/menu-options'
 
 // Free-form Choices / Add-ons columns. These replaced the fixed
 // Small/Medium/Large columns because no fixed set of sizes fits every café:
@@ -341,6 +341,42 @@ describe('per-option margins', () => {
       { name: 'Small', price: 89, cost: 39 },
       { name: 'Medium', price: 119, cost: 59 },
     ])
+  })
+
+  // The per-item editor types the same two numbers the sheet does, and stores
+  // them as deltas. Both directions have to agree or editing an item silently
+  // shifts its costing.
+  describe('option ⇄ delta conversion', () => {
+    it('turns a typed price and margin into deltas from the base item', () => {
+      expect(optionToDeltas(99, 59, { price: 139, margin: 80 })).toEqual({ price_delta: 40, cost_delta: 0 })
+      expect(optionToDeltas(89, 39, { price: 149, margin: 75 })).toEqual({ price_delta: 60, cost_delta: 35 })
+    })
+
+    it('leaves cost untouched for an option given no margin', () => {
+      expect(optionToDeltas(99, 59, { price: 139, margin: null })).toEqual({ price_delta: 40, cost_delta: 0 })
+    })
+
+    it('carries the whole cost on the delta when the item tracks none', () => {
+      expect(optionToDeltas(69, null, { price: 79, margin: 35 })).toEqual({ price_delta: 10, cost_delta: 44 })
+    })
+
+    it('round-trips every combination back to what was typed', () => {
+      const cases: { basePrice: number; baseCost: number | null; price: number; margin: number | null }[] = [
+        { basePrice: 99, baseCost: 59, price: 139, margin: 80 },
+        { basePrice: 89, baseCost: 39, price: 89, margin: 50 },
+        { basePrice: 89, baseCost: 39, price: 149, margin: 75 },
+        { basePrice: 69, baseCost: null, price: 79, margin: 35 },
+        { basePrice: 149, baseCost: 89, price: 149, margin: null },
+      ]
+      for (const c of cases) {
+        const deltas = optionToDeltas(c.basePrice, c.baseCost, { price: c.price, margin: c.margin })
+        const back = optionFromDeltas(c.basePrice, c.baseCost, deltas)
+        expect(back.price).toBe(c.price)
+        // A margin-less option reads back as "same cost as the base item",
+        // which is a real answer rather than a blank once the item has a cost.
+        expect(back.margin).toBe(c.margin === null && c.baseCost != null ? c.price - c.baseCost : c.margin)
+      }
+    })
   })
 
   describe('effectiveOptionCost mirrors menu_item_effective_cost', () => {

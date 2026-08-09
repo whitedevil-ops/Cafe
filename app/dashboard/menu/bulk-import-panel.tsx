@@ -6,7 +6,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
-import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows, effectiveOptionCost } from '@/lib/menu-workbook'
+import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
+import { effectiveOptionCost, optionToDeltas } from '@/lib/menu-options'
 import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -266,11 +267,10 @@ export default function BulkImportPanel({
                     p.variants.map((v, idx) => ({
                       menu_item_id: p.itemId,
                       name: v.name,
-                      price_delta: v.price - p.price,
-                      // Only a choice with its own margin gets a real delta; one
-                      // with no cost data just costs the same as the base item
-                      // (delta 0), same default as adding a variant by hand.
-                      cost_delta: v.cost != null ? v.cost - baseCost : 0,
+                      ...optionToDeltas(p.price, baseCost, {
+                        price: v.price,
+                        margin: v.cost == null ? null : v.price - v.cost,
+                      }),
                       sort: idx,
                     })),
                   )

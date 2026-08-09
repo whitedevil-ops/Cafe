@@ -9,12 +9,17 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import BulkImportPanel from './bulk-import-panel'
+import { optionFromDeltas, optionToDeltas } from '@/lib/menu-options'
 import CombosPanel, { type VariantRow } from './combos-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 import type { Combo, ComboSlot } from '@/lib/combos'
 
-type VariantDraft = { id?: string; name: string; price_delta: string; cost_delta: string }
+// Each option carries the price a guest actually pays and the margin the owner
+// actually keeps — the same two numbers the menu sheet asks for. The database
+// stores them as deltas from the base item (price_delta / cost_delta), so the
+// conversion happens on save and load rather than in the owner's head.
+type VariantDraft = { id?: string; name: string; price: string; margin: string }
 type AddonDraft = { id?: string; name: string; price: string }
 
 type ItemDraft = {
@@ -29,6 +34,14 @@ type ItemDraft = {
   available: boolean
   is_veg: boolean | null
   is_bestseller: boolean
+  /**
+   * The item's own cost as the database computes it — the recipe total when
+   * cost_source is 'recipe', otherwise the manual cost. Options are stored as a
+   * difference from this, so converting a typed margin needs the real base;
+   * reading menu_items.cost would be wrong for a recipe-costed item.
+   * Null for a brand-new item, which has no stored cost yet.
+   */
+  effectiveCost: number | null
   variants: VariantDraft[]
   addons: AddonDraft[]
   // Cross-sell suggestions (other menu item ids) shown when this item is added.
@@ -46,6 +59,7 @@ const emptyDraft: ItemDraft = {
   available: true,
   is_veg: null,
   is_bestseller: false,
+  effectiveCost: null,
   variants: [],
   addons: [],
   pairings: [],
@@ -311,13 +325,29 @@ export default function MenuManager({
     await supabase.from('menu_item_variants').delete().eq('menu_item_id', itemId)
     await supabase.from('menu_item_addons').delete().eq('menu_item_id', itemId)
 
+    // Absolute price/margin back to the deltas the database stores. Mirrors the
+    // bulk importer exactly: an option with no margin of its own costs the same
+    // as the base item (delta 0), and a blank base cost counts as 0 so an
+    // option's margin still lands even when the item tracks no cost itself.
+    //
+    // A recipe-costed item's base is the recipe total, which the Cost field
+    // doesn't show — hence effectiveCost rather than d.cost.
+    const basePrice = Math.round(Number(d.price) || 0)
+    const baseCost =
+      d.cost_source === 'recipe'
+        ? (d.effectiveCost ?? 0)
+        : d.cost.trim() === ''
+          ? 0
+          : Math.round(Number(d.cost) || 0)
     const variants = d.variants
       .filter((v) => v.name.trim())
       .map((v, i) => ({
         menu_item_id: itemId,
         name: v.name.trim(),
-        price_delta: Math.round(Number(v.price_delta) || 0),
-        cost_delta: Math.round(Number(v.cost_delta) || 0),
+        ...optionToDeltas(basePrice, baseCost, {
+          price: Math.round(Number(v.price) || 0),
+          margin: v.margin.trim() === '' ? null : Math.round(Number(v.margin) || 0),
+        }),
         sort: i,
       }))
     const addons = d.addons
@@ -349,19 +379,30 @@ export default function MenuManager({
       is_veg: item.is_veg,
       is_bestseller: item.is_bestseller,
       pairings: [],
+      effectiveCost: null,
       variants: [],
       addons: [],
     })
-    const [{ data: vs }, { data: as }, { data: prs }] = await Promise.all([
+    const [{ data: vs }, { data: as }, { data: prs }, { data: baseCost }] = await Promise.all([
       supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
+      // What the database itself considers this item to cost, recipe included.
+      supabase.rpc('menu_item_effective_cost', { p_menu_item_id: item.id }),
     ])
+    // Recipe-costed items price their options against the recipe total; manual
+    // ones against the Cost field, which may legitimately be blank.
+    const base = item.cost_source === 'recipe' ? (typeof baseCost === 'number' ? baseCost : 0) : item.cost
     setDraft((d) =>
       d && d.id === item.id
         ? {
             ...d,
-            variants: (vs ?? []).map((v) => ({ id: v.id, name: v.name, price_delta: String(v.price_delta), cost_delta: String(v.cost_delta ?? 0) })),
+            effectiveCost: typeof baseCost === 'number' ? baseCost : null,
+            // Deltas back to the two numbers an owner recognises.
+            variants: (vs ?? []).map((v) => {
+              const { price, margin } = optionFromDeltas(item.price, base, { price_delta: v.price_delta, cost_delta: v.cost_delta ?? 0 })
+              return { id: v.id, name: v.name, price: String(price), margin: margin == null ? '' : String(margin) }
+            }),
             addons: (as ?? []).map((a) => ({ id: a.id, name: a.name, price: String(a.price) })),
             pairings: (prs ?? []).map((p) => p.suggested_item_id as string),
           }
@@ -927,21 +968,29 @@ export default function MenuManager({
               {/* Variants */}
               <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-medium text-foreground">Variants</span>
+                  <span className="text-[13px] font-medium text-foreground">Sizes / Choices</span>
                   <button
                     type="button"
-                    onClick={() => setDraft({ ...draft, variants: [...draft.variants, { name: '', price_delta: '0', cost_delta: '0' }] })}
+                    onClick={() => setDraft({ ...draft, variants: [...draft.variants, { name: '', price: '', margin: '' }] })}
                     className="text-[13px] text-primary hover:underline"
                   >
                     + Add
                   </button>
                 </div>
                 <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  Sizes/options. Final price is base {draft.price ? `(₹${draft.price})` : ''} plus this amount. Leave empty for none.
-                  {canSeeCost && ' The cost field (if shown) works the same way — how much more this size costs you, added to the base cost.'}
+                  Only if this is sold more than one way — Small/Medium/Large, 6 Slice, Steam/Fried. Give each one the
+                  price a guest pays{canSeeCost && ' and the ₹ you keep'}. Leave empty if there&apos;s just one.
                 </p>
+                {draft.variants.length > 0 && (
+                  <div className="mt-2 flex gap-2 text-[11.5px] text-muted-foreground">
+                    <span className="flex-1">Name</span>
+                    <span className="w-24">Price ₹</span>
+                    {canSeeCost && <span className="w-24">Margin ₹</span>}
+                    <span className="w-6" />
+                  </div>
+                )}
                 {draft.variants.map((v, idx) => (
-                  <div key={idx} className="mt-2 flex gap-2">
+                  <div key={idx} className="mt-1.5 flex gap-2">
                     <input
                       value={v.name}
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
@@ -949,23 +998,26 @@ export default function MenuManager({
                       className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                     />
                     <input
-                      value={v.price_delta}
+                      value={v.price}
                       type="number"
-                      onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price_delta: e.target.value } : x)) })}
-                      placeholder="+₹"
+                      min={0}
+                      onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
+                      placeholder="149"
+                      title="What a guest pays for this one"
                       className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                     />
                     {canSeeCost && (
                       <input
-                        value={v.cost_delta}
+                        value={v.margin}
                         type="number"
-                        onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, cost_delta: e.target.value } : x)) })}
-                        placeholder="+cost"
-                        title="Extra cost for this size, relative to the base item's cost"
+                        min={0}
+                        onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, margin: e.target.value } : x)) })}
+                        placeholder="optional"
+                        title="What you keep on this one. Only you see it."
                         className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                       />
                     )}
-                    <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove variant" className="px-2 text-muted-foreground hover:text-destructive">×</button>
+                    <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove option" className="w-6 text-muted-foreground hover:text-destructive">×</button>
                   </div>
                 ))}
               </div>
