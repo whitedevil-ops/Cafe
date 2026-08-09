@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { Upload, Download, FileSpreadsheet, X, AlertTriangle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Upload, Download, FileSpreadsheet, X, AlertTriangle, Camera } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,39 @@ export default function BulkImportPanel({
 
   const catNameById = new Map(categories.map((c) => [c.id, c.name]))
 
+  // Menu scanning is a paid server-side call, so the button only appears where
+  // the server is actually configured for it.
+  const photoRef = useRef<HTMLInputElement>(null)
+  const [scanAvailable, setScanAvailable] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/menu/scan')
+      .then((r) => r.json())
+      .then((d: { available?: boolean }) => {
+        if (!cancelled) setScanAvailable(d?.available === true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /** Rows in, preview out — shared by the file and photo paths. */
+  function previewRows(rows: unknown[][], emptyMessage: string): boolean {
+    const parsed = parseMenuFile(rows)
+    if (parsed.totalItems === 0) {
+      setFileError(emptyMessage)
+      return false
+    }
+    const existing = items.map((i) => ({
+      categoryName: i.category_id ? (catNameById.get(i.category_id) ?? 'Uncategorised') : 'Uncategorised',
+      itemName: i.name,
+    }))
+    setResult(markUpdatesVsInserts(parsed, existing))
+    return true
+  }
+
   async function onPickFile(file: File | undefined) {
     if (!file) return
     setFileName(file.name)
@@ -49,22 +82,56 @@ export default function BulkImportPanel({
     setResult(null)
     setParsing(true)
     try {
-      const rows = await readWorkbookRows(file)
-      const parsed = parseMenuFile(rows)
-      if (parsed.totalItems === 0) {
-        setFileError('No items were found in this file. Check it matches the template format.')
-        setParsing(false)
-        return
-      }
-      const existing = items.map((i) => ({
-        categoryName: i.category_id ? (catNameById.get(i.category_id) ?? 'Uncategorised') : 'Uncategorised',
-        itemName: i.name,
-      }))
-      setResult(markUpdatesVsInserts(parsed, existing))
+      previewRows(
+        await readWorkbookRows(file),
+        'No items were found in this file. Check it matches the template format.',
+      )
     } catch {
       setFileError('Could not read this file. Make sure it\'s a .csv or .xlsx export from Excel/Google Sheets.')
     } finally {
       setParsing(false)
+    }
+  }
+
+  /** Strips the "data:image/jpeg;base64," prefix the API doesn't want. */
+  function readAsBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+      reader.onerror = () => reject(new Error('could not read the photo'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  // A photo becomes the same rows an uploaded sheet would, and lands in the
+  // same preview — so everything the importer already checks still applies and
+  // the owner still confirms before anything is written.
+  async function onPickPhotos(files: FileList | null) {
+    if (!files?.length) return
+    const list = Array.from(files)
+    setFileName(list.length === 1 ? list[0].name : `${list.length} photos`)
+    setFileError(null)
+    setResult(null)
+    setScanning(true)
+    try {
+      const images = await Promise.all(
+        list.map(async (f) => ({ mediaType: f.type, data: await readAsBase64(f) })),
+      )
+      const res = await fetch('/api/menu/scan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cafe_id: cafeId, images }),
+      })
+      const data = (await res.json()) as { rows?: unknown[][]; error?: string }
+      if (!res.ok || !data.rows) {
+        setFileError(data.error ?? 'Could not read that menu.')
+        return
+      }
+      previewRows(data.rows, 'Nothing readable was found in that photo. Try a sharper, straight-on picture.')
+    } catch {
+      setFileError('Could not read that photo. Check your connection and try again.')
+    } finally {
+      setScanning(false)
     }
   }
 
@@ -417,11 +484,12 @@ export default function BulkImportPanel({
               <div className="border-t border-border pt-4">
                 <button
                   onClick={() => fileRef.current?.click()}
-                  className="flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed border-border-strong text-center hover:border-primary hover:bg-primary-subtle"
+                  disabled={scanning}
+                  className="flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border-2 border-dashed border-border-strong text-center hover:border-primary hover:bg-primary-subtle disabled:opacity-50"
                 >
                   <Upload size={20} className="text-primary" />
                   <span className="text-sm font-medium text-foreground">
-                    {parsing ? 'Reading file…' : fileName ? fileName : 'Import menu — choose a .csv or .xlsx file'}
+                    {parsing ? 'Reading file…' : fileName && !scanning ? fileName : 'Import menu — choose a .csv or .xlsx file'}
                   </span>
                 </button>
                 <input
@@ -431,6 +499,31 @@ export default function BulkImportPanel({
                   className="hidden"
                   onChange={(e) => onPickFile(e.target.files?.[0])}
                 />
+
+                {scanAvailable && (
+                  <>
+                    <button
+                      onClick={() => photoRef.current?.click()}
+                      disabled={scanning || parsing}
+                      className="mt-3 flex min-h-11 w-full items-center gap-3 rounded-[var(--radius)] border border-border-strong px-4 text-left text-sm font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50"
+                    >
+                      <Camera size={17} className="shrink-0 text-primary" />
+                      {scanning ? 'Reading your menu…' : 'Or take a photo of your menu'}
+                    </button>
+                    <input
+                      ref={photoRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => onPickPhotos(e.target.files)}
+                    />
+                    <p className="mt-1.5 text-[12px] text-muted-foreground">
+                      Up to 8 photos — one per page or board. You&apos;ll check everything before it&apos;s added.
+                    </p>
+                  </>
+                )}
               </div>
 
               {fileError && (
