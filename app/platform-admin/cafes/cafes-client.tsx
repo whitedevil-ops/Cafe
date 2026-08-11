@@ -5,6 +5,19 @@ import Link from 'next/link'
 import { Search, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate } from '@/lib/datetime'
+import {
+  Badge,
+  EmptyPanel,
+  MonoId,
+  Page,
+  PageHeader,
+  TableWrap,
+  Td,
+  Th,
+  Thead,
+  Tr,
+  type StripTone,
+} from '@/components/platform-admin/ui'
 
 export type CafeRow = {
   cafe_id: string
@@ -27,11 +40,11 @@ export type CafeRow = {
   customers_count: number
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  active: 'bg-success-subtle text-success',
-  suspended: 'bg-destructive-subtle text-destructive',
-  disabled: 'bg-surface-subtle text-muted-foreground',
-  archived: 'bg-surface-subtle text-muted-foreground',
+const STATUS_TONE: Record<string, StripTone> = {
+  active: 'success',
+  suspended: 'destructive',
+  disabled: 'neutral',
+  archived: 'neutral',
 }
 
 export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] }) {
@@ -79,10 +92,18 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
     return [...groups.values()]
   }, [cafes])
 
+  const filtersOn = Boolean(search || status || verified || plan)
+
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Cafés</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{cafes.length} café{cafes.length === 1 ? '' : 's'} matching.</p>
+    <Page>
+      <PageHeader
+        title="Cafés"
+        subtitle={
+          filtersOn
+            ? `${cafes.length} café${cafes.length === 1 ? '' : 's'} matching, grouped by owner.`
+            : `${cafes.length} café${cafes.length === 1 ? '' : 's'} on the platform, grouped by owner.`
+        }
+      />
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
@@ -115,33 +136,37 @@ export default function CafesClient({ initialCafes }: { initialCafes: CafeRow[] 
         </select>
       </div>
 
-      {cafes.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-border bg-surface p-10 text-center">
-          <p className="text-sm text-muted-foreground">{loading ? 'Searching…' : 'No cafés match.'}</p>
-        </div>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[820px] text-sm">
-            <thead>
-              <tr className="border-b border-border bg-surface-subtle text-left text-[12.5px] text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Café</th>
-                <th className="px-4 py-3 font-medium">City</th>
-                <th className="px-4 py-3 font-medium">Plan</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Staff</th>
-                <th className="px-4 py-3 font-medium">Orders</th>
-                <th className="px-4 py-3 font-medium">Joined</th>
-              </tr>
-            </thead>
+      <div className={`mt-5 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        {cafes.length === 0 ? (
+          <EmptyPanel
+            message={
+              loading
+                ? 'Searching…'
+                : filtersOn
+                  ? 'No cafés match these filters.'
+                  : 'No cafés on the platform yet.'
+            }
+          />
+        ) : (
+          <TableWrap minWidth={860}>
+            <Thead>
+              <Th>Café</Th>
+              <Th>City</Th>
+              <Th>Plan</Th>
+              <Th>Status</Th>
+              <Th align="right">Staff</Th>
+              <Th align="right">Orders</Th>
+              <Th align="right">Joined</Th>
+            </Thead>
             <tbody>
               {ownerGroups.map((g) => (
                 <OwnerGroupRows key={g.ownerId ?? g.cafes[0].cafe_id} group={g} />
               ))}
             </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+          </TableWrap>
+        )}
+      </div>
+    </Page>
   )
 }
 
@@ -150,12 +175,14 @@ type OwnerGroup = { ownerId: string | null; name: string | null; email: string |
 function OwnerGroupRows({ group }: { group: OwnerGroup }) {
   return (
     <>
-      <tr className="border-b border-border bg-surface-subtle/60">
-        <td colSpan={7} className="px-4 py-2">
+      {/* An owner band, not a data row — a left accent and a tighter height so
+          it reads as a divider between groups rather than another café. */}
+      <tr className="border-y border-border bg-surface-subtle">
+        <td colSpan={7} className="border-l-2 border-l-primary px-4 py-2">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-[13px] font-semibold text-foreground">{group.name ?? 'Unnamed owner'}</span>
-            <span className="text-[12px] text-muted-foreground">{group.email ?? '—'}</span>
-            {group.phone && <span className="text-[12px] text-muted-foreground">· {group.phone}</span>}
+            <span className="text-[12.5px] font-semibold text-foreground">{group.name ?? 'Unnamed owner'}</span>
+            <span className="text-[11.5px] text-muted-foreground">{group.email ?? '—'}</span>
+            {group.phone && <span className="text-[11.5px] tabular-nums text-muted-foreground">· {group.phone}</span>}
             {group.cafes.length > 1 && (
               <span className="rounded-full bg-primary-subtle px-2 py-0.5 text-[11px] font-medium text-primary">
                 {group.cafes.length} cafés
@@ -165,27 +192,34 @@ function OwnerGroupRows({ group }: { group: OwnerGroup }) {
         </td>
       </tr>
       {group.cafes.map((c) => (
-        <tr key={c.cafe_id} className="border-b border-border last:border-0 hover:bg-surface-subtle">
-          <td className="px-4 py-3 pl-7">
-            <Link href={`/platform-admin/cafes/${c.cafe_id}`} className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary">
-              {c.verified && <ShieldCheck size={13} className="shrink-0 text-primary" />}
+        <Tr key={c.cafe_id}>
+          <td className="px-4 py-3 pl-7 text-foreground">
+            <Link
+              href={`/platform-admin/cafes/${c.cafe_id}`}
+              className="flex items-center gap-1.5 font-medium hover:text-primary"
+            >
+              {c.verified && <ShieldCheck size={13} className="shrink-0 text-success" aria-label="Verified" />}
               {c.name}
             </Link>
-            <p className="text-[11.5px] text-muted-foreground">{c.cafe_id.slice(0, 8)}…</p>
+            <MonoId id={c.cafe_id} />
           </td>
-          <td className="px-4 py-3 text-muted-foreground">{c.city ?? '—'}</td>
-          <td className="px-4 py-3">
-            <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[12px] font-medium capitalize text-foreground">{c.plan}</span>
-          </td>
-          <td className="px-4 py-3">
-            <span className={`rounded-full px-2 py-0.5 text-[12px] font-medium capitalize ${STATUS_BADGE[c.status] ?? 'bg-surface-subtle text-muted-foreground'}`}>
-              {c.status}
-            </span>
-          </td>
-          <td className="px-4 py-3 text-muted-foreground">{c.staff_count}</td>
-          <td className="px-4 py-3 text-muted-foreground">{c.orders_count}</td>
-          <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
-        </tr>
+          <Td muted>{c.city ?? '—'}</Td>
+          <Td>
+            <Badge>{c.plan}</Badge>
+          </Td>
+          <Td>
+            <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{c.status}</Badge>
+          </Td>
+          <Td align="right" muted numeric>
+            {c.staff_count}
+          </Td>
+          <Td align="right" muted numeric>
+            {c.orders_count.toLocaleString('en-IN')}
+          </Td>
+          <Td align="right" muted numeric>
+            {formatDate(c.created_at)}
+          </Td>
+        </Tr>
       ))}
     </>
   )

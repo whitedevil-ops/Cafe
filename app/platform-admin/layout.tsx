@@ -1,10 +1,21 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { AccountMenu } from '@/components/platform-admin/account-menu'
+import { MobileNav } from '@/components/platform-admin/mobile-nav'
+import { SidebarNav, type NavKey } from '@/components/platform-admin/sidebar-nav'
 
 export const dynamic = 'force-dynamic'
+
+// Internal tooling, and the tab title should say so rather than inheriting the
+// marketing site's. noindex is belt-and-braces — robots.ts already disallows
+// /platform-admin, and the route is behind an auth gate regardless.
+export const metadata: Metadata = {
+  title: { default: 'Operator console', template: '%s · Operator console' },
+  robots: { index: false, follow: false },
+}
 
 type AdminContext = { admin_id: string; role: string; full_name: string; email: string; permissions: Record<string, boolean> }
 
@@ -52,69 +63,53 @@ export default async function PlatformAdminLayout({
   // unawaited promise runs to completion after the function returns).
   await supabase.rpc('op_touch_admin_login')
 
-  const nav = [
-    ['Overview', '/platform-admin', true],
-    ['Cafés', '/platform-admin/cafes', ctx.permissions['cafes.view']],
-    ['Health', '/platform-admin/health', ctx.permissions['health.view']],
-    ['Users', '/platform-admin/users', ctx.permissions['users.view']],
-    ['Admins', '/platform-admin/admins', ctx.permissions['admins.view']],
-    ['Leads', '/platform-admin/leads', ctx.permissions['leads.view']],
-    ['Audit logs', '/platform-admin/audit-logs', ctx.permissions['audit.view']],
-  ].filter(([, , show]) => show) as [string, string, boolean][]
+  // Which nav entries this admin may see. Presentation (order, grouping,
+  // icons, active state) is the nav component's business; this is only the
+  // permission decision, which stays server-side.
+  const allowed: NavKey[] = ([
+    ['overview', true],
+    ['cafes', ctx.permissions['cafes.view']],
+    ['users', ctx.permissions['users.view']],
+    ['leads', ctx.permissions['leads.view']],
+    ['health', ctx.permissions['health.view']],
+    ['audit', ctx.permissions['audit.view']],
+    ['admins', ctx.permissions['admins.view']],
+  ] as [NavKey, boolean | undefined][])
+    .filter(([, show]) => show)
+    .map(([key]) => key)
 
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background md:flex-row">
       {/* Deliberately dark, distinct from the light café dashboard — this is
           the platform's own operations console, never to be mistaken for it. */}
-      <aside className="hidden w-60 shrink-0 flex-col bg-[#0B0D10] px-4 py-6 md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-white/[0.07] bg-[#0B0D10] px-3 py-5 md:flex">
         <div className="px-2">
           <div className="flex items-center gap-2">
             <Image src="/logo-mark.png" alt="" width={24} height={24} className="h-6 w-6" />
-            <p className="text-lg font-semibold tracking-tight text-white">KhaoPiyo</p>
+            <p className="text-[17px] font-semibold tracking-tight text-white">KhaoPiyo</p>
           </div>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator console
+          <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10.5px] font-medium uppercase tracking-wide text-amber-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            Operator console
           </p>
-          <div className="mt-2">
-            <AccountMenu fullName={ctx.full_name} role={ctx.role} email={ctx.email} />
-          </div>
         </div>
-        <nav className="mt-8 space-y-0.5">
-          {nav.map(([label, href]) => (
-            <Link
-              key={href}
-              href={href}
-              className="block rounded-[var(--radius)] px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-        <form action="/auth/signout" method="post" className="mt-auto px-1">
-          <button className="text-[13px] text-white/50 hover:text-white">Sign out</button>
+
+        <div className="mt-4 border-t border-white/[0.07] pt-4">
+          <AccountMenu fullName={ctx.full_name} role={ctx.role} email={ctx.email} />
+        </div>
+
+        {/* Scrolls independently so a long nav can never push Sign out off the
+            bottom of a short laptop screen. */}
+        <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+          <SidebarNav allowed={allowed} />
+        </div>
+
+        <form action="/auth/signout" method="post" className="mt-4 border-t border-white/[0.07] px-3 pt-3">
+          <button className="text-[12.5px] text-white/45 transition-colors hover:text-white">Sign out</button>
         </form>
       </aside>
 
-      {/* Mobile nav — the sidebar above is md:flex only; without this, a phone
-          user had no way to navigate the platform-admin panel at all. */}
-      <header className="border-b border-white/10 bg-[#0B0D10] px-5 py-3 md:hidden">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2 font-semibold tracking-tight text-white">
-            <Image src="/logo-mark.png" alt="" width={22} height={22} className="h-[22px] w-[22px]" />
-            KhaoPiyo
-          </span>
-          <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-amber-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Operator
-          </span>
-        </div>
-        <nav className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
-          {nav.map(([label, href]) => (
-            <Link key={href} href={href} className="text-white/60 hover:text-white">
-              {label}
-            </Link>
-          ))}
-        </nav>
-      </header>
+      <MobileNav allowed={allowed} />
 
       <main className="min-w-0 flex-1">{children}</main>
     </div>

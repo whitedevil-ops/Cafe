@@ -1,8 +1,10 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
 import { NotAuthorized } from '@/components/platform-admin/not-authorized'
 import CafesClient, { type CafeRow } from './cafes-client'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Cafés' }
 
 export default async function AllCafes() {
   const supabase = await createClient()

@@ -1,8 +1,23 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime } from '@/lib/datetime'
+import { auditLabel, relativeTime } from '@/lib/audit-actions'
+import {
+  Badge,
+  EmptyState,
+  Page,
+  PageHeader,
+  Panel,
+  PanelLink,
+  ProportionRow,
+  StatCard,
+  StatStrip,
+} from '@/components/platform-admin/ui'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Overview' }
 
 type Overview = {
   total_cafes: number
@@ -32,134 +47,145 @@ export default async function PlatformOverview() {
 
   if (error || !o) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Platform overview</h1>
-        <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-4 py-3 text-sm text-destructive">
+      <Page>
+        <PageHeader title="Platform overview" />
+        <p className="mt-6 rounded-[var(--radius)] border border-destructive bg-destructive-subtle px-4 py-3 text-sm text-destructive">
           Could not load platform metrics{error ? `: ${error.message}` : ''}. Run migrations 0019/0020 if this is new.
         </p>
-      </div>
+      </Page>
     )
   }
 
-  const topMetrics = [
-    ['Total cafés', o.total_cafes],
-    ['Active cafés', o.active_cafes],
-    ['Active today', o.active_cafes_today],
-    ['New this month', o.new_cafes_this_month],
-  ] as const
-
-  const cafeStateMetrics = [
-    ['Verified', o.verified_cafes],
-    ['Unverified', o.unverified_cafes],
-    ['Trial', o.trial_cafes],
-    ['Suspended', o.suspended_cafes],
-  ] as const
-
-  const platformMetrics = [
-    ['Total platform orders', o.total_orders],
-    ['Total customers', o.total_customers],
-  ] as const
+  const planTotal = o.plan_breakdown.reduce((s, p) => s + p.count, 0)
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Platform overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Live counts across every café on KhaoPiyo.</p>
-        </div>
-        <Link href="/platform-admin/cafes" className="min-h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-4 py-2.5 text-sm font-medium text-foreground hover:bg-surface-subtle flex items-center">
-          Search cafés →
-        </Link>
+    <Page>
+      <PageHeader
+        title="Platform overview"
+        subtitle="Live counts across every café on KhaoPiyo."
+        actions={
+          <Link
+            href="/platform-admin/cafes"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-subtle"
+          >
+            Browse cafés
+            <ArrowRight size={14} />
+          </Link>
+        }
+      />
+
+      {/* Four headline figures only. The previous version gave ten numbers the
+          same visual weight across three stacked rows, so none of them read as
+          the important one. */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total cafés" value={o.total_cafes} href="/platform-admin/cafes" />
+        <StatCard label="Active" value={o.active_cafes} hint="Not suspended or disabled" />
+        <StatCard label="Ordered today" value={o.active_cafes_today} hint="Cafés that billed at least once" />
+        <StatCard label="New this month" value={o.new_cafes_this_month} />
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {topMetrics.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border bg-surface p-5">
-            <p className="text-[13px] text-muted-foreground">{label}</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
-          </div>
-        ))}
+      {/* Secondary counts describe states of the same population, so they read
+          better as one segmented strip than as a second grid of cards. */}
+      <div className="mt-4">
+        <StatStrip
+          items={[
+            { label: 'Verified', value: o.verified_cafes, tone: 'success', href: '/platform-admin/cafes' },
+            { label: 'Unverified', value: o.unverified_cafes, tone: 'warning', href: '/platform-admin/cafes' },
+            { label: 'Trial', value: o.trial_cafes, tone: 'info', href: '/platform-admin/cafes' },
+            { label: 'Suspended', value: o.suspended_cafes, tone: 'destructive', href: '/platform-admin/cafes' },
+          ]}
+        />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cafeStateMetrics.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-[12.5px] text-muted-foreground">{label}</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {platformMetrics.map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-[12.5px] text-muted-foreground">{label}</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      {(o.expiring_7 > 0 || o.expiring_15 > 0) && (
-        <div className="mt-6 rounded-[var(--radius)] border border-warning bg-warning-subtle px-4 py-3 text-[13.5px] text-warning">
-          <span className="font-medium">{o.expiring_7}</span> subscription{o.expiring_7 === 1 ? '' : 's'} expiring in 7 days ·{' '}
-          <span className="font-medium">{o.expiring_15}</span> in 15 days ·{' '}
-          <span className="font-medium">{o.expiring_30}</span> in 30 days.{' '}
-          <Link href="/platform-admin/health" className="font-medium underline">Review →</Link>
+      {(o.expiring_7 > 0 || o.expiring_15 > 0 || o.expiring_30 > 0) && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius)] border border-warning bg-warning-subtle px-4 py-3 text-[13px] text-warning">
+          <span className="font-medium">Subscriptions expiring</span>
+          <span className="tabular-nums">
+            <strong className="font-semibold">{o.expiring_7}</strong> within 7 days
+          </span>
+          <span className="tabular-nums">
+            <strong className="font-semibold">{o.expiring_15}</strong> within 15
+          </span>
+          <span className="tabular-nums">
+            <strong className="font-semibold">{o.expiring_30}</strong> within 30
+          </span>
+          <Link href="/platform-admin/health" className="ml-auto font-medium underline underline-offset-2">
+            Review
+          </Link>
         </div>
       )}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-5">
-          <p className="text-sm font-medium text-foreground">Plan breakdown</p>
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <Panel title="Plans">
           {o.plan_breakdown.length === 0 ? (
-            <p className="mt-2 text-[13px] text-muted-foreground">No cafés yet.</p>
+            <EmptyState message="No cafés yet." />
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul>
               {o.plan_breakdown.map((p) => (
-                <li key={p.plan} className="flex items-center justify-between text-[13.5px]">
-                  <span className="capitalize text-foreground">{p.plan}</span>
-                  <span className="font-medium text-muted-foreground">{p.count}</span>
-                </li>
+                <ProportionRow key={p.plan} label={p.plan} value={p.count} total={planTotal} />
               ))}
             </ul>
           )}
-        </div>
+        </Panel>
 
-        <div className="rounded-xl border border-border bg-surface p-5">
-          <p className="text-sm font-medium text-foreground">Recent registrations</p>
+        <Panel
+          title="Recent registrations"
+          action={<PanelLink href="/platform-admin/cafes">All cafés</PanelLink>}
+        >
           {o.recent_registrations.length === 0 ? (
-            <p className="mt-2 text-[13px] text-muted-foreground">No cafés yet.</p>
+            <EmptyState message="No cafés yet." />
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="divide-y divide-border">
               {o.recent_registrations.map((c) => (
                 <li key={c.id}>
-                  <Link href={`/platform-admin/cafes/${c.id}`} className="flex items-center justify-between text-[13.5px] hover:text-primary">
-                    <span className="text-foreground">{c.name}{c.city ? ` · ${c.city}` : ''}</span>
-                    <span className="text-[12px] capitalize text-muted-foreground">{c.plan}</span>
+                  <Link
+                    href={`/platform-admin/cafes/${c.id}`}
+                    className="group flex items-center justify-between gap-3 py-2 text-[13px]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                        {c.name}
+                      </span>
+                      {c.city && <span className="block text-[11.5px] text-muted-foreground">{c.city}</span>}
+                    </span>
+                    <Badge>{c.plan}</Badge>
                   </Link>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </Panel>
+
+        <Panel
+          title="Operator activity"
+          action={<PanelLink href="/platform-admin/audit-logs">Full log</PanelLink>}
+        >
+          {o.recent_activity.length === 0 ? (
+            <EmptyState message="No administrative actions logged yet." />
+          ) : (
+            <ul className="divide-y divide-border">
+              {o.recent_activity.map((a, i) => (
+                <li key={i} className="flex items-baseline justify-between gap-3 py-2 text-[13px]">
+                  {/* Machine names like `cafe.status_changed` used to be
+                      rendered raw here. */}
+                  <span className="min-w-0 truncate text-foreground">{auditLabel(a.action)}</span>
+                  <span
+                    className="shrink-0 text-[11.5px] tabular-nums text-muted-foreground"
+                    title={formatDateTime(a.created_at)}
+                  >
+                    {relativeTime(a.created_at) ?? formatDateTime(a.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
 
-      <div className="mt-6 rounded-xl border border-border bg-surface p-5">
-        <p className="text-sm font-medium text-foreground">Recent operator activity</p>
-        {o.recent_activity.length === 0 ? (
-          <p className="mt-2 text-[13px] text-muted-foreground">No administrative actions logged yet.</p>
-        ) : (
-          <ul className="mt-3 space-y-1.5">
-            {o.recent_activity.map((a, i) => (
-              <li key={i} className="flex items-center justify-between text-[13px]">
-                <span className="text-foreground">{a.action}</span>
-                <span className="text-[12px] text-muted-foreground">{formatDateTime(a.created_at)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <Link href="/platform-admin/audit-logs" className="mt-3 inline-block text-[12.5px] text-primary hover:underline">View full audit log →</Link>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <StatCard label="Orders, all time" value={o.total_orders} />
+        <StatCard label="Customers, all time" value={o.total_customers} />
       </div>
-    </div>
+    </Page>
   )
 }

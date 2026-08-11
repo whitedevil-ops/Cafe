@@ -1,8 +1,10 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
 import { NotAuthorized } from '@/components/platform-admin/not-authorized'
 import AdminsClient, { type AdminRow } from './admins-client'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Admins' }
 
 export default async function AdminsPage() {
   const supabase = await createClient()

@@ -1,0 +1,272 @@
+import Link from 'next/link'
+import type { ReactNode } from 'react'
+
+// Shared chrome for the operator console.
+//
+// Every screen in here previously hand-rolled its own h1, card, table and
+// empty state, which is exactly why no two of them looked quite alike. These
+// are deliberately small and unclever: the point is that a page cannot
+// accidentally invent a fourth heading size.
+
+/* ── Page shell ─────────────────────────────────────────────────────────── */
+
+export function Page({ children, width = 'wide' }: { children: ReactNode; width?: 'wide' | 'full' }) {
+  return (
+    <div className={`mx-auto w-full ${width === 'full' ? 'max-w-7xl' : 'max-w-6xl'} px-5 py-8 sm:px-8 sm:py-10`}>
+      {children}
+    </div>
+  )
+}
+
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string
+  subtitle?: string
+  actions?: ReactNode
+}) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
+      <div className="min-w-0">
+        <h1 className="text-[22px] font-semibold tracking-tight text-foreground sm:text-2xl">{title}</h1>
+        {subtitle && <p className="mt-1 text-[13.5px] leading-relaxed text-muted-foreground">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  )
+}
+
+/* ── Metrics ────────────────────────────────────────────────────────────── */
+
+/**
+ * The headline figures only. Giving ten numbers this treatment — which is what
+ * the overview used to do — means none of them reads as more important than
+ * any other, so the eye has nowhere to land. Secondary counts belong in
+ * StatStrip.
+ */
+export function StatCard({
+  label,
+  value,
+  hint,
+  href,
+}: {
+  label: string
+  value: number | string
+  hint?: string
+  href?: string
+}) {
+  const body = (
+    <>
+      <p className="text-[12.5px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+        {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
+      </p>
+      {hint && <p className="mt-2 text-[12px] text-muted-foreground">{hint}</p>}
+    </>
+  )
+
+  const base = 'block rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow-sm)]'
+  return href ? (
+    <Link href={href} className={`${base} transition-colors hover:border-border-strong hover:bg-surface-subtle`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={base}>{body}</div>
+  )
+}
+
+export type StripTone = 'neutral' | 'success' | 'warning' | 'destructive' | 'info'
+
+const DOT: Record<StripTone, string> = {
+  neutral: 'bg-muted-foreground',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  destructive: 'bg-destructive',
+  info: 'bg-info',
+}
+
+/**
+ * Secondary counts as one segmented row rather than a second grid of cards.
+ * These describe states of the same population, so they read better side by
+ * side than stacked in identical boxes.
+ */
+export function StatStrip({ items }: { items: { label: string; value: number; tone?: StripTone; href?: string }[] }) {
+  return (
+    <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface sm:grid-cols-4 sm:divide-y-0">
+      {items.map((i) => {
+        const inner = (
+          <>
+            <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[i.tone ?? 'neutral']}`} />
+              {i.label}
+            </span>
+            <span className="mt-1.5 block text-[19px] font-semibold tabular-nums text-foreground">
+              {i.value.toLocaleString('en-IN')}
+            </span>
+          </>
+        )
+        return i.href ? (
+          <Link key={i.label} href={i.href} className="p-4 transition-colors hover:bg-surface-subtle">
+            {inner}
+          </Link>
+        ) : (
+          <div key={i.label} className="p-4">
+            {inner}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── Panels ─────────────────────────────────────────────────────────────── */
+
+export function Panel({
+  title,
+  action,
+  children,
+  count,
+  tone,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+  /** Shown as a badge beside the title — usually "how many need attention". */
+  count?: number
+  tone?: StripTone
+}) {
+  return (
+    <section className="flex flex-col rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[13.5px] font-semibold text-foreground">{title}</h2>
+          {count !== undefined && count > 0 && <Badge tone={tone ?? 'warning'}>{count}</Badge>}
+        </div>
+        {action}
+      </div>
+      <div className="flex-1 px-5 py-4">{children}</div>
+    </section>
+  )
+}
+
+export function PanelLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className="text-[12.5px] font-medium text-primary hover:underline">
+      {children}
+    </Link>
+  )
+}
+
+export function EmptyState({ message }: { message: string }) {
+  return <p className="py-2 text-[13px] text-muted-foreground">{message}</p>
+}
+
+/** A whole-page empty/no-results block, distinct from an empty panel. */
+export function EmptyPanel({ message }: { message: string }) {
+  return (
+    <div className="rounded-[var(--radius)] border border-dashed border-border-strong bg-surface p-12 text-center">
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  )
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+
+const BADGE: Record<StripTone, string> = {
+  neutral: 'bg-surface-subtle text-muted-foreground',
+  success: 'bg-success-subtle text-success',
+  warning: 'bg-warning-subtle text-warning',
+  destructive: 'bg-destructive-subtle text-destructive',
+  info: 'bg-info-subtle text-info',
+}
+
+export function Badge({ tone = 'neutral', children }: { tone?: StripTone; children: ReactNode }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium capitalize tabular-nums ${BADGE[tone]}`}>
+      {children}
+    </span>
+  )
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+
+export function TableWrap({ children, minWidth = 720 }: { children: ReactNode; minWidth?: number }) {
+  return (
+    <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
+      <table className="w-full text-sm" style={{ minWidth }}>
+        {children}
+      </table>
+    </div>
+  )
+}
+
+/** Sticky so the column meanings survive a long café list. */
+export function Thead({ children }: { children: ReactNode }) {
+  return (
+    <thead className="sticky top-0 z-10 bg-surface-subtle">
+      <tr className="border-b border-border text-left text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
+        {children}
+      </tr>
+    </thead>
+  )
+}
+
+export function Th({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'right' }) {
+  return <th className={`px-4 py-2.5 font-medium ${align === 'right' ? 'text-right' : ''}`}>{children}</th>
+}
+
+export function Td({
+  children,
+  align = 'left',
+  muted = false,
+  numeric = false,
+}: {
+  children: ReactNode
+  align?: 'left' | 'right'
+  muted?: boolean
+  numeric?: boolean
+}) {
+  return (
+    <td
+      className={`px-4 py-3 ${align === 'right' ? 'text-right' : ''} ${muted ? 'text-muted-foreground' : 'text-foreground'} ${
+        numeric ? 'tabular-nums' : ''
+      }`}
+    >
+      {children}
+    </td>
+  )
+}
+
+export function Tr({ children }: { children: ReactNode }) {
+  return <tr className="border-b border-border last:border-0 transition-colors hover:bg-surface-subtle">{children}</tr>
+}
+
+/** A UUID prefix. Monospaced so two of them are actually comparable by eye. */
+export function MonoId({ id }: { id: string }) {
+  return <span className="font-mono text-[11px] tracking-tight text-muted-foreground">{id.slice(0, 8)}</span>
+}
+
+/* ── Proportion bar ─────────────────────────────────────────────────────── */
+
+/**
+ * For breakdowns where the split matters more than the raw counts — a bare
+ * list of "starter 4 / growth 1" makes you do the ratio in your head.
+ */
+export function ProportionRow({ label, value, total }: { label: string; value: number; total: number }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0
+  return (
+    <li className="py-1.5">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="capitalize text-foreground">{label}</span>
+        <span className="tabular-nums text-muted-foreground">
+          {value} <span className="text-[11.5px]">({pct}%)</span>
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-subtle">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      </div>
+    </li>
+  )
+}

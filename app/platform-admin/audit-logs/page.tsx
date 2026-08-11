@@ -1,9 +1,13 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime } from '@/lib/datetime'
+import { auditLabel, auditTone, relativeTime } from '@/lib/audit-actions'
 import { NotAuthorized } from '@/components/platform-admin/not-authorized'
+import { Badge, EmptyPanel, Page, PageHeader } from '@/components/platform-admin/ui'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: 'Audit logs' }
 
 type Row = {
   id: string
@@ -14,6 +18,13 @@ type Row = {
   previous_value: Record<string, unknown> | null
   new_value: Record<string, unknown> | null
   created_at: string
+}
+
+/** `{"status":"suspended"}` reads worse than `status: suspended`. */
+function summarise(value: Record<string, unknown>): string {
+  return Object.entries(value)
+    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v === null ? '—' : String(v)}`)
+    .join(', ')
 }
 
 export default async function AuditLogs() {
@@ -43,26 +54,33 @@ export default async function AuditLogs() {
   const adminName = new Map((admins ?? []).map((a) => [a.id, a.full_name]))
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Audit logs</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Append-only record of platform administrative actions — {logs.length} shown, most recent first.
-      </p>
+    <Page>
+      <PageHeader
+        title="Audit logs"
+        subtitle={`Append-only record of platform administrative actions — ${logs.length} shown, most recent first.`}
+      />
 
       {logs.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-border bg-surface p-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            No administrative actions logged yet. Verifications, suspensions, and plan changes will appear here.
-          </p>
+        <div className="mt-6">
+          <EmptyPanel message="No administrative actions logged yet. Verifications, suspensions and plan changes will appear here." />
         </div>
       ) : (
-        <ul className="mt-6 space-y-2">
+        // A timeline rather than a stack of separate cards: these are one
+        // continuous record, and the rail makes the chronology legible.
+        <ol className="mt-6 border-l border-border pl-5">
           {logs.map((l) => (
-            <li key={l.id} className="rounded-[var(--radius)] border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[13.5px] font-medium text-foreground">{l.action}</span>
-                <span className="text-[11.5px] text-muted-foreground">{formatDateTime(l.created_at)}</span>
+            <li key={l.id} className="relative py-3.5 first:pt-0">
+              <span className="absolute -left-[23px] top-[19px] h-1.5 w-1.5 rounded-full bg-border-strong first:top-[5px]" />
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[13.5px] font-medium text-foreground">{auditLabel(l.action)}</span>
+                  <Badge tone={auditTone(l.action)}>{l.target_type ?? 'platform'}</Badge>
+                </div>
+                <span className="text-[11.5px] tabular-nums text-muted-foreground" title={formatDateTime(l.created_at)}>
+                  {relativeTime(l.created_at) ?? formatDateTime(l.created_at)}
+                </span>
               </div>
+
               <p className="mt-1 text-[12.5px] text-muted-foreground">
                 by {l.actor_id ? (actorName.get(l.actor_id) ?? 'operator') : 'system'}
                 {l.target_type === 'cafe' && l.target_id && (
@@ -82,20 +100,26 @@ export default async function AuditLogs() {
                   </>
                 )}
               </p>
+
               {(l.previous_value || l.new_value) && (
-                <div className="mt-2 flex flex-wrap gap-4 text-[11.5px]">
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px]">
                   {l.previous_value && (
-                    <span className="text-muted-foreground">before: <code className="text-foreground">{JSON.stringify(l.previous_value)}</code></span>
+                    <span className="rounded-[var(--radius-sm)] bg-surface-subtle px-2 py-1 text-muted-foreground line-through decoration-border-strong">
+                      {summarise(l.previous_value)}
+                    </span>
                   )}
+                  {l.previous_value && l.new_value && <span className="text-muted-foreground">→</span>}
                   {l.new_value && (
-                    <span className="text-muted-foreground">after: <code className="text-foreground">{JSON.stringify(l.new_value)}</code></span>
+                    <span className="rounded-[var(--radius-sm)] bg-surface-subtle px-2 py-1 text-foreground">
+                      {summarise(l.new_value)}
+                    </span>
                   )}
                 </div>
               )}
             </li>
           ))}
-        </ul>
+        </ol>
       )}
-    </div>
+    </Page>
   )
 }
