@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { DesktopSessionBridge } from "@/components/desktop-session-bridge";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -126,6 +127,10 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Root rather than the dashboard layout: a signed-out desktop launch
+            lands on /login, and that is exactly where the stored session has
+            to be restored from. */}
+        <DesktopSessionBridge />
         <ToastProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
         </ToastProvider>

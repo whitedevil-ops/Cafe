@@ -2,6 +2,7 @@
 
 mod escpos;
 mod printing;
+mod session;
 
 use tauri::Manager;
 use tauri_plugin_updater::UpdaterExt;
@@ -71,6 +72,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             printing::list_serial_ports,
             printing::print_ticket,
+            session::save_session,
+            session::load_session,
+            session::clear_session,
         ])
         .setup(|app| {
             spawn_update_check(app.handle());
