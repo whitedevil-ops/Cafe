@@ -11,6 +11,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
+# Only one copy of the app may run: two processes fight over the WebView2
+# profile lock and neither persists cookies, which is why the login never
+# stuck.
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Bluetooth and USB thermal printers reach Windows as a COM port; this is how

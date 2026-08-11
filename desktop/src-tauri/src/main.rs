@@ -49,6 +49,23 @@ const FLUSH_GRACE: std::time::Duration = std::time::Duration::from_millis(1200);
 
 fn main() {
     tauri::Builder::default()
+        // Must be registered first, per the plugin's contract.
+        //
+        // This is the actual cause of "the admin has to log in every time".
+        // Nothing stopped a second copy of the app starting, and two processes
+        // cannot both own the WebView2 profile — the loser never commits its
+        // network state, so the session cookie was written to memory and
+        // thrown away. The profile's Cookies file had not changed since the
+        // day it was created, nine days and many logins later, while lockfile
+        // was touched on every launch. Now a second launch raises and focuses
+        // the window that already exists.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
