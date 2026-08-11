@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { isDesktopApp } from '@/lib/is-desktop'
+import { saveStoredSession, loadStoredSession, clearStoredSession } from '@/lib/desktop-session'
 
 // Keeps the desktop app signed in across restarts.
 //
@@ -15,19 +16,8 @@ import { isDesktopApp } from '@/lib/is-desktop'
 // Does nothing at all in a browser, where cookies work and this would be a
 // second source of truth fighting the first.
 
-type Stored = { access_token: string; refresh_token: string }
-
 /** Cleared when the app closes, so the next launch may restore again. */
 const RELOADED_KEY = 'kp:desktop:session-restored'
-
-async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  const w = window as unknown as {
-    __TAURI__?: { core?: { invoke?: (c: string, a: unknown) => Promise<T> } }
-  }
-  const fn = w.__TAURI__?.core?.invoke
-  if (!fn) throw new Error('not running in the desktop app')
-  return fn(cmd, args)
-}
 
 export function DesktopSessionBridge() {
   const restored = useRef(false)
@@ -45,14 +35,15 @@ export function DesktopSessionBridge() {
       // signed out days later for no visible reason.
       const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
-          void invoke('clear_session').catch(() => {})
+          void clearStoredSession()
           return
         }
-        const payload: Stored = {
+        // saveStoredSession is a no-op when "Keep me signed in" is off, so the
+        // café's choice is honoured without this needing to know about it.
+        void saveStoredSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
-        }
-        void invoke('save_session', { value: JSON.stringify(payload) }).catch(() => {})
+        })
       })
       unsubscribe = () => data.subscription.unsubscribe()
 
@@ -62,22 +53,8 @@ export function DesktopSessionBridge() {
       const { data: current } = await supabase.auth.getSession()
       if (current.session) return
 
-      let raw: string | null = null
-      try {
-        raw = await invoke<string | null>('load_session')
-      } catch {
-        return
-      }
-      if (!raw) return
-
-      let stored: Stored
-      try {
-        stored = JSON.parse(raw) as Stored
-      } catch {
-        void invoke('clear_session').catch(() => {})
-        return
-      }
-      if (!stored?.refresh_token) return
+      const stored = await loadStoredSession()
+      if (!stored) return
 
       const { error } = await supabase.auth.setSession({
         access_token: stored.access_token,
@@ -86,7 +63,7 @@ export function DesktopSessionBridge() {
       if (error) {
         // Revoked or expired past recovery — drop it rather than retrying
         // this on every launch forever.
-        void invoke('clear_session').catch(() => {})
+        void clearStoredSession()
         return
       }
 
