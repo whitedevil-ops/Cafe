@@ -138,14 +138,19 @@ export function Hero() {
             </span>
           </Reveal>
           <Reveal delay={0.05}>
-            <h1 className="font-display mt-5 text-[clamp(2.75rem,6.5vw,4.5rem)] font-semibold leading-[1.03] tracking-tight text-foreground">
-              Run your café <span className="text-primary">smarter.</span>
+            {/* The strongest on-page signal there is, so it has to say what
+                this is as well as sound like something. "Run your café
+                smarter" read well and told Google nothing — no POS, no
+                billing, no restaurant. This keeps the voice and adds the
+                words a café owner actually types. */}
+            <h1 className="font-display mt-5 text-[clamp(2.5rem,6vw,4.25rem)] font-semibold leading-[1.05] tracking-tight text-foreground">
+              Café and restaurant POS that <span className="text-primary">keeps up.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.1}>
             <p className="mt-5 max-w-md text-[17px] leading-relaxed text-muted-foreground">
-              POS, QR ordering, customer loyalty, CRM, and café operations — all in one calm, fast
-              platform. Take your first order today.
+              Billing, GST invoices, QR ordering, kitchen display, tables, inventory and loyalty —
+              one system for the whole café, running in India. Take your first order today.
             </p>
           </Reveal>
           <Reveal delay={0.15}>

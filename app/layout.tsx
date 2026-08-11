@@ -72,15 +72,28 @@ export const metadata: Metadata = {
   },
 };
 
+// Deliberately Organization and not LocalBusiness. KhaoPiyo is software sold
+// across India, not a place a customer visits; LocalBusiness would claim a
+// storefront that does not exist. There is likewise no aggregateRating here —
+// inventing one is the single most common piece of structured-data fraud, and
+// there are no published reviews to aggregate.
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      name: "KhaoPiyo",
+      url: siteUrl,
+      inLanguage: "en-IN",
+      publisher: { "@id": `${siteUrl}/#organization` },
+    },
     {
       "@type": "SoftwareApplication",
       name: "KhaoPiyo",
       applicationCategory: "BusinessApplication",
       applicationSubCategory: "Restaurant POS SaaS & Billing Software",
-      operatingSystem: "Web",
+      operatingSystem: "Web, Windows, macOS",
       url: siteUrl,
       description:
         "Cloud POS SaaS and billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty in one platform.",
@@ -91,6 +104,7 @@ const jsonLd = {
         lowPrice: "999",
         highPrice: "4999",
         offerCount: "3",
+        url: `${siteUrl}/pricing`,
       },
     },
     {
@@ -100,6 +114,15 @@ const jsonLd = {
       url: siteUrl,
       logo: `${siteUrl}/logo-mark.png`,
       description: "Café and restaurant POS billing software, built in Hisar, India.",
+      // Locality only. There is no published street address for the business,
+      // and inventing one to fill the schema would be a fabricated record.
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Hisar",
+        addressRegion: "Haryana",
+        addressCountry: "IN",
+      },
+      areaServed: { "@type": "Country", name: "India" },
       // KhaoPiyo is a Ventron product (see Ventron's own site.ts COMPANY_FAQS,
       // which names KhaoPiyo among its products) — no Ventron logo asset
       // lives in this repo, so only verifiable name/url are referenced here.

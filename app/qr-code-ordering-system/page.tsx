@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
+import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -92,7 +93,15 @@ const faqJsonLd = {
 export default function QrOrderingPage() {
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdGraph(
+            faqJsonLd,
+            breadcrumbJsonLd([{ name: "QR ordering system", path: '/qr-code-ordering-system' }]),
+          ),
+        }}
+      />
       <SiteHeader />
 
       <section className="mx-auto w-full max-w-4xl px-6 py-16 md:py-24">

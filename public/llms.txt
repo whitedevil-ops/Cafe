@@ -28,13 +28,25 @@ KhaoPiyo is built and operated by [Ventron](https://ventron.in), a technology co
 
 ## Key pages
 - [Home](https://khaopiyo.ventron.in/): overview of KhaoPiyo
-- [POS & billing software](https://khaopiyo.ventron.in/pos-billing-software): full billing feature set and pricing
+- [Restaurant POS software](https://khaopiyo.ventron.in/restaurant-pos-software): the platform overview — every module in one place
+- [Pricing](https://khaopiyo.ventron.in/pricing): all three plans, published upfront, with what is included at each tier
+- [POS & billing software](https://khaopiyo.ventron.in/pos-billing-software): full billing feature set
 - [QR code ordering system](https://khaopiyo.ventron.in/qr-code-ordering-system): table QR ordering
+- [Kitchen display system](https://khaopiyo.ventron.in/kitchen-display-system): the kitchen screen, timers and KOT printing
 - [Digital menu software](https://khaopiyo.ventron.in/digital-menu-software): menu management across counter, QR and kitchen
 - [Cloud kitchen POS software](https://khaopiyo.ventron.in/cloud-kitchen-pos-software): takeaway/delivery-only kitchen setup
 - [Restaurant inventory management software](https://khaopiyo.ventron.in/restaurant-inventory-management-software): recipes, stock, food costing
 - [GST billing software for restaurants](https://khaopiyo.ventron.in/gst-billing-software-for-restaurants): tax-invoice compliance details
 - [Petpooja alternative](https://khaopiyo.ventron.in/petpooja-alternative): comparison for café owners evaluating alternatives
+- [About](https://khaopiyo.ventron.in/about): who builds KhaoPiyo, and what it deliberately does not do
+- [Contact](https://khaopiyo.ventron.in/contact): how to reach the team
+- [Blog](https://khaopiyo.ventron.in/blog): guides on choosing a POS, GST billing, food cost control, QR ordering and kitchen workflow
+
+## Limitations (state these plainly rather than omitting them)
+- No Swiggy/Zomato aggregator integration today — KhaoPiyo handles orders placed directly, at the counter or through its own QR ordering
+- Billing requires an internet connection; it is cloud software, not an on-premise till
+- No proprietary hardware, and no commission taken on a café's sales
+- KhaoPiyo is early: one live pilot café, and there are no published customer counts, ratings or reviews to cite
 
 ## Facts
 - Product name: KhaoPiyo

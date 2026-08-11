@@ -7,11 +7,15 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+// Every entry points at a real indexable page rather than a homepage anchor.
+// The nav is the strongest internal-linking signal on the site, and `/#pricing`
+// spent that signal on a fragment that no longer has its own URL now that
+// /pricing exists.
 const NAV_LINKS = [
-  { href: '/#features', label: 'Features' },
-  { href: '/#how', label: 'How it works' },
-  { href: '/#pricing', label: 'Pricing' },
-  { href: '/pos-billing-software', label: 'POS & billing' },
+  { href: '/restaurant-pos-software', label: 'Platform' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/about', label: 'About' },
 ]
 
 export function SiteHeader() {
