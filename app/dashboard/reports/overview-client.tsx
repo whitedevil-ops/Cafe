@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from './_shared'
 
 export type OverviewReport = {
@@ -95,6 +96,7 @@ export default function OverviewClient({
   const [report, setReport] = useState<OverviewReport | null>(initialReport)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { runExport, exporting } = useFileExport()
 
   const load = useCallback(
     async (from: string, to: string) => {
@@ -133,7 +135,10 @@ export default function OverviewClient({
   }
 
   function exportExcel() {
-    if (!report) return
+    // Defensive: the button is disabled without a report. Throwing rather than
+    // returning quietly means a bug here surfaces as a failed-export toast
+    // instead of a button that silently does nothing.
+    if (!report) throw new Error("no report loaded yet")
     const { from, to } = activeRange()
     const r = report
     const sheets: SheetSpec[] = [
@@ -180,7 +185,7 @@ export default function OverviewClient({
         rows: r.top_customers,
       },
     ]
-    void downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
+    return downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
   }
 
   const maxDayNet = Math.max(1, ...(report?.by_day.map((d) => d.net_sales) ?? [0]))
@@ -213,8 +218,8 @@ export default function OverviewClient({
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">Overview — how much you sold, collected, and where money went, in this range.</p>
         </div>
-        <button onClick={exportExcel} disabled={!report} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
-          Export Excel
+        <button onClick={() => void runExport(exportExcel)} disabled={!report || exporting} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
+          {exporting ? 'Exporting…' : 'Export Excel'}
         </button>
       </div>
 

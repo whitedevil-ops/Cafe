@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 import { exportProfitabilityXlsx } from '@/lib/xlsx-export'
+import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from '../_shared'
 
 type Item = {
@@ -35,6 +36,7 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { runExport, exporting } = useFileExport()
 
   const bounds = useCallback(
     (r: Range): { from: string; to: string } => {
@@ -107,11 +109,19 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
           </p>
         </div>
         <button
-          onClick={() => { if (s) void exportProfitabilityXlsx({ cafeName, summary: s, items, from: bounds(range).from, to: bounds(range).to, type }) }}
-          disabled={!s || items.length === 0}
+          onClick={() =>
+            void runExport(() => {
+              // Defensive: the button is disabled without a summary. Throwing
+              // rather than returning quietly means a bug here surfaces as a
+              // failed-export toast instead of a button that does nothing.
+              if (!s) throw new Error('no report loaded yet')
+              return exportProfitabilityXlsx({ cafeName, summary: s, items, from: bounds(range).from, to: bounds(range).to, type })
+            })
+          }
+          disabled={!s || items.length === 0 || exporting}
           className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-4 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
         >
-          Export Excel
+          {exporting ? 'Exporting…' : 'Export Excel'}
         </button>
       </div>
 

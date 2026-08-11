@@ -41,7 +41,10 @@ export default function AdjustmentsClient({
     useReportRange<AdjustmentsReport>({ cafeId, timezone, rpc: 'adjustments_report', initialFrom, initialTo, initialReport })
 
   function exportExcel() {
-    if (!report) return
+    // Defensive: the button is disabled without a report. Throwing rather than
+    // returning quietly means a bug here surfaces as a failed-export toast
+    // instead of a button that silently does nothing.
+    if (!report) throw new Error("no report loaded yet")
     const { from, to } = activeRange()
     const sheets: SheetSpec[] = [
       {
@@ -73,7 +76,7 @@ export default function AdjustmentsClient({
         rows: report.cancellations.map((c) => ({ ...c, when: formatDateTime(c.created_at, timezone) })),
       },
     ]
-    void downloadReport({ cafeName, reportName: 'Adjustments', from, to }, sheets)
+    return downloadReport({ cafeName, reportName: 'Adjustments', from, to }, sheets)
   }
 
   const tabs: { key: Tab; label: string; count: number }[] = report

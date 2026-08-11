@@ -31,7 +31,10 @@ export default function OperationsClient({
     useReportRange<OperationsReport>({ cafeId, timezone, rpc: 'operations_report', initialFrom, initialTo, initialReport })
 
   function exportExcel() {
-    if (!report) return
+    // Defensive: the button is disabled without a report. Throwing rather than
+    // returning quietly means a bug here surfaces as a failed-export toast
+    // instead of a button that silently does nothing.
+    if (!report) throw new Error("no report loaded yet")
     const { from, to } = activeRange()
     const sheets: SheetSpec[] = [
       {
@@ -52,7 +55,7 @@ export default function OperationsClient({
         rows: report.turnaround.buckets,
       },
     ]
-    void downloadReport({ cafeName, reportName: 'Operations', from, to }, sheets)
+    return downloadReport({ cafeName, reportName: 'Operations', from, to }, sheets)
   }
 
   const maxBucket = Math.max(1, ...(report?.turnaround.buckets.map((b) => b.orders) ?? [0]))

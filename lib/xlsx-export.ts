@@ -154,7 +154,13 @@ function buildSheet(wb: ExcelJS.Workbook, spec: SheetSpec, meta: ReportMeta): vo
   ws.views = [{ state: 'frozen', ySplit: headerRow }]
 }
 
-export async function downloadReport(meta: ReportMeta, sheets: SheetSpec[]): Promise<void> {
+/**
+ * Returns the filename rather than void so the caller can confirm where the
+ * file went. It matters most in the desktop app, which has no download bar:
+ * the webview saves the file silently, so without a toast the café taps
+ * Export, sees nothing happen, and reasonably concludes it failed.
+ */
+export async function downloadReport(meta: ReportMeta, sheets: SheetSpec[]): Promise<string> {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'KhaoPiyo'
   wb.created = new Date()
@@ -173,6 +179,7 @@ export async function downloadReport(meta: ReportMeta, sheets: SheetSpec[]): Pro
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+  return file
 }
 
 // ── Profitability ──────────────────────────────────────────────────────────
@@ -184,11 +191,11 @@ export async function exportProfitabilityXlsx(args: {
   from: string
   to: string
   type: string
-}): Promise<void> {
+}): Promise<string> {
   const meta: ReportMeta = { cafeName: args.cafeName, reportName: 'Profitability', from: args.from, to: args.to }
   const typeLabel = args.type === 'all' ? 'All order types' : args.type === 'dine_in' ? 'Dine-in' : 'Takeaway'
 
-  await downloadReport(meta, [
+  return downloadReport(meta, [
     {
       name: 'Profitability',
       title: `Profitability — ${typeLabel}`,

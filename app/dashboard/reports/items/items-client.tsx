@@ -32,7 +32,10 @@ export default function ItemsClient({
     useReportRange<ItemsReport>({ cafeId, timezone, rpc: 'items_categories_report', initialFrom, initialTo, initialReport })
 
   function exportExcel() {
-    if (!report) return
+    // Defensive: the button is disabled without a report. Throwing rather than
+    // returning quietly means a bug here surfaces as a failed-export toast
+    // instead of a button that silently does nothing.
+    if (!report) throw new Error("no report loaded yet")
     const { from, to } = activeRange()
     const sheets: SheetSpec[] = [
       {
@@ -62,7 +65,7 @@ export default function ItemsClient({
         rows: report.unsold_items,
       },
     ]
-    void downloadReport({ cafeName, reportName: 'Items-Categories', from, to }, sheets)
+    return downloadReport({ cafeName, reportName: 'Items-Categories', from, to }, sheets)
   }
 
   return (

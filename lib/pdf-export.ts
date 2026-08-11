@@ -197,20 +197,29 @@ function drawReceipt(doc: jsPDF, r: ReceiptData): void {
 
 const slug = (s: string) => s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cafe'
 
+// These return the filename rather than void so the caller can say where the
+// file went. It matters most in the desktop app, which has no download bar:
+// the webview saves the file and shows nothing at all, so without a toast the
+// café taps Download, sees nothing happen, and reasonably concludes it failed.
+
 /** Single receipt — the customer's own "Download" button on /r/[token]. */
-export function downloadReceiptPdf(r: ReceiptData): void {
+export function downloadReceiptPdf(r: ReceiptData): string {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   drawReceipt(doc, r)
-  doc.save(`${slug(r.cafe.name)}-bill-${r.order.short_code}.pdf`)
+  const file = `${slug(r.cafe.name)}-bill-${r.order.short_code}.pdf`
+  doc.save(file)
+  return file
 }
 
 /** One consolidated multi-page PDF — the owner's date-range bulk export. */
-export function downloadBulkReceiptsPdf(receipts: ReceiptData[], meta: { cafeName: string; fromISO: string; toISO: string }): void {
+export function downloadBulkReceiptsPdf(receipts: ReceiptData[], meta: { cafeName: string; fromISO: string; toISO: string }): string {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   receipts.forEach((r, i) => {
     if (i > 0) doc.addPage()
     drawReceipt(doc, r)
   })
   const day = (iso: string) => iso.slice(0, 10)
-  doc.save(`${slug(meta.cafeName)}-bills-${day(meta.fromISO)}-to-${day(meta.toISO)}.pdf`)
+  const file = `${slug(meta.cafeName)}-bills-${day(meta.fromISO)}-to-${day(meta.toISO)}.pdf`
+  doc.save(file)
+  return file
 }

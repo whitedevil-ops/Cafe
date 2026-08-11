@@ -5,6 +5,7 @@ import { FileDown, Search, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO, formatDateTime } from '@/lib/datetime'
 import { downloadBulkReceiptsPdf, type ReceiptData } from '@/lib/pdf-export'
+import { useFileExport } from '@/lib/use-file-export'
 import { BillDetailDrawer } from './bill-detail-drawer'
 
 export type Bill = {
@@ -89,6 +90,7 @@ export default function BillsClient({
   const [error, setError] = useState<string | null>(null)
   const [openBill, setOpenBill] = useState<string | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
+  const { runExport } = useFileExport()
   const [pdfNotice, setPdfNotice] = useState<string | null>(null)
 
   const bounds = useCallback(
@@ -148,12 +150,15 @@ export default function BillsClient({
     const receipts = result?.receipts ?? []
     if (receipts.length === 0) return setPdfNotice('No bills in this range to export.')
 
-    downloadBulkReceiptsPdf(receipts, { cafeName, fromISO: from, toISO: to })
+    // Through runExport so the save is confirmed and a jsPDF failure on a very
+    // large range becomes a visible error. The notice line below stays for the
+    // truncation case, which is information rather than a result.
+    await runExport(() => downloadBulkReceiptsPdf(receipts, { cafeName, fromISO: from, toISO: to }))
 
     if (result?.is_truncated) {
       setPdfNotice(`Included the first ${receipts.length} of ${result.total} bills — narrow the date range to get the rest.`)
     }
-  }, [supabase, cafeId, cafeName, bounds, range, type, payment])
+  }, [supabase, cafeId, cafeName, bounds, range, type, payment, runExport])
 
   const bills = payload?.bills ?? []
   const s = payload?.summary

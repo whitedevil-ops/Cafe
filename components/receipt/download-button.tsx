@@ -1,28 +1,25 @@
 'use client'
 
-import { useState } from 'react'
 import { Download, Printer } from 'lucide-react'
 import { downloadReceiptPdf, type ReceiptData } from '@/lib/pdf-export'
+import { useFileExport } from '@/lib/use-file-export'
 
 export function ReceiptDownloadButton({ receipt }: { receipt: ReceiptData }) {
-  const [busy, setBusy] = useState(false)
+  // Previously this only toggled a local "Preparing…" label and swallowed any
+  // failure in a bare try/finally. A guest on the desktop app or an in-app
+  // browser got no download bar and no message, so a saved bill and a crashed
+  // jsPDF looked identical.
+  const { runExport, exporting } = useFileExport()
 
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">
       <button
-        onClick={() => {
-          setBusy(true)
-          try {
-            downloadReceiptPdf(receipt)
-          } finally {
-            setBusy(false)
-          }
-        }}
-        disabled={busy}
+        onClick={() => void runExport(() => downloadReceiptPdf(receipt))}
+        disabled={exporting}
         className="flex items-center justify-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface py-2.5 text-[13.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-60"
       >
         <Download size={15} />
-        {busy ? 'Preparing…' : 'Download'}
+        {exporting ? 'Preparing…' : 'Download'}
       </button>
       <button
         onClick={() => window.print()}

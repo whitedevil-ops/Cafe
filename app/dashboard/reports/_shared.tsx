@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
+import { useFileExport } from '@/lib/use-file-export'
 
 export type Preset = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'custom'
 
@@ -205,9 +206,19 @@ export function ReportHeader({
   title: string
   subtitle: string
   links: { href: string; label: string }[]
-  onExport: () => void
+  /**
+   * Builds the file and resolves with the filename it saved. Returning the
+   * name rather than void is what lets this header confirm the export — the
+   * desktop webview saves silently, with no download bar to notice.
+   */
+  onExport: () => string | Promise<string>
   canExport: boolean
 }) {
+  // Owned here rather than in each report: five reports render this header,
+  // and the success toast, the failure toast and the busy state should not be
+  // five slightly different implementations.
+  const { runExport, exporting } = useFileExport()
+
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -220,8 +231,12 @@ export function ReportHeader({
             {l.label}
           </a>
         ))}
-        <button onClick={onExport} disabled={!canExport} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40">
-          Export Excel
+        <button
+          onClick={() => void runExport(onExport)}
+          disabled={!canExport || exporting}
+          className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40"
+        >
+          {exporting ? 'Exporting…' : 'Export Excel'}
         </button>
       </div>
     </div>
