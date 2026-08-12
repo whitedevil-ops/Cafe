@@ -1,0 +1,61 @@
+name: CI
+
+# Runs on every push and every pull request. Before this existed, the only
+# thing standing between a broken commit and a live café was someone
+# remembering to run four commands locally.
+on:
+  push:
+  pull_request:
+
+# A second push to the same branch cancels the first — no point finishing a
+# run for a commit that has already been replaced.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # The build reads these at compile time. They are deliberately fake:
+      # nothing in the build talks to Supabase, and CI must never hold
+      # credentials to a database that serves a real café. Verified locally —
+      # `next build` generates all 57 routes with placeholders.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-build-only
+      NEXT_PUBLIC_APP_URL: https://khaopiyo.ventron.in
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # `ci` not `install`: installs exactly the lockfile, and fails if
+      # package.json and package-lock.json disagree.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # --max-warnings is a ratchet, not decoration. 14 is exactly today's
+      # known debt (see the override block in eslint.config.mjs). A 15th
+      # warning fails the build, so the number can only go down.
+      - name: Lint
+        run: npx eslint app components lib utils --ext .ts,.tsx --max-warnings 14
+
+      # Unit tests only. tests/integration/ writes real rows into the live
+      # Brewora café and needs real credentials — running it per push would
+      # both require secrets in CI and pollute a real café's data on every
+      # commit. Those stay a deliberate local/manual step.
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
