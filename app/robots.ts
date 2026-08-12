@@ -17,7 +17,12 @@ const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 // Copilot). The wildcard rule below already allows every crawler that isn't
 // named explicitly, but each major AI crawler is listed anyway so eligibility
 // is unambiguous rather than implicit.
-const disallow = ['/dashboard', '/onboarding', '/kds', '/t/', '/r/', '/api']
+// /platform-admin is the operator console. It already 307s to /login for
+// anyone signed out and its layout sets noindex, so this is defence in depth
+// rather than the only guard — but the most sensitive part of the app should
+// not be the one route missing from this list. No collision risk: nothing
+// else starts with that prefix (see the /r vs /reset-password note above).
+const disallow = ['/dashboard', '/onboarding', '/kds', '/platform-admin', '/t/', '/r/', '/api']
 
 const aiAndSearchBots = [
   'Googlebot', 'Bingbot',
