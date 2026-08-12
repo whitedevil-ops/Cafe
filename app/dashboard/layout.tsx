@@ -3,6 +3,7 @@ import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
 import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
+import { UserActivityTracker } from '@/components/user-activity-tracker'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +110,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       canAddCafe={canAddCafe}
       userName={profile?.full_name ?? ''}
     >
+      {/* Records last-active + device for the operator console. Mounted here
+          rather than per page so it covers the whole dashboard, and only
+          inside the active-café branch — a suspended account staring at the
+          paused screen is not "active use". */}
+      <UserActivityTracker />
       {children}
     </AppShell>
   )

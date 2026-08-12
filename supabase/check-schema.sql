@@ -509,7 +509,15 @@ with expected(kind, name, fix) as (values
   ('function', 'redeem_spin_prize',                        '0125'),
   -- 0126 recreates staff_place_order with p_spin_code; the old 13-arg
   -- signature is dropped, so exactly one overload must remain.
-  ('function', 'staff_place_order',                        '0126')
+  ('function', 'staff_place_order',                        '0126'),
+  -- 0128 — operator console user detail. The two profiles columns are what
+  -- "last active" and "last device" are read from; without them the console
+  -- shows "Not recorded yet" for everyone forever rather than erroring.
+  ('column',   'profiles.last_seen_at',                    '0128'),
+  ('column',   'profiles.last_device',                     '0128'),
+  ('function', 'touch_user_activity',                      '0128'),
+  ('function', 'op_list_users',                            '0128'),
+  ('function', 'op_user_detail',                           '0128')
 )
 select
   e.kind,
