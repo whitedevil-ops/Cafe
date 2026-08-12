@@ -49,6 +49,9 @@ language sql volatile security definer set search_path = public as $$
      and (last_seen_at is null or last_seen_at < now() - interval '5 minutes');
 $$;
 
+-- NOTE: `from public` is not sufficient on Supabase — the anon role holds its
+-- own direct grant via ALTER DEFAULT PRIVILEGES. See 0015, and 0129 which
+-- fixes this for the three functions in this file.
 revoke all on function touch_user_activity(text) from public;
 grant execute on function touch_user_activity(text) to authenticated;
 
