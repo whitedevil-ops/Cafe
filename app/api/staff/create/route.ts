@@ -6,7 +6,7 @@ const ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant']
 
 // Creates a brand-new staff login directly — the owner/manager types the
 // password here and it goes straight to Supabase Auth's service-role admin
-// API, same shape as /api/platform-admin/admins/create. No invite row, no
+// API, same shape as /api/ops/admins/create. No invite row, no
 // email, no signup link: create_staff_member (called after) does the
 // authorized cafe_members write and re-checks the seat cap independently.
 export async function POST(req: NextRequest) {

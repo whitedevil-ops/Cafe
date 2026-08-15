@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 // Marketing-only display face (applied via the `font-display` utility class
 // in globals.css) — Geist Sans stays the only font everywhere else
-// (dashboard, platform-admin) so this never touches the product UI.
+// (dashboard, ops) so this never touches the product UI.
 const bricolageGrotesque = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],

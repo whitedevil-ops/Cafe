@@ -7,7 +7,7 @@ import {
 import { Reveal } from './reveal'
 
 // Every card below names a capability that's actually shipped — matched to
-// the real feature set in app/platform-admin/cafes/[id]/cafe-detail-client.tsx
+// the real feature set in app/ops/cafes/[id]/cafe-detail-client.tsx
 // (FEATURES + ALWAYS_INCLUDED), so this section never promises something
 // the product doesn't have yet.
 const FEATURES = [

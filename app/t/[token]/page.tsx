@@ -24,7 +24,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = await getCachedCafeMenu(table.cafe_id)
   if (!cafe) notFound()
 
-  // Operator-facing kill switch (platform-admin Feature control), separate
+  // Operator-facing kill switch (operator console Feature control), separate
   // from account Suspend/Disable — this pauses only customer ordering while
   // staff keep dashboard access. Any RPC error (including this function not
   // existing yet, mid-deploy) is treated as enabled: never let a lookup

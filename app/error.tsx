@@ -5,7 +5,7 @@ import Link from 'next/link'
 // Root-level fallback for every route NOT already covered by a more specific
 // error.tsx (dashboard has its own, which shows the real error message since
 // that's a staff-only surface). This one covers /t/[token] (QR ordering),
-// /r/[token] (public receipts), /login, /platform-admin, /onboarding — some
+// /r/[token] (public receipts), /login, /ops, /onboarding — some
 // of which face the open internet — so it deliberately shows no raw error
 // text or stack, only a generic message.
 export default function RootError({

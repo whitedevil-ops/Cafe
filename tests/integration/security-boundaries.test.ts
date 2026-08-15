@@ -91,7 +91,7 @@ describe('route protection (live, unauthenticated)', () => {
   const SITE = envSite && !envSite.includes('localhost') ? envSite : 'https://khaopiyo.ventron.in'
 
   it('protected routes 3xx-redirect to /login with no session', { timeout: 30000 }, async () => {
-    const routes = ['/dashboard', '/dashboard/pos', '/dashboard/bills', '/dashboard/reports', '/dashboard/settings', '/platform-admin']
+    const routes = ['/dashboard', '/dashboard/pos', '/dashboard/bills', '/dashboard/reports', '/dashboard/settings', '/ops']
     for (const r of routes) {
       const res = await fetch(`${SITE}${r}`, { redirect: 'manual' })
       const loc = res.headers.get('location') ?? ''
