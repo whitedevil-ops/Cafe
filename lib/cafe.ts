@@ -13,11 +13,52 @@ export type CurrentCafe = {
   statusReason: string | null
   /** IANA zone used for every date the café sees. Never assume Asia/Kolkata. */
   timezone: string
+  /** Set only while a platform operator is inside this café (migration 0134). */
+  operator?: OperatorSession
+}
+
+/** Present only during an operator session — drives the dashboard banner. */
+export type OperatorSession = {
+  sessionId: string
+  reason: string
+  expiresAt: string
+  adminName: string | null
 }
 
 export type CafeOption = { cafeId: string; name: string; role: string }
 
 const ACTIVE_CAFE_COOKIE = 'active_cafe'
+
+// A hint, never an authority. Set when an operator session starts and cleared
+// when it ends, purely so the ~every-request impersonation_context() lookup is
+// skipped for the overwhelming majority of visitors, who are café staff with
+// no session at all. Anyone can forge this cookie; all it buys them is one RPC
+// call that returns null, because the database decides.
+const OPS_SESSION_HINT = 'kp_ops_session'
+
+type ImpersonationRow = {
+  session_id: string
+  cafe_id: string
+  name: string
+  slug: string
+  status: string
+  status_reason: string | null
+  timezone: string
+  reason: string
+  expires_at: string
+  admin_name: string | null
+}
+
+// cache() for the same reason getMemberships uses it: layout and page both ask,
+// and one request should mean one lookup.
+const getImpersonation = cache(async (): Promise<ImpersonationRow | null> => {
+  const cookieStore = await cookies()
+  if (!cookieStore.get(OPS_SESSION_HINT)) return null
+
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('impersonation_context')
+  return (data as ImpersonationRow | null) ?? null
+})
 
 type MembershipRow = {
   role: string
@@ -86,6 +127,13 @@ function toOption(row: MembershipRow): CafeOption | null {
 
 // The user's café list for the workspace switcher.
 export async function getMyCafes(): Promise<CafeOption[]> {
+  // Inside an operator session the switcher lists only the café being visited.
+  // Offering the operator's own cafés here would be an invitation to switch
+  // away and leave the session quietly open behind them; leaving it empty
+  // would break the shell, which expects the current café to be in the list.
+  const imp = await getImpersonation()
+  if (imp) return [{ cafeId: imp.cafe_id, name: imp.name, role: 'operator' }]
+
   const m = await getMemberships()
   if (!m) return []
   return m.rows.map(toOption).filter((c): c is CafeOption => c !== null)
@@ -96,8 +144,40 @@ export async function getMyCafes(): Promise<CafeOption[]> {
 // matched AGAINST the user's own memberships, so it can't select someone else's
 // café — tenant access stays enforced by RLS regardless.
 export async function getCurrentCafe(): Promise<CurrentCafe | null> {
-  const m = await getMemberships()
-  if (!m || m.rows.length === 0) return null
+  const [m, imp] = await Promise.all([getMemberships(), getImpersonation()])
+  if (!m) return null
+
+  // An open operator session outranks the operator's own memberships. Without
+  // this precedence an operator who also owns a café would start a session,
+  // land on their OWN dashboard, and read someone else's café name in the
+  // banner — the worst possible failure for a feature whose whole safety story
+  // is "you always know whose data you are looking at".
+  //
+  // role is 'operator', which matches neither 'owner' nor 'manager', so every
+  // `role === 'owner' || role === 'manager'` gate in the dashboard hides its
+  // controls without needing to learn about sessions. has_cafe_role() is
+  // deliberately NOT widened in 0134 either, so owner/manager-only writes
+  // (menu edits, staff changes) refuse at the database as well as in the UI.
+  if (imp) {
+    return {
+      userId: m.userId,
+      cafeId: imp.cafe_id,
+      role: 'operator',
+      name: imp.name,
+      slug: imp.slug,
+      status: imp.status,
+      statusReason: imp.status_reason,
+      timezone: imp.timezone || DEFAULT_TIMEZONE,
+      operator: {
+        sessionId: imp.session_id,
+        reason: imp.reason,
+        expiresAt: imp.expires_at,
+        adminName: imp.admin_name,
+      },
+    }
+  }
+
+  if (m.rows.length === 0) return null
 
   const cookieStore = await cookies()
   const preferred = cookieStore.get(ACTIVE_CAFE_COOKIE)?.value

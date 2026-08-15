@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
 import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
 import { UserActivityTracker } from '@/components/user-activity-tracker'
+import { OperatorSessionBanner } from '@/components/shell/operator-session-banner'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,15 @@ const STATUS_MESSAGE: Record<string, string> = {
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [cafe, myCafes] = await Promise.all([getCurrentCafe(), getMyCafes()])
   if (!cafe) redirect('/onboarding')
+
+  // Rendered on EVERY branch below, including the suspended-account screens.
+  // A suspended café is exactly when an operator has reason to be here, and
+  // those screens offer only "Sign out" — which for an operator is the wrong
+  // exit entirely: it would drop the Supabase session while leaving the café
+  // session open in the database until it timed out.
+  const banner = cafe.operator ? (
+    <OperatorSessionBanner cafeName={cafe.name} session={cafe.operator} />
+  ) : null
 
   const supabase = await createClient()
   const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }] = await Promise.all([
@@ -49,6 +59,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       const planKey = cafeRow?.plan ?? 'trial'
       const planName = planRow?.name ?? planKey
       return (
+        <>
+        {banner}
         <div className="grid w-full min-h-dvh place-items-center bg-background px-6 py-12 text-center">
           <div className="w-full max-w-lg">
             <p className="text-sm font-medium text-destructive">Account access paused</p>
@@ -64,9 +76,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </form>
           </div>
         </div>
+        </>
       )
     }
     return (
+      <>
+      {banner}
       <div className="grid w-full min-h-dvh place-items-center bg-background px-6 text-center">
         <div>
           <p className="text-sm font-medium text-destructive">Account access paused</p>
@@ -84,6 +99,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </form>
         </div>
       </div>
+      </>
     )
   }
 
@@ -110,6 +126,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       canAddCafe={canAddCafe}
       userName={profile?.full_name ?? ''}
     >
+      {banner}
       {/* Records last-active + device for the operator console. Mounted here
           rather than per page so it covers the whole dashboard, and only
           inside the active-café branch — a suspended account staring at the

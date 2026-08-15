@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
 import { DeleteCafeDialog } from '@/components/ops/delete-cafe-dialog'
+import { OpenCafeDashboard } from '@/components/ops/open-cafe-dashboard'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 
 export type CafeDetail = {
@@ -315,6 +316,9 @@ export default function CafeDetailClient({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {permissions['cafes.impersonate'] && (
+            <OpenCafeDashboard cafeId={cafeId} cafeName={data.business.name} />
+          )}
           {permissions['cafes.verify'] && (
             <button onClick={toggleVerified} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
               {data.account.verified ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}

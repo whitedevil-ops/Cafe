@@ -38,6 +38,7 @@ const PERMISSION_GROUPS: { label: string; keys: { key: string; label: string }[]
     { key: 'cafes.verify', label: 'Verify Cafés' },
     { key: 'cafes.edit', label: 'Edit Cafés' },
     { key: 'cafes.suspend', label: 'Suspend Cafés' },
+    { key: 'cafes.impersonate', label: 'Open Café Dashboards' },
   ] },
   { label: 'Users & Health', keys: [
     { key: 'users.view', label: 'View Users' },
@@ -75,6 +76,7 @@ const roleLabel = (role: string) => ROLES.find((r) => r.key === role)?.label ?? 
 const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   super_admin: {
     'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': true,
+    'cafes.impersonate': true,
     'users.view': true, 'health.view': true,
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': true,
@@ -83,6 +85,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   operations_admin: {
     'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': false,
+    'cafes.impersonate': false,
     'users.view': true, 'health.view': true,
     'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
     'audit.view': false,
@@ -91,6 +94,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   support_admin: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'cafes.impersonate': false,
     'users.view': true, 'health.view': true,
     'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
     'audit.view': false,
@@ -99,6 +103,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   billing_admin: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'cafes.impersonate': false,
     'users.view': false, 'health.view': false,
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': false,
@@ -107,6 +112,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   read_only: {
     'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
+    'cafes.impersonate': false,
     'users.view': true, 'health.view': true,
     'plans.view': true, 'plans.change': false, 'subscriptions.view': true, 'subscriptions.manage': false,
     'audit.view': false,

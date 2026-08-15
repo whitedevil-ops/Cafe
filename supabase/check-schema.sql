@@ -522,7 +522,16 @@ with expected(kind, name, fix) as (values
   -- them is deployed, and 0132's revoke must come after. If either is
   -- missing while the other is applied, QR ordering breaks for guests.
   ('function', 'resolve_table_token',                      '0131'),
-  ('function', 'list_cafe_tables_with_tokens',             '0131')
+  ('function', 'list_cafe_tables_with_tokens',             '0131'),
+  -- 0134 — operator café sessions. active_impersonated_cafe() is load-bearing
+  -- for tenant isolation: is_cafe_member() calls it on every policy check, so
+  -- if it is missing the membership predicate itself fails to create.
+  ('table',    'cafe_impersonations',                      '0134'),
+  ('function', 'active_impersonated_cafe',                 '0134'),
+  ('function', 'op_begin_cafe_session',                    '0134'),
+  ('function', 'op_end_cafe_session',                      '0134'),
+  ('function', 'impersonation_context',                    '0134'),
+  ('function', 'op_list_cafe_sessions',                    '0134')
 )
 select
   e.kind,
