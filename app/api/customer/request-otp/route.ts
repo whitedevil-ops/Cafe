@@ -49,13 +49,13 @@ export async function POST(req: NextRequest) {
   // Opportunistic cleanup — keeps the table small without needing its own cron.
   void admin.from('otp_ip_attempts').delete().lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  const { data: tableRow } = await admin
-    .from('cafe_tables')
-    .select('cafes(name)')
-    .eq('token', table_token)
-    .maybeSingle()
-  const cafeRow = Array.isArray(tableRow?.cafes) ? tableRow.cafes[0] : tableRow?.cafes
-  const cafeName = cafeRow?.name ?? 'the café'
+  // This route holds the service-role key, so it could still read the token
+  // column directly after migration 0132 — but it goes through the same
+  // resolver as every other caller so there is exactly one place that maps a
+  // token to a café, and no service-role query that quietly depends on a
+  // privilege the rest of the app no longer has.
+  const { data: resolved } = await admin.rpc('resolve_table_token', { p_token: table_token })
+  const cafeName = (resolved as { cafe_name?: string } | null)?.cafe_name ?? 'the café'
 
   const { data, error } = await admin.rpc('customer_issue_otp', {
     p_table_token: table_token,

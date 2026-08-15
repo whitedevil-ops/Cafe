@@ -517,7 +517,12 @@ with expected(kind, name, fix) as (values
   ('column',   'profiles.last_device',                     '0128'),
   ('function', 'touch_user_activity',                      '0128'),
   ('function', 'op_list_users',                            '0128'),
-  ('function', 'op_user_detail',                           '0128')
+  ('function', 'op_user_detail',                           '0128'),
+  -- 0131 — QR token resolvers. These MUST exist before the app that calls
+  -- them is deployed, and 0132's revoke must come after. If either is
+  -- missing while the other is applied, QR ordering breaks for guests.
+  ('function', 'resolve_table_token',                      '0131'),
+  ('function', 'list_cafe_tables_with_tokens',             '0131')
 )
 select
   e.kind,

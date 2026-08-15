@@ -12,12 +12,13 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   // Table lookup and the ordering kill-switch stay live/uncached (per-table,
   // cheap, and need to react immediately) — only the café-wide menu data
   // below (identical for every table at this café) is cached.
-  const { data: table, error: tableErr } = await supabase
-    .from('cafe_tables')
-    .select('id, label, cafe_id')
-    .eq('token', token)
-    .maybeSingle()
-  if (tableErr) console.error('[qr] cafe_tables lookup failed:', tableErr.message, 'token=', token)
+  // Via RPC rather than a direct .eq('token', …): the token column is revoked
+  // from anon in migration 0132 because it was world-readable, and a WHERE
+  // reference needs column SELECT privilege. resolve_table_token is SECURITY
+  // DEFINER and reads it as the definer.
+  const { data: resolved, error: tableErr } = await supabase.rpc('resolve_table_token', { p_token: token })
+  if (tableErr) console.error('[qr] resolve_table_token failed:', tableErr.message, 'token=', token)
+  const table = resolved as { table_id: string; label: string; cafe_id: string } | null
   if (!table) notFound()
 
   const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = await getCachedCafeMenu(table.cafe_id)

@@ -1,2 +1,8 @@
 /src-tauri/target/
 /src-tauri/gen/
+
+# Built installers preserved out of target/ for convenience. Binaries do not
+# belong in a public repo — they belong in GitHub Releases.
+*.msi
+*.exe
+*.dmg

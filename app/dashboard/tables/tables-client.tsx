@@ -79,14 +79,25 @@ export default function TablesClient({
     }
     setBusy(true)
     setError(null)
-    const { data, error } = await supabase
+    // The insert still writes the token normally — INSERT needs no SELECT
+    // privilege on a column. What it can no longer do is read it straight back
+    // in the same statement, because migration 0132 revokes select(token) from
+    // `authenticated`. So: insert without a returning-select, then re-list
+    // through the member-gated RPC to pick up the new row with its token.
+    const { error } = await supabase
       .from('cafe_tables')
       .insert({ cafe_id: cafeId, label, token: makeToken(slug) })
-      .select('id, label, capacity, status, token')
-      .single()
+    if (error) {
+      setBusy(false)
+      return setError(error.message)
+    }
+
+    const { data: fresh, error: listErr } = await supabase.rpc('list_cafe_tables_with_tokens', {
+      p_cafe_id: cafeId,
+    })
     setBusy(false)
-    if (error) return setError(error.message)
-    setTables((t) => [...t, data as TableRow])
+    if (listErr) return setError(listErr.message)
+    setTables((fresh ?? []) as TableRow[])
     setNewLabel('')
   }
 

@@ -9,14 +9,13 @@ export default async function MyOrdersPage({ params }: { params: Promise<{ token
   const { token } = await params
   const supabase = await createClient()
 
-  const { data: table } = await supabase
-    .from('cafe_tables')
-    .select('label, cafe_id, cafes(name, timezone)')
-    .eq('token', token)
-    .maybeSingle()
+  // See app/t/[token]/page.tsx — the token column is revoked from anon in
+  // migration 0132, so the lookup goes through a SECURITY DEFINER resolver.
+  const { data: resolved } = await supabase.rpc('resolve_table_token', { p_token: token })
+  const table = resolved as { label: string; cafe_id: string; cafe_name: string; timezone: string } | null
   if (!table) notFound()
 
-  const cafe = Array.isArray(table.cafes) ? table.cafes[0] : table.cafes
+  const cafe = { name: table.cafe_name, timezone: table.timezone }
 
   return (
     <MyOrdersClient

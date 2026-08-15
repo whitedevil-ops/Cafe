@@ -11,11 +11,12 @@ export default async function ManageTablesPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('cafe_tables')
-    .select('id, label, capacity, status, token')
-    .eq('cafe_id', cafe.cafeId)
-    .order('label')
+  // Member-gated RPC rather than a direct select: the token column is revoked
+  // from `authenticated` in migration 0132 (the `public read using (true)`
+  // policy from 0001 would otherwise let any signed-in owner read every OTHER
+  // café's tokens). This café's own tokens still come back — QR generation
+  // needs the real value.
+  const { data } = await supabase.rpc('list_cafe_tables_with_tokens', { p_cafe_id: cafe.cafeId })
 
   return (
     <div>
