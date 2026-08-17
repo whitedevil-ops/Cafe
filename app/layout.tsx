@@ -81,15 +81,34 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     {
+      // This node is what Google reads for the SITE NAME — the label shown
+      // above the URL in a search result. It currently renders "ventron.in",
+      // because Google resolves site names against the registrable domain and
+      // only grants a subdomain its own name once it is convinced the
+      // subdomain is a separate site. og:site_name, <title> and this `name`
+      // all already say KhaoPiyo; `url` is the documented homepage form
+      // (trailing slash, matching Google's own example) so the node
+      // unambiguously describes the subdomain root rather than a path under
+      // it, and alternateName offers the spaced spelling people also search.
+      // Google chooses in the end — none of this forces the label.
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
       name: "KhaoPiyo",
-      url: siteUrl,
+      alternateName: "Khao Piyo",
+      url: `${siteUrl}/`,
       inLanguage: "en-IN",
+      // Names what this site is ABOUT, rather than leaving Google to infer it.
+      // Without the link the graph says "a website called KhaoPiyo" and,
+      // separately, "some software called KhaoPiyo"; with it, the site and the
+      // product are one identified thing. Reference by @id — repeating the
+      // node inline would create the duplicate entity this graph exists to
+      // avoid.
+      about: { "@id": `${siteUrl}/#software` },
       publisher: { "@id": `${siteUrl}/#organization` },
     },
     {
       "@type": "SoftwareApplication",
+      "@id": `${siteUrl}/#software`,
       name: "KhaoPiyo",
       applicationCategory: "BusinessApplication",
       applicationSubCategory: "Restaurant POS SaaS & Billing Software",
