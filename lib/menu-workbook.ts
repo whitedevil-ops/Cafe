@@ -264,6 +264,30 @@ export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
   return download(wb, `${cafeName || 'cafe'}-combos.xlsx`.replace(/\s+/g, '-'))
 }
 
+// F-06 mitigation (SECURITY_AUDIT.md): xlsx@0.18.5 has two unpatched high-
+// severity advisories (prototype pollution, ReDoS), both reachable only by
+// PARSING a file — writing is unaffected. This never runs server-side (the
+// caller is 'use client'), so the worst case is the uploader's own browser
+// tab, not other cafés or shared infrastructure. Still worth bounding: a
+// crafted cell value large enough to trigger catastrophic regex backtracking
+// could hang that tab for a very long time.
+//
+// This caps the INPUT SIZE, not the parse TIME. A real time-based cutoff
+// would need a Web Worker — JS is single-threaded, so a Promise.race against
+// a genuinely hung synchronous parse never actually fires the timeout branch
+// until the hang itself ends, which defeats the point. Bounding the bytes a
+// vulnerable regex could ever backtrack over is the honest mitigation
+// available without that larger change. A real menu — even a few thousand
+// rows with every column filled — is nowhere near this limit.
+export const MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
+
+export class WorkbookTooLargeError extends Error {
+  constructor() {
+    super('workbook too large')
+    this.name = 'WorkbookTooLargeError'
+  }
+}
+
 // Reads an uploaded .csv or .xlsx File into a plain array-of-arrays, the input
 // shape parseMenuFile expects — one place that understands the file format,
 // so the parser itself stays format-agnostic.
@@ -273,6 +297,9 @@ export function downloadCombosExport(cafeName: string, rows: ComboExportRow[]) {
 // looks like a menu — which also keeps our own template's "How to fill this in"
 // tab out of the import no matter what order the tabs end up in.
 export async function readWorkbookRows(file: File): Promise<unknown[][]> {
+  // Checked before any read or parse — a file over the cap never even
+  // reaches memory as an ArrayBuffer.
+  if (file.size > MAX_WORKBOOK_BYTES) throw new WorkbookTooLargeError()
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf, { type: 'array' })
   const sheets = wb.SheetNames.map((name) => ({

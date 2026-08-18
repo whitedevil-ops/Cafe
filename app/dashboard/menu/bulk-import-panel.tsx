@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
+import { WorkbookTooLargeError } from '@/lib/menu-workbook'
 import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
 import { effectiveOptionCost, optionToDeltas } from '@/lib/menu-options'
 import { savedFileHint } from '@/lib/is-desktop'
@@ -87,8 +88,12 @@ export default function BulkImportPanel({
         await readWorkbookRows(file),
         'No items were found in this file. Check it matches the template format.',
       )
-    } catch {
-      setFileError('Could not read this file. Make sure it\'s a .csv or .xlsx export from Excel/Google Sheets.')
+    } catch (e) {
+      setFileError(
+        e instanceof WorkbookTooLargeError
+          ? `This file is larger than 5 MB. A menu spreadsheet is normally tiny — check you picked the right file.`
+          : `Could not read this file. Make sure it's a .csv or .xlsx export from Excel/Google Sheets.`,
+      )
     } finally {
       setParsing(false)
     }
