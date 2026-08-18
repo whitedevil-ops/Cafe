@@ -20,11 +20,11 @@ export default async function PosPage() {
 
   const supabase = await createClient()
   const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }, { data: areas }, { data: rewards }] = await Promise.all([
-    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled').eq('id', cafe.cafeId).single(),
+    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled, gst_registered, tax_inclusive').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
       .from('menu_items')
-      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available, created_at')
+      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available, created_at, tax_percent')
       .eq('cafe_id', cafe.cafeId)
       .eq('archived', false)
       .order('sort'),
@@ -64,6 +64,15 @@ export default async function PosPage() {
 
   const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
 
+  // menu_item_id -> its own GST rate. Mirrors the snapshot trigger in 0106,
+  // which stamps each order line with coalesce(menu_items.tax_percent,
+  // cafes.tax_percent) — so the cart preview resolves the rate the same way
+  // the bill will, instead of applying one flat café rate to every line.
+  const itemTaxRates: Record<string, number | null> = {}
+  for (const i of items ?? []) {
+    itemTaxRates[i.id] = i.tax_percent === null || i.tax_percent === undefined ? null : Number(i.tax_percent)
+  }
+
   // Plan entitlements, resolved server-side. hasFeature() applies the same
   // override-beats-plan-default precedence the rest of the app uses, so a
   // café granted loyalty by an operator override is treated as entitled even
@@ -79,6 +88,7 @@ export default async function PosPage() {
     price: i.price,
     image_url: i.image_url,
     is_veg: i.is_veg,
+    tax_percent: i.tax_percent === null || i.tax_percent === undefined ? null : Number(i.tax_percent),
     is_bestseller: i.is_bestseller,
     hasOptions: withOptions.has(i.id),
     available: i.available,
@@ -112,6 +122,12 @@ export default async function PosPage() {
       role={cafe.role}
       timezone={cafe.timezone}
       taxPercent={Number(cafeRow?.tax_percent ?? 0)}
+      // A café that is not GST registered is charged NO tax by the server,
+      // and that is the default state — without these two the cart preview
+      // quoted a total the printed bill disagreed with.
+      gstRegistered={cafeRow?.gst_registered ?? false}
+      taxInclusive={cafeRow?.tax_inclusive ?? false}
+      itemTaxRates={itemTaxRates}
       serviceChargePercent={Number(cafeRow?.service_charge ?? 0)}
       dineIn={cafeRow?.dine_in ?? true}
       takeaway={cafeRow?.takeaway ?? true}

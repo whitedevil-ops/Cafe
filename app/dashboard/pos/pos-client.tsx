@@ -60,6 +60,9 @@ export default function PosClient({
   loyaltyEnabled,
   spinEnabled,
   couponsEnabled,
+  gstRegistered,
+  taxInclusive,
+  itemTaxRates,
   rewards,
   combos,
   comboSlots,
@@ -80,6 +83,9 @@ export default function PosClient({
   loyaltyEnabled: boolean
   spinEnabled: boolean
   couponsEnabled: boolean
+  gstRegistered: boolean
+  taxInclusive: boolean
+  itemTaxRates: Record<string, number | null>
   rewards: { id: string; name: string; points_cost: number; menu_item_id: string | null; variant_id: string | null }[]
   combos: Combo[]
   comboSlots: ComboSlot[]
@@ -837,6 +843,9 @@ export default function PosClient({
   const cartProps = {
     spinEnabled,
     couponsEnabled,
+    gstRegistered,
+    taxInclusive,
+    itemTaxRates,
     tableLabel: selectedTable?.label ?? null,
     tableArea: selectedAreaName,
     orderType,

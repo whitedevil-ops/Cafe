@@ -10,6 +10,8 @@ export type PosItem = {
   image_url: string | null
   is_veg: boolean | null
   is_bestseller: boolean
+  /** Per-item GST rate; null means fall back to the café default. */
+  tax_percent: number | null
   hasOptions: boolean
   available: boolean
   created_at: string

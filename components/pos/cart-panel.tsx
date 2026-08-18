@@ -6,6 +6,8 @@ import { SpinClaim, type HeldPrize } from '@/components/pos/spin-claim'
 
 export type CartLine = {
   key: string
+  /** Already carried by every cart line; surfaced here to resolve GST rate. */
+  itemId?: string
   name: string
   modLabel: string
   unitPrice: number
@@ -65,6 +67,9 @@ export function CartPanel({
   lookingUpCustomer,
   role,
   cafeId,
+  gstRegistered,
+  taxInclusive,
+  itemTaxRates,
   spinEnabled,
   couponsEnabled,
   spinPrize,
@@ -126,6 +131,11 @@ export function CartPanel({
   lookingUpCustomer: boolean
   role: string
   cafeId: string
+  /** GST config, mirrored from cafes — see the tax block below. */
+  gstRegistered: boolean
+  taxInclusive: boolean
+  /** menu_item_id -> its own GST rate; null/absent means the café default. */
+  itemTaxRates: Record<string, number | null>
   /** Plan entitlement AND the café's own toggle — see pos/page.tsx. */
   spinEnabled: boolean
   couponsEnabled: boolean
@@ -173,9 +183,36 @@ export function CartPanel({
   const spinOff = Math.min(spinDiscount, subtotal - discount)
   const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal - discount - spinOff) : 0
   const base = subtotal - discount - spinOff - couponDiscount
-  const tax = Math.round((base * taxPercent) / 100)
+
+  // Mirrors apply_order_taxes() branch for branch. It previously did only the
+  // third case — tax always added on top at one flat café rate — which was
+  // wrong for the two commonest setups: a café that is not GST registered
+  // (the DEFAULT, where the server charges zero tax) and one pricing tax
+  // inclusive (where the server extracts tax from the price rather than
+  // adding it). Both made the cashier read out a total the printed bill did
+  // not agree with. Per-item rates are honoured too: a trigger stamps each
+  // line with coalesce(menu_items.tax_percent, cafes.tax_percent), so a flat
+  // rate here would diverge on any mixed-rate menu.
+  //
+  // Still a PREVIEW — the server recomputes and remains the authority. With a
+  // discount applied the per-line share can round a rupee differently from
+  // the server's own allocation; without one this agrees exactly.
+  const totalDiscount = discount + spinOff + couponDiscount
+  let tax = 0
+  if (gstRegistered && subtotal > 0) {
+    for (const l of lines) {
+      const lineVal = l.unitPrice * l.qty
+      const share = Math.round((totalDiscount * lineVal) / subtotal)
+      const net = lineVal - share
+      const rate = (l.itemId ? itemTaxRates[l.itemId] : null) ?? taxPercent
+      tax += taxInclusive
+        ? net - Math.round((net * 100) / (100 + rate))
+        : Math.round((net * rate) / 100)
+    }
+  }
   const svc = Math.round((base * serviceChargePercent) / 100)
-  const total = base + tax + svc
+  // Inclusive tax is already inside the prices, so it is NOT added again.
+  const total = gstRegistered && taxInclusive ? base + svc : base + tax + svc
   const itemCount = lines.reduce((s, l) => s + l.qty, 0)
   const overCap = discountType === 'percent' && maxPct !== null && parsedDiscount > maxPct
 
