@@ -121,7 +121,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
       timezone={cafe.timezone}
       cashEnabled={cafeRow?.cash_management_enabled ?? false}
       features={navFeatures}
-      screenAccess={(screenAccess as string[] | null) ?? ALL_SCREENS}
+      // An operator session has no cafe_members row, so my_screen_access()
+      // returns an EMPTY array rather than null — and `[] ?? ALL_SCREENS` is
+      // `[]`, so every screen fell behind the role-restricted screen. 0135
+      // fixes that at source in SQL; this stays as the belt to its braces,
+      // and makes the fix effective the moment this deploys rather than
+      // whenever the migration lands. Grants nothing — the operator already
+      // has row access via is_cafe_member(); this only stops the UI hiding it.
+      screenAccess={cafe.role === 'operator' ? ALL_SCREENS : ((screenAccess as string[] | null) ?? ALL_SCREENS)}
       cafes={myCafes}
       canAddCafe={canAddCafe}
       userName={profile?.full_name ?? ''}
