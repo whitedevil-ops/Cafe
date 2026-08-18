@@ -58,6 +58,8 @@ export default function PosClient({
   tables,
   areas,
   loyaltyEnabled,
+  spinEnabled,
+  couponsEnabled,
   rewards,
   combos,
   comboSlots,
@@ -76,6 +78,8 @@ export default function PosClient({
   tables: PosTable[]
   areas: PosArea[]
   loyaltyEnabled: boolean
+  spinEnabled: boolean
+  couponsEnabled: boolean
   rewards: { id: string; name: string; points_cost: number; menu_item_id: string | null; variant_id: string | null }[]
   combos: Combo[]
   comboSlots: ComboSlot[]
@@ -831,6 +835,8 @@ export default function PosClient({
     : null
 
   const cartProps = {
+    spinEnabled,
+    couponsEnabled,
     tableLabel: selectedTable?.label ?? null,
     tableArea: selectedAreaName,
     orderType,

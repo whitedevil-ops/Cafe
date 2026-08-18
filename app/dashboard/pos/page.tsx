@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
 import { byTableLabel } from '@/lib/table-sort'
 import { createClient } from '@/utils/supabase/server'
 import PosClient from './pos-client'
@@ -63,6 +64,15 @@ export default async function PosPage() {
 
   const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
 
+  // Plan entitlements, resolved server-side. hasFeature() applies the same
+  // override-beats-plan-default precedence the rest of the app uses, so a
+  // café granted loyalty by an operator override is treated as entitled even
+  // if its plan would not normally include it.
+  const [loyaltyAllowed, couponsAllowed] = await Promise.all([
+    hasFeature(cafe.cafeId, 'loyalty'),
+    hasFeature(cafe.cafeId, 'coupons'),
+  ])
+
   const posItems: (PosItem & { category_id: string | null })[] = (items ?? []).map((i) => ({
     id: i.id,
     name: i.name,
@@ -112,6 +122,13 @@ export default async function PosPage() {
       tables={posTables}
       areas={posAreas}
       loyaltyEnabled={cafeRow?.loyalty_enabled ?? false}
+      // The POS previously consulted only cafes.loyalty_enabled — a per-café
+      // ON/OFF switch — and never the plan entitlement, so the spin-code and
+      // coupon boxes rendered on Starter and Trial, which cannot have either.
+      // Both conditions are required: the plan decides whether a café MAY have
+      // the feature, the toggle decides whether they WANT it on right now.
+      spinEnabled={loyaltyAllowed && (cafeRow?.loyalty_enabled ?? false)}
+      couponsEnabled={couponsAllowed}
       rewards={rewards ?? []}
       combos={(combos ?? []) as Combo[]}
       comboSlots={(comboSlots ?? []) as ComboSlot[]}

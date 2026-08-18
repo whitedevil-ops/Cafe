@@ -65,6 +65,8 @@ export function CartPanel({
   lookingUpCustomer,
   role,
   cafeId,
+  spinEnabled,
+  couponsEnabled,
   spinPrize,
   spinDiscount,
   onHoldSpinPrize,
@@ -124,6 +126,9 @@ export function CartPanel({
   lookingUpCustomer: boolean
   role: string
   cafeId: string
+  /** Plan entitlement AND the café's own toggle — see pos/page.tsx. */
+  spinEnabled: boolean
+  couponsEnabled: boolean
   spinPrize: HeldPrize | null
   /** Previewed here, but the server recomputes and is the authority. */
   spinDiscount: number
@@ -404,12 +409,17 @@ export function CartPanel({
           </div>
         )}
 
-        <SpinClaim
-          cafeId={cafeId}
-          held={spinPrize}
-          onHold={onHoldSpinPrize}
-          onClear={onClearSpinPrize}
-        />
+        {/* Hidden rather than disabled on plans without loyalty: a café that
+            cannot run a wheel has no codes to redeem, so a greyed-out box
+            would only be clutter on the busiest screen in the product. */}
+        {spinEnabled && (
+          <SpinClaim
+            cafeId={cafeId}
+            held={spinPrize}
+            onHold={onHoldSpinPrize}
+            onClear={onClearSpinPrize}
+          />
+        )}
 
         <div className="mb-3">
           <div className="flex gap-1.5">
@@ -440,6 +450,9 @@ export function CartPanel({
           {overCap && <p className="mt-1 text-[11.5px] text-destructive">Exceeds your role&apos;s discount limit.</p>}
         </div>
 
+        {/* Same reasoning as the spin box: a café without the coupons
+            entitlement has no coupons to apply, so the field can only fail. */}
+        {couponsEnabled && (
         <div className="mb-3">
           {appliedCoupon ? (
             <div className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-primary bg-primary-subtle px-2.5 py-1.5">
@@ -502,6 +515,7 @@ export function CartPanel({
           )}
           {couponError && <p className="mt-1 text-[11.5px] text-destructive">{couponError}</p>}
         </div>
+        )}
 
         <div className="space-y-1.5 text-[13px]">
           <div className="flex justify-between text-muted-foreground">
