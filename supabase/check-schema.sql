@@ -586,6 +586,10 @@ with expected(kind, name, fix) as (values
   -- that survived 0138's revoke and was still granted to authenticated.
   -- No new object; verified by the self-check inside 0146 itself.
   --
+  -- 0147 -- URGENT fix for a regression introduced in 0143: redeem_spin_prize
+  -- referenced spin_results.redeemed_by, a column that has never existed on
+  -- that table. Re-bodies redeem_spin_prize only -- no new object.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),

@@ -125,6 +125,25 @@ describe.skipIf(!hasAdmin)('inventory reversal idempotency regression guard (liv
     const afterDeduct = await stockNow()
     expect(afterDeduct).toBe(before - RECIPE_QTY)
 
+    // A "high-water mark" read from the database's own clock, not the test
+    // runner's — comparing a client-captured Date.now() against Supabase's
+    // created_at is only as reliable as clock sync between the two, which
+    // isn't guaranteed. Reading the latest existing row's own created_at
+    // (or an epoch floor if none exist yet) and filtering strictly greater
+    // than it after the race sidesteps clock skew entirely, and also avoids
+    // the short_code-substring collision risk from the previous test's own
+    // (already-cancelled) order in this same café — short_code excludes
+    // cancelled orders from its count, so this order could easily reuse it.
+    const { data: priorRows } = await admin
+      .from('inventory_transactions')
+      .select('created_at')
+      .eq('cafe_id', cafeId)
+      .eq('item_id', invItemId)
+      .ilike('reason', '%cancelled — stock restored%')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const priorHighWaterMark = priorRows?.[0]?.created_at ?? '1970-01-01T00:00:00Z'
+
     const attempt = () => owner.rpc('cancel_order', { p_order_id: order.order_id, p_reason: 'race test cancellation' })
     const [a, b] = await Promise.all([attempt(), attempt()])
 
@@ -145,7 +164,8 @@ describe.skipIf(!hasAdmin)('inventory reversal idempotency regression guard (liv
       .select('id')
       .eq('cafe_id', cafeId)
       .eq('item_id', invItemId)
-      .ilike('reason', `%${order.short_code}%cancelled — stock restored%`)
+      .ilike('reason', '%cancelled — stock restored%')
+      .gt('created_at', priorHighWaterMark)
     expect((reversalRows ?? []).length, 'exactly one reversal ledger row even under a concurrent double-cancel').toBe(1)
 
     const { data: orderRow } = await admin.from('orders').select('stock_reversed_at').eq('id', order.order_id).single()
