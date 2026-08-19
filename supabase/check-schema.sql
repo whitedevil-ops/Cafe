@@ -577,9 +577,20 @@ with expected(kind, name, fix) as (values
   -- plan entitlements server-side via cafe_has_feature(). No new object.
   --
   -- 0144 -- idempotent inventory reversal (double-restock fix).
-  ('column', 'orders.stock_reversed_at', '0144')
+  ('column', 'orders.stock_reversed_at', '0144'),
   -- reverse_stock_for_cancelled_order (already registered, 0060) is
   -- re-bodied only -- no new object for that part.
+  --
+  -- 0145 -- GST credit notes for refunds.
+  ('table',    'credit_note_counters',                '0145'),
+  ('function', 'claim_credit_note_number',             '0145'),
+  ('column',   'refunds.credit_note_number',           '0145'),
+  ('column',   'refunds.credit_note_issued_at',        '0145'),
+  ('column',   'refunds.credit_note_taxable_value',    '0145'),
+  ('column',   'refunds.credit_note_tax_amount',       '0145')
+  -- refund_order (0028..0098), get_receipt (0010..0123) and
+  -- gst_invoice_report (0063/0072) are re-bodied only -- no new object for
+  -- those three.
 )
 select
   e.kind,

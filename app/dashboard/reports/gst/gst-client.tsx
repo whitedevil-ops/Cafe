@@ -8,8 +8,11 @@ import { ReportsSubnav, ReportHeader, RangePicker, useReportRange } from '../_sh
 export type GstReport = {
   gst_registered: boolean
   summary: { invoices: number; taxable_value: number; tax: number; cgst: number; sgst: number }
+  credit_note_summary: { count: number; taxable_value: number; tax: number; cgst: number; sgst: number }
+  net_summary: { taxable_value: number; tax: number; cgst: number; sgst: number }
   by_rate: { hsn_sac: string; tax_percent: number; taxable_value: number; cgst: number; sgst: number; tax: number }[]
   invoices: { invoice_number: string; issued_at: string; short_code: string; taxable_value: number; tax: number; cgst: number; sgst: number; total: number }[]
+  credit_notes: { credit_note_number: string; issued_at: string; order_id: string; amount: number; taxable_value: number; tax: number; cgst: number; sgst: number; reason: string }[]
 }
 
 export default function GstClient({
@@ -65,6 +68,19 @@ export default function GstClient({
         ],
         rows: report.invoices.map((i) => ({ ...i, issued: formatDate(i.issued_at, timezone) })),
       },
+      {
+        name: 'Credit notes', title: 'GST credit note register (refunds)',
+        columns: [
+          { header: 'Credit note #', key: 'credit_note_number', kind: 'text' },
+          { header: 'Date', key: 'issued', kind: 'text' },
+          { header: 'Taxable Value (₹)', key: 'taxable_value', kind: 'money' },
+          { header: 'CGST (₹)', key: 'cgst', kind: 'money' },
+          { header: 'SGST (₹)', key: 'sgst', kind: 'money' },
+          { header: 'Amount (₹)', key: 'amount', kind: 'money' },
+          { header: 'Reason', key: 'reason', kind: 'text' },
+        ],
+        rows: report.credit_notes.map((c) => ({ ...c, issued: formatDate(c.issued_at, timezone) })),
+      },
     ]
     return downloadReport({ cafeName, reportName: 'GST', from, to }, sheets)
   }
@@ -110,6 +126,22 @@ export default function GstClient({
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">SGST</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.sgst.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Credit notes issued</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{report.credit_note_summary.count}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Tax reversed (credit notes)</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-destructive">−₹{report.credit_note_summary.tax.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Net tax (original − credit notes)</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.net_summary.tax.toLocaleString('en-IN')}</p>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">CGST ₹{report.net_summary.cgst.toLocaleString('en-IN')} · SGST ₹{report.net_summary.sgst.toLocaleString('en-IN')}</p>
             </div>
           </div>
 
@@ -169,6 +201,38 @@ export default function GstClient({
                         <td className="py-1.5 text-muted-foreground">#{i.short_code}</td>
                         <td className="py-1.5 text-right text-muted-foreground">₹{i.taxable_value.toLocaleString('en-IN')}</td>
                         <td className="py-1.5 text-right font-medium text-foreground">₹{i.total.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Credit note register ({report.credit_notes.length})</p>
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface p-4">
+              {report.credit_notes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No credit notes in this range.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
+                      <th className="pb-2 font-medium">Credit note #</th>
+                      <th className="pb-2 font-medium">Date</th>
+                      <th className="pb-2 font-medium">Reason</th>
+                      <th className="pb-2 text-right font-medium">Taxable value</th>
+                      <th className="pb-2 text-right font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {report.credit_notes.map((c) => (
+                      <tr key={c.credit_note_number}>
+                        <td className="py-1.5 font-mono text-[12.5px] text-foreground">{c.credit_note_number}</td>
+                        <td className="py-1.5 text-muted-foreground">{formatDate(c.issued_at, timezone)}</td>
+                        <td className="py-1.5 text-muted-foreground">{c.reason}</td>
+                        <td className="py-1.5 text-right text-muted-foreground">₹{c.taxable_value.toLocaleString('en-IN')}</td>
+                        <td className="py-1.5 text-right font-medium text-destructive">−₹{c.amount.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>

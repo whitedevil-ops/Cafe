@@ -456,11 +456,12 @@ export default function FloorClient({
     })
     setRefundSubmitting(false)
     if (error) return setRefundError(error.message)
-    const r = data as { amount: number; remaining: number }
+    const r = data as { amount: number; remaining: number; credit_note_number?: string | null }
+    const cn = r.credit_note_number ? ` (credit note ${r.credit_note_number})` : ''
     toast(
       r.remaining > 0
-        ? `₹${r.amount} refunded — ₹${r.remaining} still refundable.`
-        : `₹${r.amount} refunded in full.`,
+        ? `₹${r.amount} refunded — ₹${r.remaining} still refundable.${cn}`
+        : `₹${r.amount} refunded in full.${cn}`,
     )
     setRefunding(null)
     setRefundContext(null)
