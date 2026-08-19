@@ -17,13 +17,13 @@ jobs:
   check:
     name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       # The build reads these at compile time. They are deliberately fake:
-      # nothing in the build talks to Supabase, and CI must never hold
+      # nothing in the BUILD talks to Supabase, and CI must never hold
       # credentials to a database that serves a real café. Verified locally —
-      # `next build` generates all 57 routes with placeholders.
+      # `next build` generates all routes with placeholders.
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-build-only
       NEXT_PUBLIC_APP_URL: https://khaopiyo.ventron.in
@@ -50,12 +50,67 @@ jobs:
       - name: Lint
         run: npx eslint app components lib utils --ext .ts,.tsx --max-warnings 14
 
-      # Unit tests only. tests/integration/ writes real rows into the live
-      # Brewora café and needs real credentials — running it per push would
-      # both require secrets in CI and pollute a real café's data on every
-      # commit. Those stay a deliberate local/manual step.
       - name: Unit tests
         run: npm run test:unit
 
       - name: Build
         run: npm run build
+
+      # ── Integration / RLS / Security suites ──────────────────────────────
+      # These write real (throwaway, self-cleaning) rows against the actual
+      # Supabase project and need real credentials — this repo has exactly
+      # ONE Supabase project (there is no separate staging/test project), so
+      # "real credentials" necessarily means production's. That is an
+      # accepted, standing tradeoff, not an oversight: every one of these
+      # suites already creates its own disposable café/user fixture and
+      # tears it down in afterAll — the same pattern already run manually,
+      # repeatedly, against this same project throughout this codebase's
+      # history. Wiring it into CI only changes WHEN it runs, not WHAT it
+      # touches.
+      #
+      # Requires three repo secrets to be set (Settings → Secrets → Actions):
+      #   SUPABASE_URL_INTEGRATION, SUPABASE_ANON_KEY_INTEGRATION,
+      #   SUPABASE_SERVICE_ROLE_KEY_INTEGRATION
+      # GitHub does not expose repository secrets to a `pull_request` run
+      # triggered from a FORK — that is a platform-level boundary, not a
+      # config choice here, so those three steps below are conditioned to
+      # skip (not fail) on a fork PR, where the credentials are genuinely
+      # unavailable to the contributor. They still run — and still fail the
+      # whole job on a real failure — for every push and every same-repo PR.
+      - name: Check integration-test credentials are configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.SUPABASE_URL_INTEGRATION }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: RLS & tenant-isolation tests
+        if: steps.creds.outputs.present == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_INTEGRATION }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_INTEGRATION }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_INTEGRATION }}
+        run: npm run test:rls
+
+      - name: Security regression tests
+        if: steps.creds.outputs.present == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_INTEGRATION }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_INTEGRATION }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_INTEGRATION }}
+        run: npm run test:security
+
+      - name: Integration tests (order engine)
+        if: steps.creds.outputs.present == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL_INTEGRATION }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY_INTEGRATION }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_INTEGRATION }}
+        run: npm run test:integration
+
+      - name: Integration suites skipped — no credentials configured
+        if: steps.creds.outputs.present != 'true'
+        run: |
+          echo "::warning::RLS, security and integration tests did not run — SUPABASE_URL_INTEGRATION (and its two companion secrets) are not set for this run. This is expected for a fork PR (GitHub never exposes secrets there); for a push to this repo, add the three secrets under Settings > Secrets and variables > Actions to enable these checks."

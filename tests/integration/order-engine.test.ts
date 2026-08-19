@@ -14,11 +14,12 @@ import { describe, it, expect, beforeAll } from 'vitest'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!URL || !KEY) {
+if (!URL || !KEY || !SERVICE_KEY) {
   throw new Error(
-    'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY are not set. ' +
-    'These integration tests need the real project config from .env.local.',
+    'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY ' +
+    'are not set. These integration tests need the real project config from .env.local.',
   )
 }
 
@@ -27,6 +28,22 @@ const TEST_PHONE = '9000009999' // reserved for this test suite; not used by the
 async function rest(path: string) {
   const res = await fetch(`${URL}/rest/v1/${path}`, {
     headers: { apikey: KEY!, Authorization: `Bearer ${KEY}` },
+  })
+  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+// Service-role only, and only for ONE fixture-setup lookup below: reading a
+// table's own token to know which table to order against. Migration 0133
+// correctly locked cafe_tables.token out of anon's reach (a real customer
+// gets it by scanning a printed QR, never by querying the table), so the
+// anon `rest()` helper above can no longer read it — same as a real café
+// printing/exporting its own QR codes would use an authenticated/owner path,
+// not the public menu's anon access. Everything else in this file stays on
+// the anon key, exercising exactly what a real customer's phone can reach.
+async function restAdmin(path: string) {
+  const res = await fetch(`${URL}/rest/v1/${path}`, {
+    headers: { apikey: SERVICE_KEY!, Authorization: `Bearer ${SERVICE_KEY}` },
   })
   if (!res.ok) throw new Error(`GET ${path} -> ${res.status}: ${await res.text()}`)
   return res.json()
@@ -76,7 +93,7 @@ describe('order engine — live integration against the Brewora demo café', () 
     }
     cafeId = cafes[0].id
 
-    const tables = await rest(`cafe_tables?select=token&cafe_id=eq.${cafeId}`)
+    const tables = await restAdmin(`cafe_tables?select=token&cafe_id=eq.${cafeId}`)
     if (tables.length < 2) throw new Error('Need at least 2 seeded tables for these tests.')
     tableTokens = tables.map((t: { token: string }) => t.token)
 
