@@ -590,6 +590,11 @@ with expected(kind, name, fix) as (values
   -- referenced spin_results.redeemed_by, a column that has never existed on
   -- that table. Re-bodies redeem_spin_prize only -- no new object.
   --
+  -- 0148 -- URGENT fix for a pre-existing bug (present since 0091, predating
+  -- this session): wallet_confirm_topup's final UPDATE referenced
+  -- payment_attempts.provider_payment_id, a column that has never existed on
+  -- that table. Re-bodies wallet_confirm_topup only -- no new object.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),
