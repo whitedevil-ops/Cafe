@@ -531,7 +531,50 @@ with expected(kind, name, fix) as (values
   ('function', 'op_begin_cafe_session',                    '0134'),
   ('function', 'op_end_cafe_session',                      '0134'),
   ('function', 'impersonation_context',                    '0134'),
-  ('function', 'op_list_cafe_sessions',                    '0134')
+  ('function', 'op_list_cafe_sessions',                    '0134'),
+  -- 0135 — operator/missing-screen access fix. all_screen_keys is new;
+  -- default_role_screens and my_screen_access (already registered, 0096)
+  -- are only re-bodied.
+  ('function', 'all_screen_keys',                          '0135')
+  -- 0136 re-bodies op_cafe_health (already registered, 0020) to fix a
+  -- column-reference ambiguity -- no new object, nothing further here.
+  --
+  -- 0137 revokes authenticated/anon's direct-call grant on apply_order_taxes
+  -- (already registered, 0016 call chain / body at 0037) -- a grant-only
+  -- security fix, no new object.
+  --
+  -- 0138 revokes authenticated/anon's direct-call grant on
+  -- resolve_coupon_discount (already registered via 0061/0078's coupon
+  -- family) -- a grant-only security fix, no new object.
+  --
+  -- 0139 re-bodies wallet_confirm_topup (already registered, 0091) to fix a
+  -- check-before-lock race, and adds a backstop unique index
+  -- (wallet_transactions_topup_payment_uq) -- indexes aren't tracked by this
+  -- checker; verified instead by the self-check inside 0139 itself.
+  --
+  -- 0140 closes menu food-cost exposure: menu_item_effective_cost (already
+  -- registered, 0052) is re-bodied into a checked wrapper; the new internal
+  -- computation function is registered below. Column/policy/grant changes on
+  -- menu_items, menu_item_variants, menu_item_addons aren't new objects --
+  -- verified instead by the self-check inside 0140 itself.
+  ('function', 'menu_item_effective_cost_internal',       '0140')
+  -- 0141 revokes authenticated's direct-call grant on order_outstanding
+  -- (0041), order_refunded_total (0028), bill_status (0039) and
+  -- build_kot_payload (0027) -- all already registered -- and moves
+  -- recompute_order_payment_status (0041) from authenticated to
+  -- service_role only. Grant-only security fixes, no new object.
+  --
+  -- 0142 re-bodies role_default_permissions (0079/0134), op_update_admin_
+  -- permissions (0117), op_create_admin (0117), create_staff_invite (0073)
+  -- and create_staff_member (0085) -- all already registered -- to restore
+  -- dropped permission keys and close a role/permission escalation gap. No
+  -- new object; verified by the self-check inside 0142 itself.
+  --
+  -- 0143 re-bodies resolve_coupon_discount (0061/0078), create_coupon (0061/
+  -- 0078), create_reward (0064/0120/0121), redeem_reward (0064),
+  -- save_spin_wheel/spin_the_wheel/redeem_spin_prize (0125/0127) and
+  -- staff_place_order (0016..0126) -- all already registered -- to enforce
+  -- plan entitlements server-side via cafe_has_feature(). No new object.
 )
 select
   e.kind,

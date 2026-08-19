@@ -76,12 +76,18 @@ async function sendExpiryReminders(
 }
 
 export async function GET(req: Request) {
+  // Fail CLOSED: a missing CRON_SECRET must deny, not skip the check. The
+  // old `if (cronSecret) { ... }` shape meant a misconfigured/unset env var
+  // in the deployed environment silently opened this endpoint to anyone —
+  // it suspends cafés and sends billing emails, so that's a real hole, not
+  // a theoretical one. Never log the secret itself, only the outcome.
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'not configured' }, { status: 503 })
+  }
+  const auth = req.headers.get('authorization')
+  if (auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
