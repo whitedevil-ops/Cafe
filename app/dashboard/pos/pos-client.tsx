@@ -15,7 +15,7 @@ import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-d
 import { ComboPicker } from '@/components/pos/combo-picker'
 import { Customizer } from '@/components/pos/customizer'
 import type { HeldPrize } from '@/components/pos/spin-claim'
-import { businessDayStartISO } from '@/lib/datetime'
+import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import type { PosVariant, PosAddon } from './page'
 
@@ -469,22 +469,41 @@ export default function PosClient({
   // ── Bottom live strip — real numbers, lighter poll than the table grid.
   // Never steals space from ordering: collapsed entirely below lg (spec §"bottom
   // live strip"). A failed fetch just leaves the strip showing its last value.
-  const [stats, setStats] = useState<{ collected: number; orders: number; aov: number; preparing: number; ready: number } | null>(null)
+  const [stats, setStats] = useState<{
+    collected: number; orders: number; aov: number; preparing: number; ready: number
+    collectedChangePct: number | null; ordersChangePct: number | null; aovChangePct: number | null
+  } | null>(null)
+  // null (not 0%) when there's no prior-day baseline to compare against — a
+  // café's first-ever day, or a quiet yesterday, would otherwise show a
+  // meaningless/misleading "+100%" or divide-by-zero.
+  const pctChange = (curr: number, prev: number) => (prev === 0 ? null : Math.round(((curr - prev) / prev) * 100))
   const pollStats = useCallback(async () => {
     const dayStart = businessDayStartISO(timezone)
-    const [{ data: ords }, { data: kitchen }] = await Promise.all([
+    const yesterdayStart = businessDaysAgoStartISO(1, timezone)
+    const [{ data: ords }, { data: yOrds }, { data: kitchen }] = await Promise.all([
       supabase.from('orders').select('total').eq('cafe_id', cafeId).neq('status', 'cancelled').gte('created_at', dayStart),
+      supabase.from('orders').select('total').eq('cafe_id', cafeId).neq('status', 'cancelled').gte('created_at', yesterdayStart).lt('created_at', dayStart),
       supabase.from('orders').select('status').eq('cafe_id', cafeId).in('status', ['preparing', 'ready']),
     ])
     const rows = ords ?? []
     const collected = rows.reduce((s, o) => s + (o.total ?? 0), 0)
     const orderCount = rows.length
+    const aov = orderCount ? Math.round(collected / orderCount) : 0
+
+    const yRows = yOrds ?? []
+    const yCollected = yRows.reduce((s, o) => s + (o.total ?? 0), 0)
+    const yOrderCount = yRows.length
+    const yAov = yOrderCount ? Math.round(yCollected / yOrderCount) : 0
+
     setStats({
       collected,
       orders: orderCount,
-      aov: orderCount ? Math.round(collected / orderCount) : 0,
+      aov,
       preparing: (kitchen ?? []).filter((o) => o.status === 'preparing').length,
       ready: (kitchen ?? []).filter((o) => o.status === 'ready').length,
+      collectedChangePct: pctChange(collected, yCollected),
+      ordersChangePct: pctChange(orderCount, yOrderCount),
+      aovChangePct: pctChange(aov, yAov),
     })
   }, [supabase, cafeId, timezone])
 
@@ -994,7 +1013,7 @@ export default function PosClient({
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border bg-surface px-4 py-3">
             <div className="flex items-center gap-3">
-              <div className="relative flex-1">
+              <div className="relative w-full max-w-md">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
                   ref={searchInputRef}
@@ -1084,9 +1103,9 @@ export default function PosClient({
           under both the product area and the cart. */}
       {stats && (
         <div className="hidden shrink-0 items-stretch gap-px overflow-x-auto border-t border-border bg-border lg:flex">
-          <StatTile label="Today's sales" value={`₹${stats.collected.toLocaleString('en-IN')}`} icon={<TrendingUp size={15} />} />
-          <StatTile label="Orders" value={String(stats.orders)} icon={<ClipboardList size={15} />} />
-          <StatTile label="Average order value" value={`₹${stats.aov}`} icon={<TrendingUp size={15} />} />
+          <StatTile label="Today's sales" value={`₹${stats.collected.toLocaleString('en-IN')}`} icon={<TrendingUp size={15} />} changePct={stats.collectedChangePct} />
+          <StatTile label="Orders" value={String(stats.orders)} icon={<ClipboardList size={15} />} changePct={stats.ordersChangePct} />
+          <StatTile label="Average order value" value={`₹${stats.aov}`} icon={<TrendingUp size={15} />} changePct={stats.aovChangePct} />
           <StatTile label="Active tables" value={`${activeTables} / ${tables.length}`} icon={<Users size={15} />} />
           <StatTile label="Kitchen" value={`${stats.preparing} Preparing · ${stats.ready} Ready`} icon={<ChefHat size={15} />} />
         </div>
@@ -1170,13 +1189,22 @@ export default function PosClient({
   )
 }
 
-function StatTile({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function StatTile({
+  label, value, icon, changePct,
+}: { label: string; value: string; icon: React.ReactNode; changePct?: number | null }) {
   return (
     <div className="flex min-w-[150px] flex-1 items-center gap-2.5 bg-surface px-4 py-2">
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary">{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-[11px] text-muted-foreground">{label}</p>
-        <p className="truncate text-[14px] font-semibold text-foreground">{value}</p>
+        <div className="flex items-baseline gap-1.5">
+          <p className="truncate text-[14px] font-semibold text-foreground">{value}</p>
+          {typeof changePct === 'number' && (
+            <span className={`shrink-0 text-[10.5px] font-medium ${changePct > 0 ? 'text-success' : changePct < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+              {changePct > 0 ? '↑' : changePct < 0 ? '↓' : ''}{Math.abs(changePct)}% vs yesterday
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

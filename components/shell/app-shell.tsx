@@ -141,6 +141,15 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  // POS benefits most from the extra width (category rail + food grid), so
+  // it opens collapsed regardless of the stored global preference — but a
+  // manual toggle while on POS still works for that viewing session, it
+  // just doesn't write to kp_sidebar_collapsed (that preference is for every
+  // OTHER screen; toggling on POS shouldn't silently collapse Dashboard,
+  // Menu, etc. the next time the user visits them).
+  const isPos = pathname.startsWith('/dashboard/pos')
+  const [posCollapseOverride, setPosCollapseOverride] = useState<boolean | null>(null)
+  const effectiveCollapsed = isPos ? (posCollapseOverride ?? true) : collapsed
 
   useEffect(() => {
     // Read the saved preference AFTER mount — localStorage isn't available
@@ -149,6 +158,10 @@ export function AppShell({
     setCollapsed(localStorage.getItem('kp_sidebar_collapsed') === '1')
   }, [])
   function toggleCollapsed() {
+    if (isPos) {
+      setPosCollapseOverride((c) => !(c ?? true))
+      return
+    }
     setCollapsed((c) => {
       const next = !c
       localStorage.setItem('kp_sidebar_collapsed', next ? '1' : '0')
@@ -159,14 +172,14 @@ export function AppShell({
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
-  const railWidth = collapsed ? 'lg:w-[68px]' : 'lg:w-64'
+  const railWidth = effectiveCollapsed ? 'lg:w-[68px]' : 'lg:w-64'
 
   const rail = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Brand */}
-      <div className={`flex items-center gap-2.5 px-4 py-4 ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+      <div className={`flex items-center gap-2.5 px-4 py-4 ${effectiveCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
         <Image src="/logo-mark.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" priority />
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="min-w-0">
             <p className="text-[15px] font-semibold leading-tight tracking-tight">KhaoPiyo</p>
             <p className="truncate text-[11.5px] text-sidebar-muted">{cafeName}</p>
@@ -174,7 +187,7 @@ export function AppShell({
         )}
       </div>
 
-      {!collapsed && (cafes.length > 1 || canAddCafe) && (
+      {!effectiveCollapsed && (cafes.length > 1 || canAddCafe) && (
         <div className="px-3 pb-1">
           <CafeSwitcher cafes={cafes} activeCafeId={cafeId} canAddCafe={canAddCafe} />
         </div>
@@ -183,7 +196,7 @@ export function AppShell({
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         {groups.map((group) => (
           <div key={group.heading} className="mb-4 last:mb-0">
-            {!collapsed && (
+            {!effectiveCollapsed && (
               <p className="px-2.5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-sidebar-muted">
                 {group.heading}
               </p>
@@ -195,24 +208,24 @@ export function AppShell({
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      title={collapsed ? item.label : undefined}
+                      title={effectiveCollapsed ? item.label : undefined}
                       aria-current={on ? 'page' : undefined}
                       className={`group relative flex items-center rounded-[var(--radius)] text-[13.5px] font-medium transition-colors ${
-                        collapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-2.5 px-2.5 py-2'
+                        effectiveCollapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-2.5 px-2.5 py-2'
                       } ${
                         on
                           ? 'bg-sidebar-active text-sidebar-active-foreground'
                           : 'text-sidebar-foreground/85 hover:bg-sidebar-hover hover:text-sidebar-foreground'
                       }`}
                     >
-                      {on && !collapsed && (
+                      {on && !effectiveCollapsed && (
                         <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
                       )}
                       <span className={on ? 'text-sidebar-active-foreground' : 'text-sidebar-muted group-hover:text-sidebar-foreground'}>
                         {item.icon}
                       </span>
-                      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                      {!collapsed && item.badge && (
+                      {!effectiveCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+                      {!effectiveCollapsed && item.badge && (
                         <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
                           {item.badge}
                         </span>
@@ -230,10 +243,10 @@ export function AppShell({
       <div className="hidden border-t border-sidebar-border p-2 lg:block">
         <button
           onClick={toggleCollapsed}
-          className={`flex w-full items-center gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-[12.5px] font-medium text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-foreground ${collapsed ? 'justify-center px-0' : ''}`}
-          title={collapsed ? 'Expand' : 'Collapse'}
+          className={`flex w-full items-center gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-[12.5px] font-medium text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-foreground ${effectiveCollapsed ? 'justify-center px-0' : ''}`}
+          title={effectiveCollapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? <PanelLeft size={16} /> : <><PanelLeftClose size={16} /> Collapse</>}
+          {effectiveCollapsed ? <PanelLeft size={16} /> : <><PanelLeftClose size={16} /> Collapse</>}
         </button>
       </div>
     </div>

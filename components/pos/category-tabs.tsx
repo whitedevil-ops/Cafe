@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { LayoutGrid, Flame, Sparkles, Package, Plus } from 'lucide-react'
-import { categoryIcon, categoryDisplayName } from '@/lib/category-icons'
+import { categoryEmoji, categoryDisplayName } from '@/lib/category-icons'
 
 export type PosCategory = { id: string; name: string; count: number }
 
@@ -120,21 +120,18 @@ export function CategoryTabs({
           <Row id="__new" label="New" count={newCount} icon={<Sparkles size={16} />} tone="bg-info/10 text-info" active={activeId === '__new'} onSelect={onSelect} />
         )}
         {categories.length > 0 && <div className="my-1 border-t border-border" />}
-        {categories.map((c) => {
-          const Icon = categoryIcon(c.name)
-          return (
-            <Row
-              key={c.id}
-              id={c.id}
-              label={categoryDisplayName(c.name)}
-              count={c.count}
-              icon={<Icon size={16} />}
-              tone={toneFor(c.name)}
-              active={activeId === c.id}
-              onSelect={onSelect}
-            />
-          )
-        })}
+        {categories.map((c) => (
+          <Row
+            key={c.id}
+            id={c.id}
+            label={categoryDisplayName(c.name)}
+            count={c.count}
+            icon={<span className="text-[15px] leading-none">{categoryEmoji(c.name)}</span>}
+            tone={toneFor(c.name)}
+            active={activeId === c.id}
+            onSelect={onSelect}
+          />
+        ))}
       </div>
 
       {onAddCategory && (
