@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     const base = window.location.origin
     // Never reveal whether the email exists — same generic confirmation either
     // way, so this can't be used to enumerate registered accounts.
-    await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${base}/reset-password` })
+    await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: `${base}/reset-password` })
     setLoading(false)
     setSent(true)
   }

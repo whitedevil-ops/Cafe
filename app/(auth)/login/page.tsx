@@ -59,7 +59,11 @@ function LoginForm() {
     if (!keepMe) await clearStoredSession()
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // A stray trailing space (common from copy-pasting an email out of a chat
+    // message) or different casing makes GoTrue treat this as a different
+    // account than the one on file — trim/lowercase so it can't silently
+    // fail to match a login typed slightly differently than it was created.
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
     if (error) {
       setError(error.message)
       setLoading(false)

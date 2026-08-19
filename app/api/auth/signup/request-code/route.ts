@@ -8,7 +8,8 @@ import { sendEmail, emailConfigured, signupCodeEmail } from '@/lib/email'
 // only to this server route, and delivered by email — never in the HTTP
 // response. Mirrors app/api/customer/request-otp/route.ts's shape.
 export async function POST(req: NextRequest) {
-  const { email } = (await req.json().catch(() => ({}))) as { email?: string }
+  const rawEmail = (await req.json().catch(() => ({}))) as { email?: string }
+  const email = (rawEmail.email ?? '').trim().toLowerCase()
   if (!email) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 })
   }

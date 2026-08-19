@@ -31,7 +31,7 @@ export default function SignupPage() {
     const res = await fetch('/api/auth/signup/request-code', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: form.email }),
+      body: JSON.stringify({ email: form.email.trim().toLowerCase() }),
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(body.error ?? 'Could not send the verification code.')
@@ -70,11 +70,12 @@ export default function SignupPage() {
     setError(null)
     setNotice(null)
     try {
+      const email = form.email.trim().toLowerCase()
       const res = await fetch('/api/auth/signup/verify-code', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email: form.email, code, full_name: form.full_name, phone: form.phone, password: form.password,
+          email, code, full_name: form.full_name, phone: form.phone, password: form.password,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -82,7 +83,7 @@ export default function SignupPage() {
 
       const supabase = createClient()
       const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: form.email, password: form.password,
+        email, password: form.password,
       })
       if (signInErr) throw signInErr
 

@@ -10,13 +10,15 @@ import { sendEmail, emailConfigured, welcomeEmail } from '@/lib/email'
 // someone abandons mid-verification. Password/name/phone are never
 // persisted server-side — they travel in this one request only.
 export async function POST(req: NextRequest) {
-  const { email, code, full_name, phone, password } = (await req.json().catch(() => ({}))) as {
+  const body = (await req.json().catch(() => ({}))) as {
     email?: string
     code?: string
     full_name?: string
     phone?: string
     password?: string
   }
+  const email = (body.email ?? '').trim().toLowerCase()
+  const { code, full_name, phone, password } = body
   if (!email || !code || !full_name || !password) {
     return NextResponse.json({ error: 'email, code, full_name and password are required' }, { status: 400 })
   }
