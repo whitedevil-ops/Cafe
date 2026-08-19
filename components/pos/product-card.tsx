@@ -64,7 +64,7 @@ export function ProductCard({
       <div className="flex flex-1 flex-col gap-0.5 p-1.5">
         <div className="flex items-start gap-1.5">
           <span className="mt-[3px]"><VegDot isVeg={item.is_veg} /></span>
-          <p className="min-w-0 flex-1 truncate text-[13px] font-medium leading-tight text-foreground">{item.name}</p>
+          <p className="min-w-0 flex-1 truncate text-[14.5px] font-semibold leading-tight text-foreground">{item.name}</p>
         </div>
         <div className="mt-auto flex items-center justify-between pt-0.5">
           <span className="text-[14px] font-semibold text-foreground">
