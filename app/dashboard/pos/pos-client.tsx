@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, TrendingUp, ClipboardList, Users, ChefHat } from 'lucide-react'
+import { Search, TrendingUp, ClipboardList, Users, ChefHat, ArrowRight } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
@@ -994,7 +994,7 @@ export default function PosClient({
             scrolls internally (overflow-y-auto inside CategoryTabs) if a
             café has enough categories to overflow; the rail's width itself
             never changes. */}
-        <div className="h-full w-[100px] shrink-0 overflow-hidden border-r border-border bg-surface sm:w-[140px] lg:w-[188px] xl:w-[196px]">
+        <div className="h-full w-[110px] shrink-0 overflow-hidden border-r border-border bg-surface sm:w-[150px] lg:w-[192px] xl:w-[200px]">
           <CategoryTabs
             categories={categoryList}
             bestsellerCount={bestsellerCount}
@@ -1026,6 +1026,32 @@ export default function PosClient({
                   /
                 </span>
               </div>
+
+              {/* Desktop's entry point into the order — table/order-type,
+                  item count, running total, opens the same consolidated
+                  review modal the mobile floating pill below opens. Orange
+                  once there's something to review; a quieter outline style
+                  beforehand (also doubles as the "pick a table" entry point
+                  before any items exist). */}
+              <button
+                onClick={() => setCartOpen(true)}
+                className={`ml-auto hidden h-[52px] shrink-0 items-center gap-2 rounded-[var(--radius)] px-4 text-[13px] font-medium transition-colors lg:flex ${
+                  cartCount > 0
+                    ? 'bg-primary text-primary-foreground hover:bg-primary-hover'
+                    : 'border border-border-strong bg-surface text-foreground hover:bg-surface-subtle'
+                }`}
+              >
+                <ClipboardList size={16} className={cartCount > 0 ? 'text-primary-foreground/80' : 'text-muted-foreground'} />
+                <span>{orderType === 'dine_in' ? (selectedTable?.label ?? 'Select table') : 'Takeaway'}</span>
+                {cartCount > 0 && (
+                  <>
+                    <span className="text-primary-foreground/60">·</span>
+                    <span>{cartCount} item{cartCount === 1 ? '' : 's'}</span>
+                    <span className="font-semibold">₹{cartTotal}</span>
+                  </>
+                )}
+                <ArrowRight size={15} className={cartCount > 0 ? 'text-primary-foreground/80' : 'text-muted-foreground'} />
+              </button>
             </div>
           </div>
 
@@ -1089,13 +1115,6 @@ export default function PosClient({
             )}
           </div>
         </div>
-
-        {/* Cart — persistent right panel on desktop. Parent row is height-capped
-            and non-scrolling, so a plain h-full (no sticky/dvh) keeps it fixed
-            while the product grid scrolls independently. */}
-        <div className="hidden h-full w-[360px] shrink-0 overflow-y-auto border-l border-border lg:block">
-          <CartPanel {...cartProps} />
-        </div>
       </div>
 
       {/* Bottom live strip — real numbers, collapsed below lg so it never
@@ -1111,7 +1130,11 @@ export default function PosClient({
         </div>
       )}
 
-      {/* Cart — bottom bar + sheet on smaller screens */}
+      {/* Cart trigger — a floating pill on mobile/tablet (below lg), where
+          there's no room for a header chip. Desktop's equivalent trigger
+          lives up in the search row instead (see below). Both just open the
+          same modal via cartOpen; CartPanel renders nothing but that modal
+          now, so there's no separate sheet wrapper needed here anymore. */}
       {!cartOpen && cartCount > 0 && (
         <button
           onClick={() => setCartOpen(true)}
@@ -1121,21 +1144,7 @@ export default function PosClient({
           <span className="text-[15px] font-semibold">₹{cartTotal} · View cart</span>
         </button>
       )}
-      {cartOpen && (
-        <div className="fixed inset-0 z-40 flex items-end bg-black/40 lg:hidden" onClick={() => setCartOpen(false)}>
-          <div className="max-h-[90dvh] w-full overflow-hidden rounded-t-2xl bg-surface" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <span className="text-sm font-medium text-foreground">Order</span>
-              <button onClick={() => setCartOpen(false)} aria-label="Close" className="grid h-9 w-9 place-items-center text-muted-foreground">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="max-h-[calc(90dvh-49px)] overflow-y-auto">
-              <CartPanel {...cartProps} />
-            </div>
-          </div>
-        </div>
-      )}
+      <CartPanel {...cartProps} open={cartOpen} onClose={() => setCartOpen(false)} />
 
       {tableSelectorOpen && (
         <TableSelector tables={liveTables} areas={areas} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />

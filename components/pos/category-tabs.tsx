@@ -51,13 +51,13 @@ function Row({
   return (
     <button
       onClick={() => onSelect(id)}
-      className={`flex h-[52px] w-full shrink-0 items-center gap-2.5 rounded-[var(--radius)] px-2.5 text-left text-[13.5px] font-medium transition-colors ${
+      className={`flex h-[52px] w-full shrink-0 items-center gap-1.5 rounded-[var(--radius)] px-2 text-left text-[13.5px] font-medium transition-colors ${
         active
           ? 'bg-primary text-primary-foreground shadow-[var(--shadow-sm)]'
           : 'text-foreground hover:bg-surface-subtle'
       }`}
     >
-      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-sm)] ${active ? 'bg-white/20 text-primary-foreground' : tone}`}>
+      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-sm)] ${active ? 'bg-white/20 text-primary-foreground' : tone}`}>
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -107,17 +107,17 @@ export function CategoryTabs({
   }
 
   return (
-    <div className="flex h-full flex-col p-2">
-      <Row id="all" label="All Items" count={totalCount} icon={<LayoutGrid size={16} />} tone="bg-primary-subtle text-primary" active={activeId === 'all'} onSelect={onSelect} />
+    <div className="flex h-full flex-col p-1.5">
+      <Row id="all" label="All Items" count={totalCount} icon={<LayoutGrid size={14} />} tone="bg-primary-subtle text-primary" active={activeId === 'all'} onSelect={onSelect} />
       <div className="mt-1 flex-1 space-y-0.5 overflow-y-auto">
         {comboCount > 0 && (
-          <Row id="__combos" label="Combos" count={comboCount} icon={<Package size={16} />} tone="bg-special/10 text-special" active={activeId === '__combos'} onSelect={onSelect} />
+          <Row id="__combos" label="Combos" count={comboCount} icon={<Package size={14} />} tone="bg-special/10 text-special" active={activeId === '__combos'} onSelect={onSelect} />
         )}
         {bestsellerCount > 0 && (
-          <Row id="__bestsellers" label="Best Sellers" count={bestsellerCount} icon={<Flame size={16} />} tone="bg-warning/10 text-warning" active={activeId === '__bestsellers'} onSelect={onSelect} />
+          <Row id="__bestsellers" label="Best Sellers" count={bestsellerCount} icon={<Flame size={14} />} tone="bg-warning/10 text-warning" active={activeId === '__bestsellers'} onSelect={onSelect} />
         )}
         {newCount > 0 && (
-          <Row id="__new" label="New" count={newCount} icon={<Sparkles size={16} />} tone="bg-info/10 text-info" active={activeId === '__new'} onSelect={onSelect} />
+          <Row id="__new" label="New" count={newCount} icon={<Sparkles size={14} />} tone="bg-info/10 text-info" active={activeId === '__new'} onSelect={onSelect} />
         )}
         {categories.length > 0 && <div className="my-1 border-t border-border" />}
         {categories.map((c) => (
@@ -126,7 +126,7 @@ export function CategoryTabs({
             id={c.id}
             label={categoryDisplayName(c.name)}
             count={c.count}
-            icon={<span className="text-[15px] leading-none">{categoryEmoji(c.name)}</span>}
+            icon={<span className="text-[13px] leading-none">{categoryEmoji(c.name)}</span>}
             tone={toneFor(c.name)}
             active={activeId === c.id}
             onSelect={onSelect}
