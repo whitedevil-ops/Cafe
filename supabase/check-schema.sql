@@ -581,6 +581,11 @@ with expected(kind, name, fix) as (values
   -- reverse_stock_for_cancelled_order (already registered, 0060) is
   -- re-bodied only -- no new object for that part.
   --
+  -- 0146 -- URGENT follow-up to 0138: drops an orphaned 4-arg overload of
+  -- resolve_coupon_discount (from 0061, predating 0078's category-scoping)
+  -- that survived 0138's revoke and was still granted to authenticated.
+  -- No new object; verified by the self-check inside 0146 itself.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),
