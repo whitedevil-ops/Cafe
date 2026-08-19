@@ -39,7 +39,11 @@ describe.skipIf(!hasAdmin)('concurrency race-condition regression guards (live)'
 
     const { data: cafe, error: cafeErr } = await admin
       .from('cafes')
-      .insert({ owner_id: ownerUserId, slug: `test-race-${Date.now()}`, name: 'Race-condition test café' })
+      // plan: 'business' — redeem_reward/resolve_coupon_discount are gated
+      // behind the 'coupons'/'loyalty' features (migration 0143); the
+      // default 'trial' plan has both off, which would fail every RPC call
+      // below before ever reaching the race scenario under test.
+      .insert({ owner_id: ownerUserId, slug: `test-race-${Date.now()}`, name: 'Race-condition test café', plan: 'business' })
       .select('id').single()
     if (cafeErr || !cafe) throw new Error(`fixture: could not create test café — ${cafeErr?.message}`)
     cafeId = cafe.id

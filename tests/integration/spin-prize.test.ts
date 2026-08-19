@@ -55,7 +55,11 @@ describe.skipIf(!hasAdmin)('spin prize at the till (live)', () => {
 
     const { data: cafe, error: cafeErr } = await admin
       .from('cafes')
-      .insert({ owner_id: ownerUserId, slug: `test-spin-${stamp}`, name: 'Spin test café' })
+      // plan: 'business' — spin_the_wheel/redeem_spin_prize/save_spin_wheel are
+      // gated behind the 'loyalty' feature (migration 0143); the default
+      // 'trial' plan has it off, which would fail every RPC call below before
+      // ever reaching the scenario under test.
+      .insert({ owner_id: ownerUserId, slug: `test-spin-${stamp}`, name: 'Spin test café', plan: 'business' })
       .select('id').single()
     if (cafeErr || !cafe) throw new Error(`fixture: could not create café — ${cafeErr?.message}`)
     cafeId = cafe.id

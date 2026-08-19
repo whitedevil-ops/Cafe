@@ -575,6 +575,11 @@ with expected(kind, name, fix) as (values
   -- save_spin_wheel/spin_the_wheel/redeem_spin_prize (0125/0127) and
   -- staff_place_order (0016..0126) -- all already registered -- to enforce
   -- plan entitlements server-side via cafe_has_feature(). No new object.
+  --
+  -- 0144 -- idempotent inventory reversal (double-restock fix).
+  ('column', 'orders.stock_reversed_at', '0144')
+  -- reverse_stock_for_cancelled_order (already registered, 0060) is
+  -- re-bodied only -- no new object for that part.
 )
 select
   e.kind,
