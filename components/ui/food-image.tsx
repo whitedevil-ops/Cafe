@@ -48,9 +48,9 @@ export function FoodImage({
 
   if (!src || failed) {
     return (
-      <div className={`flex h-full w-full flex-col items-center justify-center gap-1 bg-surface-subtle px-2 ${className}`}>
-        <UtensilsCrossed size={18} className="text-muted-foreground/35" strokeWidth={1.5} />
-        <span className="line-clamp-2 text-center text-[11px] font-medium leading-tight text-muted-foreground/65">
+      <div className={`flex h-full w-full flex-col items-center justify-center gap-0.5 bg-surface-subtle px-3 ${className}`}>
+        <UtensilsCrossed size={16} className="text-muted-foreground/30" strokeWidth={1.5} />
+        <span className="line-clamp-2 max-w-[80%] text-center text-[9.5px] font-normal leading-tight text-muted-foreground/50">
           {alt}
         </span>
       </div>
