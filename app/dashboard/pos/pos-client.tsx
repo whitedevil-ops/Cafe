@@ -6,12 +6,14 @@ import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CategoryTabs, type PosCategory } from '@/components/pos/category-tabs'
+import { categoryDisplayName } from '@/lib/category-icons'
 import { ProductCard, type PosItem } from '@/components/pos/product-card'
 import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
 import { ComboPicker } from '@/components/pos/combo-picker'
+import { Customizer } from '@/components/pos/customizer'
 import type { HeldPrize } from '@/components/pos/spin-claim'
 import { businessDayStartISO } from '@/lib/datetime'
 import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
@@ -96,6 +98,27 @@ export default function PosClient({
 
   const [activeCategory, setActiveCategory] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
+  const [sortMode, setSortMode] = useState<'popular' | 'price_low' | 'price_high' | 'name'>('popular')
+  // Local copy so a category added from the rail (owner/manager only, same
+  // plain insert menu-manager.tsx already does) appears immediately without
+  // a full page reload. Server-truth on every subsequent page load either
+  // way — this is just an optimistic append.
+  const [categoryList, setCategoryList] = useState<PosCategory[]>(categories)
+  const [addingCategory, setAddingCategory] = useState(false)
+  const canManageCategories = role === 'owner' || role === 'manager'
+  async function addCategory(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setAddingCategory(true)
+    const { data, error } = await supabase
+      .from('menu_categories')
+      .insert({ cafe_id: cafeId, name: trimmed, sort: categoryList.length })
+      .select('id, name')
+      .single()
+    setAddingCategory(false)
+    if (error) return toast(error.message, 'error')
+    setCategoryList((cs) => [...cs, { id: data.id, name: data.name, count: 0 }])
+  }
   const [cart, setCart] = useState<Line[]>([])
   // Respect the café's enabled order types. If both are off (shouldn't happen)
   // fall back to dine-in so the POS still renders; the server trigger (0051) is
@@ -103,6 +126,11 @@ export default function PosClient({
   const bothEnabled = dineIn && takeaway
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>(takeaway && !dineIn ? 'takeaway' : 'dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
+  // Dine-in only — sent as p_guest_count so staff_place_order can stamp
+  // table_sessions.guest_count (migration 0149). Starts at 1, not 0: an
+  // empty table isn't a valid guest count to submit an order for.
+  const [guestCount, setGuestCount] = useState(1)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [tender, setTender] = useState<Tender>('cash')
   const [pendingReason, setPendingReason] = useState('')
   const [customizing, setCustomizing] = useState<FullItem | null>(null)
@@ -160,6 +188,7 @@ export default function PosClient({
       const d = JSON.parse(raw) as {
         cart?: Line[]; customerPhone?: string; customerName?: string
         orderType?: 'dine_in' | 'takeaway'; selectedTableId?: string | null
+        guestCount?: number
         tender?: Tender; pendingReason?: string
         discountType?: 'percent' | 'flat' | null; discountValue?: string
         couponCode?: string; appliedCoupon?: { code: string; discount: number; name: string | null } | null
@@ -173,6 +202,7 @@ export default function PosClient({
       if (d.customerName) setCustomerName(d.customerName)
       if (d.orderType) setOrderType(d.orderType)
       if (d.selectedTableId) setSelectedTableId(d.selectedTableId)
+      if (d.guestCount) setGuestCount(d.guestCount)
       if (d.tender) setTender(d.tender)
       if (d.pendingReason) setPendingReason(d.pendingReason)
       if (d.discountType) setDiscountType(d.discountType)
@@ -202,14 +232,14 @@ export default function PosClient({
         sessionStorage.removeItem(draftKey)
       } else {
         sessionStorage.setItem(draftKey, JSON.stringify({
-          cart, customerPhone, customerName, orderType, selectedTableId,
+          cart, customerPhone, customerName, orderType, selectedTableId, guestCount,
           tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize,
         }))
       }
     } catch {
       // Storage unavailable (private browsing, quota) — draft just won't persist.
     }
-  }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize, draftKey])
+  }, [cart, customerPhone, customerName, orderType, selectedTableId, guestCount, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize, draftKey])
 
   const [combobuilding, setCombobuilding] = useState<Combo | null>(null)
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
@@ -240,7 +270,7 @@ export default function PosClient({
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return items
+    const filtered = items
       .filter((i) => {
         if (activeCategory === 'all') return true
         if (activeCategory === '__bestsellers') return i.is_bestseller
@@ -248,7 +278,16 @@ export default function PosClient({
         return i.category_id === activeCategory
       })
       .filter((i) => (q ? i.name.toLowerCase().includes(q) : true))
-  }, [items, activeCategory, search, newItemIds])
+    // Display order only — never touches price/tax/business logic. "Popular"
+    // is a stable sort (bestsellers first, otherwise the café's own menu
+    // order), so it's the same ordering as before this control existed.
+    const sorted = [...filtered]
+    if (sortMode === 'price_low') sorted.sort((a, b) => a.price - b.price)
+    else if (sortMode === 'price_high') sorted.sort((a, b) => b.price - a.price)
+    else if (sortMode === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
+    else sorted.sort((a, b) => Number(b.is_bestseller) - Number(a.is_bestseller))
+    return sorted
+  }, [items, activeCategory, search, newItemIds, sortMode])
 
   const qtyByItem = useMemo(() => {
     const m = new Map<string, number>()
@@ -562,6 +601,7 @@ export default function PosClient({
     setCustomerPhone('')
     setCustomerName('')
     setSelectedTableId(null)
+    setGuestCount(1)
     setDiscountType(null)
     setDiscountValue('')
     setCouponCode('')
@@ -594,14 +634,29 @@ export default function PosClient({
     void fetchHeld()
   }
 
-  // ── Escape closes whichever overlay is open, topmost first ───────────────
+  // ── Escape closes whichever overlay is open, topmost first; / and Ctrl/Cmd+K
+  //    focus search — guarded so they never eat a keystroke meant for a real
+  //    text field (phone, name, discount amount, coupon code, etc.) ─────────
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      if (customizing) return setCustomizing(null)
-      if (tableSelectorOpen) return setTableSelectorOpen(false)
-      if (heldOrdersOpen) return setHeldOrdersOpen(false)
-      if (cartOpen) return setCartOpen(false)
+      if (e.key === 'Escape') {
+        if (customizing) return setCustomizing(null)
+        if (tableSelectorOpen) return setTableSelectorOpen(false)
+        if (heldOrdersOpen) return setHeldOrdersOpen(false)
+        if (cartOpen) return setCartOpen(false)
+        return
+      }
+      const typingTarget = e.target instanceof HTMLElement
+        && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+      if (e.key === '/' && !typingTarget) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -758,10 +813,20 @@ export default function PosClient({
     setPlacing(true)
     setError(null)
     if (!requestId.current) requestId.current = crypto.randomUUID()
-    // p_spin_code is sent only when a prize is actually attached. PostgREST
-    // picks the overload from the keys it receives, so an ordinary bill still
-    // resolves against the pre-0126 signature — the till keeps working if the
-    // code ships ahead of the migration, and only a spin claim would fail.
+    // p_spin_code and p_guest_count are sent only when actually relevant.
+    // PostgREST picks the overload from the keys it receives, so an ordinary
+    // bill still resolves against the pre-migration signature — the till
+    // keeps working if the frontend ships ahead of a migration, and only the
+    // newly-added behavior (a spin claim, a guest count) would be unavailable
+    // until the migration actually runs.
+    //
+    // Unlike a spin claim, guest count is touched on nearly every dine-in
+    // order, not a rare opt-in — so gating this key on orderType alone would
+    // mean EVERY dine-in order fails during the gap between this code
+    // deploying and 0149 actually being run, not just guest-count edits.
+    // Narrowing the condition to "the count was actually changed from the
+    // default" keeps that gap's blast radius to the rare case a café
+    // deliberately sets a guest count before the migration has landed.
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
       p_items: cart.map((l) =>
@@ -781,6 +846,7 @@ export default function PosClient({
       p_client_request_id: requestId.current,
       p_coupon_code: appliedCoupon?.code ?? null,
       ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
+      ...(orderType === 'dine_in' && guestCount !== 1 ? { p_guest_count: guestCount } : {}),
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
@@ -793,6 +859,7 @@ export default function PosClient({
     setCustomerName('')
     setCustomerLookup(null)
     setSelectedTableId(null)
+    setGuestCount(1)
     setDiscountType(null)
     setDiscountValue('')
     setCouponCode('')
@@ -854,6 +921,12 @@ export default function PosClient({
     takeawayEnabled: takeaway,
     bothEnabled,
     onOpenTableSelector: () => setTableSelectorOpen(true),
+    guestCount,
+    onGuestCount: setGuestCount,
+    onFocusSearch: () => {
+      setCartOpen(false)
+      searchInputRef.current?.focus()
+    },
     existingSession,
     recommendations: recs,
     onAddRecommendation: addRecommendation,
@@ -912,49 +985,75 @@ export default function PosClient({
     : activeCategory === '__combos' ? 'Combos'
     : activeCategory === '__bestsellers' ? 'Best Sellers'
     : activeCategory === '__new' ? 'New Arrivals'
-    : (categories.find((c) => c.id === activeCategory)?.name ?? 'Items')
+    : categoryDisplayName(categoryList.find((c) => c.id === activeCategory)?.name ?? 'Items')
 
   return (
     <div className="flex h-[calc(100dvh-56px)] w-full min-w-0 flex-col overflow-hidden">
       <div className="flex w-full min-w-0 flex-1 items-stretch overflow-hidden">
+        {/* Category rail — sits between the main sidebar and the food grid,
+            always visible (not hidden below lg like the cart) since staying
+            visible at a glance is the whole point of it. Its own list
+            scrolls internally (overflow-y-auto inside CategoryTabs) if a
+            café has enough categories to overflow; the rail's width itself
+            never changes. */}
+        <div className="h-full w-[100px] shrink-0 overflow-hidden border-r border-border bg-surface sm:w-[140px] lg:w-[188px] xl:w-[196px]">
+          <CategoryTabs
+            categories={categoryList}
+            bestsellerCount={bestsellerCount}
+            newCount={newItemIds.size}
+            comboCount={combos.length}
+            activeId={activeCategory}
+            onSelect={setActiveCategory}
+            onAddCategory={canManageCategories ? addCategory : undefined}
+            addingCategory={addingCategory}
+            totalCount={items.length}
+          />
+        </div>
+
         {/* Workspace — only this column's product grid scrolls; the search
-            and category strip stay put and the cart sibling never moves.
-            No permanent category sidebar — categories run horizontally
-            across the top at every breakpoint, per the approved design. */}
+            bar stays put and the cart sibling never moves. */}
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-border bg-surface px-5 py-4">
+          <div className="shrink-0 border-b border-border bg-surface px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input
+                  ref={searchInputRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search items, categories or scan barcode"
-                  className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  placeholder="Search items, categories or scan barcode…"
+                  className="h-[52px] w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
                 />
+                <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border-strong bg-surface px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground sm:inline-block">
+                  /
+                </span>
               </div>
-            </div>
-            <div className="mt-3">
-              <CategoryTabs
-                categories={categories}
-                bestsellerCount={bestsellerCount}
-                newCount={newItemIds.size}
-                comboCount={combos.length}
-                activeId={activeCategory}
-                onSelect={setActiveCategory}
-                totalCount={items.length}
-              />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 pb-24 lg:pb-5">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="flex-1 overflow-y-auto p-4 pb-24 lg:pb-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{activeLabel}</h2>
-              <span className="text-[12.5px] text-muted-foreground">
-                {showingCombos
-                  ? `${combos.length} combo${combos.length === 1 ? '' : 's'}`
-                  : `${visible.length} item${visible.length === 1 ? '' : 's'}`}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[12.5px] text-muted-foreground">
+                  {showingCombos
+                    ? `${combos.length} combo${combos.length === 1 ? '' : 's'}`
+                    : `${visible.length} item${visible.length === 1 ? '' : 's'}`}
+                </span>
+                {!showingCombos && (
+                  <select
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+                    aria-label="Sort items"
+                    className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12px] font-medium text-foreground"
+                  >
+                    <option value="popular">Sort: Popular</option>
+                    <option value="price_low">Sort: Price (low first)</option>
+                    <option value="price_high">Sort: Price (high first)</option>
+                    <option value="name">Sort: Name (A–Z)</option>
+                  </select>
+                )}
+              </div>
             </div>
             {showingCombos ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -979,7 +1078,7 @@ export default function PosClient({
             ) : visible.length === 0 ? (
               <p className="py-16 text-center text-sm text-muted-foreground">No items match.</p>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
                 {visible.map((item) => (
                   <ProductCard
                     key={item.id}
@@ -1094,8 +1193,8 @@ export default function PosClient({
 
 function StatTile({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
-    <div className="flex min-w-[150px] flex-1 items-center gap-2.5 bg-surface px-4 py-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary">{icon}</span>
+    <div className="flex min-w-[150px] flex-1 items-center gap-2.5 bg-surface px-4 py-2">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary">{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-[11px] text-muted-foreground">{label}</p>
         <p className="truncate text-[14px] font-semibold text-foreground">{value}</p>
@@ -1104,77 +1203,4 @@ function StatTile({ label, value, icon }: { label: string; value: string; icon: 
   )
 }
 
-function Customizer({
-  item,
-  variants,
-  addons,
-  onCancel,
-  onAdd,
-}: {
-  item: FullItem
-  variants: PosVariant[]
-  addons: PosAddon[]
-  onCancel: () => void
-  onAdd: (item: FullItem, variantId: string | null, addonIds: string[]) => void
-}) {
-  const [variantId, setVariantId] = useState<string | null>(variants[0]?.id ?? null)
-  const [addonIds, setAddonIds] = useState<string[]>([])
-  const v = variants.find((x) => x.id === variantId)
-  const chosen = addons.filter((a) => addonIds.includes(a.id))
-  const price = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6">
-      <div className="flex max-h-[90dvh] w-full max-w-md flex-col rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
-          {variants.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[13px] font-medium text-foreground">Choose one</p>
-              <div className="mt-2 space-y-2">
-                {variants.map((vr) => (
-                  <label key={vr.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
-                    <span className="flex items-center gap-2">
-                      <input type="radio" name="variant" checked={variantId === vr.id} onChange={() => setVariantId(vr.id)} />
-                      {vr.name}
-                    </span>
-                    <span className="text-muted-foreground">₹{item.price + vr.price_delta}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-          {addons.length > 0 && (
-            <div className="mt-4">
-              <p className="text-[13px] font-medium text-foreground">Add-ons</p>
-              <div className="mt-2 space-y-2">
-                {addons.map((a) => (
-                  <label key={a.id} className="flex min-h-11 items-center justify-between rounded-[var(--radius)] border border-border-strong px-3 text-sm text-foreground">
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={addonIds.includes(a.id)}
-                        onChange={(e) => setAddonIds((ids) => (e.target.checked ? [...ids, a.id] : ids.filter((x) => x !== a.id)))}
-                      />
-                      {a.name}
-                    </span>
-                    {/* Free extras (a pizza's toppings) read as "Free", not "+₹0". */}
-                    <span className={a.price > 0 ? 'text-muted-foreground' : 'text-success'}>
-                      {a.price > 0 ? `+₹${a.price}` : 'Free'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 gap-2 border-t border-border p-6">
-          <button onClick={onCancel} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground">Cancel</button>
-          <button onClick={() => onAdd(item, variantId, addonIds)} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground">
-            Add · ₹{price}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+// Customizer (variant/add-on modal) now lives in components/pos/customizer.tsx.

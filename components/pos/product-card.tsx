@@ -40,7 +40,7 @@ export function ProductCard({
         item.available ? 'hover:border-border-strong hover:shadow-[var(--shadow-md)] active:scale-[0.98]' : 'cursor-not-allowed opacity-60'
       }`}
     >
-      <div className="relative aspect-[4/3] w-full bg-surface-subtle">
+      <div className="relative aspect-[16/9] w-full bg-surface-subtle">
         <FoodImage src={item.image_url} alt={item.name} sizes={GRID_SIZES} />
 
         <span className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-1">
@@ -61,21 +61,21 @@ export function ProductCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
+      <div className="flex flex-1 flex-col gap-0.5 p-1.5">
         <div className="flex items-start gap-1.5">
           <span className="mt-[3px]"><VegDot isVeg={item.is_veg} /></span>
           <p className="min-w-0 flex-1 truncate text-[13px] font-medium leading-tight text-foreground">{item.name}</p>
         </div>
-        <div className="mt-auto flex items-center justify-between pt-1">
+        <div className="mt-auto flex items-center justify-between pt-0.5">
           <span className="text-[14px] font-semibold text-foreground">
             ₹{item.price}
             {item.hasOptions && <span className="text-muted-foreground">+</span>}
           </span>
           <span
             aria-hidden
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground"
           >
-            <Plus size={15} strokeWidth={2.5} />
+            <Plus size={14} strokeWidth={2.5} />
           </span>
         </div>
       </div>

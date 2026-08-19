@@ -1,6 +1,7 @@
 'use client'
 
-import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift } from 'lucide-react'
+import { useState } from 'react'
+import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift, Users, ShoppingBag } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { SpinClaim, type HeldPrize } from '@/components/pos/spin-claim'
 
@@ -46,6 +47,9 @@ export function CartPanel({
   takeawayEnabled,
   bothEnabled,
   onOpenTableSelector,
+  guestCount,
+  onGuestCount,
+  onFocusSearch,
   existingSession,
   recommendations,
   onAddRecommendation,
@@ -110,6 +114,9 @@ export function CartPanel({
   takeawayEnabled: boolean
   bothEnabled: boolean
   onOpenTableSelector: () => void
+  guestCount: number
+  onGuestCount: (n: number) => void
+  onFocusSearch: () => void
   existingSession: { total: number; itemCount: number; due: number; payState: 'paid' | 'partial' | 'unpaid' | null } | null
   recommendations: { id: string; name: string; price: number; reason: string }[]
   onAddRecommendation: (rec: { id: string; name: string; price: number; reason: string }) => void
@@ -170,6 +177,11 @@ export function CartPanel({
   heldCount: number
   onOpenHeld: () => void
 }) {
+  // Purely a UI reveal state (not lifted to the parent) — mirrors the
+  // coupon-field toggle below. Collapsed by default so a set guest count
+  // reads as a compact line, not a permanently-open stepper.
+  const [guestEditing, setGuestEditing] = useState(false)
+  const [couponOpen, setCouponOpen] = useState(false)
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const maxPct = role === 'owner' ? null : role === 'manager' ? 15 : 5
   const parsedDiscount = Number(discountValue) || 0
@@ -252,7 +264,7 @@ export function CartPanel({
           split caused. Stays visible while items/discount/totals scroll
           underneath, so who this order is for and where it's going is
           always on screen. */}
-      <div className="sticky top-0 z-10 border-b border-border bg-surface px-4 py-3.5">
+      <div className="sticky top-0 z-10 border-b border-border bg-surface px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -336,6 +348,44 @@ export function CartPanel({
           </p>
         )}
 
+        {orderType === 'dine_in' && (
+          <div className="mt-2.5 flex items-center justify-between px-0.5 py-1">
+            <span className="flex items-center gap-1.5 text-[13px] text-foreground">
+              <Users size={15} className="text-muted-foreground" />
+              {guestEditing ? 'Guests' : `${guestCount} Guest${guestCount === 1 ? '' : 's'}`}
+            </span>
+            {guestEditing ? (
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => onGuestCount(Math.max(1, guestCount - 1))}
+                  aria-label="Fewer guests"
+                  className="grid h-6 w-6 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-40"
+                  disabled={guestCount <= 1}
+                >
+                  <Minus size={12} />
+                </button>
+                <span className="w-4 text-center text-[13px] font-semibold text-foreground">{guestCount}</span>
+                <button
+                  type="button"
+                  onClick={() => onGuestCount(guestCount + 1)}
+                  aria-label="More guests"
+                  className="grid h-6 w-6 place-items-center rounded-full border border-border-strong text-foreground"
+                >
+                  <Plus size={12} />
+                </button>
+                <button type="button" onClick={() => setGuestEditing(false)} className="text-[12px] font-medium text-primary hover:underline">
+                  Done
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setGuestEditing(true)} className="text-[12px] font-medium text-primary hover:underline">
+                Edit
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="mt-2.5 grid grid-cols-2 gap-2">
           <input
             value={customerPhone}
@@ -381,11 +431,14 @@ export function CartPanel({
 
       <div className="px-4">
         {lines.length === 0 ? (
-          <p className="py-4 text-center text-[13px] text-muted-foreground">Tap items to add them here.</p>
+          <div className="flex flex-col items-center gap-1.5 py-4 text-center">
+            <ShoppingBag size={20} className="text-muted-foreground/40" strokeWidth={1.5} />
+            <p className="text-[12.5px] text-muted-foreground">Tap items to add them here.</p>
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             {lines.map((l) => (
-              <li key={l.key} className="py-3">
+              <li key={l.key} className="py-2.5">
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
@@ -427,7 +480,28 @@ export function CartPanel({
         )}
       </div>
 
-      <div className="border-t border-border p-4">
+      <div className="flex gap-2 px-4 pb-3">
+        <button
+          type="button"
+          onClick={onFocusSearch}
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border-strong text-[12.5px] font-medium text-foreground hover:bg-surface-subtle"
+        >
+          <Plus size={13} /> Add item
+        </button>
+        {couponsEnabled && !appliedCoupon && (
+          <button
+            type="button"
+            onClick={() => setCouponOpen((v) => !v)}
+            className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[var(--radius)] border text-[12.5px] font-medium transition-colors ${
+              couponOpen ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-foreground hover:bg-surface-subtle'
+            }`}
+          >
+            <Tag size={13} /> Apply coupon
+          </button>
+        )}
+      </div>
+
+      <div className="border-t border-border p-3.5">
         {/* Smart cross-sell — subtle, one tap to add. Never blocks anything,
             never framed as "AI" to the person using it. */}
         {lines.length > 0 && recommendations.length > 0 && (
@@ -488,8 +562,11 @@ export function CartPanel({
         </div>
 
         {/* Same reasoning as the spin box: a café without the coupons
-            entitlement has no coupons to apply, so the field can only fail. */}
-        {couponsEnabled && (
+            entitlement has no coupons to apply, so the field can only fail.
+            The input itself only renders once "Apply coupon" is tapped (or a
+            coupon is already applied, so its chip/remove control stays
+            reachable) — the compact button above is the default state. */}
+        {couponsEnabled && (couponOpen || appliedCoupon) && (
         <div className="mb-3">
           {appliedCoupon ? (
             <div className="flex items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-primary bg-primary-subtle px-2.5 py-1.5">
@@ -553,7 +630,16 @@ export function CartPanel({
           {couponError && <p className="mt-1 text-[11.5px] text-destructive">{couponError}</p>}
         </div>
         )}
+      </div>
 
+      {/* Sticky total + CTA — same technique as the sticky header above
+          (position: sticky within this same naturally-scrolling container),
+          NOT the earlier flex-1-constrained-middle layout that produced the
+          "tiny, confusing scroller" bug. The item list and everything above
+          keep flowing normally with no height constraint, so nothing about
+          that failure mode applies here — this just keeps the total and
+          Place Order reachable without scrolling through a long cart. */}
+      <div className="sticky bottom-0 z-10 border-t border-border bg-surface p-3.5">
         <div className="space-y-1.5 text-[13px]">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
@@ -674,6 +760,11 @@ export function CartPanel({
             {!placing && <ArrowRight size={16} />}
           </button>
         </div>
+        <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+          {takeaway
+            ? collecting ? 'Collects payment and sends to the kitchen' : 'Sends to the kitchen — payment collected later'
+            : 'Send order to kitchen & generate bill'}
+        </p>
       </div>
     </div>
   )

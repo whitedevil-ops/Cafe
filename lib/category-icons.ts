@@ -29,3 +29,12 @@ export function categoryIcon(name: string): LucideIcon {
   for (const [re, icon] of RULES) if (re.test(name)) return icon
   return Utensils
 }
+
+// Display-only title case (e.g. "SWEET CORN" -> "Sweet Corn"). Cafés that
+// typed their category names in caps (a common habit) read fine in a form
+// field but fight readability in a narrow rail — this never touches the
+// real stored name, only how it's rendered, so filtering/matching/sorting by
+// name elsewhere is unaffected.
+export function categoryDisplayName(name: string): string {
+  return name.replace(/\w\S*/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+}

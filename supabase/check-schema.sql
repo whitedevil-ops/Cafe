@@ -595,6 +595,12 @@ with expected(kind, name, fix) as (values
   -- payment_attempts.provider_payment_id, a column that has never existed on
   -- that table. Re-bodies wallet_confirm_topup only -- no new object.
   --
+  -- 0149 -- POS redesign: wires table_sessions.guest_count through for real.
+  -- Adds a 15th (p_guest_count) trailing param to staff_place_order (old
+  -- 14-arg signature explicitly dropped first, per this repo's established
+  -- arity-bump convention). No new tracked object -- guest_count itself has
+  -- existed on table_sessions since 0012.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),
