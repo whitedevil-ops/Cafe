@@ -126,10 +126,6 @@ export default function PosClient({
   const bothEnabled = dineIn && takeaway
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>(takeaway && !dineIn ? 'takeaway' : 'dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
-  // Dine-in only — sent as p_guest_count so staff_place_order can stamp
-  // table_sessions.guest_count (migration 0149). Starts at 1, not 0: an
-  // empty table isn't a valid guest count to submit an order for.
-  const [guestCount, setGuestCount] = useState(1)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [tender, setTender] = useState<Tender>('cash')
   const [pendingReason, setPendingReason] = useState('')
@@ -188,7 +184,6 @@ export default function PosClient({
       const d = JSON.parse(raw) as {
         cart?: Line[]; customerPhone?: string; customerName?: string
         orderType?: 'dine_in' | 'takeaway'; selectedTableId?: string | null
-        guestCount?: number
         tender?: Tender; pendingReason?: string
         discountType?: 'percent' | 'flat' | null; discountValue?: string
         couponCode?: string; appliedCoupon?: { code: string; discount: number; name: string | null } | null
@@ -202,7 +197,6 @@ export default function PosClient({
       if (d.customerName) setCustomerName(d.customerName)
       if (d.orderType) setOrderType(d.orderType)
       if (d.selectedTableId) setSelectedTableId(d.selectedTableId)
-      if (d.guestCount) setGuestCount(d.guestCount)
       if (d.tender) setTender(d.tender)
       if (d.pendingReason) setPendingReason(d.pendingReason)
       if (d.discountType) setDiscountType(d.discountType)
@@ -232,14 +226,14 @@ export default function PosClient({
         sessionStorage.removeItem(draftKey)
       } else {
         sessionStorage.setItem(draftKey, JSON.stringify({
-          cart, customerPhone, customerName, orderType, selectedTableId, guestCount,
+          cart, customerPhone, customerName, orderType, selectedTableId,
           tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize,
         }))
       }
     } catch {
       // Storage unavailable (private browsing, quota) — draft just won't persist.
     }
-  }, [cart, customerPhone, customerName, orderType, selectedTableId, guestCount, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize, draftKey])
+  }, [cart, customerPhone, customerName, orderType, selectedTableId, tender, pendingReason, discountType, discountValue, couponCode, appliedCoupon, spinPrize, draftKey])
 
   const [combobuilding, setCombobuilding] = useState<Combo | null>(null)
   const [heldRows, setHeldRows] = useState<HeldRow[]>([])
@@ -601,7 +595,6 @@ export default function PosClient({
     setCustomerPhone('')
     setCustomerName('')
     setSelectedTableId(null)
-    setGuestCount(1)
     setDiscountType(null)
     setDiscountValue('')
     setCouponCode('')
@@ -813,20 +806,10 @@ export default function PosClient({
     setPlacing(true)
     setError(null)
     if (!requestId.current) requestId.current = crypto.randomUUID()
-    // p_spin_code and p_guest_count are sent only when actually relevant.
-    // PostgREST picks the overload from the keys it receives, so an ordinary
-    // bill still resolves against the pre-migration signature — the till
-    // keeps working if the frontend ships ahead of a migration, and only the
-    // newly-added behavior (a spin claim, a guest count) would be unavailable
-    // until the migration actually runs.
-    //
-    // Unlike a spin claim, guest count is touched on nearly every dine-in
-    // order, not a rare opt-in — so gating this key on orderType alone would
-    // mean EVERY dine-in order fails during the gap between this code
-    // deploying and 0149 actually being run, not just guest-count edits.
-    // Narrowing the condition to "the count was actually changed from the
-    // default" keeps that gap's blast radius to the rare case a café
-    // deliberately sets a guest count before the migration has landed.
+    // p_spin_code is sent only when a prize is actually attached. PostgREST
+    // picks the overload from the keys it receives, so an ordinary bill still
+    // resolves against the pre-0126 signature — the till keeps working if the
+    // code ships ahead of the migration, and only a spin claim would fail.
     const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
       p_cafe_id: cafeId,
       p_items: cart.map((l) =>
@@ -846,7 +829,6 @@ export default function PosClient({
       p_client_request_id: requestId.current,
       p_coupon_code: appliedCoupon?.code ?? null,
       ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
-      ...(orderType === 'dine_in' && guestCount !== 1 ? { p_guest_count: guestCount } : {}),
     })
     setPlacing(false)
     if (rpcError) return setError(rpcError.message)
@@ -859,7 +841,6 @@ export default function PosClient({
     setCustomerName('')
     setCustomerLookup(null)
     setSelectedTableId(null)
-    setGuestCount(1)
     setDiscountType(null)
     setDiscountValue('')
     setCouponCode('')
@@ -921,8 +902,6 @@ export default function PosClient({
     takeawayEnabled: takeaway,
     bothEnabled,
     onOpenTableSelector: () => setTableSelectorOpen(true),
-    guestCount,
-    onGuestCount: setGuestCount,
     onFocusSearch: () => {
       setCartOpen(false)
       searchInputRef.current?.focus()

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift, Users, ShoppingBag } from 'lucide-react'
+import { CreditCard, Wallet, Smartphone, Clock3, Tag, PauseCircle, StickyNote, Minus, Plus, X, ArrowRight, Sparkles, Gift, ShoppingBag } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { SpinClaim, type HeldPrize } from '@/components/pos/spin-claim'
 
@@ -47,8 +47,6 @@ export function CartPanel({
   takeawayEnabled,
   bothEnabled,
   onOpenTableSelector,
-  guestCount,
-  onGuestCount,
   onFocusSearch,
   existingSession,
   recommendations,
@@ -114,8 +112,6 @@ export function CartPanel({
   takeawayEnabled: boolean
   bothEnabled: boolean
   onOpenTableSelector: () => void
-  guestCount: number
-  onGuestCount: (n: number) => void
   onFocusSearch: () => void
   existingSession: { total: number; itemCount: number; due: number; payState: 'paid' | 'partial' | 'unpaid' | null } | null
   recommendations: { id: string; name: string; price: number; reason: string }[]
@@ -177,10 +173,9 @@ export function CartPanel({
   heldCount: number
   onOpenHeld: () => void
 }) {
-  // Purely a UI reveal state (not lifted to the parent) — mirrors the
-  // coupon-field toggle below. Collapsed by default so a set guest count
-  // reads as a compact line, not a permanently-open stepper.
-  const [guestEditing, setGuestEditing] = useState(false)
+  // Purely a UI reveal state (not lifted to the parent) — the coupon input
+  // only renders once "Apply coupon" is tapped, matching the compact
+  // "Add item / Apply coupon" button row below the cart lines.
   const [couponOpen, setCouponOpen] = useState(false)
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const maxPct = role === 'owner' ? null : role === 'manager' ? 15 : 5
@@ -346,44 +341,6 @@ export function CartPanel({
             This table has an active order — ₹{existingSession.total} · {existingSession.itemCount} item
             {existingSession.itemCount === 1 ? '' : 's'}. New items join the same table session.
           </p>
-        )}
-
-        {orderType === 'dine_in' && (
-          <div className="mt-2.5 flex items-center justify-between px-0.5 py-1">
-            <span className="flex items-center gap-1.5 text-[13px] text-foreground">
-              <Users size={15} className="text-muted-foreground" />
-              {guestEditing ? 'Guests' : `${guestCount} Guest${guestCount === 1 ? '' : 's'}`}
-            </span>
-            {guestEditing ? (
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => onGuestCount(Math.max(1, guestCount - 1))}
-                  aria-label="Fewer guests"
-                  className="grid h-6 w-6 place-items-center rounded-full border border-border-strong text-foreground disabled:opacity-40"
-                  disabled={guestCount <= 1}
-                >
-                  <Minus size={12} />
-                </button>
-                <span className="w-4 text-center text-[13px] font-semibold text-foreground">{guestCount}</span>
-                <button
-                  type="button"
-                  onClick={() => onGuestCount(guestCount + 1)}
-                  aria-label="More guests"
-                  className="grid h-6 w-6 place-items-center rounded-full border border-border-strong text-foreground"
-                >
-                  <Plus size={12} />
-                </button>
-                <button type="button" onClick={() => setGuestEditing(false)} className="text-[12px] font-medium text-primary hover:underline">
-                  Done
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setGuestEditing(true)} className="text-[12px] font-medium text-primary hover:underline">
-                Edit
-              </button>
-            )}
-          </div>
         )}
 
         <div className="mt-2.5 grid grid-cols-2 gap-2">
