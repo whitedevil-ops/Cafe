@@ -36,26 +36,32 @@
 -- recompute_order_payment_status, and menu_item_effective_cost each have
 -- exactly one live signature (menu_item_effective_cost's 1-arg original was
 -- already correctly dropped by 0106 before its 2-arg redefinition).
+--
+-- REVISION: the first version of this migration (attempted, rolled back —
+-- Supabase's SQL Editor runs a pasted batch as one transaction, so a failed
+-- check undoes everything in it, including the DROP) verified its result by
+-- string-matching pg_get_function_identity_arguments(), which raised a
+-- false-positive "the real 5-arg function is missing" — the DROP itself was
+-- fine; the fragile string comparison was the bug. This version verifies by
+-- COUNTING overloads instead, which cannot be thrown off by a formatting
+-- mismatch: after the drop there must be exactly one function named
+-- resolve_coupon_discount left, no more, no fewer.
 -- ============================================================================
 
 drop function if exists resolve_coupon_discount(uuid, text, integer, uuid);
 
 do $$
+declare v_count integer;
 begin
-  if exists (
-    select 1 from pg_proc p
+  select count(*) into v_count
+    from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'resolve_coupon_discount'
-      and pg_get_function_identity_arguments(p.oid) = 'uuid, text, integer, uuid'
-  ) then
-    raise exception 'the orphaned 4-arg resolve_coupon_discount overload is still present';
+   where n.nspname = 'public' and p.proname = 'resolve_coupon_discount';
+
+  if v_count = 0 then
+    raise exception 'resolve_coupon_discount is completely gone -- this migration would have broken coupons entirely';
   end if;
-  if not exists (
-    select 1 from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'resolve_coupon_discount'
-      and pg_get_function_identity_arguments(p.oid) = 'uuid, text, integer, uuid, uuid[]'
-  ) then
-    raise exception 'the real 5-arg resolve_coupon_discount is missing -- this migration would have broken coupons entirely';
+  if v_count > 1 then
+    raise exception 'expected exactly one resolve_coupon_discount after the drop, found % -- the orphaned overload is still present', v_count;
   end if;
 end $$;
