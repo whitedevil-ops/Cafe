@@ -119,7 +119,12 @@ export default function BillingClient({
             <CardHeader
               title={state.plan_name ?? state.plan}
               description={
-                state.subscription_ends_at
+                // Only show a renewal date alongside an actually-active
+                // subscription — showing it next to "No active subscription"
+                // (e.g. a plan assigned without a real billing cycle behind
+                // it, common for a comped pilot café) read as a straight
+                // contradiction on the same card.
+                state.billing_status === 'active' && state.subscription_ends_at
                   ? `Renews ${new Date(state.subscription_ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
                   : undefined
               }
@@ -156,16 +161,22 @@ export default function BillingClient({
                     )}
                     {current ? (
                       <p className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary"><Check size={14} /> Current plan</p>
-                    ) : (
+                    ) : p.available ? (
                       <Button
                         className="mt-4 w-full"
-                        variant={p.available ? 'primary' : 'secondary'}
-                        disabled={!p.available}
+                        variant="primary"
                         loading={busyPlan === p.key}
                         onClick={() => subscribe(p.key)}
                       >
-                        {p.available ? 'Switch to this plan' : 'Not yet available'}
+                        Switch to this plan
                       </Button>
+                    ) : (
+                      // Not a disabled button — a disabled button that looks
+                      // clickable reads as broken. This is a status, not an
+                      // action nobody can take yet.
+                      <p className="mt-4 rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-center text-[12.5px] font-medium text-muted-foreground">
+                        Coming soon
+                      </p>
                     )}
                   </Card>
                 )
