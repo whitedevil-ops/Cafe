@@ -601,16 +601,29 @@ with expected(kind, name, fix) as (values
   -- arity-bump convention). No new tracked object -- guest_count itself has
   -- existed on table_sessions since 0012.
   --
+  -- 0150 -- KOT print bridge retry/backoff. Re-bodies bridge_claim_jobs only
+  -- (same (text, integer) signature) to also reclaim failed jobs under the
+  -- attempt cap, and to include each job's `kind` in the response. No new
+  -- tracked object.
+  --
+  -- 0151 -- Change-KOT versioning. New build_kot_update_payload function and
+  -- cafes.kot_print_on_update column (both tracked below); re-bodies
+  -- enqueue_kot_jobs only (same no-arg trigger-function signature) to use it.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),
   ('column',   'refunds.credit_note_number',           '0145'),
   ('column',   'refunds.credit_note_issued_at',        '0145'),
   ('column',   'refunds.credit_note_taxable_value',    '0145'),
-  ('column',   'refunds.credit_note_tax_amount',       '0145')
+  ('column',   'refunds.credit_note_tax_amount',       '0145'),
   -- refund_order (0028..0098), get_receipt (0010..0123) and
   -- gst_invoice_report (0063/0072) are re-bodied only -- no new object for
   -- those three.
+  --
+  -- KOT print bridge (0150/0151).
+  ('function', 'build_kot_update_payload',            '0151'),
+  ('column',   'cafes.kot_print_on_update',           '0151')
 )
 select
   e.kind,

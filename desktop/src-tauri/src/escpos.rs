@@ -13,6 +13,13 @@
 //! Deliberately pure: bytes in, bytes out, no I/O. The transports in
 //! `printing.rs` decide where they go, and the tests below can check the layout
 //! without a printer attached.
+//!
+//! Two ticket kinds, one shared layout toolkit: `render()` for a full order
+//! ticket, `render_update()` for a small "KOT UPDATE" delta slip sent when an
+//! already-printed order is edited (see migration 0151). The private helpers
+//! below (`render_header`, `item_line`, `item_extras`, `render_kitchen_note`,
+//! `render_footer`) are the shared pieces both call — a change to how a
+//! quantity or a note is drawn only has to happen once.
 
 use serde::Deserialize;
 
@@ -44,6 +51,36 @@ pub struct Ticket {
     pub order_note: Option<String>,
     /// 58 or 80. Anything else is treated as 58, the safer of the two: a
     /// ticket laid out narrow prints fine on wide paper, but not the reverse.
+    #[serde(default)]
+    pub paper_mm: Option<u32>,
+    #[serde(default)]
+    pub copies: Option<u32>,
+    /// Where the order came from (qr | pos | waiter | ...). Footer-only —
+    /// never anything a cook needs to act on, just useful context.
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+/// A change-KOT delta ticket: what got added to and removed from an order
+/// that already had a full ticket printed. Same identity fields as `Ticket`,
+/// but `items` is replaced by two lists — there is deliberately no `source`
+/// here, since a change is triggered by an edit, not by the order's original
+/// channel.
+#[derive(Deserialize, Clone, Debug)]
+pub struct TicketUpdate {
+    pub kot_number: String,
+    #[serde(default)]
+    pub table_label: Option<String>,
+    #[serde(default)]
+    pub order_type: Option<String>,
+    #[serde(default)]
+    pub time_label: Option<String>,
+    #[serde(default)]
+    pub station: Option<String>,
+    pub added: Vec<TicketItem>,
+    pub removed: Vec<TicketItem>,
+    #[serde(default)]
+    pub order_note: Option<String>,
     #[serde(default)]
     pub paper_mm: Option<u32>,
     #[serde(default)]
@@ -153,69 +190,213 @@ impl Builder {
     }
 }
 
-fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
-    // Order number: the thing a cook finds from across the pass.
-    b.align(1).size(1, 1).bold(true);
-    b.line(&format!("#{}", t.kot_number));
-    b.size(0, 0).bold(false);
+/// The five identity fields `Ticket` and `TicketUpdate` share — everything a
+/// ticket's header needs regardless of whether the body ends up being a full
+/// item list or an added/removed delta.
+struct Header<'a> {
+    kot_number: &'a str,
+    table_label: Option<&'a str>,
+    order_type: Option<&'a str>,
+    time_label: Option<&'a str>,
+    station: Option<&'a str>,
+}
 
-    let takeaway = t.order_type.as_deref() == Some("takeaway");
-    let where_ = if takeaway {
-        "TAKEAWAY".to_string()
-    } else {
-        match t.table_label.as_deref() {
-            Some(l) if !l.is_empty() => format!("Table {l}"),
-            _ => "Dine-in".to_string(),
-        }
-    };
-    let meta = match t.time_label.as_deref() {
-        Some(time) if !time.is_empty() => format!("{where_}  {time}"),
-        _ => where_,
-    };
-    b.line(&meta);
-    if let Some(station) = t.station.as_deref().filter(|s| !s.is_empty()) {
-        b.line(station);
+/// "dine_in" → "DINE-IN", "takeaway" → "TAKEAWAY", and so on for whatever
+/// `orders.type` holds. No order type at all defaults to "DINE-IN" — a table
+/// floor's overwhelming common case, and the same assumption the previous
+/// layout made implicitly.
+fn order_type_badge(order_type: Option<&str>) -> String {
+    match order_type.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => s.to_uppercase().replace('_', "-"),
+        None => "DINE-IN".to_string(),
     }
+}
 
-    b.align(0);
-    b.line(&"-".repeat(cols));
-
-    for item in &t.items {
-        // Quantity and name double-height: legible at arm's length in bad
-        // light, which is the only readability test that matters here.
-        b.size(0, 1).bold(true);
-        let head = format!("{} x {}", item.qty, item.name);
-        // Double height does not halve the column count; double width would.
-        for l in wrap(&head, cols) {
-            b.line(&l);
-        }
-        b.size(0, 0).bold(false);
-
-        let mods: Vec<&str> = item.modifiers.iter().map(|m| m.as_str()).filter(|m| !m.is_empty()).collect();
-        if !mods.is_empty() {
-            for l in wrap(&format!("+ {}", mods.join(", ")), cols.saturating_sub(2)) {
-                b.line(&format!("  {l}"));
-            }
-        }
-        if let Some(note) = item.note.as_deref().filter(|n| !n.is_empty()) {
-            b.bold(true);
-            for l in wrap(&note.to_uppercase(), cols.saturating_sub(2)) {
-                b.line(&format!("  {l}"));
-            }
-            b.bold(false);
-        }
-        b.feed(1);
-    }
-
-    if let Some(note) = t.order_note.as_deref().filter(|n| !n.is_empty()) {
-        b.line(&"-".repeat(cols));
-        b.bold(true);
-        for l in wrap(&format!("NOTE: {}", note.to_uppercase()), cols) {
+/// Station name, then the single most prominent thing on the ticket — the
+/// table number if there is one, otherwise the order type badge — then the
+/// order type badge again as its own line (unless it's already the dominant
+/// text, which would just repeat it), then the KOT number and time. Every
+/// variable-length piece is wrapped at the paper's column width; nothing here
+/// is trusted to fit just because it usually does.
+fn render_header(b: &mut Builder, h: &Header, cols: usize) {
+    if let Some(station) = h.station.map(str::trim).filter(|s| !s.is_empty()) {
+        b.align(1).bold(true);
+        for l in wrap(&station.to_uppercase(), cols) {
             b.line(&l);
         }
         b.bold(false);
     }
 
+    let badge = order_type_badge(h.order_type);
+    let dominant = match h.table_label.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(l) => format!("TABLE {l}"),
+        None => badge.clone(),
+    };
+
+    // Double width, triple height: the biggest thing on the ticket, on
+    // purpose — a cook finds the table from across the pass before reading
+    // anything else.
+    b.align(1).size(1, 2).bold(true);
+    let dom_budget = (cols / 2).max(6);
+    for l in wrap(&dominant, dom_budget) {
+        b.line(&l);
+    }
+    b.size(0, 0).bold(false);
+
+    if dominant != badge {
+        b.align(1).bold(true);
+        for l in wrap(&badge, cols) {
+            b.line(&l);
+        }
+        b.bold(false);
+    }
+
+    b.align(0).bold(true);
+    let meta = match h.time_label.map(str::trim).filter(|t| !t.is_empty()) {
+        Some(time) => format!("#{}   {}", h.kot_number, time),
+        None => format!("#{}", h.kot_number),
+    };
+    for l in wrap(&meta, cols) {
+        b.line(&l);
+    }
+    b.bold(false);
+
+    b.line(&"-".repeat(cols));
+}
+
+/// Physical width, in normal-width columns, reserved at the front of an item
+/// line for its quantity token (marker + qty + " x ", printed at double
+/// width). Fixed and generous rather than measured, so the name's wrap
+/// budget never has to know exactly how many digits a quantity turned out to
+/// have — it just always assumes the worst case and stays safely inside it.
+const QTY_TOKEN_RESERVE: usize = 16;
+
+/// One item line: quantity is the loudest part (double width *and* height,
+/// bold) because a cook scans "how many" before "what"; the name follows on
+/// the same physical line at double height only — still large, but visibly
+/// secondary. `marker` prefixes the quantity for a change-KOT line: `+` for
+/// an added item, `-` for a removed one, `None` for a normal ticket.
+fn item_line(b: &mut Builder, marker: Option<char>, qty: i32, name: &str, cols: usize) {
+    b.align(0);
+    let token = match marker {
+        Some(m) => format!("{m} {qty} x "),
+        None => format!("{qty} x "),
+    };
+    b.size(1, 1).bold(true);
+    b.text(&token);
+    b.size(0, 1);
+    let budget = cols.saturating_sub(QTY_TOKEN_RESERVE).max(8);
+    for l in wrap(name, budget) {
+        b.line(&l);
+    }
+    b.size(0, 0).bold(false);
+}
+
+/// Modifiers and the item's own note, indented under its line and visually
+/// distinct from each other: modifiers plain and "+ "-prefixed, a note bold
+/// and "! "-prefixed so it stands out from a modifier at a glance.
+fn item_extras(b: &mut Builder, item: &TicketItem, cols: usize) {
+    let indent_budget = cols.saturating_sub(2).max(4);
+    for m in item.modifiers.iter().map(String::as_str).map(str::trim).filter(|m| !m.is_empty()) {
+        for l in wrap(&format!("+ {m}"), indent_budget) {
+            b.line(&format!("  {l}"));
+        }
+    }
+    if let Some(note) = item.note.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+        b.bold(true);
+        for l in wrap(&format!("! {}", note.to_uppercase()), indent_budget) {
+            b.line(&format!("  {l}"));
+        }
+        b.bold(false);
+    }
+}
+
+/// The kitchen note gets its own visually heavy block — a cook glancing at a
+/// stack of tickets needs to spot "no onion on everything" without reading
+/// the whole ticket, which a line blended in with the rest would not give
+/// them.
+fn render_kitchen_note(b: &mut Builder, note: Option<&str>, cols: usize) {
+    if let Some(note) = note.map(str::trim).filter(|n| !n.is_empty()) {
+        b.line(&"=".repeat(cols));
+        b.align(1).bold(true);
+        b.line("*** KITCHEN NOTE ***");
+        b.align(0);
+        for l in wrap(&note.to_uppercase(), cols) {
+            b.line(&l);
+        }
+        b.bold(false);
+        b.line(&"=".repeat(cols));
+    }
+}
+
+/// Minimal on purpose: where the order came from, and the café name. Nothing
+/// a cook needs to act on lives here.
+fn render_footer(b: &mut Builder, source: Option<&str>, cols: usize) {
+    b.align(1);
+    if let Some(s) = source.map(str::trim).filter(|s| !s.is_empty()) {
+        for l in wrap(&format!("via {}", s.to_uppercase()), cols) {
+            b.line(&l);
+        }
+    }
+    b.line("KhaoPiyo");
+}
+
+fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
+    render_header(
+        b,
+        &Header {
+            kot_number: &t.kot_number,
+            table_label: t.table_label.as_deref(),
+            order_type: t.order_type.as_deref(),
+            time_label: t.time_label.as_deref(),
+            station: t.station.as_deref(),
+        },
+        cols,
+    );
+
+    for item in &t.items {
+        item_line(b, None, item.qty, &item.name, cols);
+        item_extras(b, item, cols);
+        b.feed(1);
+    }
+
+    render_kitchen_note(b, t.order_note.as_deref(), cols);
+    render_footer(b, t.source.as_deref(), cols);
+    b.feed(3).cut();
+}
+
+fn render_update_one(b: &mut Builder, t: &TicketUpdate, cols: usize) {
+    // A header unmistakably different from a normal ticket's, so a cook can
+    // never mistake a change slip for a brand new order.
+    b.align(1).bold(true);
+    b.line("*** KOT UPDATE ***");
+    b.bold(false);
+
+    render_header(
+        b,
+        &Header {
+            kot_number: &t.kot_number,
+            table_label: t.table_label.as_deref(),
+            order_type: t.order_type.as_deref(),
+            time_label: t.time_label.as_deref(),
+            station: t.station.as_deref(),
+        },
+        cols,
+    );
+
+    for item in &t.added {
+        item_line(b, Some('+'), item.qty, &item.name, cols);
+        item_extras(b, item, cols);
+        b.feed(1);
+    }
+    for item in &t.removed {
+        item_line(b, Some('-'), item.qty, &item.name, cols);
+        item_extras(b, item, cols);
+        b.feed(1);
+    }
+
+    render_kitchen_note(b, t.order_note.as_deref(), cols);
+    render_footer(b, None, cols);
     b.feed(3).cut();
 }
 
@@ -225,6 +406,17 @@ pub fn render(t: &Ticket) -> Vec<u8> {
     let mut b = Builder::new();
     for _ in 0..copies {
         render_one(&mut b, t, cols);
+    }
+    b.buf
+}
+
+/// Same idea as `render`, for a change-KOT delta ticket.
+pub fn render_update(t: &TicketUpdate) -> Vec<u8> {
+    let cols = columns(t.paper_mm.unwrap_or(58));
+    let copies = t.copies.unwrap_or(1).clamp(1, 5);
+    let mut b = Builder::new();
+    for _ in 0..copies {
+        render_update_one(&mut b, t, cols);
     }
     b.buf
 }
@@ -249,11 +441,43 @@ mod tests {
             order_note: None,
             paper_mm: Some(58),
             copies: None,
+            source: None,
         }
     }
 
+    /// Decodes the raw ESC/POS bytes into just their printable text, with the
+    /// handful of control sequences this file emits stripped out. Needed
+    /// because the new layout changes size/bold *mid physical line* (the
+    /// quantity token and the item name are two `text()` calls with a `GS !`
+    /// in between) — a naive `String::from_utf8_lossy` would leave that
+    /// control byte sitting between "2 x " and "Veg Burger", breaking a
+    /// substring check that a cook reading the paper would never notice.
     fn as_text(bytes: &[u8]) -> String {
-        String::from_utf8_lossy(bytes).to_string()
+        let mut out = String::new();
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                ESC => {
+                    i += match bytes.get(i + 1) {
+                        Some(b'@') => 2,             // ESC @
+                        Some(b'E') | Some(b'a') | Some(b'd') => 3, // ESC E/a/d n
+                        _ => 2,
+                    };
+                }
+                GS => {
+                    i += match bytes.get(i + 1) {
+                        Some(b'!') => 3, // GS ! n
+                        Some(b'V') => 4, // GS V m n
+                        _ => 2,
+                    };
+                }
+                b => {
+                    out.push(b as char);
+                    i += 1;
+                }
+            }
+        }
+        out
     }
 
     #[test]
@@ -267,7 +491,7 @@ mod tests {
     fn carries_the_order_number_items_and_notes() {
         let text = as_text(&render(&ticket()));
         assert!(text.contains("#42"));
-        assert!(text.contains("Table T08"));
+        assert!(text.contains("TABLE T08"));
         assert!(text.contains("7:42 PM"));
         assert!(text.contains("2 x Veg Burger"));
         assert!(text.contains("Extra Cheese"));
@@ -277,7 +501,6 @@ mod tests {
     #[test]
     fn never_prints_money() {
         let text = as_text(&render(&ticket()));
-        assert!(!text.contains('R') || !text.to_lowercase().contains("total"));
         assert!(!text.to_lowercase().contains("total"));
     }
 
@@ -329,5 +552,73 @@ mod tests {
         assert!(!text.contains('₹'));
         assert!(!text.contains('—'));
         assert!(text.contains("Caf?"));
+    }
+
+    #[test]
+    fn footer_carries_the_order_source() {
+        let mut t = ticket();
+        t.source = Some("qr".into());
+        let text = as_text(&render(&t));
+        assert!(text.contains("QR"));
+    }
+
+    #[test]
+    fn wraps_a_long_kitchen_note_without_overflowing_the_paper_width() {
+        let mut t = ticket();
+        t.order_note = Some(
+            "please make it extra spicy and pack the sauces separately in a small container on the side"
+                .into(),
+        );
+        let text = as_text(&render(&t));
+        assert!(text.contains("KITCHEN NOTE"));
+        for line in text.lines() {
+            assert!(line.len() <= 32, "line too long for 58mm: {line:?}");
+        }
+    }
+
+    #[test]
+    fn kot_update_marks_added_and_removed_items() {
+        let t = TicketUpdate {
+            kot_number: "42".into(),
+            table_label: Some("T08".into()),
+            order_type: Some("dine_in".into()),
+            time_label: None,
+            station: None,
+            added: vec![TicketItem {
+                qty: 1,
+                name: "Cold Coffee".into(),
+                modifiers: vec![],
+                note: None,
+            }],
+            removed: vec![TicketItem {
+                qty: 1,
+                name: "Burger".into(),
+                modifiers: vec![],
+                note: None,
+            }],
+            order_note: None,
+            paper_mm: Some(58),
+            copies: None,
+        };
+        let text = as_text(&render_update(&t));
+        assert!(text.contains("KOT UPDATE"));
+        assert!(text.contains("+ 1 x Cold Coffee"));
+        assert!(text.contains("- 1 x Burger"));
+    }
+
+    #[test]
+    fn strips_non_ascii_from_modifiers_and_notes_without_panicking() {
+        let mut t = ticket();
+        t.items[0].modifiers = vec!["Extra ₹pice — café style".into()];
+        t.items[0].note = Some("café note — ₹".into());
+        let text = as_text(&render(&t));
+        assert!(!text.contains('₹'));
+        assert!(!text.contains('—'));
+        // Modifiers keep their original case, so ascii() drops the lowercase
+        // é straight to '?': "café" → "caf?".
+        assert!(text.contains("caf?"), "modifier text not sanitized: {text:?}");
+        // The item note is uppercased before sanitizing, so "café" → "CAFÉ"
+        // → "CAF?" once the printer-unsafe É is dropped.
+        assert!(text.contains("CAF?"), "note text not sanitized: {text:?}");
     }
 }

@@ -1,0 +1,421 @@
+//! The local print bridge: polls the server's print-job queue and drives LAN
+//! thermal printers directly, independent of whatever page the webview
+//! happens to be showing.
+//!
+//! Server side (already built, see `supabase/migrations/0027_kot_printing.sql`,
+//! `0150_kot_bridge_retry.sql`, `0151_kot_update_versioning.sql`) enqueues
+//! print jobs on a queue and exposes exactly two HTTP routes for this side to
+//! call: `POST /api/print/poll` to claim a batch of jobs, `POST
+//! /api/print/report` to say how each one went. Everything below exists to
+//! close that loop — nobody had written the actual consumer before this, which
+//! is why KOT printing only ever worked while a browser tab stayed open on the
+//! Kitchen page.
+//!
+//! v1 scope is LAN printers only. A job routed to a usb/bluetooth printer is
+//! left alone rather than attempted or failed — that printer keeps working
+//! through the existing browser/Kitchen-page path, untouched by any of this.
+
+use std::fs;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use tauri::Manager;
+
+use crate::escpos::{Ticket, TicketItem, TicketUpdate};
+use crate::printing::{self, Target};
+
+const POLL_URL: &str = "https://khaopiyo.ventron.in/api/print/poll";
+const REPORT_URL: &str = "https://khaopiyo.ventron.in/api/print/report";
+const POLL_INTERVAL: Duration = Duration::from_secs(4);
+
+// ── Pairing token storage ───────────────────────────────────────────────────
+//
+// Deliberately a separate file from session.rs's session.json. That one holds
+// whichever staff member is currently signed in and is wiped on sign-out; this
+// one holds which café/printer setup this PC is paired to, and must survive
+// sign-out — a shift change should never silently un-pair the kitchen printer.
+
+fn bridge_token_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("no data directory: {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    Ok(dir.join("bridge.json"))
+}
+
+/// Called once, when an owner/manager pairs this PC from the web UI's printer
+/// settings page (that UI is out of scope here — this command is its target).
+#[tauri::command]
+pub fn save_bridge_token(app: tauri::AppHandle, token: String) -> Result<(), String> {
+    let path = bridge_token_path(&app)?;
+    fs::write(&path, token.trim()).map_err(|e| format!("could not write {}: {e}", path.display()))
+}
+
+/// None means "not paired yet" — the bridge loop's normal resting state on a
+/// fresh install, not a failure.
+#[tauri::command]
+pub fn load_bridge_token(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = bridge_token_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path).map_err(|e| format!("could not read {}: {e}", path.display()))?;
+    let trimmed = raw.trim();
+    Ok(if trimmed.is_empty() { None } else { Some(trimmed.to_string()) })
+}
+
+/// Un-pairing is explicit and separate from signing out, on purpose.
+#[tauri::command]
+pub fn clear_bridge_token(app: tauri::AppHandle) -> Result<(), String> {
+    let path = bridge_token_path(&app)?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("could not delete {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
+// ── Wire shapes for /api/print/poll ─────────────────────────────────────────
+//
+// Deliberately NOT `serde_json::from_value::<Ticket>(document)` — Ticket's
+// `paper_mm`/`time_label` don't exist under those names in the raw document
+// (which has `paper_width: "58mm"|"80mm"` and separate `placed_at`+`timezone`
+// fields), and both are `#[serde(default)]` on Ticket, so a naive deserialize
+// would silently succeed with the wrong paper width and a blank time instead
+// of erroring. These Raw* structs mirror the actual payload shape from
+// `build_kot_payload`/`build_kot_update_payload`, and `build_ticket`/
+// `build_ticket_update` below do the mapping explicitly.
+
+#[derive(serde::Deserialize)]
+struct PollResponse {
+    #[serde(default)]
+    jobs: Vec<Job>,
+}
+
+#[derive(serde::Deserialize)]
+struct Job {
+    job_id: String,
+    kind: String,
+    printer: PrinterInfo,
+    document: serde_json::Value,
+}
+
+#[derive(serde::Deserialize)]
+struct PrinterInfo {
+    #[serde(default)]
+    name: String,
+    connection_type: String,
+    #[serde(default)]
+    ip_address: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
+}
+
+/// Raw `document` shape for kind in (kot, reprint, test) — see
+/// `build_kot_payload` in 0027_kot_printing.sql.
+#[derive(serde::Deserialize, Default)]
+struct RawTicket {
+    kot_number: String,
+    #[serde(default)]
+    table_label: Option<String>,
+    #[serde(default)]
+    order_type: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    placed_at: Option<String>,
+    #[serde(default)]
+    timezone: Option<String>,
+    #[serde(default)]
+    station: Option<String>,
+    #[serde(default)]
+    paper_width: Option<String>,
+    #[serde(default)]
+    copies: Option<u32>,
+    #[serde(default)]
+    items: Vec<TicketItem>,
+    #[serde(default)]
+    order_note: Option<String>,
+}
+
+/// Raw `document` shape for kind = kot_update — see
+/// `build_kot_update_payload` in 0151_kot_update_versioning.sql.
+#[derive(serde::Deserialize, Default)]
+struct RawTicketUpdate {
+    kot_number: String,
+    #[serde(default)]
+    table_label: Option<String>,
+    #[serde(default)]
+    order_type: Option<String>,
+    #[serde(default)]
+    placed_at: Option<String>,
+    #[serde(default)]
+    timezone: Option<String>,
+    #[serde(default)]
+    station: Option<String>,
+    #[serde(default)]
+    paper_width: Option<String>,
+    #[serde(default)]
+    copies: Option<u32>,
+    #[serde(default)]
+    added: Vec<TicketItem>,
+    #[serde(default)]
+    removed: Vec<TicketItem>,
+    #[serde(default)]
+    order_note: Option<String>,
+}
+
+/// "58mm" / "80mm" → 58 / 80. Anything else — missing field, unexpected
+/// string — is left as `None` so `render()`'s own default (58, the narrower
+/// and therefore safer of the two) applies rather than this guessing.
+fn map_paper_mm(paper_width: Option<&str>) -> Option<u32> {
+    match paper_width {
+        Some("58mm") => Some(58),
+        Some("80mm") => Some(80),
+        _ => None,
+    }
+}
+
+/// `placed_at` (RFC 3339, always UTC from Postgres) rendered into the café's
+/// own IANA timezone as a short header string. Never propagates an error: a
+/// bad timestamp means a blank time label, an unrecognised zone means a UTC
+/// fallback, and either way the job still prints rather than getting dropped.
+fn format_time_label(placed_at: &str, timezone: &str) -> Option<String> {
+    let dt = chrono::DateTime::parse_from_rfc3339(placed_at).ok()?;
+    let formatted = match timezone.parse::<chrono_tz::Tz>() {
+        Ok(tz) => dt.with_timezone(&tz).format("%d %b, %H:%M").to_string(),
+        Err(_) => dt.with_timezone(&chrono::Utc).format("%d %b, %H:%M").to_string(),
+    };
+    Some(formatted.to_uppercase())
+}
+
+fn build_ticket(doc: RawTicket) -> Ticket {
+    let time_label = doc
+        .placed_at
+        .as_deref()
+        .and_then(|p| format_time_label(p, doc.timezone.as_deref().unwrap_or("UTC")));
+    Ticket {
+        kot_number: doc.kot_number,
+        table_label: doc.table_label,
+        order_type: doc.order_type,
+        time_label,
+        station: doc.station,
+        items: doc.items,
+        order_note: doc.order_note,
+        paper_mm: map_paper_mm(doc.paper_width.as_deref()),
+        copies: doc.copies,
+        source: doc.source,
+    }
+}
+
+fn build_ticket_update(doc: RawTicketUpdate) -> TicketUpdate {
+    let time_label = doc
+        .placed_at
+        .as_deref()
+        .and_then(|p| format_time_label(p, doc.timezone.as_deref().unwrap_or("UTC")));
+    TicketUpdate {
+        kot_number: doc.kot_number,
+        table_label: doc.table_label,
+        order_type: doc.order_type,
+        time_label,
+        station: doc.station,
+        added: doc.added,
+        removed: doc.removed,
+        order_note: doc.order_note,
+        paper_mm: map_paper_mm(doc.paper_width.as_deref()),
+        copies: doc.copies,
+    }
+}
+
+/// `None` means "not a LAN printer" — the signal to skip the job entirely
+/// rather than attempt or fail it.
+fn target_for(printer: &PrinterInfo) -> Option<Target> {
+    if printer.connection_type != "lan" {
+        return None;
+    }
+    Some(Target::Tcp {
+        host: printer.ip_address.clone().unwrap_or_default(),
+        port: printer.port,
+    })
+}
+
+async fn report(client: &reqwest::Client, token: &str, job_id: &str, ok: bool, error: Option<&str>) {
+    let body = serde_json::json!({
+        "token": token,
+        "job_id": job_id,
+        "ok": ok,
+        "error": error,
+    });
+    // Best-effort: if this itself fails to reach the server, the job stays
+    // claimed as "printing" and the server's own retry/backoff (migration
+    // 0150) eventually reclaims it. Nothing here should escalate that into a
+    // crashed loop.
+    if let Err(e) = client.post(REPORT_URL).json(&body).send().await {
+        eprintln!("[bridge] could not report job {job_id}: {e}");
+    }
+}
+
+async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
+    let target = match target_for(&job.printer) {
+        Some(t) => t,
+        None => {
+            eprintln!(
+                "[bridge] skipping job {} — printer \"{}\" is {} (bridge only handles lan)",
+                job.job_id, job.printer.name, job.printer.connection_type
+            );
+            return;
+        }
+    };
+
+    let result = match job.kind.as_str() {
+        "kot_update" => match serde_json::from_value::<RawTicketUpdate>(job.document) {
+            Ok(raw) => printing::dispatch_update(target, &build_ticket_update(raw)),
+            Err(e) => Err(format!("malformed kot_update payload: {e}")),
+        },
+        // kot | reprint | test all share the same document shape.
+        kind => match serde_json::from_value::<RawTicket>(job.document) {
+            Ok(raw) => printing::dispatch(target, &build_ticket(raw)),
+            Err(e) => Err(format!("malformed {kind} payload: {e}")),
+        },
+    };
+
+    match result {
+        Ok(()) => report(client, token, &job.job_id, true, None).await,
+        Err(e) => {
+            eprintln!("[bridge] job {} failed: {e}", job.job_id);
+            report(client, token, &job.job_id, false, Some(&e)).await;
+        }
+    }
+}
+
+async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, String> {
+    let resp = client
+        .post(POLL_URL)
+        .json(&serde_json::json!({ "token": token, "limit": 10 }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let body: PollResponse = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(body.jobs)
+}
+
+/// Runs for the life of the process, started once from `main.rs`'s `.setup()`
+/// and never gated on which page the webview is showing. Every failure mode —
+/// not paired yet, a network blip, a malformed job, a printer that's offline —
+/// is swallowed and logged rather than propagated: the only thing worse than
+/// one print job silently not printing is this loop dying and nothing ever
+/// printing again until someone notices the app needs a restart.
+pub async fn run(app: tauri::AppHandle) {
+    let client = match reqwest::Client::builder().timeout(Duration::from_secs(10)).build() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[bridge] could not build HTTP client, bridge disabled: {e}");
+            return;
+        }
+    };
+
+    loop {
+        let token = match load_bridge_token(app.clone()) {
+            Ok(Some(t)) if !t.is_empty() => Some(t),
+            // No token yet is the normal "not paired" state — no log spam.
+            // A read error is treated the same way: try again next tick
+            // rather than spinning on a broken disk read.
+            _ => None,
+        };
+
+        if let Some(token) = token {
+            match poll_once(&client, &token).await {
+                Ok(jobs) => {
+                    for job in jobs {
+                        process_job(&client, &token, job).await;
+                    }
+                }
+                Err(e) => eprintln!("[bridge] poll failed: {e}"),
+            }
+        }
+
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_paper_width_strings_to_millimetres() {
+        assert_eq!(map_paper_mm(Some("58mm")), Some(58));
+        assert_eq!(map_paper_mm(Some("80mm")), Some(80));
+        assert_eq!(map_paper_mm(None), None);
+        assert_eq!(map_paper_mm(Some("junk")), None);
+    }
+
+    #[test]
+    fn formats_a_utc_timestamp_in_the_cafes_timezone() {
+        // 2026-08-20T14:12:00Z is 19:42 IST (UTC+5:30).
+        let label = format_time_label("2026-08-20T14:12:00Z", "Asia/Kolkata").unwrap();
+        assert!(label.contains("19:42"), "expected 19:42 IST, got {label:?}");
+        assert!(label.contains("20 AUG"), "expected 20 AUG, got {label:?}");
+    }
+
+    #[test]
+    fn falls_back_to_utc_rather_than_failing_on_an_unknown_timezone() {
+        let label = format_time_label("2026-08-20T14:12:00Z", "Not/AZone").unwrap();
+        assert!(label.contains("14:12"), "expected UTC fallback 14:12, got {label:?}");
+    }
+
+    #[test]
+    fn returns_none_rather_than_panicking_on_an_unparseable_timestamp() {
+        assert_eq!(format_time_label("not-a-timestamp", "Asia/Kolkata"), None);
+    }
+
+    #[test]
+    fn maps_the_raw_kot_document_into_a_ticket_explicitly() {
+        let raw = RawTicket {
+            kot_number: "42".into(),
+            paper_width: Some("80mm".into()),
+            placed_at: Some("2026-08-20T14:12:00Z".into()),
+            timezone: Some("Asia/Kolkata".into()),
+            items: vec![TicketItem { qty: 1, name: "Tea".into(), modifiers: vec![], note: None }],
+            ..Default::default()
+        };
+        let ticket = build_ticket(raw);
+        assert_eq!(ticket.paper_mm, Some(80));
+        assert!(ticket.time_label.unwrap().contains("19:42"));
+        assert_eq!(ticket.items.len(), 1);
+    }
+
+    #[test]
+    fn maps_the_raw_kot_update_document_into_a_ticket_update_explicitly() {
+        let raw = RawTicketUpdate {
+            kot_number: "42".into(),
+            paper_width: Some("58mm".into()),
+            added: vec![TicketItem { qty: 1, name: "Cold Coffee".into(), modifiers: vec![], note: None }],
+            removed: vec![TicketItem { qty: 1, name: "Burger".into(), modifiers: vec![], note: None }],
+            ..Default::default()
+        };
+        let update = build_ticket_update(raw);
+        assert_eq!(update.paper_mm, Some(58));
+        assert_eq!(update.added.len(), 1);
+        assert_eq!(update.removed.len(), 1);
+    }
+
+    #[test]
+    fn only_targets_lan_printers() {
+        let lan = PrinterInfo {
+            name: "Kitchen".into(),
+            connection_type: "lan".into(),
+            ip_address: Some("192.168.1.50".into()),
+            port: None,
+        };
+        assert!(target_for(&lan).is_some());
+
+        let usb = PrinterInfo {
+            name: "Counter".into(),
+            connection_type: "usb".into(),
+            ip_address: None,
+            port: None,
+        };
+        assert!(target_for(&usb).is_none());
+    }
+}

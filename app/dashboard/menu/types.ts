@@ -4,6 +4,9 @@ export type MenuCategory = {
   name: string
   sort: number
   archived: boolean
+  /** Routes this category's items to a kitchen printer bound to that
+   * station. Null means "every printer with no station of its own". */
+  station_id: string | null
 }
 
 export type MenuItemRow = {

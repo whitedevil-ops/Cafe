@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
-import { printKot } from '@/components/kitchen/print-ticket'
 import { isDesktopApp } from '@/lib/is-desktop'
 import { getDesktopPrinter, setDesktopPrinter, listSerialPorts, testPrintNative } from '@/lib/desktop-print'
+import { saveBridgeToken, loadBridgeToken, clearBridgeToken } from '@/lib/desktop-bridge'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/datetime'
+import PrintQueuePanel from '@/components/kitchen/print-queue-panel'
 
 export type KitchenStation = { id: string; name: string }
 export type KotPrinter = {
@@ -48,6 +49,7 @@ export default function KotPrintingPanel({
   timezone,
   canManage,
   initialEnabled,
+  initialPrintOnUpdate,
   initialPrinters,
   initialStations,
   initialTokens,
@@ -56,6 +58,7 @@ export default function KotPrintingPanel({
   timezone: string
   canManage: boolean
   initialEnabled: boolean
+  initialPrintOnUpdate: boolean
   initialPrinters: KotPrinter[]
   initialStations: KitchenStation[]
   initialTokens: BridgeToken[]
@@ -71,6 +74,10 @@ export default function KotPrintingPanel({
   const [desktop, setDesktop] = useState(false)
   const [ports, setPorts] = useState<string[]>([])
   const [serialPort, setSerialPort] = useState('')
+  // Whether THIS machine has a bridge token saved locally — separate from
+  // the `tokens` list below, which is every token paired to the café from
+  // any machine and carries no way to tell which one (if any) is this one.
+  const [pairedHere, setPairedHere] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -88,9 +95,11 @@ export default function KotPrintingPanel({
     const saved = getDesktopPrinter()
     if (saved?.kind === 'serial') setSerialPort(saved.port)
     void refreshPorts()
+    void loadBridgeToken().then((t) => setPairedHere(!!t))
   }, [refreshPorts])
 
   const [enabled, setEnabled] = useState(initialEnabled)
+  const [printOnUpdate, setPrintOnUpdate] = useState(initialPrintOnUpdate)
   const [printers, setPrinters] = useState(initialPrinters)
   const [stations, setStations] = useState(initialStations)
   const [tokens, setTokens] = useState(initialTokens)
@@ -128,6 +137,21 @@ export default function KotPrintingPanel({
       return toast(error.message, 'error')
     }
     toast(next ? 'KOT printing enabled.' : 'KOT printing disabled — the digital KDS is unaffected.')
+  }
+
+  // Covers both an item added and an item modified after the first KOT
+  // already printed — mechanically both produce the same "diff and print
+  // the delta" event, so one switch covers both rather than two identical
+  // ones. The very first KOT for a new order always prints regardless of
+  // this setting; it only affects a KOT UPDATE for a later edit.
+  async function togglePrintOnUpdate(next: boolean) {
+    setPrintOnUpdate(next)
+    const { error } = await supabase.from('cafes').update({ kot_print_on_update: next }).eq('id', cafeId)
+    if (error) {
+      setPrintOnUpdate(!next)
+      return toast(error.message, 'error')
+    }
+    toast(next ? 'Order edits will queue a KOT UPDATE ticket.' : 'Order edits after the first KOT no longer print.')
   }
 
   async function savePrinter() {
@@ -170,26 +194,16 @@ export default function KotPrintingPanel({
     void refresh()
   }
 
-  // Prints here and now, through this browser, so a café can confirm its
-  // printer works before service rather than discovering it during one. The
-  // old behaviour queued a job for a bridge that was never written, which
-  // meant "Test print" reliably produced nothing at all.
+  // Queues a real test_print() job through the same print_jobs queue and
+  // bridge every automatic KOT goes through — this is what proves the queue
+  // and bridge actually work end to end, not just that this browser can open
+  // a print dialog. Previously this printed straight from the browser, which
+  // meant "Test print" could pass even when a LAN printer's bridge path was
+  // completely broken (a browser cannot reach a raw TCP printer at all).
   async function runTestPrint(p: KotPrinter) {
-    await printKot({
-      kotNumber: 'TEST',
-      orderType: 'dine_in',
-      tableLabel: null,
-      placedAt: new Date().toISOString(),
-      timezone,
-      paperWidth: p.paper_width,
-      station: p.name,
-      copies: p.copies,
-      items: [
-        { qty: 1, name: 'Test ticket', modifiers: ['If you can read this, printing works'] },
-        { qty: 2, name: 'Paper width check' },
-      ],
-      orderNote: 'This is a test — nothing was ordered',
-    })
+    const { error } = await supabase.rpc('test_print', { p_printer_id: p.id })
+    if (error) return toast(error.message, 'error')
+    toast(`Test ticket queued for ${p.name} — check the printer.`)
   }
 
   async function addStation() {
@@ -208,8 +222,23 @@ export default function KotPrintingPanel({
       p_name: 'Print bridge',
     })
     if (error) return toast(error.message, 'error')
-    setNewToken(data as string)
+    const token = data as string
+    setNewToken(token)
+    // Inside the desktop app, this IS the machine the bridge should run on —
+    // save it locally too so pairing is one click, not copy-paste into a
+    // program that doesn't have its own UI. Still shown/copyable above for
+    // re-pairing another machine, or if local save fails for any reason.
+    if (desktop) {
+      await saveBridgeToken(token)
+      setPairedHere(true)
+    }
     void refresh()
+  }
+
+  async function unpairThisDevice() {
+    await clearBridgeToken()
+    setPairedHere(false)
+    toast('This device will stop polling for print jobs.')
   }
 
   async function revokeBridge(id: string) {
@@ -222,6 +251,13 @@ export default function KotPrintingPanel({
     if (!ok) return
     const { error } = await supabase.rpc('revoke_print_bridge_token', { p_token_id: id })
     if (error) return toast(error.message, 'error')
+    // Deliberately does NOT clear this machine's local bridge.json: a café
+    // can pair more than one machine, and this UI has no way to tell whether
+    // the token being revoked here is the one this particular device is
+    // running — a revoked token just stops being accepted server-side
+    // (bridge_claim_jobs checks revoked_at), so a stale local file is
+    // harmless, while guessing wrong and clearing the WRONG machine's
+    // pairing would not be.
     toast('Print bridge unpaired.')
     void refresh()
   }
@@ -258,25 +294,43 @@ export default function KotPrintingPanel({
 
       {enabled && (
         <div className="mt-6 space-y-8">
+          {/* ── Print-on-edit ──────────────────────────────────────────── */}
+          <label className="flex items-start gap-2.5 text-[12.5px] text-foreground">
+            <input
+              type="checkbox"
+              checked={printOnUpdate}
+              disabled={!canManage}
+              onChange={(e) => togglePrintOnUpdate(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary disabled:opacity-40"
+            />
+            <span>
+              <span className="font-medium">Print a KOT UPDATE when an order is edited</span>
+              <span className="block text-muted-foreground">
+                New orders always print. When off, an item added or changed after the first KOT only shows
+                on the digital KDS — nothing new prints for the kitchen.
+              </span>
+            </span>
+          </label>
+
           {/* ── Bridge pairing ─────────────────────────────────────────── */}
           <div>
             <h3 className="text-[13.5px] font-semibold text-foreground">Print bridge</h3>
             <p className="mt-1 max-w-lg text-[12.5px] leading-relaxed text-muted-foreground">
-              Optional, and not needed to print. A bridge would let tickets print on their own with no
-              KhaoPiyo window open on the counter machine.
+              This is what makes printing automatic — new orders print on their own, on a LAN printer, with
+              no Kitchen tab open and no one clicking Print. Pair the KhaoPiyo desktop app on the counter
+              computer once; it keeps polling for jobs in the background for as long as it&apos;s running.
             </p>
-            {/* The bridge is genuinely optional now, so this says what a café
-                gets without one rather than apologising for a missing
-                download. */}
             <p className="mt-2 max-w-lg rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
-              You don&apos;t need this. Print KOT on the Kitchen screen prints straight from this browser to
-              any printer Windows can see. The bridge program isn&apos;t released yet; pairing below only
-              issues a token for when it is.
+              Without a paired bridge, printing still works — use <strong className="text-foreground">Reprint
+              KOT</strong> or <strong className="text-foreground">Print now on this device</strong> on the
+              Kitchen screen — but it needs a staff member to act on each order. USB and Bluetooth printers
+              currently print through that manual path only; the automatic bridge covers LAN/Wi-Fi printers.
             </p>
 
             {tokens.length === 0 ? (
               <p className="mt-3 rounded-[var(--radius)] border border-warning bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
-                No bridge paired yet — jobs will queue until one connects.
+                No bridge paired yet — tickets won&apos;t print automatically until one connects. Use Reprint
+                KOT or Print now on this device in the meantime.
               </p>
             ) : (
               <ul className="mt-3 space-y-2">
@@ -306,16 +360,30 @@ export default function KotPrintingPanel({
               </ul>
             )}
 
+            {desktop && (
+              <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-foreground">
+                {pairedHere ? <CircleCheck size={13} className="text-success" /> : <CircleAlert size={13} className="text-muted-foreground" />}
+                This device is {pairedHere ? 'paired — it will print automatically while this app is open.' : 'not paired yet.'}
+                {pairedHere && (
+                  <button onClick={() => void unpairThisDevice()} className="ml-1 text-destructive underline">
+                    Unpair this device
+                  </button>
+                )}
+              </p>
+            )}
+
             {canManage && (
               <Button variant="secondary" size="sm" className="mt-3" onClick={pairBridge}>
-                Pair a new bridge
+                Pair {desktop ? 'this device' : 'a new bridge'}
               </Button>
             )}
 
             {newToken && (
               <div className="mt-3 rounded-[var(--radius)] border border-primary bg-primary-subtle p-3">
                 <p className="text-[12.5px] font-medium text-primary">
-                  Paste this into the Print Bridge on the café&apos;s computer. It is shown once and never again.
+                  {desktop
+                    ? 'This device is paired. To pair another computer, copy this token and paste it there.'
+                    : 'Open Settings → KOT printing on the café computer’s desktop app and pair from there — this token is shown once and never again.'}
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1.5 text-[11.5px] text-foreground">{newToken}</code>
@@ -416,12 +484,14 @@ export default function KotPrintingPanel({
               need it they are standing at the counter, not reading the repo. */}
           <details className="rounded-[var(--radius)] border border-border-strong px-3 py-2.5">
             <summary className="cursor-pointer text-[13px] font-medium text-foreground">
-              Print without the dialog appearing every time
+              Using &ldquo;Print now on this device&rdquo; without a dialog every time
             </summary>
             <div className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
               <p>
-                One-time setup on the counter computer. Chrome can send tickets straight to the printer
-                with no preview window.
+                Pairing a print bridge above is the recommended way to print automatically. This is only for
+                the manual fallback button on the Kitchen screen, for a printer the bridge doesn&apos;t cover
+                (USB/Bluetooth) or while no bridge is paired yet — one-time setup so that button skips the
+                preview window too.
               </p>
               <p>
                 <strong className="text-foreground">1.</strong> In Windows → Printers &amp; scanners, turn
@@ -440,10 +510,6 @@ export default function KotPrintingPanel({
                 including any in the system tray, then open the shortcut. Chrome reads that setting only
                 when its first window starts — if one is already open, the shortcut silently joins it and
                 the dialog comes back.
-              </p>
-              <p>
-                Then turn on Auto-print on the Kitchen screen. Orders will print on their own as long as
-                that window stays open.
               </p>
             </div>
           </details>
@@ -502,6 +568,12 @@ export default function KotPrintingPanel({
                         <button onClick={() => runTestPrint(p)} className="text-[12px] text-primary hover:underline">Test print</button>
                         {canManage && (
                           <>
+                            <button
+                              onClick={() => updatePrinter(p.id, { enabled: !p.enabled })}
+                              className="text-[12px] text-muted-foreground hover:text-foreground"
+                            >
+                              {p.enabled ? 'Disable' : 'Enable'}
+                            </button>
                             <button
                               onClick={() => updatePrinter(p.id, { auto_print: !p.auto_print })}
                               className="text-[12px] text-muted-foreground hover:text-foreground"
@@ -594,6 +666,8 @@ export default function KotPrintingPanel({
               </div>
             )}
           </div>
+
+          <PrintQueuePanel cafeId={cafeId} timezone={timezone} />
         </div>
       )}
     </section>

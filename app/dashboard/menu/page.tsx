@@ -12,12 +12,16 @@ export default async function MenuPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: categories }, { data: items }, { data: combos }] = await Promise.all([
+  const [{ data: categories }, { data: items }, { data: combos }, { data: stations }] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase.from('menu_items').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     // `margin` is included here and nowhere else — the POS and QR menu select
     // combos without it so the owner's own figure never reaches a guest.
     supabase.from('combos').select('id, name, description, price, margin, image_url, active, sort').eq('cafe_id', cafe.cafeId).order('sort'),
+    // For the "route this category to a kitchen station" picker — without
+    // this, kitchen_stations exists in the DB but a station-bound printer
+    // can never actually match any item (see kot-printing-panel.tsx).
+    supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
   ])
 
   // Slots for every combo, and variants for every item, in one round each —
@@ -45,6 +49,7 @@ export default async function MenuPage() {
       initialCombos={(combos ?? []) as Combo[]}
       initialComboSlots={(comboSlots ?? []) as ComboSlot[]}
       variants={(variants ?? []) as { id: string; menu_item_id: string; name: string; price_delta: number }[]}
+      stations={(stations ?? []) as { id: string; name: string }[]}
     />
   )
 }

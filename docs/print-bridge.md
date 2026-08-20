@@ -1,18 +1,31 @@
 # KhaoPiyo Print Bridge — integration contract
 
-The bridge is a small program that runs on the café's own Windows computer. It
-collects queued KOT jobs from KhaoPiyo and sends them to thermal printers on the
-local network. It exists because a browser cannot open a raw TCP socket to a
-printer, and because forcing a paid cloud-printing service on a café is a cost
-KhaoPiyo does not want to introduce.
+The bridge is what collects queued KOT jobs from KhaoPiyo and sends them to
+thermal printers on the local network. It exists because a browser cannot
+open a raw TCP socket to a printer, and because forcing a paid cloud-printing
+service on a café is a cost KhaoPiyo does not want to introduce.
 
-**The bridge is optional. If it never runs, ordering and the digital KDS are
-completely unaffected — jobs simply sit in the queue.**
+**Where it actually runs**: inside the existing KhaoPiyo desktop app
+(`desktop/src-tauri`), as a background task started at app launch —
+`src/bridge.rs`. It is not a separate program a café installs on top of
+anything; it's the same `.exe`/`.msi` counters already use, polling in the
+background for as long as the app process is running, independent of which
+page the window shows. **v1 scope is LAN printers only** — a job for a
+USB/Bluetooth-connected printer is left for the existing manual print path
+(the Kitchen screen's "Print now on this device" button) rather than
+attempted by the bridge; see the "Known limitation" section below for why.
+
+**The bridge is optional. If it never runs (not paired, or the desktop app
+isn't open on any café PC), ordering and the digital KDS are completely
+unaffected — jobs simply sit in the queue** and staff can still print with
+Reprint KOT or Print now on this device on the Kitchen screen.
 
 ## Security model
 
 The bridge holds exactly one secret: a **bridge token**, issued from
-Settings → Kitchen → KOT printing and shown once.
+Settings → KOT printing → "Pair a new bridge" and shown once. It's stored
+locally in the desktop app's app-data directory, in a file separate from the
+sign-in session — signing out at end of shift does not un-pair the printer.
 
 It never receives:
 
@@ -49,6 +62,7 @@ Response:
   "jobs": [
     {
       "job_id": "…",
+      "kind": "kot",
       "printer": {
         "id": "…",
         "name": "Main Kitchen Printer",
@@ -78,10 +92,21 @@ Response:
 }
 ```
 
-Claiming is atomic (`FOR UPDATE SKIP LOCKED`): two bridges pointed at the same
-café will not both print the same ticket.
+`kind` is one of `kot` | `kot_update` | `reprint` | `test`. `kot`, `reprint`,
+and `test` all share the full-ticket `document` shape above (`items`,
+`order_note`, etc). `kot_update` — queued when an order is edited *after* its
+first KOT already printed — has a different shape: `added` and `removed`
+arrays (same per-line `{qty, name, modifiers, note}` shape) instead of
+`items`, representing only the delta against what was last sent to this
+printer for this order. Render it visibly differently (e.g. a bordered "KOT
+UPDATE" header) so it's never mistaken for a new order at a glance.
 
-Poll every 2–3 seconds. A job moves to `printing` the moment it is claimed.
+Claiming is atomic (`FOR UPDATE SKIP LOCKED`): two bridges pointed at the same
+café will not both print the same ticket. A `failed` job also becomes
+reclaimable automatically, up to 5 attempts, with exponential backoff — the
+bridge does not need its own retry logic, just keep polling normally.
+
+Poll every ~4 seconds. A job moves to `printing` the moment it is claimed.
 
 ### 2. Report the outcome
 
@@ -103,63 +128,49 @@ live on the KDS. The error string surfaces in the app so staff can retry or
 reprint.
 
 Reporting also updates the printer's `last_seen_at`, which drives the
-"Printer offline" banner on the kitchen screen.
+"Printer offline" banner on the kitchen screen and the Settings → KOT
+printing → Print history panel.
 
 ## Rendering
 
 `document` deliberately contains **no ESC/POS bytes and no layout**. It says
-what to print; the bridge decides how. That is what allows a second printer
-brand to be supported by updating the bridge alone, with no schema or API
-change.
-
-Suggested layout, 80mm:
-
-```
-        KHAOPIYO KOT
-
-KOT #1048                    (large)
-Table: T08
-Time: 7:42 PM
-Source: QR
-Station: Main Kitchen
---------------------------------
-2 x Veg Burger               (large)
-    + Extra Cheese
-    NO ONION
-
-1 x Fries                    (large)
-    LESS SALT
---------------------------------
-Special Note:
-No peanuts
-```
+what to print; the bridge decides how (see `desktop/src-tauri/src/escpos.rs`
+for the current implementation — `render()` for a full ticket, `render_update()`
+for a `kot_update` delta). That is what allows a second printer brand to be
+supported by extending the bridge alone, with no schema or API change.
 
 Rules:
 
-- Order number, item names and quantities should be the largest text on the
-  ticket. A cook reads it at arm's length in poor light.
+- The order type and table number (or TAKEAWAY/DELIVERY) should be the
+  largest, boldest thing on the ticket — a cook reads it at arm's length in
+  poor light, before reading anything else.
+- Item quantity is the loudest part of each item line; modifiers and
+  per-item notes are visually subordinate but still clearly separated from
+  each other.
+- `order_note` gets its own visually distinct block (e.g. a bordered "★
+  KITCHEN NOTE" callout) — never just an uppercased line blended into the
+  rest of the ticket.
 - Format `placed_at` using the supplied `timezone`. Do not use the computer's
   local zone.
 - Never print prices, taxes or totals. A KOT is a kitchen instruction, not a
   bill.
 - `copies` is the number of identical tickets to emit.
-- A `kot_number` of `TEST` is a test page triggered from settings.
+- A `kot_number` of `TEST` is a test page triggered from Settings → KOT
+  printing → Test print, which now genuinely goes through this same queue
+  and bridge (not a browser print dialog) — so a passing test print proves
+  the real path works.
 
-## What I still need from you to finish this
+## Known limitation: serial/USB printers aren't covered by the bridge yet
 
-The generic layer above is complete and printer-agnostic. To write the bridge's
-actual output stage, I need to know:
-
-1. **Printer make and model** (e.g. Epson TM-T82, TVS RP 3230, Rugtek RP80).
-   ESC/POS is broadly standard but cut commands, codepages and logo handling
-   differ per vendor.
-2. **Connection** — LAN (most reliable; needs a static IP on the printer), or
-   USB into the café's PC.
-3. **Paper width actually in use** — 80mm is typical for kitchens, 58mm for
-   handheld/counter rolls.
-4. **Whether the café PC is always on during service.** If it sleeps, jobs queue
-   until it wakes — which is safe, but staff should know that is the behaviour.
-
-I have deliberately not guessed at these. Hardcoding one vendor's byte
-sequences before knowing the hardware is how printer integrations become
-unmaintainable.
+A bridge token is scoped to a *café*, not to a specific machine. If a café
+runs the desktop app on two counters, both paired, both compete for the same
+job queue. For a LAN printer that's harmless — either machine can reach it
+over the network. For a printer wired directly into one specific PC (USB) or
+paired to one specific PC's Bluetooth radio, the wrong machine claiming that
+job just fails permanently — it has no way to reach that printer. Until the
+claim can be scoped per-machine (a `p_printer_ids` filter on
+`bridge_claim_jobs`, plus a per-machine printer-target file the desktop app
+already has the plumbing for in `printing.rs`/`bridge.rs`), USB/Bluetooth
+printers stay on the existing manual path (Kitchen screen → Print now on
+this device), unaffected and unregressed by any of this. Moving to a LAN/
+Wi-Fi printer is the direction this already pushes a café toward regardless.

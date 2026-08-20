@@ -70,22 +70,15 @@ export default function KitchenClient({
   const [armed, setArmed] = useState(false)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
-  // Off unless the café turns it on, and remembered per café. On by default
-  // would mean a print dialog ambushing whoever happens to open the Kitchen
-  // screen — including the owner on a laptop with no printer attached.
-  const [autoPrint, setAutoPrint] = useState(false)
-  const autoPrintKey = `kp:kds:autoprint:${cafeId}`
-
-  useEffect(() => {
-    // One-time read of a browser preference on mount, not an ongoing sync.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    try { setAutoPrint(localStorage.getItem(autoPrintKey) === '1') } catch {}
-  }, [autoPrintKey])
   const ding = useDing()
   const [cancelling, setCancelling] = useState<Order | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [printerHealth, setPrinterHealth] = useState<PrinterHealth | null>(null)
+  // Latest print_jobs status per order — the queue/bridge print automatically
+  // now (see reprintQueued below), so this is the only way staff can tell
+  // whether a ticket actually went out without walking to the printer.
+  const [printJobs, setPrintJobs] = useState<Record<string, { kind: string; status: string }>>({})
 
   // Printer status is polled separately and slowly: it must never share a
   // failure path with the order poll, because the tickets have to keep
@@ -105,13 +98,15 @@ export default function KitchenClient({
     }
   }, [supabase, cafeId, printingEnabled])
 
-  // Prints here, in this browser, through the OS print dialog against whatever
-  // printer Windows already has installed — including one paired over
-  // Bluetooth. That is the only printing a web page can do: it cannot open a
-  // socket to a network printer or a serial port, which is what the queue and
-  // its bridge were for. The queue still fills for a future bridge; this is
-  // the path that puts paper in a cook's hand today.
-  async function printTicket(o: Order) {
+  // Explicit local fallback: prints here, in this browser, through the OS
+  // print dialog against whatever printer Windows already has installed —
+  // including one paired over Bluetooth. This is a deliberate manual escape
+  // hatch for when the print bridge or the configured printer is offline —
+  // the digital KDS board above still works regardless (spec: never stop the
+  // order flow because a printer is offline). It is NOT the primary path
+  // anymore; that's reprintQueued below, which goes through the same
+  // automatic bridge every order already uses.
+  async function printNow(o: Order) {
     const its = items.filter((i) => i.order_id === o.id)
     if (its.length === 0) return toast('Nothing to print on this order.', 'error')
     await printKot({
@@ -127,6 +122,20 @@ export default function KitchenClient({
         modifiers: (i.modifiers ?? []).map((m) => m.name),
       })),
     })
+  }
+
+  // Queues a real print_jobs row (kind='reprint') the same way an automatic
+  // KOT does, so it's picked up by whichever printer/bridge is configured —
+  // no dependency on this browser tab, this machine, or a printer driver.
+  // Wires up reprint_kot(), which already logs kot.reprinted to audit_logs;
+  // this is what makes AUTO PRINTED vs REPRINTED a real, auditable
+  // distinction rather than just a button label.
+  async function reprintQueued(o: Order) {
+    const { data, error } = await supabase.rpc('reprint_kot', { p_order_id: o.id })
+    if (error) return toast(error.message, 'error')
+    const count = typeof data === 'number' ? data : 0
+    toast(count > 0 ? `Reprint queued for ${o.short_code}.` : 'No enabled printer to reprint to — check Settings.', count > 0 ? undefined : 'error')
+    void poll()
   }
 
   const poll = useCallback(async () => {
@@ -151,36 +160,31 @@ export default function KitchenClient({
         .from('order_items')
         .select('id, order_id, name, qty, modifiers')
         .in('order_id', ords.map((o) => o.id))
-      if (its) {
-        setItems(its as Item[])
+      if (its) setItems(its as Item[])
 
-        // Auto-print rides on the same fetch rather than its own effect, so a
-        // ticket is only ever printed once its lines are actually in hand —
-        // printing off the orders query alone would emit blank tickets.
-        if (autoPrint && fresh.length && !firstLoad) {
-          for (const o of fresh) {
-            const lines = (its as Item[]).filter((i) => i.order_id === o.id)
-            if (lines.length === 0) continue
-            await printKot({
-              kotNumber: o.short_code,
-              tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
-              orderType: o.type,
-              placedAt: o.created_at,
-              timezone,
-              paperWidth,
-              items: lines.map((i) => ({
-                qty: i.qty,
-                name: i.name,
-                modifiers: (i.modifiers ?? []).map((m) => m.name),
-              })),
-            })
+      // Printing itself now happens automatically server-side (the print
+      // bridge, independent of this page — see reprintQueued's comment).
+      // This is read-only: the latest job per order, purely to show staff
+      // whether a ticket actually went out.
+      if (printingEnabled) {
+        const { data: jobs } = await supabase
+          .from('print_jobs')
+          .select('order_id, kind, status, created_at')
+          .in('order_id', ords.map((o) => o.id))
+          .order('created_at', { ascending: true })
+        if (jobs) {
+          const latest: Record<string, { kind: string; status: string }> = {}
+          for (const j of jobs as { order_id: string | null; kind: string; status: string }[]) {
+            if (j.order_id) latest[j.order_id] = { kind: j.kind, status: j.status }
           }
+          setPrintJobs(latest)
         }
       }
     } else {
       setItems([])
+      setPrintJobs({})
     }
-  }, [supabase, cafeId, ding, tableLabels, timezone, paperWidth, autoPrint])
+  }, [supabase, cafeId, ding, printingEnabled])
 
   // Realtime is a supplement, not a replacement: it makes a new order or a
   // status change from another device appear instantly instead of waiting
@@ -190,10 +194,7 @@ export default function KitchenClient({
 
   useEffect(() => {
     // poll() is async and only calls setState after its own network
-    // round-trip completes — not a synchronous render-phase update — but
-    // this lint rule can't see past the `void` once poll is a useCallback
-    // reference rather than a function declared inline in this effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // round-trip completes — not a synchronous render-phase update.
     void poll()
     const p = setInterval(poll, 3000)
     // Same 30s cadence as the age re-render tick — flagging late tickets is
@@ -209,6 +210,21 @@ export default function KitchenClient({
       clearInterval(t)
     }
   }, [poll, supabase, cafeId])
+
+  // A single ding on arrival (above, inside poll()) is easy to miss over
+  // kitchen noise. Any order still sitting in 'placed' — not yet Started —
+  // keeps ringing on a short interval until a cook accepts it (advance() has
+  // moved it to 'preparing') or it's cancelled, whichever comes first. This
+  // is level-triggered on the current board state, not edge-triggered on new
+  // arrivals, so it also correctly resumes ringing if the page is reopened
+  // while orders are still waiting — unlike the arrival ding, which is
+  // deliberately silent on first load (see firstLoad in poll()).
+  const hasUnaccepted = orders.some((o) => o.status === 'placed')
+  useEffect(() => {
+    if (!hasUnaccepted) return
+    const id = setInterval(ding, 2500)
+    return () => clearInterval(id)
+  }, [hasUnaccepted, ding])
 
   async function advance(o: Order) {
     const to = NEXT[o.status].to
@@ -237,6 +253,17 @@ export default function KitchenClient({
 
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
+  function printBadge(job?: { kind: string; status: string }): { label: string; cls: string } | null {
+    if (!job) return null
+    if (job.status === 'failed') return { label: 'Print failed', cls: 'text-destructive' }
+    if (job.status === 'pending' || job.status === 'printing') return { label: 'Printing…', cls: 'text-muted-foreground' }
+    if (job.status === 'printed') {
+      const label = job.kind === 'reprint' ? 'Reprinted' : job.kind === 'kot_update' ? 'Update printed' : 'Printed'
+      return { label, cls: 'text-success' }
+    }
+    return null
+  }
+
   return (
     <div className="w-full min-h-dvh bg-background text-foreground">
       <OfflineBanner variant="kds" />
@@ -244,26 +271,6 @@ export default function KitchenClient({
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Kitchen</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {printingEnabled && (
-            <button
-              onClick={() => {
-                const next = !autoPrint
-                setAutoPrint(next)
-                try { localStorage.setItem(autoPrintKey, next ? '1' : '0') } catch {}
-                toast(
-                  next
-                    ? 'New orders will print automatically while this screen stays open.'
-                    : 'Auto-print off — use Print KOT on a ticket.',
-                )
-              }}
-              aria-pressed={autoPrint}
-              className={`min-h-11 rounded-[var(--radius)] border px-4 text-sm font-medium ${
-                autoPrint ? 'border-primary bg-primary-subtle text-primary' : 'border-border-strong text-muted-foreground'
-              }`}
-            >
-              Auto-print {autoPrint ? 'on' : 'off'}
-            </button>
-          )}
           {!armed && (
             <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
               Tap to enable sound
@@ -303,6 +310,11 @@ export default function KitchenClient({
                     </span>
                   )}
                   {o.status !== 'placed' && <span className="ml-2 text-muted-foreground">· {o.status}</span>}
+                  {printingEnabled && printBadge(printJobs[o.id]) && (
+                    <span className={`ml-2 font-medium ${printBadge(printJobs[o.id])!.cls}`}>
+                      · {printBadge(printJobs[o.id])!.label}
+                    </span>
+                  )}
                 </p>
                 <ul className="my-4 space-y-2 border-y border-border py-4">
                   {its.map((i) => (
@@ -333,13 +345,21 @@ export default function KitchenClient({
                   </button>
                   {printingEnabled && (
                     <button
-                      onClick={() => void printTicket(o)}
+                      onClick={() => void reprintQueued(o)}
                       className="flex-1 rounded-[var(--radius)] border border-border-strong py-2 text-sm font-medium text-muted-foreground hover:border-primary hover:text-primary"
                     >
-                      Print KOT
+                      Reprint KOT
                     </button>
                   )}
                 </div>
+                {printingEnabled && (
+                  <button
+                    onClick={() => void printNow(o)}
+                    className="mt-2 w-full py-1 text-center text-xs font-medium text-muted-foreground underline decoration-dotted hover:text-foreground"
+                  >
+                    Print now on this device
+                  </button>
+                )}
               </section>
             )
           })}

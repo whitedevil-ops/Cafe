@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::escpos::{self, Ticket};
+use crate::escpos::{self, Ticket, TicketUpdate};
 
 /// Most cheap Bluetooth thermal printers come up at 9600. A few use 115200,
 /// hence the override rather than a constant.
@@ -88,13 +88,32 @@ pub fn list_serial_ports() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Send already-rendered bytes to a target. The one place that knows how to
+/// reach a printer at all — both `dispatch` and `dispatch_update` funnel
+/// through here after rendering, so the manual `print_ticket` command and the
+/// background bridge loop can never drift into two different write paths.
+fn write_bytes(target: Target, bytes: &[u8]) -> Result<(), String> {
+    match target {
+        Target::Serial { port, baud } => write_serial(&port, baud.unwrap_or(DEFAULT_BAUD), bytes),
+        Target::Tcp { host, port } => write_tcp(&host, port.unwrap_or(DEFAULT_TCP_PORT), bytes),
+    }
+}
+
+/// Render a full ticket and send it. Plain function (not a Tauri command) so
+/// it can be called both from the `print_ticket` IPC command below and from
+/// the bridge's polling loop, which has no webview call to make it from.
+pub fn dispatch(target: Target, ticket: &Ticket) -> Result<(), String> {
+    write_bytes(target, &escpos::render(ticket))
+}
+
+/// Same as `dispatch`, for a change-KOT delta ticket.
+pub fn dispatch_update(target: Target, ticket: &TicketUpdate) -> Result<(), String> {
+    write_bytes(target, &escpos::render_update(ticket))
+}
+
 /// Render and send. Errors come back as plain strings for the page to show —
 /// a cook needs "could not open COM3", not a stack trace.
 #[tauri::command]
 pub fn print_ticket(target: Target, ticket: Ticket) -> Result<(), String> {
-    let bytes = escpos::render(&ticket);
-    match target {
-        Target::Serial { port, baud } => write_serial(&port, baud.unwrap_or(DEFAULT_BAUD), &bytes),
-        Target::Tcp { host, port } => write_tcp(&host, port.unwrap_or(DEFAULT_TCP_PORT), &bytes),
-    }
+    dispatch(target, &ticket)
 }

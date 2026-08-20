@@ -72,6 +72,7 @@ function toNativeTicket(t: KotTicket) {
     // guess, so the string is finished here.
     time_label: formatTime(t.placedAt, t.timezone || DEFAULT_TIMEZONE),
     station: t.station ?? null,
+    source: t.source ?? null,
     items: t.items.map((i) => ({
       qty: i.qty,
       name: i.name,

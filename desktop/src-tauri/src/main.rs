@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod bridge;
 mod escpos;
 mod printing;
 mod session;
@@ -75,9 +76,16 @@ fn main() {
             session::save_session,
             session::load_session,
             session::clear_session,
+            bridge::save_bridge_token,
+            bridge::load_bridge_token,
+            bridge::clear_bridge_token,
         ])
         .setup(|app| {
             spawn_update_check(app.handle());
+            // Independent of the webview entirely: starts once at launch and
+            // runs for the life of the process, whether the Kitchen page is
+            // open, some other page is showing, or the window is hidden.
+            tauri::async_runtime::spawn(bridge::run(app.handle().clone()));
             Ok(())
         })
         .on_window_event(|window, event| {

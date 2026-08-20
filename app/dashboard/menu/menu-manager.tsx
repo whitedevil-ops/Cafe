@@ -79,6 +79,7 @@ export default function MenuManager({
   initialCombos,
   initialComboSlots,
   variants,
+  stations,
 }: {
   cafeId: string
   cafeName: string
@@ -88,6 +89,7 @@ export default function MenuManager({
   initialCombos: Combo[]
   initialComboSlots: ComboSlot[]
   variants: VariantRow[]
+  stations: { id: string; name: string }[]
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
@@ -239,6 +241,20 @@ export default function MenuManager({
     setCategories((c) => c.filter((x) => x.id !== id))
     setItems((list) => list.map((i) => (i.category_id === id ? { ...i, category_id: null } : i)))
     if (categoryFilter === id) setCategoryFilter('all')
+  }
+
+  // Routes every item in this category to a kitchen printer bound to that
+  // station (kot_printers.station_id). Without this, a station-bound printer
+  // has no category ever mapped to it and prints nothing — this is the one
+  // piece of KOT station routing that only exists here, not in Settings.
+  async function updateCategoryStation(id: string, stationId: string | null) {
+    const previous = categories.find((c) => c.id === id)?.station_id ?? null
+    setCategories((c) => c.map((x) => (x.id === id ? { ...x, station_id: stationId } : x)))
+    const { error } = await supabase.from('menu_categories').update({ station_id: stationId }).eq('id', id)
+    if (error) {
+      setError(error.message)
+      setCategories((c) => c.map((x) => (x.id === id ? { ...x, station_id: previous } : x)))
+    }
   }
 
   // ── Item CRUD ──────────────────────────────────────────────────────────────
@@ -547,6 +563,19 @@ export default function MenuManager({
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-subtle px-3 py-1 text-[13px] text-foreground"
               >
                 {c.name}
+                {stations.length > 0 && (
+                  <select
+                    value={c.station_id ?? ''}
+                    onChange={(e) => updateCategoryStation(c.id, e.target.value || null)}
+                    aria-label={`Kitchen station for ${c.name}`}
+                    className="h-6 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-1 text-[11.5px] text-foreground"
+                  >
+                    <option value="">No station</option>
+                    {stations.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                )}
                 <button
                   onClick={() => deleteCategory(c.id)}
                   aria-label={`Delete ${c.name}`}
@@ -560,6 +589,12 @@ export default function MenuManager({
               <span className="text-[13px] text-muted-foreground">No categories yet.</span>
             )}
           </div>
+          {stations.length > 0 && (
+            <p className="mt-2 text-[11.5px] text-muted-foreground">
+              A category&apos;s station routes its items to a kitchen printer bound to that station (set up
+              under Settings → KOT printing). Manage the stations themselves there too.
+            </p>
+          )}
           <div className="mt-3 flex gap-2">
             <input
               value={newCat}

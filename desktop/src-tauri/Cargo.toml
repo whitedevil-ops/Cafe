@@ -20,6 +20,19 @@ serde_json = "1"
 # Bluetooth and USB thermal printers reach Windows as a COM port; this is how
 # ESC/POS bytes get to one without a printer driver in the way.
 serialport = "4"
+# The print bridge's HTTP client. rustls instead of the platform TLS stack so
+# the build never needs a system OpenSSL toolchain.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# IANA-tzdata-aware timestamp formatting for the bridge's ticket headers.
+# chrono-tz compiles the zone database in, so this never needs a runtime
+# download the way some OS tzdata packages do.
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+chrono-tz = "0.10"
+# Tauri already runs on tokio (tauri::async_runtime::spawn is built on it),
+# but that doesn't make the `tokio` crate name usable here — Cargo only
+# exposes crates listed as direct dependencies. Only the `time` feature is
+# needed: the bridge loop's poll interval.
+tokio = { version = "1", features = ["time"] }
 
 [[bin]]
 name = "khaopiyo"

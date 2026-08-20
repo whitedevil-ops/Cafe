@@ -2,7 +2,7 @@
 // browser print path gives no feedback — a wrong ticket just quietly comes out
 // wrong. These guard the rules that matter on paper.
 import { describe, it, expect } from 'vitest'
-import { kotHtml, type KotTicket } from '@/lib/kot-print'
+import { kotHtml, kotUpdateHtml, type KotTicket, type KotUpdateTicket } from '@/lib/kot-print'
 
 const base: KotTicket = {
   kotNumber: '42',
@@ -19,10 +19,13 @@ const base: KotTicket = {
 }
 
 describe('kotHtml', () => {
-  it('leads with the order number and the table', () => {
+  it('leads with the table as the biggest thing on the ticket, order number secondary', () => {
     const html = kotHtml(base)
     expect(html).toContain('#42')
-    expect(html).toContain('Table T08')
+    // The table is the hero — deliberately uppercased, the most prominent
+    // text on the ticket (spec: "make the table number extremely
+    // prominent"), not the same title-cased text as a meta line.
+    expect(html).toContain('TABLE T08')
   })
 
   it('formats the time in the café zone, not the machine zone', () => {
@@ -46,7 +49,7 @@ describe('kotHtml', () => {
   it('carries every item with its quantity, modifiers and note', () => {
     const html = kotHtml(base)
     expect(html).toContain('Veg Burger')
-    expect(html).toContain('>2<')
+    expect(html).toContain('>2&times;<')
     expect(html).toContain('Extra Cheese')
     expect(html).toContain('NO ONION')
     expect(html).toContain('Fries')
@@ -81,8 +84,44 @@ describe('kotHtml', () => {
     expect(html).toContain('A &amp; B')
   })
 
-  it('includes an order-level note when there is one', () => {
-    expect(kotHtml({ ...base, orderNote: 'no peanuts' })).toContain('NOTE: NO PEANUTS')
-    expect(kotHtml(base)).not.toContain('NOTE:')
+  it('gives an order-level note its own distinct KITCHEN NOTE callout', () => {
+    const html = kotHtml({ ...base, orderNote: 'no peanuts' })
+    // A separate, bordered callout with its own header — spec: "do not bury
+    // notes in small text", must never blend into the rest of the ticket.
+    expect(html).toContain('KITCHEN NOTE')
+    expect(html).toContain('NO PEANUTS')
+    expect(html).toContain('notebox')
+    expect(kotHtml(base)).not.toContain('KITCHEN NOTE')
+  })
+})
+
+describe('kotUpdateHtml', () => {
+  const updateBase: KotUpdateTicket = {
+    kotNumber: '42',
+    tableLabel: 'T08',
+    orderType: 'dine_in',
+    placedAt: '2026-07-23T14:12:00Z',
+    timezone: 'Asia/Kolkata',
+    paperWidth: '58mm',
+    added: [{ qty: 1, name: 'Cold Coffee' }],
+    removed: [{ qty: 1, name: 'Burger' }],
+  }
+
+  it('is visually marked as an update, never mistakable for a new order', () => {
+    const html = kotUpdateHtml(updateBase)
+    expect(html).toContain('KOT UPDATE')
+  })
+
+  it('marks added items with + and removed items with -', () => {
+    const html = kotUpdateHtml(updateBase)
+    expect(html).toContain('+ 1&times;')
+    expect(html).toContain('Cold Coffee')
+    expect(html).toContain('- 1&times;')
+    expect(html).toContain('Burger')
+  })
+
+  it('never prints money on an update ticket either', () => {
+    const html = kotUpdateHtml(updateBase)
+    expect(html).not.toContain('₹')
   })
 })

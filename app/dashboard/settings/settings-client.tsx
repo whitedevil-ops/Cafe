@@ -26,6 +26,7 @@ export type StaffMember = {
 export type StaffInvite = { id: string; email: string; role: string }
 export type PrintingState = {
   enabled: boolean
+  printOnUpdate: boolean
   printers: KotPrinter[]
   stations: KitchenStation[]
   tokens: BridgeToken[]
@@ -399,6 +400,7 @@ export default function SettingsClient({
         timezone={timezone}
         canManage={myRole === "owner" || myRole === "manager"}
         initialEnabled={printing.enabled}
+        initialPrintOnUpdate={printing.printOnUpdate}
         initialPrinters={printing.printers}
         initialStations={printing.stations}
         initialTokens={printing.tokens}

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Printer, PrinterCheck } from 'lucide-react'
 
 export type PrinterHealth = {
@@ -46,6 +47,9 @@ export function PrinterBanner({ health }: { health: PrinterHealth | null }) {
       <Printer size={15} className="shrink-0 text-warning" />
       <span className="text-[13.5px] font-medium text-warning">{headline}</span>
       <span className="text-[13px] text-warning/90">— Digital KDS is still active. Orders are not affected.</span>
+      <Link href="/dashboard/settings" className="text-[13px] font-medium text-warning underline">
+        View print queue
+      </Link>
     </div>
   )
 }
