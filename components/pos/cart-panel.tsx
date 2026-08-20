@@ -222,11 +222,13 @@ export function CartPanel({
 
   const takeaway = orderType === 'takeaway'
   const collecting = takeaway && tender !== 'pending'
-  // Customer name + a valid phone are compulsory for every POS order — the
-  // café wants every walk-in/counter sale captured for CRM, not just QR
-  // self-orders (place_order is unaffected; this is POS-only).
-  const phoneValid = /^[6-9]\d{9}$/.test(customerPhone)
-  const nameValid = customerName.trim().length > 0
+  // Customer name/phone are optional — a cashier can send an order with
+  // neither filled in (staff_place_order already treats both as nullable and
+  // simply skips the customer-CRM upsert when phone is empty). Still
+  // validated when something IS entered, so a half-typed or malformed phone
+  // number can't silently reach the RPC as garbage.
+  const phoneValid = customerPhone.trim().length === 0 || /^[6-9]\d{9}$/.test(customerPhone)
+  const nameValid = true
   const canSend = lines.length > 0 && !(orderType === 'dine_in' && !tableLabel)
     && !placing && !overCap && phoneValid && nameValid
 
