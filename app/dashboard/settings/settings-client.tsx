@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +35,8 @@ export type PrintingState = {
 
 const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
 
+export type OnlinePaymentsState = { enabled: boolean; razorpayStatus: string | null }
+
 export default function SettingsClient({
   cafeId,
   myUserId,
@@ -43,6 +46,7 @@ export default function SettingsClient({
   initialInvites,
   timezone,
   cashEnabled,
+  onlinePayments,
   printing,
   roleOverview,
 }: {
@@ -54,6 +58,7 @@ export default function SettingsClient({
   initialInvites: StaffInvite[]
   timezone: string
   cashEnabled: boolean
+  onlinePayments: OnlinePaymentsState
   printing: PrintingState
   roleOverview: RoleScreenOverview
 }) {
@@ -193,9 +198,21 @@ export default function SettingsClient({
           <p className="text-sm font-medium text-foreground">Payments</p>
           <p className="mt-1 text-[13px] text-muted-foreground">
             Customers place orders and pay at the counter — staff record <span className="font-medium text-foreground">cash</span> or{' '}
-            <span className="font-medium text-foreground">card</span> on the Tables or Kitchen screen.
-            Online UPI collection is <span className="font-medium text-foreground">not enabled yet</span>;
-            it will appear here once a payment provider is configured.
+            <span className="font-medium text-foreground">card</span> on the Tables or Kitchen screen.{' '}
+            {onlinePayments.enabled && onlinePayments.razorpayStatus === 'connected' ? (
+              <>Online UPI/card collection via Razorpay is <span className="font-medium text-success">connected and live</span>.</>
+            ) : onlinePayments.razorpayStatus === 'pending' ? (
+              <>Razorpay is connected but <span className="font-medium text-warning">still pending verification</span> — online collection isn&apos;t live yet.</>
+            ) : onlinePayments.razorpayStatus === 'disabled' ? (
+              <>Online collection was connected but is currently <span className="font-medium text-destructive">disabled</span>.</>
+            ) : (
+              <>Online UPI/card collection <span className="font-medium text-foreground">isn&apos;t connected yet</span>.</>
+            )}{' '}
+            {onlinePayments.razorpayStatus !== 'connected' && (
+              <Link href="/dashboard/profile?tab=payments" className="font-medium text-primary hover:underline">
+                Connect Razorpay in Café profile →
+              </Link>
+            )}
           </p>
         </div>
 

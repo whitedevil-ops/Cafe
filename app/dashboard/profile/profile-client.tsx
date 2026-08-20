@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Building2, ShieldCheck, ReceiptText, CreditCard, QrCode, ChefHat, SlidersHorizontal,
   Check, Info, ExternalLink, Plug,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { uploadCafeLogo } from '@/lib/image-upload'
 import { Button } from '@/components/ui/button'
@@ -100,6 +101,18 @@ export default function ProfileClient({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [section, setSection] = useState('basic')
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    // A deep link (e.g. Settings → "Connect Razorpay in Café profile") — read
+    // once on mount, not an ongoing sync, so a user picking a different
+    // section afterward isn't fought back to the linked one.
+    const tab = searchParams.get('tab')
+    if (tab && SECTIONS.some((s) => s.id === tab)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSection(tab)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const isAdmin = myRole === 'owner' || myRole === 'manager'
   const dis = !isAdmin
 

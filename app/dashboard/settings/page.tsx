@@ -16,7 +16,7 @@ export default async function SettingsPage() {
     await Promise.all([
       supabase
         .from('cafes')
-        .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled')
+        .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status')
         .eq('id', cafe.cafeId)
         .single(),
       supabase
@@ -61,6 +61,10 @@ export default async function SettingsPage() {
       initialInvites={(invites ?? []) as StaffInvite[]}
       timezone={cafe.timezone}
       cashEnabled={data?.cash_management_enabled ?? false}
+      onlinePayments={{
+        enabled: data?.online_payments_enabled ?? false,
+        razorpayStatus: data?.razorpay_status ?? 'not_connected',
+      }}
       printing={{
         enabled: data?.kot_printing_enabled ?? false,
         printOnUpdate: data?.kot_print_on_update ?? true,

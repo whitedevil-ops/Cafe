@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
@@ -65,13 +66,18 @@ export default async function CafeProfilePage() {
   const hours = { ...DEFAULT_HOURS, ...((settings?.hours as Hours | null) ?? {}) }
 
   return (
-    <ProfileClient
-      cafeId={cafe.cafeId}
-      userId={cafe.userId}
-      myRole={cafe.role}
-      initial={profile}
-      initialHours={hours}
-      timezone={cafe.timezone}
-    />
+    // useSearchParams (for the ?tab= deep link from Settings → Payments)
+    // needs a Suspense boundary around it for the static shell — same rule
+    // as /login's next-param handling.
+    <Suspense fallback={<div className="h-64" aria-hidden />}>
+      <ProfileClient
+        cafeId={cafe.cafeId}
+        userId={cafe.userId}
+        myRole={cafe.role}
+        initial={profile}
+        initialHours={hours}
+        timezone={cafe.timezone}
+      />
+    </Suspense>
   )
 }
