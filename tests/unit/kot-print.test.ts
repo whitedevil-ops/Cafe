@@ -84,6 +84,14 @@ describe('kotHtml', () => {
     expect(html).toContain('A &amp; B')
   })
 
+  it("shows the café's own name in the footer, never the platform's", () => {
+    const withName = kotHtml({ ...base, cafeName: 'Brewora' })
+    expect(withName).toContain('Brewora')
+    expect(withName).not.toContain('KhaoPiyo')
+    // No name given — omit the line rather than falling back to the platform brand.
+    expect(kotHtml(base)).not.toContain('KhaoPiyo')
+  })
+
   it('gives an order-level note its own distinct KITCHEN NOTE callout', () => {
     const html = kotHtml({ ...base, orderNote: 'no peanuts' })
     // A separate, bordered callout with its own header — spec: "do not bury

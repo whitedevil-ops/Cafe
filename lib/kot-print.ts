@@ -25,6 +25,8 @@ export type KotItem = {
 export type KotTicket = {
   /** Short order code. */
   kotNumber: string
+  /** The café's own name — printed in the footer. Never the platform's. */
+  cafeName?: string | null
   tableLabel?: string | null
   orderType?: string | null
   /** ISO timestamp; formatted in the café's zone, never the machine's. */
@@ -46,6 +48,7 @@ export type KotTicket = {
  * order at a glance. */
 export type KotUpdateTicket = {
   kotNumber: string
+  cafeName?: string | null
   tableLabel?: string | null
   orderType?: string | null
   placedAt: string
@@ -100,8 +103,8 @@ function metaLine(placedAt: string, timezone: string | undefined): string {
 
 const SOURCE_LABEL: Record<string, string> = { qr: 'QR', pos: 'POS', waiter: 'WAITER' }
 
-function footerLine(placedAt: string, timezone: string | undefined, source?: string | null): string {
-  const parts = ['KhaoPiyo', metaLine(placedAt, timezone)]
+function footerLine(placedAt: string, timezone: string | undefined, source?: string | null, cafeName?: string | null): string {
+  const parts = [esc(cafeName ?? ''), metaLine(placedAt, timezone)].filter(Boolean)
   const src = source ? SOURCE_LABEL[source] ?? source.toUpperCase() : null
   if (src) parts.push(esc(src))
   return parts.join(' &bull; ')
@@ -139,7 +142,7 @@ function ticketBody(t: KotTicket): string {
     items,
     noteBox(t.orderNote),
     '<div class="rule"></div>',
-    `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source)}</div>`,
+    `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source, t.cafeName)}</div>`,
     '<div class="tail"></div>',
     '</div>',
   ].join('')
@@ -161,7 +164,7 @@ function updateTicketBody(t: KotUpdateTicket): string {
     removed,
     noteBox(t.orderNote),
     '<div class="rule"></div>',
-    `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source)}</div>`,
+    `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source, t.cafeName)}</div>`,
     '<div class="tail"></div>',
     '</div>',
   ].join('')

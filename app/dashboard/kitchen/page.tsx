@@ -34,6 +34,7 @@ export default async function KitchenPage() {
   return (
     <KitchenClient
       cafeId={cafe.cafeId}
+      cafeName={cafe.name}
       tableLabels={tableLabels}
       printingEnabled={printingEnabled}
       paperWidth={printer?.paper_width === '80mm' ? '80mm' : '58mm'}

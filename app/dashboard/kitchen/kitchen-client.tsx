@@ -58,12 +58,14 @@ function useDing() {
 
 export default function KitchenClient({
   cafeId,
+  cafeName,
   tableLabels,
   printingEnabled,
   paperWidth,
   timezone,
 }: {
   cafeId: string
+  cafeName: string
   tableLabels: Record<string, string>
   printingEnabled: boolean
   paperWidth: '58mm' | '80mm'
@@ -117,6 +119,7 @@ export default function KitchenClient({
     if (its.length === 0) return toast('Nothing to print on this order.', 'error')
     await printKot({
       kotNumber: o.short_code,
+      cafeName,
       tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
       orderType: o.type,
       placedAt: o.created_at,

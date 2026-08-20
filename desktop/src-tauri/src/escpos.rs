@@ -59,6 +59,10 @@ pub struct Ticket {
     /// never anything a cook needs to act on, just useful context.
     #[serde(default)]
     pub source: Option<String>,
+    /// The café's own name, printed in the footer. Never the platform's —
+    /// this device is white-labelled onto someone else's counter.
+    #[serde(default)]
+    pub cafe_name: Option<String>,
 }
 
 /// A change-KOT delta ticket: what got added to and removed from an order
@@ -85,6 +89,8 @@ pub struct TicketUpdate {
     pub paper_mm: Option<u32>,
     #[serde(default)]
     pub copies: Option<u32>,
+    #[serde(default)]
+    pub cafe_name: Option<String>,
 }
 
 const ESC: u8 = 0x1B;
@@ -329,16 +335,20 @@ fn render_kitchen_note(b: &mut Builder, note: Option<&str>, cols: usize) {
     }
 }
 
-/// Minimal on purpose: where the order came from, and the café name. Nothing
-/// a cook needs to act on lives here.
-fn render_footer(b: &mut Builder, source: Option<&str>, cols: usize) {
+/// Minimal on purpose: where the order came from, and the café's own name —
+/// never the platform's. Nothing a cook needs to act on lives here.
+fn render_footer(b: &mut Builder, source: Option<&str>, cafe_name: Option<&str>, cols: usize) {
     b.align(1);
     if let Some(s) = source.map(str::trim).filter(|s| !s.is_empty()) {
         for l in wrap(&format!("via {}", s.to_uppercase()), cols) {
             b.line(&l);
         }
     }
-    b.line("KhaoPiyo");
+    if let Some(name) = cafe_name.map(str::trim).filter(|s| !s.is_empty()) {
+        for l in wrap(name, cols) {
+            b.line(&l);
+        }
+    }
 }
 
 fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
@@ -361,7 +371,7 @@ fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
     }
 
     render_kitchen_note(b, t.order_note.as_deref(), cols);
-    render_footer(b, t.source.as_deref(), cols);
+    render_footer(b, t.source.as_deref(), t.cafe_name.as_deref(), cols);
     b.feed(3).cut();
 }
 
@@ -396,7 +406,7 @@ fn render_update_one(b: &mut Builder, t: &TicketUpdate, cols: usize) {
     }
 
     render_kitchen_note(b, t.order_note.as_deref(), cols);
-    render_footer(b, None, cols);
+    render_footer(b, None, t.cafe_name.as_deref(), cols);
     b.feed(3).cut();
 }
 
@@ -442,6 +452,7 @@ mod tests {
             paper_mm: Some(58),
             copies: None,
             source: None,
+            cafe_name: Some("Brewora".into()),
         }
     }
 
@@ -563,6 +574,22 @@ mod tests {
     }
 
     #[test]
+    fn footer_shows_the_cafes_own_name_not_the_platforms() {
+        let t = ticket();
+        let text = as_text(&render(&t));
+        assert!(text.contains("Brewora"), "expected the cafe's own name, got {text:?}");
+        assert!(!text.contains("KhaoPiyo"), "the ticket must never print the platform's brand, got {text:?}");
+    }
+
+    #[test]
+    fn footer_omits_the_cafe_name_line_when_none_is_given() {
+        let mut t = ticket();
+        t.cafe_name = None;
+        let text = as_text(&render(&t));
+        assert!(!text.contains("KhaoPiyo"), "must not fall back to the platform brand, got {text:?}");
+    }
+
+    #[test]
     fn wraps_a_long_kitchen_note_without_overflowing_the_paper_width() {
         let mut t = ticket();
         t.order_note = Some(
@@ -599,6 +626,7 @@ mod tests {
             order_note: None,
             paper_mm: Some(58),
             copies: None,
+            cafe_name: Some("Brewora".into()),
         };
         let text = as_text(&render_update(&t));
         assert!(text.contains("KOT UPDATE"));

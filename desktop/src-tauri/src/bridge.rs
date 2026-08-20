@@ -117,6 +117,8 @@ struct PrinterInfo {
 struct RawTicket {
     kot_number: String,
     #[serde(default)]
+    cafe_name: Option<String>,
+    #[serde(default)]
     table_label: Option<String>,
     #[serde(default)]
     order_type: Option<String>,
@@ -143,6 +145,8 @@ struct RawTicket {
 #[derive(serde::Deserialize, Default)]
 struct RawTicketUpdate {
     kot_number: String,
+    #[serde(default)]
+    cafe_name: Option<String>,
     #[serde(default)]
     table_label: Option<String>,
     #[serde(default)]
@@ -205,6 +209,7 @@ fn build_ticket(doc: RawTicket) -> Ticket {
         paper_mm: map_paper_mm(doc.paper_width.as_deref()),
         copies: doc.copies,
         source: doc.source,
+        cafe_name: doc.cafe_name,
     }
 }
 
@@ -224,6 +229,7 @@ fn build_ticket_update(doc: RawTicketUpdate) -> TicketUpdate {
         order_note: doc.order_note,
         paper_mm: map_paper_mm(doc.paper_width.as_deref()),
         copies: doc.copies,
+        cafe_name: doc.cafe_name,
     }
 }
 
