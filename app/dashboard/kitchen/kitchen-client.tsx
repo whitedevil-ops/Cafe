@@ -35,16 +35,22 @@ function useDing() {
       ctx.current ??= new AudioContext()
       const ac = ctx.current
       if (ac.state === 'suspended') void ac.resume()
-      ;[0, 0.18].forEach((o) => {
+      // An alternating two-tone alarm, not a soft notification chime — this
+      // has to cut through a loud, busy kitchen and read as "act now", not
+      // "FYI". Square wave for a harsher, more piercing edge than a sine.
+      const TONES = [1046, 784, 1046, 784]
+      TONES.forEach((freq, i) => {
+        const o = i * 0.13
         const osc = ac.createOscillator()
         const g = ac.createGain()
-        osc.frequency.value = 880
+        osc.type = 'square'
+        osc.frequency.value = freq
         osc.connect(g).connect(ac.destination)
         g.gain.setValueAtTime(0.0001, ac.currentTime + o)
-        g.gain.exponentialRampToValueAtTime(0.5, ac.currentTime + o + 0.01)
-        g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + o + 0.15)
+        g.gain.exponentialRampToValueAtTime(0.35, ac.currentTime + o + 0.008)
+        g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + o + 0.11)
         osc.start(ac.currentTime + o)
-        osc.stop(ac.currentTime + o + 0.16)
+        osc.stop(ac.currentTime + o + 0.12)
       })
     } catch {}
   }, [])
