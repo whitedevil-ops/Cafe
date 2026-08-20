@@ -210,9 +210,29 @@ export default function MenuManager({
   }, [items, search, categoryFilter, availabilityFilter])
 
   // ── Category CRUD ──────────────────────────────────────────────────────────
+  // Case/whitespace-insensitive so "COFFEE" doesn't sit unnoticed next to an
+  // existing "Coffee" — found live: a real café had accumulated near-duplicate
+  // categories ("Hot Coffee" next to "COFFEE", "Tea & Beverages" next to
+  // "TEA & HOT BEVERAGES") from imports at different times, with nothing
+  // ever flagging it. Warns rather than blocks — a café might genuinely want
+  // two similarly-named categories, this just makes sure that's on purpose.
+  function normalizedCatName(s: string) {
+    return s.trim().toLowerCase().replace(/\s+/g, ' ')
+  }
+
   async function addCategory() {
     const name = newCat.trim()
     if (!name) return
+    const norm = normalizedCatName(name)
+    const dupe = categories.find((c) => normalizedCatName(c.name) === norm)
+    if (dupe) {
+      const ok = await confirm({
+        title: `"${dupe.name}" already exists`,
+        description: `A category with the same name (just different capitalisation/spacing) is already on your menu. Add "${name}" as a separate category anyway?`,
+        confirmLabel: 'Add anyway',
+      })
+      if (!ok) return
+    }
     setBusy(true)
     setError(null)
     const sort = categories.length
