@@ -610,6 +610,14 @@ with expected(kind, name, fix) as (values
   -- cafes.kot_print_on_update column (both tracked below); re-bodies
   -- enqueue_kot_jobs only (same no-arg trigger-function signature) to use it.
   --
+  -- 0152 -- KOT tickets print the cafe's own name. Re-bodies build_kot_payload,
+  -- build_kot_update_payload and test_print only (all unchanged signatures).
+  -- No new tracked object.
+  --
+  -- 0153 -- Table write-off. New write_off_session function (tracked below);
+  -- re-bodies close_session only (same (uuid) signature) to also clear its
+  -- session's notifications on close.
+  --
   -- 0145 -- GST credit notes for refunds.
   ('table',    'credit_note_counters',                '0145'),
   ('function', 'claim_credit_note_number',             '0145'),
@@ -623,7 +631,9 @@ with expected(kind, name, fix) as (values
   --
   -- KOT print bridge (0150/0151).
   ('function', 'build_kot_update_payload',            '0151'),
-  ('column',   'cafes.kot_print_on_update',           '0151')
+  ('column',   'cafes.kot_print_on_update',           '0151'),
+  -- Table write-off (0153).
+  ('function', 'write_off_session',                   '0153')
 )
 select
   e.kind,

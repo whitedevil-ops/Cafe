@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
 import { RefundDialog, type RefundableItem } from '@/components/orders/refund-dialog'
+import { WriteOffDialog } from '@/components/tables/write-off-dialog'
 import { businessDayStart } from '@/lib/datetime'
 import { byTableLabel } from '@/lib/table-sort'
 import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
@@ -109,6 +110,9 @@ export default function FloorClient({
   const [cancelling, setCancelling] = useState<SessionOrder | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [writingOff, setWritingOff] = useState(false)
+  const [writeOffSubmitting, setWriteOffSubmitting] = useState(false)
+  const [writeOffError, setWriteOffError] = useState<string | null>(null)
   const [refunding, setRefunding] = useState<SessionOrder | null>(null)
   const [refundSubmitting, setRefundSubmitting] = useState(false)
   const [refundError, setRefundError] = useState<string | null>(null)
@@ -555,6 +559,27 @@ export default function FloorClient({
     void poll()
   }
 
+  // The one deliberate exception to close_session's "no unpaid balance" rule
+  // — for a table that's genuinely been abandoned (customer walked out, or
+  // staff forgot to close it days ago), not a substitute for actually
+  // collecting money that's still collectible. Owner/manager only, reason
+  // required, fully audited server-side (write_off_session, migration 0153).
+  async function confirmWriteOff(reason: string) {
+    const session = selected ? sessionByTable.get(selected) : null
+    if (!session) return
+    const label = selTable?.label
+    setWriteOffSubmitting(true)
+    setWriteOffError(null)
+    const { data, error } = await supabase.rpc('write_off_session', { p_session_id: session.id, p_reason: reason })
+    setWriteOffSubmitting(false)
+    if (error) return setWriteOffError(error.message)
+    const amount = (data as { amount_written_off: number } | null)?.amount_written_off ?? 0
+    setWritingOff(false)
+    setSelected(null)
+    toast(label ? `Table ${label} written off — ₹${amount}.` : `Table written off — ₹${amount}.`)
+    void poll()
+  }
+
   // Split is a UI division of the same money. Financially it is the full
   // remaining bill paid by one method, allocated across the session's unpaid
   // orders through the validated ledger — so Bills, Tables and the dashboard
@@ -954,6 +979,18 @@ export default function FloorClient({
               </button>
             )}
 
+            {/* For a table that's genuinely been abandoned, not a substitute
+                for actually collecting a real, still-collectible bill —
+                deliberately quiet styling and owner/manager only. */}
+            {selSession && canEditLayout && !canClose && (
+              <button
+                onClick={() => { setWriteOffError(null); setWritingOff(true) }}
+                className="mt-2 w-full rounded-[var(--radius)] border border-border-strong py-2.5 text-[12.5px] font-medium text-muted-foreground hover:border-destructive hover:text-destructive"
+              >
+                Table abandoned — write off instead
+              </button>
+            )}
+
             {doneOrders.length > 0 && (
               <div className="mt-6">
                 <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Earlier today</p>
@@ -1012,6 +1049,17 @@ export default function FloorClient({
           error={cancelError}
           onClose={() => setCancelling(null)}
           onConfirm={confirmCancel}
+        />
+      )}
+
+      {writingOff && selTable && (
+        <WriteOffDialog
+          tableLabel={selTable.label}
+          amountDue={selRemaining}
+          submitting={writeOffSubmitting}
+          error={writeOffError}
+          onClose={() => setWritingOff(false)}
+          onConfirm={confirmWriteOff}
         />
       )}
 
