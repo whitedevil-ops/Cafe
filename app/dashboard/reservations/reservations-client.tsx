@@ -76,6 +76,8 @@ export default function ReservationsClient({
   const [notes, setNotes] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [reasonFor, setReasonFor] = useState<{ r: Reservation; status: string } | null>(null)
+  const [reasonNote, setReasonNote] = useState('')
 
   async function reload(next: typeof range) {
     setRange(next)
@@ -113,7 +115,6 @@ export default function ReservationsClient({
 
   async function setStatus(r: Reservation, status: string) {
     const destructive = status === 'cancelled' || status === 'no_show'
-    let reason: string | undefined
     if (destructive) {
       const ok = await confirm({
         title: `${STATUS_LABEL[status]} this reservation?`,
@@ -122,10 +123,21 @@ export default function ReservationsClient({
         destructive: true,
       })
       if (!ok) return
-      reason = window.prompt('Reason (optional):') ?? undefined
+      // The decision is already made at this point — this step only offers
+      // to attach an optional reason, so it must never look like a second
+      // chance to back out (a native window.prompt's own Cancel used to
+      // silently proceed anyway, which read as a real bug: the one button
+      // that looked like "undo" didn't undo anything).
+      setReasonNote('')
+      setReasonFor({ r, status })
+      return
     }
+    await applyStatus(r, status, null)
+  }
+
+  async function applyStatus(r: Reservation, status: string, reason: string | null) {
     setReservations((list) => list.map((x) => (x.id === r.id ? { ...x, status } : x)))
-    const { error } = await supabase.rpc('set_reservation_status', { p_reservation_id: r.id, p_status: status, p_reason: reason ?? null })
+    const { error } = await supabase.rpc('set_reservation_status', { p_reservation_id: r.id, p_status: status, p_reason: reason })
     if (error) {
       setReservations((list) => list.map((x) => (x.id === r.id ? { ...x, status: r.status } : x)))
       toast(error.message, 'error')
@@ -233,6 +245,45 @@ export default function ReservationsClient({
             </li>
           ))}
         </ul>
+      )}
+
+      {reasonFor && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end justify-center bg-black/40 sm:items-center sm:p-6"
+          onClick={() => { void applyStatus(reasonFor.r, reasonFor.status, reasonNote.trim() || null); setReasonFor(null) }}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-2xl bg-surface p-6 shadow-[var(--shadow-lg)] sm:rounded-[var(--radius-lg)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-[15px] font-semibold text-foreground">Add a reason? (optional)</h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              {STATUS_LABEL[reasonFor.status]} is already confirmed — this just records why, for the log.
+            </p>
+            <textarea
+              value={reasonNote}
+              onChange={(e) => setReasonNote(e.target.value)}
+              autoFocus
+              rows={2}
+              placeholder="e.g. Customer called to cancel"
+              className="mt-3 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => { void applyStatus(reasonFor.r, reasonFor.status, null); setReasonFor(null) }}
+                className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => { void applyStatus(reasonFor.r, reasonFor.status, reasonNote.trim() || null); setReasonFor(null) }}
+                className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[14px] font-medium text-primary-foreground"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

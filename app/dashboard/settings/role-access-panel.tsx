@@ -25,6 +25,8 @@ const SCREENS: { key: string; label: string }[] = [
   { key: 'coupons', label: 'Coupons & offers' },
   { key: 'loyalty', label: 'Loyalty & rewards' },
   { key: 'wallet', label: 'Wallet' },
+  { key: 'reservations', label: 'Reservations' },
+  { key: 'analytics', label: 'Analytics' },
   { key: 'reports', label: 'Reports' },
   { key: 'expenses', label: 'Expenses' },
   { key: 'profile', label: 'Café profile' },
