@@ -137,12 +137,15 @@ export default async function PosPage() {
       addons={(addons ?? []) as PosAddon[]}
       tables={posTables}
       areas={posAreas}
-      loyaltyEnabled={cafeRow?.loyalty_enabled ?? false}
-      // The POS previously consulted only cafes.loyalty_enabled — a per-café
-      // ON/OFF switch — and never the plan entitlement, so the spin-code and
-      // coupon boxes rendered on Starter and Trial, which cannot have either.
       // Both conditions are required: the plan decides whether a café MAY have
       // the feature, the toggle decides whether they WANT it on right now.
+      // FOUND LIVE: this line still only checked the toggle, not the plan —
+      // a café downgraded from Scale to Starter kept showing customer points
+      // and reward pills in the POS (server-side redemption correctly
+      // rejected it as "not in this plan", but nothing stopped the dead-end
+      // UI from showing in the first place). spinEnabled right below already
+      // had the correct fix; this line was the one spot it never reached.
+      loyaltyEnabled={loyaltyAllowed && (cafeRow?.loyalty_enabled ?? false)}
       spinEnabled={loyaltyAllowed && (cafeRow?.loyalty_enabled ?? false)}
       couponsEnabled={couponsAllowed}
       rewards={rewards ?? []}

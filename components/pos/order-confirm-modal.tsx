@@ -49,6 +49,7 @@ export function OrderConfirmModal({
   onCustomerName,
   customerLookup,
   lookingUpCustomer,
+  loyaltyEnabled,
   rewards,
   onRedeemReward,
   phoneValid,
@@ -125,6 +126,8 @@ export function OrderConfirmModal({
   onCustomerName: (v: string) => void
   customerLookup: CustomerLookup | null
   lookingUpCustomer: boolean
+  /** Plan entitlement AND the café's own toggle — see pos/page.tsx. */
+  loyaltyEnabled: boolean
   rewards: { id: string; name: string; points_cost: number }[]
   onRedeemReward: (rewardId: string) => void
   phoneValid: boolean
@@ -375,10 +378,16 @@ export function OrderConfirmModal({
           {lookingUpCustomer && <p className="mt-1.5 text-[11.5px] text-muted-foreground">Looking up customer…</p>}
           {customerLookup?.found && (
             <p className="mt-1.5 rounded-[var(--radius)] bg-primary-subtle px-3 py-1.5 text-[12px] font-medium text-primary">
-              {customerLookup.name ?? 'Returning customer'} · {customerLookup.visits} visit{customerLookup.visits === 1 ? '' : 's'} · {customerLookup.points} points
+              {customerLookup.name ?? 'Returning customer'} · {customerLookup.visits} visit{customerLookup.visits === 1 ? '' : 's'}
+              {/* Points exist as data regardless of plan — a downgraded café
+                  still has the balance on file, it just can't earn/redeem
+                  right now. Showing "0 points" or a real number either way
+                  invites a redemption the server will reject; leaving the
+                  line off matches what the café can actually do today. */}
+              {loyaltyEnabled && <> · {customerLookup.points} points</>}
             </p>
           )}
-          {customerLookup?.found && rewards.length > 0 && (customerLookup.points ?? 0) > 0 && (
+          {loyaltyEnabled && customerLookup?.found && rewards.length > 0 && (customerLookup.points ?? 0) > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {rewards
                 .filter((r) => r.points_cost <= (customerLookup.points ?? 0))

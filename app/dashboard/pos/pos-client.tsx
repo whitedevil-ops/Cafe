@@ -908,6 +908,7 @@ export default function PosClient({
     : null
 
   const cartProps = {
+    loyaltyEnabled,
     spinEnabled,
     couponsEnabled,
     gstRegistered,

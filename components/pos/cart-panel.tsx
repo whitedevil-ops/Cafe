@@ -71,6 +71,7 @@ export function CartPanel({
   gstRegistered,
   taxInclusive,
   itemTaxRates,
+  loyaltyEnabled,
   spinEnabled,
   couponsEnabled,
   spinPrize,
@@ -141,6 +142,7 @@ export function CartPanel({
   /** menu_item_id -> its own GST rate; null/absent means the café default. */
   itemTaxRates: Record<string, number | null>
   /** Plan entitlement AND the café's own toggle — see pos/page.tsx. */
+  loyaltyEnabled: boolean
   spinEnabled: boolean
   couponsEnabled: boolean
   spinPrize: HeldPrize | null
@@ -280,6 +282,7 @@ export function CartPanel({
       cafeId={cafeId}
       maxPct={maxPct}
       overCap={overCap}
+      loyaltyEnabled={loyaltyEnabled}
       spinEnabled={spinEnabled}
       couponsEnabled={couponsEnabled}
       spinPrize={spinPrize}
