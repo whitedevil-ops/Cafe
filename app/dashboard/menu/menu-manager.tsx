@@ -15,6 +15,22 @@ import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 import type { Combo, ComboSlot } from '@/lib/combos'
 
+// PostgREST's PGRST116 ("JSON object requested, multiple (or no) rows
+// returned") is what .update(...).select().single() throws when the update's
+// WHERE clause matched zero rows — almost always because row-level security
+// silently rejected the write (an expired/stale session, or a role that
+// isn't allowed to edit the menu), not because the item stopped existing.
+// The raw message is meaningless to a café owner; this turns it into
+// something actionable instead of "Cannot coerce the result to a single
+// JSON object."
+function friendlyWriteError(error: { code?: string; message: string } | null): string | null {
+  if (!error) return null
+  if (error.code === 'PGRST116') {
+    return "Couldn't save — this can happen if your sign-in expired or you don't have permission to edit the menu. Try refreshing the page and signing in again."
+  }
+  return error.message
+}
+
 // Each option carries the price a guest actually pays and the margin the owner
 // actually keeps — the same two numbers the menu sheet asks for. The database
 // stores them as deltas from the base item (price_delta / cost_delta), so the
@@ -242,7 +258,7 @@ export default function MenuManager({
       .select()
       .single()
     setBusy(false)
-    if (error) return setError(error.message)
+    if (error) return setError(friendlyWriteError(error))
     setCategories((c) => [...c, data as MenuCategory])
     setNewCat('')
   }
@@ -345,7 +361,7 @@ export default function MenuManager({
         .single()
       if (error) {
         setBusy(false)
-        return setError(error.message)
+        return setError(friendlyWriteError(error))
       }
       setItems((list) => list.map((i) => (i.id === draft.id ? (data as MenuItemRow) : i)))
     } else {
@@ -357,7 +373,7 @@ export default function MenuManager({
         .single()
       if (error) {
         setBusy(false)
-        return setError(error.message)
+        return setError(friendlyWriteError(error))
       }
       itemId = (data as MenuItemRow).id
       setItems((list) => [...list, data as MenuItemRow])
