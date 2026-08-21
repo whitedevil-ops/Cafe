@@ -51,7 +51,18 @@ async function uploadToCafeFolder(
 
   const res = await fetch('/api/images/upload', { method: 'POST', body: form })
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) return { error: body.error ?? 'Upload failed.' }
+  if (!res.ok) {
+    // A 403 here is the server's café-membership check rejecting the request
+    // for the café id this page loaded with. That check is correct and
+    // matches the real membership table — what's stale is the browser: a
+    // switched café, a re-login, or a long-backgrounded tab left the page's
+    // own café context behind. The bare "not authorized" text reads like a
+    // real permissions error with no way out, so point at the actual fix.
+    if (res.status === 403) {
+      return { error: 'Couldn’t upload — your session may be out of date. Refresh the page and try again.' }
+    }
+    return { error: body.error ?? 'Upload failed.' }
+  }
   return { url: body.url as string }
 }
 

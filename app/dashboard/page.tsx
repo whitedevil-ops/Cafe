@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
 import DashboardClient, { type CommandCenterData, type DailySummary } from './dashboard-client'
 import { businessDayStartISO, businessDaysAgoStartISO, DEFAULT_TIMEZONE } from '@/lib/datetime'
@@ -32,6 +33,8 @@ export async function loadCommandCenterData(
     lowStock,
     { count: staffCount },
     { count: everOrderCount },
+    crmAllowed,
+    inventoryAllowed,
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
@@ -49,6 +52,15 @@ export async function loadCommandCenterData(
     supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
     supabase.from('cafe_members').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).limit(1),
+    // v_customer_stats and low_stock_items are plain member-scoped reads with
+    // no plan check of their own (unlike e.g. loyalty's RPCs) — the customers
+    // and inventory PAGES correctly gate behind these same two flags, but this
+    // command-center summary queried both unconditionally, so a café on a
+    // plan without CRM or inventory still saw real customer names/spend and
+    // stock alerts here. Same bug class as the loyaltyEnabled fix, just found
+    // on the home dashboard instead of the POS.
+    hasFeature(cafeId, 'crm'),
+    hasFeature(cafeId, 'inventory'),
   ])
 
   const orders = todayOrders.data ?? []
@@ -75,12 +87,12 @@ export async function loadCommandCenterData(
     occupiedTables,
     totalTables: totalTables ?? 0,
     collectionsByMethod,
-    atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
+    atRiskCustomers: crmAllowed ? (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })) : [],
     newCustomersToday: newCustomers ?? 0,
     cashEnabled: cafeRow.data?.cash_management_enabled ?? false,
     // Tolerates the RPC not existing yet (migration 0035 unrun) — the
     // dashboard must not break on a café that hasn't migrated.
-    lowStockItems: (lowStock.data ?? []) as { name: string; current_stock: number; min_stock: number; unit: string }[],
+    lowStockItems: inventoryAllowed ? (lowStock.data ?? []) as { name: string; current_stock: number; min_stock: number; unit: string }[] : [],
     shift: (() => {
       const s = (latestShift.data ?? [])[0]
       if (!s) return null
@@ -101,6 +113,8 @@ export async function loadCommandCenterData(
       qrGenerated: (totalTables ?? 0) > 0,
       testOrderPlaced: (everOrderCount ?? 0) > 0,
     },
+    crmAllowed,
+    inventoryAllowed,
   }
 }
 

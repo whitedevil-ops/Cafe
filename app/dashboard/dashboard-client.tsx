@@ -52,6 +52,8 @@ export type CommandCenterData = {
     qrGenerated: boolean
     testOrderPlaced: boolean
   }
+  crmAllowed: boolean
+  inventoryAllowed: boolean
 }
 
 export default function DashboardClient({
@@ -116,10 +118,16 @@ export default function DashboardClient({
       occupiedTables,
       totalTables: totalTables ?? 0,
       collectionsByMethod,
-      atRiskCustomers: (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })),
+      // crmAllowed/inventoryAllowed aren't refetched here — they're plan
+      // entitlements, not live counters, so the value the page loaded with
+      // (carried forward from prev, same as checklist) stays authoritative
+      // for the life of this tab. Without this the 30s poll would silently
+      // resurrect at-risk-customer/low-stock data for a café whose plan
+      // doesn't include it.
+      atRiskCustomers: prev.crmAllowed ? (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })) : [],
       newCustomersToday: newCustomers ?? 0,
       cashEnabled: cashSetting.data?.cash_management_enabled ?? false,
-      lowStockItems: (lowStock.data ?? []) as CommandCenterData['lowStockItems'],
+      lowStockItems: prev.inventoryAllowed ? (lowStock.data ?? []) as CommandCenterData['lowStockItems'] : [],
       shift: (() => {
         const s = (latestShift.data ?? [])[0]
         if (!s) return null
@@ -132,6 +140,8 @@ export default function DashboardClient({
         }
       })(),
       checklist: prev.checklist,
+      crmAllowed: prev.crmAllowed,
+      inventoryAllowed: prev.inventoryAllowed,
     }))
     setLastPolledAt(new Date())
   }, [supabase, cafeId, timezone])
