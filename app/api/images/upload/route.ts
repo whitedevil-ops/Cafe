@@ -41,9 +41,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'File is empty or too large.' }, { status: 400 })
   }
 
+  // cafe_members has no id column — its primary key is the (cafe_id, user_id)
+  // pair (schema.sql). Selecting 'id' made this query fail with PostgREST
+  // 42703 on every single call; the destructure below dropped that error on
+  // the floor, so the resulting null read as "not a member" 100% of the
+  // time, for every café, on every image upload. cafe_id is a real column
+  // and is all this needs to check for a matching row.
   const { data: membership } = await supabase
     .from('cafe_members')
-    .select('id')
+    .select('cafe_id')
     .eq('cafe_id', cafeId)
     .eq('user_id', user.id)
     .eq('status', 'active')

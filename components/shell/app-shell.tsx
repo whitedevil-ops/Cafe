@@ -290,7 +290,7 @@ export function AppShell({
             >
               <CircleHelp size={16} /> Help
             </a>
-            <NotificationBell cafeId={cafeId} timezone={timezone} />
+            <NotificationBell cafeId={cafeId} timezone={timezone} inventoryAllowed={features.inventory ?? false} />
 
             <div className="relative">
               <button

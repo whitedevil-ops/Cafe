@@ -33,6 +33,22 @@ export type OverviewReport = {
   attention: { outstanding_amount: number; refunds_amount: number; cancelled_orders: number; low_stock_count: number }
 }
 
+// business_overview_report() checks only is_cafe_member(), same as the two
+// already-fixed v_customer_stats/low_stock_items leaks — top_customers is the
+// same CRM-analytics shape (name + spend, ranked) as v_customer_stats, and
+// attention.low_stock_count comes straight from the low_stock_items RPC. Both
+// need the plan gate the RPC itself never applies. Exported so page.tsx's
+// server-side initial load and this file's own client-side load() apply the
+// exact same redaction instead of drifting.
+export function redactReport(report: OverviewReport | null, crmAllowed: boolean, inventoryAllowed: boolean): OverviewReport | null {
+  if (!report) return null
+  return {
+    ...report,
+    top_customers: crmAllowed ? report.top_customers : [],
+    attention: { ...report.attention, low_stock_count: inventoryAllowed ? report.attention.low_stock_count : 0 },
+  }
+}
+
 type Preset = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'custom'
 
 const TYPE_LABEL: Record<string, string> = { dine_in: 'Dine-In', takeaway: 'Takeaway' }
@@ -78,6 +94,8 @@ export default function OverviewClient({
   initialFrom,
   initialTo,
   initialReport,
+  crmAllowed,
+  inventoryAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -87,6 +105,8 @@ export default function OverviewClient({
   initialTo: string
   initialReport: OverviewReport | null
   todayStart: string
+  crmAllowed: boolean
+  inventoryAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const canSeeProfit = role === 'owner' || role === 'manager'
@@ -105,9 +125,9 @@ export default function OverviewClient({
       const { data, error: err } = await supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
       setLoading(false)
       if (err) return setError(err.message)
-      setReport(data as OverviewReport)
+      setReport(redactReport(data as OverviewReport, crmAllowed, inventoryAllowed))
     },
-    [supabase, cafeId],
+    [supabase, cafeId, crmAllowed, inventoryAllowed],
   )
 
   function choosePreset(p: Preset) {

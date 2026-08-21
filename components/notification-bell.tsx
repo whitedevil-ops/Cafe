@@ -18,7 +18,18 @@ const TYPE_ICON: Record<string, typeof Bell> = {
   late_ticket: Clock3,
 }
 
-export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezone: string }) {
+export function NotificationBell({
+  cafeId,
+  timezone,
+  inventoryAllowed,
+}: {
+  cafeId: string
+  timezone: string
+  /** Plan entitlement (see app-shell.tsx) — notify_low_stock() inserts these
+   *  rows off a plain stock-threshold trigger with no plan check of its own,
+   *  so a café without the inventory feature can still accumulate them. */
+  inventoryAllowed: boolean
+}) {
   const supabase = useMemo(() => createClient(), [])
   const [notices, setNotices] = useState<Notice[]>([])
   const [open, setOpen] = useState(false)
@@ -30,8 +41,8 @@ export function NotificationBell({ cafeId, timezone }: { cafeId: string; timezon
       .eq('cafe_id', cafeId)
       .order('created_at', { ascending: false })
       .limit(30)
-    if (data) setNotices(data as Notice[])
-  }, [supabase, cafeId])
+    if (data) setNotices((inventoryAllowed ? data : data.filter((n) => n.type !== 'low_stock')) as Notice[])
+  }, [supabase, cafeId, inventoryAllowed])
 
   // Realtime is a supplement, not a replacement: a new call-waiter or
   // bill-requested notice appears the instant it's inserted instead of

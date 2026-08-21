@@ -96,6 +96,7 @@ export default function MenuManager({
   initialComboSlots,
   variants,
   stations,
+  inventoryAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -106,6 +107,9 @@ export default function MenuManager({
   initialComboSlots: ComboSlot[]
   variants: VariantRow[]
   stations: { id: string; name: string }[]
+  /** Plan entitlement — see page.tsx. Recipe-costed margin (menu_item_effective_cost)
+   *  is inventory-tier data, same as the Recipes page it's computed from. */
+  inventoryAllowed: boolean
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
@@ -466,7 +470,13 @@ export default function MenuManager({
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
       // What the database itself considers this item to cost, recipe included.
-      supabase.rpc('menu_item_effective_cost', { p_menu_item_id: item.id }),
+      // Recipe-derived cost is inventory-tier data (same entitlement the
+      // Recipes page itself requires) — the RPC only checks cafe membership,
+      // not plan, so the gate has to happen here instead of skipping the call
+      // entirely when the plan doesn't include it.
+      inventoryAllowed
+        ? supabase.rpc('menu_item_effective_cost', { p_menu_item_id: item.id })
+        : Promise.resolve({ data: null }),
     ])
     // Recipe-costed items price their options against the recipe total; manual
     // ones against the Cost field, which may legitimately be blank.
@@ -915,8 +925,10 @@ export default function MenuManager({
                       <button
                         key={src}
                         type="button"
+                        disabled={src === 'recipe' && !inventoryAllowed}
                         onClick={() => setDraft({ ...draft, cost_source: src })}
-                        className={`flex-1 rounded-[var(--radius-sm)] py-1.5 text-[12.5px] font-medium transition-colors ${
+                        title={src === 'recipe' && !inventoryAllowed ? 'Needs the Inventory plan feature' : undefined}
+                        className={`flex-1 rounded-[var(--radius-sm)] py-1.5 text-[12.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                           draft.cost_source === src ? 'bg-primary-subtle text-primary' : 'text-muted-foreground'
                         }`}
                       >
@@ -924,6 +936,13 @@ export default function MenuManager({
                       </button>
                     ))}
                   </div>
+
+                  {draft.cost_source === 'recipe' && !inventoryAllowed && (
+                    <p className="mt-3 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+                      This item was set to recipe-calculated costing, but your current plan doesn&apos;t include Inventory —
+                      margin isn&apos;t being worked out until you switch it to a manual margin or upgrade.
+                    </p>
+                  )}
 
                   {draft.cost_source === 'manual' ? (
                     <div className="mt-3">

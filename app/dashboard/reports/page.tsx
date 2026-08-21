@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
-import OverviewClient, { type OverviewReport } from './overview-client'
+import OverviewClient, { redactReport, type OverviewReport } from './overview-client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
@@ -15,11 +16,11 @@ export default async function ReportsOverviewPage() {
   const to = new Date().toISOString()
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('business_overview_report', {
-    p_cafe_id: cafe.cafeId,
-    p_from: from,
-    p_to: to,
-  })
+  const [{ data, error }, crmAllowed, inventoryAllowed] = await Promise.all([
+    supabase.rpc('business_overview_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
+    hasFeature(cafe.cafeId, 'crm'),
+    hasFeature(cafe.cafeId, 'inventory'),
+  ])
 
   return (
     <OverviewClient
@@ -29,8 +30,10 @@ export default async function ReportsOverviewPage() {
       timezone={cafe.timezone}
       initialFrom={from}
       initialTo={to}
-      initialReport={(error ? null : (data as OverviewReport)) ?? null}
+      initialReport={error ? null : redactReport(data as OverviewReport, crmAllowed, inventoryAllowed)}
       todayStart={businessDayStartISO(cafe.timezone)}
+      crmAllowed={crmAllowed}
+      inventoryAllowed={inventoryAllowed}
     />
   )
 }

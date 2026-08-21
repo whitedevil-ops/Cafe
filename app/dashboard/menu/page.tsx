@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
 import MenuManager from './menu-manager'
 import type { MenuCategory, MenuItemRow } from './types'
@@ -12,7 +13,7 @@ export default async function MenuPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: categories }, { data: items }, { data: combos }, { data: stations }] = await Promise.all([
+  const [{ data: categories }, { data: items }, { data: combos }, { data: stations }, inventoryAllowed] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase.from('menu_items').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     // `margin` is included here and nowhere else — the POS and QR menu select
@@ -22,6 +23,11 @@ export default async function MenuPage() {
     // this, kitchen_stations exists in the DB but a station-bound printer
     // can never actually match any item (see kot-printing-panel.tsx).
     supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
+    // Recipe-derived cost (menu_item_effective_cost RPC) is inventory-tier
+    // data — the Recipes page already gates on this same key. menu-manager.tsx
+    // needs it too so it can skip that RPC and hide the "Recipe calculated"
+    // cost source for a café whose plan doesn't include inventory.
+    hasFeature(cafe.cafeId, 'inventory'),
   ])
 
   // Slots for every combo, and variants for every item, in one round each —
@@ -50,6 +56,7 @@ export default async function MenuPage() {
       initialComboSlots={(comboSlots ?? []) as ComboSlot[]}
       variants={(variants ?? []) as { id: string; menu_item_id: string; name: string; price_delta: number }[]}
       stations={(stations ?? []) as { id: string; name: string }[]}
+      inventoryAllowed={inventoryAllowed}
     />
   )
 }
