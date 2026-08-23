@@ -289,8 +289,12 @@ export function OrderConfirmModal({
                 <div className="flex flex-wrap gap-1.5">
                   {recommendations.map((r) => (
                     <button key={r.id} onClick={() => onAddRecommendation(r)}
-                      className="flex items-center gap-1 rounded-full border border-border-strong bg-surface px-2.5 py-1.5 text-[12px] font-medium text-foreground hover:border-special hover:bg-special-subtle">
-                      <Plus size={11} className="text-special" /> {r.name} <span className="text-muted-foreground">₹{r.price}</span>
+                      className="flex items-center gap-1.5 rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 py-1.5 text-left hover:border-special hover:bg-special-subtle">
+                      <Plus size={11} className="shrink-0 text-special" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-[12px] font-medium text-foreground">{r.name}</span>
+                        <span className="block text-[10.5px] text-muted-foreground">{r.reason} · ₹{r.price}</span>
+                      </span>
                     </button>
                   ))}
                 </div>

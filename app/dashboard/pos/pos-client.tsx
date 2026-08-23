@@ -15,7 +15,8 @@ import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-d
 import { ComboPicker } from '@/components/pos/combo-picker'
 import { Customizer } from '@/components/pos/customizer'
 import type { HeldPrize } from '@/components/pos/spin-claim'
-import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
+import { businessDayStartISO, businessDaysAgoStartISO, businessWeekday } from '@/lib/datetime'
+import { effectivePrice, isOfferActiveToday } from '@/lib/offers'
 import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import type { PosVariant, PosAddon } from './page'
 
@@ -262,6 +263,14 @@ export default function PosClient({
   }, [items])
   const bestsellerCount = useMemo(() => items.filter((i) => i.is_bestseller).length, [items])
 
+  // Today's Offer — café-local day of week, matching what place_order/
+  // staff_place_order enforce server-side (see lib/offers.ts).
+  const todayWeekday = useMemo(() => businessWeekday(timezone), [timezone])
+  const offerActiveIds = useMemo(
+    () => new Set(items.filter((i) => isOfferActiveToday(i, todayWeekday)).map((i) => i.id)),
+    [items, todayWeekday],
+  )
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     const filtered = items
@@ -322,7 +331,7 @@ export default function PosClient({
     setCart((c) => {
       const found = c.find((l) => l.key === item.id)
       if (found) return c.map((l) => (l.key === item.id ? { ...l, qty: l.qty + 1 } : l))
-      return [...c, { key: item.id, itemId: item.id, variantId: null, addonIds: [], name: item.name, modLabel: '', unitPrice: item.price, qty: 1 }]
+      return [...c, { key: item.id, itemId: item.id, variantId: null, addonIds: [], name: item.name, modLabel: '', unitPrice: effectivePrice(item, todayWeekday), qty: 1 }]
     })
   }
 
@@ -360,7 +369,7 @@ export default function PosClient({
   function confirmCustom(item: FullItem, variantId: string | null, addonIds: string[]) {
     const v = variantId ? variantsByItem.get(item.id)?.find((x) => x.id === variantId) : null
     const chosen = (addonsByItem.get(item.id) ?? []).filter((a) => addonIds.includes(a.id))
-    const unit = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+    const unit = effectivePrice(item, todayWeekday) + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
     const label = [v?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', ')
     const key = `${item.id}|${variantId ?? ''}|${[...addonIds].sort().join(',')}`
     setCart((c) => {
@@ -1109,6 +1118,7 @@ export default function PosClient({
                     key={item.id}
                     item={item}
                     qty={qtyByItem.get(item.id) ?? 0}
+                    isOfferActiveToday={offerActiveIds.has(item.id)}
                     onAdd={() => (item.hasOptions ? setCustomizing(item) : addPlain(item))}
                   />
                 ))}
@@ -1177,6 +1187,8 @@ export default function PosClient({
           item={customizing}
           variants={variantsByItem.get(customizing.id) ?? []}
           addons={addonsByItem.get(customizing.id) ?? []}
+          basePrice={effectivePrice(customizing, todayWeekday)}
+          isOfferActiveToday={offerActiveIds.has(customizing.id)}
           onCancel={() => setCustomizing(null)}
           onAdd={confirmCustom}
         />

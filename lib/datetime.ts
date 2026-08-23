@@ -123,6 +123,19 @@ export function businessDaysAgoStartISO(
   return businessDayStartISO(timeZone, noonish)
 }
 
+/** The café-local day of week for an instant: 0=Sunday .. 6=Saturday, matching
+ *  Postgres's own `extract(dow from ...)` convention exactly (see
+ *  cafe_current_weekday() in supabase/migrations/0154_todays_offer_pricing.sql)
+ *  so a client-side "is today Tuesday" check and the server's can never
+ *  disagree. Deliberately not `Date#getDay()`, which reads the runtime's own
+ *  local timezone — wrong on a UTC server, per this file's own header. Anchors
+ *  the café-local calendar date at noon UTC (no `Intl` numeric-weekday option
+ *  exists) so there's no midnight/DST edge ambiguity in the read-back. */
+export function businessWeekday(timeZone: string = DEFAULT_TIMEZONE, ref: Date = new Date()): number {
+  const ymd = businessDayKey(ref, timeZone)
+  return new Date(`${ymd}T12:00:00Z`).getUTCDay()
+}
+
 /** True when the instant falls on the café's current business day. */
 export function isToday(value: Input, timeZone: string = DEFAULT_TIMEZONE): boolean {
   const d = toDate(value)

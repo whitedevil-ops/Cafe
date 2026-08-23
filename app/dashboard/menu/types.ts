@@ -24,4 +24,9 @@ export type MenuItemRow = {
   archived: boolean
   cost: number | null
   cost_source: 'manual' | 'recipe'
+  /** Today's Offer — see saveItem()/the "Today's Offer" drawer block.
+   *  Both null means no offer configured. Baseline, every-plan feature — not
+   *  gated by hasFeature(). offer_days is 0=Sunday..6=Saturday. */
+  offer_price: number | null
+  offer_days: number[] | null
 }

@@ -55,6 +55,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       cafeId={table.cafe_id}
       cafeName={cafe.name}
       cafeLogo={cafe.logo_url}
+      cafeTimezone={cafe.timezone ?? 'Asia/Kolkata'}
       tableLabel={table.label}
       onlinePaymentsEnabled={(cafe.online_payments_enabled ?? false) && cafe.razorpay_status === 'connected'}
       acceptPayCounter={cafe.accept_pay_counter ?? true}

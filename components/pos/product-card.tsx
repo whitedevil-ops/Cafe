@@ -15,6 +15,9 @@ export type PosItem = {
   hasOptions: boolean
   available: boolean
   created_at: string
+  /** Today's Offer — see lib/offers.ts for the "is it active today" check. */
+  offer_price: number | null
+  offer_days: number[] | null
 }
 
 // Mirrors the grid's column breakpoints exactly (2 → 3 → 4 columns beside the
@@ -24,10 +27,14 @@ const GRID_SIZES = '(max-width: 639px) 50vw, (max-width: 1279px) 33vw, 25vw'
 export function ProductCard({
   item,
   qty,
+  isOfferActiveToday,
   onAdd,
 }: {
   item: PosItem
   qty: number
+  /** Precomputed by the caller (which owns the café's timezone) — see
+   *  lib/offers.ts. */
+  isOfferActiveToday: boolean
   onAdd: () => void
 }) {
   return (
@@ -44,6 +51,7 @@ export function ProductCard({
         <FoodImage src={item.image_url} alt={item.name} sizes={GRID_SIZES} />
 
         <span className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-1">
+          {isOfferActiveToday && item.available && <FoodBadge label="Today's Offer" tone="special" />}
           {item.is_bestseller && item.available && <FoodBadge label="Bestseller" tone="gold" />}
           {item.hasOptions && item.available && <FoodBadge label="Customizable" tone="neutral" />}
         </span>
@@ -67,10 +75,18 @@ export function ProductCard({
           <p className="min-w-0 flex-1 truncate text-[14.5px] font-semibold leading-tight text-foreground">{item.name}</p>
         </div>
         <div className="mt-auto flex items-center justify-between pt-0.5">
-          <span className="text-[14px] font-semibold text-foreground">
-            ₹{item.price}
-            {item.hasOptions && <span className="text-muted-foreground">+</span>}
-          </span>
+          {isOfferActiveToday ? (
+            <span className="flex items-baseline gap-1 text-[14px] font-semibold text-special">
+              ₹{item.offer_price}
+              {item.hasOptions && <span className="text-muted-foreground">+</span>}
+              <span className="text-[11px] font-normal text-muted-foreground line-through">₹{item.price}</span>
+            </span>
+          ) : (
+            <span className="text-[14px] font-semibold text-foreground">
+              ₹{item.price}
+              {item.hasOptions && <span className="text-muted-foreground">+</span>}
+            </span>
+          )}
           <span
             aria-hidden
             className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary-subtle text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground"

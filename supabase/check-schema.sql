@@ -633,7 +633,14 @@ with expected(kind, name, fix) as (values
   ('function', 'build_kot_update_payload',            '0151'),
   ('column',   'cafes.kot_print_on_update',           '0151'),
   -- Table write-off (0153).
-  ('function', 'write_off_session',                   '0153')
+  ('function', 'write_off_session',                   '0153'),
+  --
+  -- Today's Offer (0154/0155). place_order and staff_place_order are
+  -- re-bodied only (unchanged signatures) -- no new tracked object for
+  -- either. Same for get_recommendations (0155).
+  ('column',   'menu_items.offer_price',               '0154'),
+  ('column',   'menu_items.offer_days',                '0154'),
+  ('function', 'cafe_current_weekday',                 '0154')
 )
 select
   e.kind,

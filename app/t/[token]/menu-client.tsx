@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, X, BellRing, ArrowLeft, Check } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
+import { businessWeekday } from '@/lib/datetime'
+import { effectivePrice, isOfferActiveToday } from '@/lib/offers'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
@@ -22,6 +24,7 @@ export type Addon = QrAddon
 const PHONE_RE = /^[6-9]\d{9}$/
 const NEW_ITEM_DAYS = 14
 const POPULAR = '__popular'
+const TODAY_OFFERS = '__todays_offers'
 const ORDER_STATUS_LABEL: Record<string, string> = {
   placed: 'Order placed', accepted: 'Accepted', preparing: 'Preparing',
   ready: 'Ready', served: 'Served', completed: 'Completed',
@@ -51,6 +54,7 @@ export default function MenuClient({
   cafeId,
   cafeName,
   cafeLogo,
+  cafeTimezone,
   tableLabel,
   onlinePaymentsEnabled,
   acceptPayCounter,
@@ -67,6 +71,7 @@ export default function MenuClient({
   cafeId: string
   cafeName: string
   cafeLogo: string | null
+  cafeTimezone: string
   tableLabel: string
   onlinePaymentsEnabled: boolean
   acceptPayCounter: boolean
@@ -142,6 +147,14 @@ export default function MenuClient({
     return new Set(fresh.map((i) => i.id))
   }, [items])
 
+  // Today's Offer — café-local day of week, not the browser's/UTC's, so this
+  // agrees with what place_order enforces server-side (see lib/offers.ts).
+  const todayWeekday = useMemo(() => businessWeekday(cafeTimezone), [cafeTimezone])
+  const offerActiveIds = useMemo(
+    () => new Set(items.filter((i) => isOfferActiveToday(i, todayWeekday)).map((i) => i.id)),
+    [items, todayWeekday],
+  )
+
   // A reorder handed over from "My orders". It arrives as item ids only —
   // prices come from the live menu here and are re-validated again by
   // place_order, so an old order can never lock in an old price.
@@ -160,7 +173,7 @@ export default function MenuClient({
         if (!item || !entry.available) continue
         const variant = entry.variant_id ? variants.find((v) => v.id === entry.variant_id) : null
         const chosen = addons.filter((a) => (entry.addon_ids ?? []).includes(a.id))
-        const unitPrice = item.price + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+        const unitPrice = effectivePrice(item, todayWeekday) + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
         lines.push({
           key: `${item.id}|${variant?.id ?? ''}|${chosen.map((a) => a.id).sort().join(',')}|`,
           itemId: item.id,
@@ -185,7 +198,7 @@ export default function MenuClient({
     } catch {
       // A corrupt payload should never break the menu — just ignore it.
     }
-  }, [token, items, variants, addons])
+  }, [token, items, variants, addons, todayWeekday])
 
   // Live kitchen status on the confirmation screen — same get_receipt call
   // the payment poller already uses, just also reading order.status.
@@ -221,15 +234,19 @@ export default function MenuClient({
     return () => { cancelled = true }
   }, [session, supabase])
 
-  // Combos lead, then Popular, then real categories — same synthetic
-  // pseudo-category trick already used for Popular.
+  // Today's Offer leads, then Combos, then Popular, then real categories —
+  // same synthetic pseudo-category trick already used for Popular/Combos.
+  // A discount is the most time-sensitive thing on the menu, so it leads
+  // even Combos; unlike Popular's >= 3 threshold, even a single active-today
+  // offer is worth its own section.
   const cats = useMemo(() => {
     const withItems = categories.filter((c) => items.some((i) => i.category_id === c.id))
     const uncategorised = items.some((i) => !i.category_id)
     const base = uncategorised ? [...withItems, { id: '__none', name: 'Other' }] : withItems
     const withPopular = popularIds.length >= 3 ? [{ id: POPULAR, name: 'Popular' }, ...base] : base
-    return combos.length > 0 ? [{ id: COMBOS, name: 'Combos' }, ...withPopular] : withPopular
-  }, [categories, items, popularIds, combos])
+    const withCombos = combos.length > 0 ? [{ id: COMBOS, name: 'Combos' }, ...withPopular] : withPopular
+    return offerActiveIds.size > 0 ? [{ id: TODAY_OFFERS, name: "Today's Offer" }, ...withCombos] : withCombos
+  }, [categories, items, popularIds, combos, offerActiveIds])
 
   const searching = search.trim().length > 0
   const catNameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name.toLowerCase()])), [categories])
@@ -257,12 +274,14 @@ export default function MenuClient({
       .map((cat) => ({
         cat,
         items:
-          cat.id === POPULAR
-            ? popularIds.map((id) => byId.get(id)).filter((i): i is PublicItem => Boolean(i))
-            : items.filter((i) => (cat.id === '__none' ? !i.category_id : i.category_id === cat.id)),
+          cat.id === TODAY_OFFERS
+            ? items.filter((i) => offerActiveIds.has(i.id))
+            : cat.id === POPULAR
+              ? popularIds.map((id) => byId.get(id)).filter((i): i is PublicItem => Boolean(i))
+              : items.filter((i) => (cat.id === '__none' ? !i.category_id : i.category_id === cat.id)),
       }))
       .filter((s) => s.items.length > 0)
-  }, [searching, activeCat, cats, items, popularIds, byId])
+  }, [searching, activeCat, cats, items, popularIds, byId, offerActiveIds])
 
   const showCombos = !searching && combos.length > 0 && (activeCat === '__all' || activeCat === COMBOS)
 
@@ -326,7 +345,7 @@ export default function MenuClient({
       addonIds: [],
       modLabel: '',
       note: '',
-      unitPrice: item.price,
+      unitPrice: effectivePrice(item, todayWeekday),
       qty: 1,
     })
   }
@@ -364,7 +383,7 @@ export default function MenuClient({
   ) {
     const v = variantId ? variantsByItem.get(item.id)?.find((x) => x.id === variantId) : null
     const chosen = (addonsByItem.get(item.id) ?? []).filter((a) => addonIds.includes(a.id))
-    const unit = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+    const unit = effectivePrice(item, todayWeekday) + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
     const label = [v?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', ')
     addLine({
       // Note is part of the key so "no onions" and "extra spicy" stay separate
@@ -686,7 +705,7 @@ export default function MenuClient({
                 <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-[14px] text-foreground">{r.name}</p>
-                    <p className="text-[12px] text-muted-foreground">₹{r.price}</p>
+                    <p className="text-[12px] text-muted-foreground">{r.reason} · ₹{r.price}</p>
                   </div>
                   <button onClick={() => addRecommendation(r)} className="shrink-0 rounded-full border border-primary px-3.5 py-1.5 text-[13px] font-medium text-primary hover:bg-primary-subtle">+ Add</button>
                 </div>
@@ -699,7 +718,7 @@ export default function MenuClient({
           <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary bg-primary-subtle p-4">
             <div className="min-w-0">
               <p className="font-medium text-primary">{upsell.upsell_pitch ?? `Add ${upsell.name}`}</p>
-              <p className="text-sm text-primary">{upsell.name} · ₹{upsell.price}</p>
+              <p className="text-sm text-primary">{upsell.name} · ₹{effectivePrice(upsell, todayWeekday)}</p>
             </div>
             <button onClick={() => addPlain(upsell, true)} className="shrink-0 rounded-[var(--radius)] bg-primary px-5 py-2 text-sm font-medium text-primary-foreground">Add</button>
           </div>
@@ -805,6 +824,8 @@ export default function MenuClient({
           item={detail}
           variants={variantsByItem.get(detail.id) ?? []}
           addons={addonsByItem.get(detail.id) ?? []}
+          basePrice={effectivePrice(detail, todayWeekday)}
+          isOfferActiveToday={offerActiveIds.has(detail.id)}
           onClose={() => setDetail(null)}
           onAdd={(args) => confirmDetail(detail, args)}
         />
@@ -911,6 +932,7 @@ export default function MenuClient({
                     item={item}
                     qty={plainQty(item.id)}
                     isNew={newItemIds.has(item.id)}
+                    isOfferActiveToday={offerActiveIds.has(item.id)}
                     priority={i < 4}
                     onOpen={() => setDetail(item)}
                     onAdd={() => onCardAdd(item)}
@@ -958,6 +980,7 @@ export default function MenuClient({
                     item={item}
                     qty={plainQty(item.id)}
                     isNew={newItemIds.has(item.id)}
+                    isOfferActiveToday={offerActiveIds.has(item.id)}
                     priority={i < 4}
                     onOpen={() => setDetail(item)}
                     onAdd={() => onCardAdd(item)}
@@ -992,6 +1015,8 @@ export default function MenuClient({
           item={detail}
           variants={variantsByItem.get(detail.id) ?? []}
           addons={addonsByItem.get(detail.id) ?? []}
+          basePrice={effectivePrice(detail, todayWeekday)}
+          isOfferActiveToday={offerActiveIds.has(detail.id)}
           onClose={() => setDetail(null)}
           onAdd={(args) => confirmDetail(detail, args)}
         />

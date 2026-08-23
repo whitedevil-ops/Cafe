@@ -33,12 +33,14 @@ export type CachedCafeMenu = {
   cafe: {
     name: string; logo_url: string | null; upsell_threshold: number | null
     accept_pay_counter: boolean | null; online_payments_enabled: boolean | null; razorpay_status: string | null
+    timezone: string | null
   } | null
   categories: { id: string; name: string; sort: number }[]
   items: {
     id: string; name: string; description: string | null; price: number; image_url: string | null
     category_id: string; is_veg: boolean; is_bestseller: boolean; is_upsell: boolean
     upsell_pitch: string | null; available: boolean; created_at: string
+    offer_price: number | null; offer_days: number[] | null
   }[]
   variants: { id: string; menu_item_id: string; name: string; price_delta: number }[]
   addons: { id: string; menu_item_id: string; name: string; price: number }[]
@@ -52,11 +54,11 @@ export const getCachedCafeMenu = unstable_cache(
     const supabase = createAnonClient()
 
     const [{ data: cafe }, { data: categories }, { data: items }, { data: combos }] = await Promise.all([
-      supabase.from('cafes').select('name, logo_url, upsell_threshold, accept_pay_counter, online_payments_enabled, razorpay_status').eq('id', cafeId).maybeSingle(),
+      supabase.from('cafes').select('name, logo_url, upsell_threshold, accept_pay_counter, online_payments_enabled, razorpay_status, timezone').eq('id', cafeId).maybeSingle(),
       supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafeId).order('sort'),
       supabase
         .from('menu_items')
-        .select('id, name, description, price, image_url, category_id, is_veg, is_bestseller, is_upsell, upsell_pitch, available, created_at')
+        .select('id, name, description, price, image_url, category_id, is_veg, is_bestseller, is_upsell, upsell_pitch, available, created_at, offer_price, offer_days')
         .eq('cafe_id', cafeId)
         .eq('archived', false)
         .order('sort'),

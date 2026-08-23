@@ -16,6 +16,9 @@ export type QrItem = {
   upsell_pitch: string | null
   available: boolean
   created_at: string
+  /** Today's Offer — see lib/offers.ts for the "is it active today" check. */
+  offer_price: number | null
+  offer_days: number[] | null
 }
 
 // One shared sizes string for every grid card. It must mirror the grid column
@@ -28,6 +31,7 @@ export function FoodCard({
   item,
   qty,
   isNew,
+  isOfferActiveToday,
   priority,
   onOpen,
   onAdd,
@@ -36,6 +40,9 @@ export function FoodCard({
   item: QrItem
   qty: number
   isNew: boolean
+  /** Precomputed by the caller (which owns the café's timezone) — see
+   *  lib/offers.ts. */
+  isOfferActiveToday: boolean
   priority: boolean
   onOpen: () => void
   onAdd: () => void
@@ -73,8 +80,9 @@ export function FoodCard({
         />
 
         <span className="pointer-events-none absolute left-2 top-2 flex flex-wrap gap-1">
-          {item.is_bestseller && !soldOut && <FoodBadge label="Bestseller" tone="gold" />}
-          {isNew && !item.is_bestseller && !soldOut && <FoodBadge label="New" tone="green" />}
+          {isOfferActiveToday && !soldOut && <FoodBadge label="Today's Offer" tone="special" />}
+          {!isOfferActiveToday && item.is_bestseller && !soldOut && <FoodBadge label="Bestseller" tone="gold" />}
+          {!isOfferActiveToday && isNew && !item.is_bestseller && !soldOut && <FoodBadge label="New" tone="green" />}
         </span>
 
         {soldOut && (
@@ -131,7 +139,14 @@ export function FoodCard({
           </h3>
         </div>
 
-        <p className="mt-1 text-[15px] font-semibold leading-none text-foreground">₹{item.price}</p>
+        {isOfferActiveToday ? (
+          <p className="mt-1 flex items-baseline gap-1.5 leading-none">
+            <span className="text-[15px] font-semibold text-special">₹{item.offer_price}</span>
+            <span className="text-[12px] text-muted-foreground line-through">₹{item.price}</span>
+          </p>
+        ) : (
+          <p className="mt-1 text-[15px] font-semibold leading-none text-foreground">₹{item.price}</p>
+        )}
 
         {item.description && (
           <p className="mt-1.5 text-[12px] leading-snug text-muted-foreground line-clamp-2">

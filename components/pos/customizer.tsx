@@ -13,12 +13,18 @@ export function Customizer({
   item,
   variants,
   addons,
+  basePrice,
+  isOfferActiveToday,
   onCancel,
   onAdd,
 }: {
   item: PosItem & { category_id: string | null }
   variants: PosVariant[]
   addons: PosAddon[]
+  /** item.price or its Today's Offer price, whichever applies today (see
+   *  lib/offers.ts) — the caller owns the café's timezone. */
+  basePrice: number
+  isOfferActiveToday: boolean
   onCancel: () => void
   onAdd: (item: PosItem & { category_id: string | null }, variantId: string | null, addonIds: string[]) => void
 }) {
@@ -26,13 +32,18 @@ export function Customizer({
   const [addonIds, setAddonIds] = useState<string[]>([])
   const v = variants.find((x) => x.id === variantId)
   const chosen = addons.filter((a) => addonIds.includes(a.id))
-  const price = item.price + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+  const price = basePrice + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6">
       <div className="flex max-h-[90dvh] w-full max-w-md flex-col rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
+            {isOfferActiveToday && (
+              <span className="rounded-full bg-special-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-special">Today&apos;s Offer</span>
+            )}
+          </div>
           {variants.length > 0 && (
             <div className="mt-4">
               <p className="text-[13px] font-medium text-foreground">Choose one</p>
@@ -43,7 +54,7 @@ export function Customizer({
                       <input type="radio" name="variant" checked={variantId === vr.id} onChange={() => setVariantId(vr.id)} />
                       {vr.name}
                     </span>
-                    <span className="text-muted-foreground">₹{item.price + vr.price_delta}</span>
+                    <span className="text-muted-foreground">₹{basePrice + vr.price_delta}</span>
                   </label>
                 ))}
               </div>

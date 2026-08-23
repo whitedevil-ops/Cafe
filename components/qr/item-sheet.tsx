@@ -12,12 +12,21 @@ export function ItemSheet({
   item,
   variants,
   addons,
+  basePrice,
+  isOfferActiveToday,
   onClose,
   onAdd,
 }: {
   item: QrItem
   variants: QrVariant[]
   addons: QrAddon[]
+  /** item.price or its Today's Offer price, whichever applies today (see
+   *  lib/offers.ts) — the caller owns the café's timezone, so this sheet
+   *  never re-derives the check itself. Everything money-related below is
+   *  built off this, not item.price directly, so a customer can't see the
+   *  discount on the grid tile and lose it after tapping in. */
+  basePrice: number
+  isOfferActiveToday: boolean
   onClose: () => void
   onAdd: (args: { variantId: string | null; addonIds: string[]; note: string; qty: number }) => void
 }) {
@@ -46,7 +55,7 @@ export function ItemSheet({
 
   const variant = variants.find((v) => v.id === variantId) ?? null
   const chosen = addons.filter((a) => addonIds.includes(a.id))
-  const unit = item.price + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+  const unit = basePrice + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
   const total = unit * qty
 
   return (
@@ -94,7 +103,15 @@ export function ItemSheet({
               <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{item.description}</p>
             )}
 
-            <p className="mt-3 text-[18px] font-semibold text-foreground">₹{item.price}</p>
+            {isOfferActiveToday ? (
+              <p className="mt-3 flex items-baseline gap-2">
+                <span className="text-[18px] font-semibold text-special">₹{basePrice}</span>
+                <span className="text-[14px] text-muted-foreground line-through">₹{item.price}</span>
+                <span className="rounded-full bg-special-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-special">Today&apos;s Offer</span>
+              </p>
+            ) : (
+              <p className="mt-3 text-[18px] font-semibold text-foreground">₹{item.price}</p>
+            )}
 
             {variants.length > 0 && (
               <section className="mt-6">
@@ -120,7 +137,7 @@ export function ItemSheet({
                         {v.name}
                       </span>
                       <span className="shrink-0 font-medium text-muted-foreground">
-                        ₹{item.price + v.price_delta}
+                        ₹{basePrice + v.price_delta}
                       </span>
                     </label>
                   ))}

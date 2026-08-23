@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatDateTime, formatDate, formatTime, businessDayKey,
-  businessDayStartISO, businessDaysAgoStartISO,
+  businessDayStartISO, businessDaysAgoStartISO, businessWeekday,
 } from '@/lib/datetime'
 
 const TZ = 'Asia/Kolkata'
@@ -58,6 +58,31 @@ describe('the 23:30–01:00 IST business-day boundary', () => {
 
   it('computes yesterday relative to a late-night instant', () => {
     expect(businessDaysAgoStartISO(1, TZ, new Date(justPast))).toBe('2026-07-22T18:30:00.000Z')
+  })
+})
+
+describe('businessWeekday — must agree with Postgres extract(dow from ...) (0=Sunday..6=Saturday)', () => {
+  // 23 Jul 2026 is a Thursday (weekday 4); 24 Jul 2026 is a Friday (weekday 5).
+  // Same four boundary instants as the business-day-key block above, so a
+  // "today's offer" check can never disagree between the two helpers.
+  const lateEve = '2026-07-23T17:59:00Z' // 23:29 IST, still Thursday
+  const oneMinTo = '2026-07-23T18:29:00Z' // 23:59 IST, still Thursday
+  const justPast = '2026-07-23T18:31:00Z' // 00:01 IST, rolled to Friday
+  const oneAM = '2026-07-23T19:30:00Z' // 01:00 IST, Friday
+
+  it('keeps 23:29 and 23:59 IST on Thursday (4)', () => {
+    expect(businessWeekday(TZ, new Date(lateEve))).toBe(4)
+    expect(businessWeekday(TZ, new Date(oneMinTo))).toBe(4)
+  })
+
+  it('rolls 00:01 and 01:00 IST onto Friday (5)', () => {
+    expect(businessWeekday(TZ, new Date(justPast))).toBe(5)
+    expect(businessWeekday(TZ, new Date(oneAM))).toBe(5)
+  })
+
+  it('agrees with the UTC calendar day when the zone is UTC itself', () => {
+    // 2026-01-15 is a Thursday.
+    expect(businessWeekday('UTC', new Date('2026-01-15T12:00:00Z'))).toBe(4)
   })
 })
 

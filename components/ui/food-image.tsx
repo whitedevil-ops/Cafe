@@ -76,10 +76,11 @@ export function FoodImage({
   )
 }
 
-export function FoodBadge({ label, tone }: { label: string; tone: 'gold' | 'green' | 'neutral' }) {
+export function FoodBadge({ label, tone }: { label: string; tone: 'gold' | 'green' | 'neutral' | 'special' }) {
   const cls =
     tone === 'gold' ? 'bg-warning-subtle/95 text-warning'
       : tone === 'green' ? 'bg-primary-subtle/95 text-primary'
+      : tone === 'special' ? 'bg-special-subtle/95 text-special'
       : 'bg-surface/95 text-muted-foreground'
   return (
     <span className={`rounded-full px-2 py-[3px] text-[10px] font-semibold leading-none tracking-wide backdrop-blur-sm ${cls}`}>
