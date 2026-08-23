@@ -42,20 +42,27 @@ export default function OffersPanel({
   const confirm = useConfirm()
 
   const [draft, setDraft] = useState<OfferDraft | null>(null)
+  const [itemSearch, setItemSearch] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const liveItems = useMemo(() => items.filter((i) => !i.archived), [items])
   const offered = useMemo(() => liveItems.filter((i) => i.offer_price != null), [liveItems])
   const itemById = useMemo(() => new Map(liveItems.map((i) => [i.id, i])), [liveItems])
+  // An offer already in the list is edited through its own row, not picked
+  // again here — same "which item?" question either way, so this is the one
+  // place that tells the modal whether the item choice is locked.
+  const isEditingExisting = draft ? offered.some((i) => i.id === draft.itemId) : false
 
   function openNew() {
     setError(null)
+    setItemSearch('')
     setDraft({ ...emptyDraft })
   }
 
   function openEdit(item: MenuItemRow) {
     setError(null)
+    setItemSearch('')
     setDraft({ itemId: item.id, price: String(item.offer_price), days: item.offer_days ?? [] })
   }
 
@@ -165,22 +172,58 @@ export default function OffersPanel({
               inner one — a border-radius doesn't clip its own scrollbar. */}
           <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-surface shadow-[var(--shadow-lg)] sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <h2 className="text-[15px] font-semibold text-foreground">{offered.some((i) => i.id === draft.itemId) ? 'Edit offer' : 'New offer'}</h2>
+            <h2 className="text-[15px] font-semibold text-foreground">{isEditingExisting ? 'Edit offer' : 'New offer'}</h2>
 
             <div className="mt-4 space-y-3">
               <div>
                 <p className="mb-1.5 text-[12.5px] text-muted-foreground">Item</p>
-                <select
-                  value={draft.itemId}
-                  onChange={(e) => setDraft({ ...draft, itemId: e.target.value })}
-                  disabled={offered.some((i) => i.id === draft.itemId)}
-                  className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[13px] text-foreground disabled:opacity-60"
-                >
-                  <option value="">…which item?</option>
-                  {pickableItems.map((i) => (
-                    <option key={i.id} value={i.id}>{i.name} · ₹{i.price}</option>
-                  ))}
-                </select>
+                {isEditingExisting ? (
+                  // Which item an existing offer applies to isn't editable —
+                  // change the price/days here, or remove it and add a new one.
+                  <p className="rounded-[var(--radius)] border border-border-strong bg-surface-subtle px-2.5 py-2 text-[13px] text-foreground">
+                    {itemById.get(draft.itemId)?.name} <span className="text-muted-foreground">· ₹{itemById.get(draft.itemId)?.price}</span>
+                  </p>
+                ) : draft.itemId ? (
+                  <div className="flex items-center justify-between gap-2 rounded-[var(--radius)] border border-primary bg-primary-subtle px-2.5 py-2 text-[13px]">
+                    <span className="text-foreground">
+                      {itemById.get(draft.itemId)?.name} <span className="text-muted-foreground">· ₹{itemById.get(draft.itemId)?.price}</span>
+                    </span>
+                    <button type="button" onClick={() => setDraft({ ...draft, itemId: '' })} className="shrink-0 font-medium text-primary hover:underline">
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      placeholder="Search items…"
+                      autoFocus
+                      className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[13px] text-foreground placeholder:text-muted-foreground"
+                    />
+                    {itemSearch.trim() && (
+                      <ul className="mt-1.5 max-h-48 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface">
+                        {pickableItems
+                          .filter((i) => i.name.toLowerCase().includes(itemSearch.trim().toLowerCase()))
+                          .slice(0, 20)
+                          .map((i) => (
+                            <li key={i.id}>
+                              <button
+                                type="button"
+                                onClick={() => { setDraft({ ...draft, itemId: i.id }); setItemSearch('') }}
+                                className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] text-foreground hover:bg-surface-subtle"
+                              >
+                                <span>{i.name}</span><span className="text-muted-foreground">₹{i.price}</span>
+                              </button>
+                            </li>
+                          ))}
+                        {pickableItems.filter((i) => i.name.toLowerCase().includes(itemSearch.trim().toLowerCase())).length === 0 && (
+                          <li className="px-3 py-2 text-[13px] text-muted-foreground">No items match &ldquo;{itemSearch.trim()}&rdquo;.</li>
+                        )}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
 
               <Input
