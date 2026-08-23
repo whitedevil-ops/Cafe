@@ -327,7 +327,10 @@ export default function CombosPanel({
 
       {draft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-6" role="presentation">
-          <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-[var(--shadow-lg)] sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
+          {/* Rounding + clipping on the outer flex container, scrolling on the
+              inner one — a border-radius doesn't clip its own scrollbar. */}
+          <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-surface shadow-[var(--shadow-lg)] sm:max-h-[85dvh] sm:rounded-[var(--radius-lg)]">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
             <h2 className="text-[15px] font-semibold text-foreground">{draft.id ? 'Edit combo' : 'New combo'}</h2>
 
             <div className="mt-4">
@@ -481,6 +484,7 @@ export default function CombosPanel({
               <Button variant="secondary" className="flex-1" onClick={() => setDraft(null)}>Cancel</Button>
               <Button className="flex-1" loading={busy} onClick={save}>Save combo</Button>
             </div>
+          </div>
           </div>
         </div>
       )}

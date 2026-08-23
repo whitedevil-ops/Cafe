@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import BulkImportPanel from './bulk-import-panel'
 import { optionFromDeltas, optionToDeltas } from '@/lib/menu-options'
 import CombosPanel, { type VariantRow } from './combos-panel'
+import OffersPanel from './offers-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 import type { Combo, ComboSlot } from '@/lib/combos'
@@ -67,12 +68,6 @@ type ItemDraft = {
   addons: AddonDraft[]
   // Cross-sell suggestions (other menu item ids) shown when this item is added.
   pairings: string[]
-  // Today's Offer — a lower price on specific days of the week, every plan
-  // (not gated by hasFeature; see menu_items.offer_price/offer_days).
-  offerEnabled: boolean
-  offerPrice: string
-  /** 0=Sunday..6=Saturday, matching Postgres's extract(dow from ...). */
-  offerDays: number[]
 }
 
 const emptyDraft: ItemDraft = {
@@ -90,9 +85,6 @@ const emptyDraft: ItemDraft = {
   variants: [],
   addons: [],
   pairings: [],
-  offerEnabled: false,
-  offerPrice: '',
-  offerDays: [],
 }
 
 export default function MenuManager({
@@ -137,6 +129,7 @@ export default function MenuManager({
   const [draft, setDraft] = useState<ItemDraft | null>(null)
   const [manageCats, setManageCats] = useState(false)
   const [manageCombos, setManageCombos] = useState(false)
+  const [manageOffers, setManageOffers] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [busy, setBusy] = useState(false)
@@ -328,14 +321,6 @@ export default function MenuManager({
         return setError(`"${v.name.trim()}" — margin can't be more than its price.`)
       }
     }
-    let offerPrice: number | null = null
-    if (canSeeCost && draft.offerEnabled) {
-      offerPrice = Math.round(Number(draft.offerPrice))
-      if (!Number.isFinite(offerPrice) || offerPrice < 0) return setError("Enter a valid offer price in rupees.")
-      if (offerPrice >= price) return setError("Today's Offer price must be less than the selling price.")
-      if (draft.offerDays.length === 0) return setError("Pick at least one day for Today's Offer.")
-    }
-
     setBusy(true)
     setError(null)
     // Only owner/manager may set cost; for others omit the fields entirely so
@@ -369,12 +354,6 @@ export default function MenuManager({
       is_veg: draft.is_veg,
       is_bestseller: draft.is_bestseller,
       ...costPatch,
-      // Today's Offer — owner/manager only, same as cost; omit for others so
-      // an update can never blank an existing offer. Every plan, no
-      // hasFeature() gate.
-      ...(canSeeCost
-        ? { offer_price: draft.offerEnabled ? offerPrice : null, offer_days: draft.offerEnabled && draft.offerDays.length ? draft.offerDays : null }
-        : {}),
     }
 
     let itemId = draft.id
@@ -486,9 +465,6 @@ export default function MenuManager({
       effectiveCost: null,
       variants: [],
       addons: [],
-      offerEnabled: item.offer_price != null,
-      offerPrice: item.offer_price != null ? String(item.offer_price) : '',
-      offerDays: item.offer_days ?? [],
     })
     const [{ data: vs }, { data: as }, { data: prs }, { data: baseCost }] = await Promise.all([
       supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
@@ -612,6 +588,9 @@ export default function MenuManager({
           <Button variant="secondary" size="md" onClick={() => setManageCombos((v) => !v)}>
             Combos
           </Button>
+          <Button variant="secondary" size="md" onClick={() => setManageOffers((v) => !v)}>
+            Offers
+          </Button>
           <Button size="md" onClick={() => setDraft({ ...emptyDraft })}>
             Add item
           </Button>
@@ -733,6 +712,10 @@ export default function MenuManager({
           initialCombos={initialCombos}
           initialSlots={initialComboSlots}
         />
+      )}
+
+      {manageOffers && (
+        <OffersPanel canManage={canSeeCost} items={items} onItemsChange={setItems} />
       )}
 
       {/* Toolbar */}
@@ -887,7 +870,12 @@ export default function MenuManager({
           physically unreachable on a small screen. */}
       {draft && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6">
-          <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-surface p-6 sm:max-h-[85dvh] sm:rounded-2xl">
+          {/* Rounding + clipping live on this outer flex container, scrolling
+              on the inner one — a border-radius doesn't clip its own
+              scrollbar, so combining both on one element leaves a sharp
+              square notch where the scrollbar track meets the corner. */}
+          <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-2xl">
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
             <h2 className="text-lg font-semibold text-foreground">
               {draft.id ? 'Edit item' : 'Add item'}
             </h2>
@@ -1015,71 +1003,6 @@ export default function MenuManager({
                         Margin can&apos;t be more than the selling price.
                       </p>
                     )}
-                </div>
-              )}
-
-              {/* Today's Offer — a lower price on specific days, every plan.
-                  Owner/manager only, same gate as Pricing & cost above — this
-                  is a staff-role gate, not a plan gate; do not condition it on
-                  inventoryAllowed or any other hasFeature() flag. */}
-              {canSeeCost && (
-                <div className="rounded-[var(--radius)] border border-border bg-surface-subtle p-3.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Today&apos;s offer</p>
-                    <button
-                      type="button"
-                      onClick={() => setDraft({ ...draft, offerEnabled: !draft.offerEnabled })}
-                      className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${draft.offerEnabled ? 'bg-primary' : 'bg-border-strong'}`}
-                      aria-pressed={draft.offerEnabled}
-                      aria-label="Enable today's offer"
-                    >
-                      <span
-                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${draft.offerEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`}
-                      />
-                    </button>
-                  </div>
-
-                  {draft.offerEnabled && (
-                    <div className="mt-3 space-y-3">
-                      <Input
-                        label="Offer price (₹)"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        value={draft.offerPrice}
-                        onChange={(e) => setDraft({ ...draft, offerPrice: e.target.value })}
-                        hint="What a guest pays instead of the selling price, on the days below."
-                      />
-                      <div>
-                        <p className="mb-1.5 text-[12.5px] text-muted-foreground">Days</p>
-                        <div className="flex gap-1">
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, i) => (
-                            <button
-                              key={label}
-                              type="button"
-                              onClick={() =>
-                                setDraft({
-                                  ...draft,
-                                  offerDays: draft.offerDays.includes(i)
-                                    ? draft.offerDays.filter((d) => d !== i)
-                                    : [...draft.offerDays, i],
-                                })
-                              }
-                              className={`flex-1 rounded-[var(--radius-sm)] py-1.5 text-[12px] font-medium transition-colors ${
-                                draft.offerDays.includes(i) ? 'bg-primary-subtle text-primary' : 'bg-surface text-muted-foreground'
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {draft.offerPrice.trim() !== '' &&
-                        Math.round(Number(draft.offerPrice) || 0) >= Math.round(Number(draft.price) || 0) && (
-                          <p className="text-[12px] text-destructive">Offer price must be less than the selling price.</p>
-                        )}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1280,6 +1203,7 @@ export default function MenuManager({
                 {draft.id ? 'Save' : 'Add item'}
               </Button>
             </div>
+          </div>
           </div>
         </div>
       )}
