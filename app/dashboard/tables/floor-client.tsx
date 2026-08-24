@@ -101,6 +101,7 @@ export default function FloorClient({
   const [selected, setSelected] = useState<string | null>(null)
   const [doneOrders, setDoneOrders] = useState<SessionOrder[]>([])
   const [sms, setSms] = useState<SmsLog[]>([])
+  const [wa, setWa] = useState<SmsLog[]>([])
   const [pollError, setPollError] = useState<string | null>(null)
   const [lastPollAt, setLastPollAt] = useState<Date | null>(null)
   const [moving, setMoving] = useState(false)
@@ -227,10 +228,15 @@ export default function FloorClient({
         .limit(10)
       setDoneOrders((done ?? []) as SessionOrder[])
       if (done?.length) {
-        const { data: logs } = await supabase.from('sms_logs').select('id, order_id, status, error').in('order_id', done.map((o) => o.id))
+        const [{ data: logs }, { data: waLogs }] = await Promise.all([
+          supabase.from('sms_logs').select('id, order_id, status, error').in('order_id', done.map((o) => o.id)),
+          supabase.from('whatsapp_logs').select('id, order_id, status, error').in('order_id', done.map((o) => o.id)),
+        ])
         setSms((logs ?? []) as SmsLog[])
+        setWa((waLogs ?? []) as SmsLog[])
       } else {
         setSms([])
+        setWa([])
       }
     }
   }, [supabase, cafeId, timezone])
@@ -530,6 +536,16 @@ export default function FloorClient({
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       toast(body.error ?? 'Could not retry the SMS.', 'error')
+    }
+    void poll()
+  }
+
+  async function retryWhatsApp(logId: string) {
+    setWa((list) => list.map((l) => (l.id === logId ? { ...l, status: 'pending' } : l)))
+    const res = await fetch('/api/whatsapp/retry', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ log_id: logId }) })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast(body.error ?? 'Could not retry the WhatsApp message.', 'error')
     }
     void poll()
   }
@@ -997,6 +1013,7 @@ export default function FloorClient({
                 <ul className="mt-2 space-y-2">
                   {doneOrders.map((o) => {
                     const log = sms.find((l) => l.order_id === o.id)
+                    const waLog = wa.find((l) => l.order_id === o.id)
                     return (
                       <li key={o.id} className="rounded-lg border border-border p-3 text-[13px]">
                         <div className="flex justify-between">
@@ -1013,6 +1030,16 @@ export default function FloorClient({
                             </span>
                             {(log.status === 'failed' || log.status === 'pending') && (
                               <button onClick={() => retrySms(log.id)} className="text-primary hover:underline">Retry</button>
+                            )}
+                          </div>
+                        )}
+                        {waLog && (
+                          <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                            <span className={waLog.status === 'sent' || waLog.status === 'delivered' ? 'text-success' : waLog.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
+                              WhatsApp bill: {waLog.status}{waLog.status === 'failed' && waLog.error ? ` — ${waLog.error.slice(0, 60)}` : ''}
+                            </span>
+                            {(waLog.status === 'failed' || waLog.status === 'pending') && (
+                              <button onClick={() => retryWhatsApp(waLog.id)} className="text-primary hover:underline">Retry</button>
                             )}
                           </div>
                         )}

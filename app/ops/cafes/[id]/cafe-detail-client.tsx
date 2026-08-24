@@ -52,6 +52,7 @@ const FEATURES: { key: string; label: string }[] = [
   { key: 'reservations', label: 'Table Reservations' },
   { key: 'advanced_analytics', label: 'Advanced Analytics' },
   { key: 'sms_bills', label: 'SMS Bill Receipts' },
+  { key: 'whatsapp_bills', label: 'WhatsApp Bill Receipts' },
   { key: 'feedback', label: 'Customer Feedback' },
   { key: 'expenses', label: 'Expenses Tracking' },
   { key: 'crm', label: 'Customer Directory (CRM)' },
@@ -69,13 +70,14 @@ const FEATURES: { key: string; label: string }[] = [
 //   Coupons, Loyalty, Wallet, Reservations, Analytics(advanced_analytics),
 //   Reports(advanced_reports gates 4 of its sub-pages), Expenses — all 10 of
 //   these are literally in app-shell's Management group, not Business.
-//   qr_ordering/sms_bills/online_payments gate no nav item directly (they're
-//   capabilities within the ordering/billing flow, not their own screen) —
-//   placed by what they're closest to in spirit: the first two affect live
-//   order-taking (Operations), online_payments is a billing/financial
-//   concern (Business, where subscription Billing itself lives).
+//   qr_ordering/sms_bills/whatsapp_bills/online_payments gate no nav item
+//   directly (they're capabilities within the ordering/billing flow, not
+//   their own screen) — placed by what they're closest to in spirit: the
+//   first three affect live order-taking (Operations), online_payments is a
+//   billing/financial concern (Business, where subscription Billing itself
+//   lives).
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
-  { heading: 'Operations', keys: ['qr_ordering', 'sms_bills'] },
+  { heading: 'Operations', keys: ['qr_ordering', 'sms_bills', 'whatsapp_bills'] },
   { heading: 'Management', keys: ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'wallet', 'reservations', 'advanced_analytics', 'advanced_reports', 'expenses', 'referral'] },
   { heading: 'Business', keys: ['online_payments'] },
 ]

@@ -640,7 +640,10 @@ with expected(kind, name, fix) as (values
   -- either. Same for get_recommendations (0155).
   ('column',   'menu_items.offer_price',               '0154'),
   ('column',   'menu_items.offer_days',                '0154'),
-  ('function', 'cafe_current_weekday',                 '0154')
+  ('function', 'cafe_current_weekday',                 '0154'),
+  -- WhatsApp bill receipts (0156) -- mirrors sms_logs/enqueue_bill_sms (0010).
+  ('table',    'whatsapp_logs',                        '0156'),
+  ('function', 'enqueue_bill_whatsapp',                '0156')
 )
 select
   e.kind,
