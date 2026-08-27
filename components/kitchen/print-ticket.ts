@@ -1,5 +1,6 @@
 import { kotHtml, type KotTicket } from '@/lib/kot-print'
 import { printKotNative } from '@/lib/desktop-print'
+import { printKotBluetooth } from '@/lib/bluetooth-print'
 
 /**
  * Print a kitchen ticket through the browser's own print path.
@@ -20,6 +21,9 @@ export async function printKot(ticket: KotTicket): Promise<void> {
   // dialog below. A configured-but-failing printer throws instead, because
   // "your printer is unplugged" must not turn into an unexpected dialog.
   if (await printKotNative(ticket)) return
+  // Same contract, for a Bluetooth printer connected straight from this
+  // browser (no desktop app needed) — see lib/bluetooth-print.ts.
+  if (await printKotBluetooth(ticket)) return
   return printViaDialog(ticket)
 }
 

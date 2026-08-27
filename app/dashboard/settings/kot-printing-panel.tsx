@@ -7,6 +7,13 @@ import { createClient } from '@/utils/supabase/client'
 import { isDesktopApp } from '@/lib/is-desktop'
 import { getDesktopPrinter, setDesktopPrinter, listSerialPorts, testPrintNative } from '@/lib/desktop-print'
 import { saveBridgeToken, loadBridgeToken, clearBridgeToken } from '@/lib/desktop-bridge'
+import {
+  isBluetoothSupported,
+  getBluetoothPrinter,
+  setBluetoothPrinter,
+  connectBluetoothPrinter,
+  testPrintBluetooth,
+} from '@/lib/bluetooth-print'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -78,10 +85,15 @@ export default function KotPrintingPanel({
   // the `tokens` list below, which is every token paired to the café from
   // any machine and carries no way to tell which one (if any) is this one.
   const [pairedHere, setPairedHere] = useState(false)
+  const [btSupported, setBtSupported] = useState(false)
+  const [btPrinter, setBtPrinterState] = useState<{ id: string; name: string } | null>(null)
+  const [btBusy, setBtBusy] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOrigin(window.location.origin)
+    setBtSupported(isBluetoothSupported())
+    setBtPrinterState(getBluetoothPrinter())
   }, [])
 
   const refreshPorts = useCallback(async () => {
@@ -206,6 +218,35 @@ export default function KotPrintingPanel({
     toast(`Test ticket queued for ${p.name} — check the printer.`)
   }
 
+  async function connectBt() {
+    setBtBusy(true)
+    try {
+      const info = await connectBluetoothPrinter()
+      setBtPrinterState(info)
+      toast(`Connected to ${info.name}. Tickets will print here from this device.`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not connect to that printer.', 'error')
+    }
+    setBtBusy(false)
+  }
+
+  function disconnectBt() {
+    setBluetoothPrinter(null)
+    setBtPrinterState(null)
+    toast('Bluetooth printer disconnected — the print dialog will be used instead.')
+  }
+
+  async function testBt() {
+    setBtBusy(true)
+    try {
+      await testPrintBluetooth(printers[0]?.paper_width ?? '58mm', timezone)
+      toast(`Sent a test ticket to ${btPrinter?.name}.`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not reach the printer.', 'error')
+    }
+    setBtBusy(false)
+  }
+
   async function addStation() {
     if (!newStation.trim()) return
     const { error } = await supabase
@@ -323,8 +364,9 @@ export default function KotPrintingPanel({
             <p className="mt-2 max-w-lg rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
               Without a paired bridge, printing still works — use <strong className="text-foreground">Reprint
               KOT</strong> or <strong className="text-foreground">Print now on this device</strong> on the
-              Kitchen screen — but it needs a staff member to act on each order. USB and Bluetooth printers
-              currently print through that manual path only; the automatic bridge covers LAN/Wi-Fi printers.
+              Kitchen screen — but it needs a staff member to act on each order. USB printers print through
+              that manual path only; a Bluetooth printer can connect directly to this browser below for a
+              one-tap setup; the automatic bridge covers LAN/Wi-Fi printers.
             </p>
 
             {tokens.length === 0 ? (
@@ -401,6 +443,43 @@ export default function KotPrintingPanel({
               </div>
             )}
           </div>
+
+          {/* ── Bluetooth printer (this device) ───────────────────────────
+              Prints straight from THIS browser over Web Bluetooth — no
+              desktop app, no OS-level pairing, no driver needed first. Only
+              in Chrome/Edge on Android, Windows, macOS and Linux; Apple
+              blocks the API entirely, so this is hidden on iPhone/iPad and
+              Safari, where the print-dialog path (below the fold, via
+              "Print now on this device") is still the way in. */}
+          {btSupported && (
+            <div className="rounded-[var(--radius)] border border-primary bg-primary-subtle p-3">
+              <h3 className="flex items-center gap-1.5 text-[13.5px] font-semibold text-primary">
+                <Bluetooth size={14} /> Bluetooth printer (this device)
+              </h3>
+              <p className="mt-1 max-w-lg text-[12px] leading-relaxed text-foreground">
+                Connect a Bluetooth thermal printer directly to this browser — no pairing in Windows/Android
+                settings first, no driver. Tap Connect, pick your printer from the list that pops up, done.
+              </p>
+              {btPrinter ? (
+                <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px] text-foreground">
+                  <CircleCheck size={13} className="text-success" /> Connected to <strong>{btPrinter.name}</strong>
+                  <Button variant="secondary" size="sm" onClick={testBt} loading={btBusy}>Test print</Button>
+                  <button onClick={disconnectBt} className="text-[12px] text-destructive hover:underline">Disconnect</button>
+                </p>
+              ) : (
+                <div className="mt-2.5">
+                  <Button variant="secondary" size="sm" onClick={connectBt} loading={btBusy}>
+                    <Bluetooth size={14} /> Connect Bluetooth printer
+                  </Button>
+                </div>
+              )}
+              <p className="mt-2 text-[11.5px] text-muted-foreground">
+                If your printer isn&apos;t found or connecting fails, its Bluetooth profile isn&apos;t one we
+                recognise yet — fall back to pairing it in your device&apos;s Bluetooth settings and using the
+                print dialog instead, and let us know the printer model so we can add support for it.
+              </p>
+            </div>
+          )}
 
           {/* ── Stations ───────────────────────────────────────────────── */}
           <div>
