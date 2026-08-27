@@ -12,11 +12,11 @@ export default async function SettingsPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }] =
+  const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }, { data: whatsappEntitled }] =
     await Promise.all([
       supabase
         .from('cafes')
-        .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status')
+        .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status, whatsapp_bills_enabled')
         .eq('id', cafe.cafeId)
         .single(),
       supabase
@@ -34,6 +34,7 @@ export default async function SettingsPage() {
       (cafe.role === 'owner' || cafe.role === 'manager')
         ? supabase.rpc('role_screen_overview', { p_cafe_id: cafe.cafeId })
         : Promise.resolve({ data: null }),
+      supabase.rpc('cafe_has_feature', { p_cafe_id: cafe.cafeId, p_feature: 'whatsapp_bills' }),
     ])
 
   const staff: StaffMember[] = (members ?? []).map((m) => {
@@ -64,6 +65,10 @@ export default async function SettingsPage() {
       onlinePayments={{
         enabled: data?.online_payments_enabled ?? false,
         razorpayStatus: data?.razorpay_status ?? 'not_connected',
+      }}
+      whatsappBilling={{
+        enabled: data?.whatsapp_bills_enabled ?? true,
+        entitled: whatsappEntitled === true,
       }}
       printing={{
         enabled: data?.kot_printing_enabled ?? false,

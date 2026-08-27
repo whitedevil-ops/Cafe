@@ -645,7 +645,9 @@ with expected(kind, name, fix) as (values
   ('table',    'whatsapp_logs',                        '0156'),
   ('function', 'enqueue_bill_whatsapp',                '0156'),
   -- WhatsApp order-placed message + bill re-wired to payment_status (0157).
-  ('function', 'enqueue_order_placed_whatsapp',         '0157')
+  ('function', 'enqueue_order_placed_whatsapp',         '0157'),
+  -- WhatsApp bills on Growth/Scale plans + owner on/off toggle (0158).
+  ('column',   'cafes.whatsapp_bills_enabled',          '0158')
 )
 select
   e.kind,

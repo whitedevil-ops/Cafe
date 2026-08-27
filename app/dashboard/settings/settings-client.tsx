@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import KotPrintingPanel, { type KotPrinter, type KitchenStation, type BridgeToken } from './kot-printing-panel'
 import CashManagementPanel from './cash-management-panel'
 import RoleAccessPanel, { type RoleScreenOverview } from './role-access-panel'
+import WhatsAppBillingPanel from './whatsapp-billing-panel'
 
 type Settings = {
   name: string
@@ -36,6 +37,7 @@ export type PrintingState = {
 const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
 
 export type OnlinePaymentsState = { enabled: boolean; razorpayStatus: string | null }
+export type WhatsAppBillingState = { enabled: boolean; entitled: boolean }
 
 export default function SettingsClient({
   cafeId,
@@ -47,6 +49,7 @@ export default function SettingsClient({
   timezone,
   cashEnabled,
   onlinePayments,
+  whatsappBilling,
   printing,
   roleOverview,
 }: {
@@ -59,6 +62,7 @@ export default function SettingsClient({
   timezone: string
   cashEnabled: boolean
   onlinePayments: OnlinePaymentsState
+  whatsappBilling: WhatsAppBillingState
   printing: PrintingState
   roleOverview: RoleScreenOverview
 }) {
@@ -421,6 +425,13 @@ export default function SettingsClient({
         initialPrinters={printing.printers}
         initialStations={printing.stations}
         initialTokens={printing.tokens}
+      />
+
+      <WhatsAppBillingPanel
+        cafeId={cafeId}
+        canManage={myRole === 'owner' || myRole === 'manager'}
+        entitled={whatsappBilling.entitled}
+        initialEnabled={whatsappBilling.enabled}
       />
     </div>
   )
