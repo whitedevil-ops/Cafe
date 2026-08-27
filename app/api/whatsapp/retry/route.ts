@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { sendWhatsAppBill } from '@/lib/whatsapp'
+import { sendWhatsAppBill, sendWhatsAppOrderPlaced } from '@/lib/whatsapp'
 import { hasFeature } from '@/lib/entitlements'
 
 // Staff-triggered (re)send of a bill WhatsApp message — mirrors
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const { data: log } = await supabase
     .from('whatsapp_logs')
-    .select('id, order_id, cafe_id, status')
+    .select('id, order_id, cafe_id, status, type')
     .eq('id', log_id)
     .maybeSingle()
   if (!log) return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
 
   const cafe = Array.isArray(order.cafes) ? order.cafes[0] : order.cafes
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
-  const result = await sendWhatsAppBill(
+  const sendFn = log.type === 'order_placed' ? sendWhatsAppOrderPlaced : sendWhatsAppBill
+  const result = await sendFn(
     order.phone,
     cafe?.name ?? 'Your café',
     order.short_code,

@@ -43,6 +43,7 @@ type SessionOrder = {
 }
 type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
 type SmsLog = { id: string; order_id: string; status: string; error: string | null }
+type WhatsAppLog = SmsLog & { type: string }
 type Payment = { session_id: string | null; order_id: string | null; amount: number }
 
 const NEXT: Record<string, { label: string; to: string }> = {
@@ -101,7 +102,7 @@ export default function FloorClient({
   const [selected, setSelected] = useState<string | null>(null)
   const [doneOrders, setDoneOrders] = useState<SessionOrder[]>([])
   const [sms, setSms] = useState<SmsLog[]>([])
-  const [wa, setWa] = useState<SmsLog[]>([])
+  const [wa, setWa] = useState<WhatsAppLog[]>([])
   const [pollError, setPollError] = useState<string | null>(null)
   const [lastPollAt, setLastPollAt] = useState<Date | null>(null)
   const [moving, setMoving] = useState(false)
@@ -230,10 +231,10 @@ export default function FloorClient({
       if (done?.length) {
         const [{ data: logs }, { data: waLogs }] = await Promise.all([
           supabase.from('sms_logs').select('id, order_id, status, error').in('order_id', done.map((o) => o.id)),
-          supabase.from('whatsapp_logs').select('id, order_id, status, error').in('order_id', done.map((o) => o.id)),
+          supabase.from('whatsapp_logs').select('id, order_id, status, error, type').in('order_id', done.map((o) => o.id)),
         ])
         setSms((logs ?? []) as SmsLog[])
-        setWa((waLogs ?? []) as SmsLog[])
+        setWa((waLogs ?? []) as WhatsAppLog[])
       } else {
         setSms([])
         setWa([])
@@ -1013,7 +1014,7 @@ export default function FloorClient({
                 <ul className="mt-2 space-y-2">
                   {doneOrders.map((o) => {
                     const log = sms.find((l) => l.order_id === o.id)
-                    const waLog = wa.find((l) => l.order_id === o.id)
+                    const waLogs = wa.filter((l) => l.order_id === o.id)
                     return (
                       <li key={o.id} className="rounded-lg border border-border p-3 text-[13px]">
                         <div className="flex justify-between">
@@ -1033,16 +1034,16 @@ export default function FloorClient({
                             )}
                           </div>
                         )}
-                        {waLog && (
-                          <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                        {waLogs.map((waLog) => (
+                          <div key={waLog.id} className="mt-1.5 flex items-center justify-between text-[12px]">
                             <span className={waLog.status === 'sent' || waLog.status === 'delivered' ? 'text-success' : waLog.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
-                              WhatsApp bill: {waLog.status}{waLog.status === 'failed' && waLog.error ? ` — ${waLog.error.slice(0, 60)}` : ''}
+                              WhatsApp {waLog.type === 'order_placed' ? 'order confirmation' : 'bill'}: {waLog.status}{waLog.status === 'failed' && waLog.error ? ` — ${waLog.error.slice(0, 60)}` : ''}
                             </span>
                             {(waLog.status === 'failed' || waLog.status === 'pending') && (
                               <button onClick={() => retryWhatsApp(waLog.id)} className="text-primary hover:underline">Retry</button>
                             )}
                           </div>
-                        )}
+                        ))}
                       </li>
                     )
                   })}
