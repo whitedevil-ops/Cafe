@@ -477,6 +477,16 @@ export default function MenuClient({
     const r = data as { short_code: string; total: number; receipt_token?: string; discount?: number }
     setPlaced({ code: r.short_code, total: r.total, method: mode, receiptToken: r.receipt_token ?? null })
     setOrderStatus(null)
+    // Fire-and-forget: the DB trigger (0157) just queued an order-placed
+    // WhatsApp log for this order — send it now instead of waiting for
+    // staff to notice it in the Tables page.
+    if (r.receipt_token) {
+      fetch('/api/whatsapp/auto-send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ receipt_token: r.receipt_token }),
+      }).catch(() => {})
+    }
     setStep('done')
     setCouponCode('')
     setAppliedCoupon(null)

@@ -404,6 +404,14 @@ export default function FloorClient({
     toast(`₹${amount} recorded${method === 'upi' ? ' by UPI' : method === 'card' ? ' by card' : ' in cash'}.`)
     setEntering(null)
     setAmountInput('')
+    // Fire-and-forget: if this payment completed the order, the DB trigger
+    // (0157) just queued a bill WhatsApp log — send it immediately rather
+    // than waiting for staff to notice and hit Retry.
+    fetch('/api/whatsapp/auto-send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ receipt_token: o.receipt_token }),
+    }).catch(() => {})
     void poll()
   }
 

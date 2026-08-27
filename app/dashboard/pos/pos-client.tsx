@@ -863,6 +863,15 @@ export default function PosClient({
     requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
     setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })
+    // Fire-and-forget: the DB triggers (0156/0157) just queued an
+    // order-placed log, and a bill log too if this order settled
+    // immediately — send whatever's pending now instead of waiting for
+    // staff to notice it in the Tables page.
+    fetch('/api/whatsapp/auto-send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ receipt_token: r.receipt_token }),
+    }).catch(() => {})
     setCart([])
     setCartOpen(false)
     setCustomerPhone('')
