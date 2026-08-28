@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Activity,
+  Bell,
   ClipboardList,
   LayoutDashboard,
+  Lock,
   ScrollText,
   ShieldCheck,
   Store,
@@ -22,10 +24,12 @@ export type NavKey =
   | 'overview'
   | 'cafes'
   | 'health'
+  | 'alerts'
   | 'users'
   | 'admins'
   | 'leads'
   | 'audit'
+  | 'security'
 
 type Item = { key: NavKey; label: string; href: string; icon: LucideIcon }
 
@@ -45,6 +49,7 @@ const GROUPS: { heading: string | null; items: Item[] }[] = [
   {
     heading: 'Monitoring',
     items: [
+      { key: 'alerts', label: 'Alerts', href: '/ops/alerts', icon: Bell },
       { key: 'health', label: 'Café health', href: '/ops/health', icon: Activity },
     ],
   },
@@ -53,6 +58,7 @@ const GROUPS: { heading: string | null; items: Item[] }[] = [
     items: [
       { key: 'admins', label: 'Admins', href: '/ops/admins', icon: ShieldCheck },
       { key: 'audit', label: 'Audit logs', href: '/ops/audit-logs', icon: ScrollText },
+      { key: 'security', label: 'Security centre', href: '/ops/security', icon: Lock },
     ],
   },
 ]

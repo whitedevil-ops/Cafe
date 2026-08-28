@@ -685,7 +685,20 @@ with expected(kind, name, fix) as (values
   -- record_expense re-bodied only (unchanged signature) -- fixes a
   -- pre-existing (since 0050) missing ::payment_method cast that made every
   -- call fail. No new tracked object.
-  ('table',    'expenses',                                'schema.sql / 0034')
+  ('table',    'expenses',                                'schema.sql / 0034'),
+  -- Phase 3 (ops panel) -- 0172: Alert Centre. platform_alerts is a real
+  -- persisted table (not computed-on-read), reconciled from the same 3
+  -- signals op_cafe_health() computes, synced inline by op_list_alerts() on
+  -- every read (no cron infra exists to sync separately). New permission
+  -- pair alerts.view/alerts.manage added to role_default_permissions/
+  -- op_update_admin_permissions/op_create_admin (re-bodies, already tracked
+  -- above, no new row). 0173: op_list_audit_logs -- search/filter for
+  -- /ops/audit-logs (action, target type, actor, date range, free text).
+  ('table',    'platform_alerts',       '0172'),
+  ('function', 'op_list_alerts',        '0172'),
+  ('function', 'op_acknowledge_alert',  '0172'),
+  ('function', 'op_resolve_alert',      '0172'),
+  ('function', 'op_list_audit_logs',    '0173')
   -- Phase 2 (ops panel) -- 0168: op_cafe_health gains a trailing
   -- p_cafe_id uuid default null (old zero-arg signature dropped first, per
   -- this repo's established arity-bump convention; already tracked above at

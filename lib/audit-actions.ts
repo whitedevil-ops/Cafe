@@ -27,6 +27,9 @@ const LABELS: Record<string, { label: string; tone: AuditTone }> = {
   'admin.status_changed': { label: 'Admin status changed', tone: 'warning' },
   'admin.password_reset_initiated': { label: 'Admin password reset sent', tone: 'destructive' },
   'lead.status_changed': { label: 'Lead status changed', tone: 'neutral' },
+  'alert.acknowledged': { label: 'Alert acknowledged', tone: 'info' },
+  'alert.resolved': { label: 'Alert resolved', tone: 'success' },
+  'alert.auto_resolved': { label: 'Alert auto-resolved', tone: 'success' },
 }
 
 export function auditLabel(action: string): string {

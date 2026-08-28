@@ -72,7 +72,9 @@ export default async function PlatformAdminLayout({
     ['users', ctx.permissions['users.view']],
     ['leads', ctx.permissions['leads.view']],
     ['health', ctx.permissions['health.view']],
+    ['alerts', ctx.permissions['alerts.view']],
     ['audit', ctx.permissions['audit.view']],
+    ['security', ctx.permissions['audit.view']],
     ['admins', ctx.permissions['admins.view']],
   ] as [NavKey, boolean | undefined][])
     .filter(([, show]) => show)
