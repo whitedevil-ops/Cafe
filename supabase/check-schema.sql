@@ -646,8 +646,10 @@ with expected(kind, name, fix) as (values
   ('function', 'enqueue_bill_whatsapp',                '0156'),
   -- WhatsApp order-placed message + bill re-wired to payment_status (0157).
   ('function', 'enqueue_order_placed_whatsapp',         '0157'),
-  -- WhatsApp bills on Growth/Scale plans + owner on/off toggle (0158).
-  ('column',   'cafes.whatsapp_bills_enabled',          '0158')
+  -- WhatsApp bills on Growth/Scale plans (0158). Owner-facing toggle from
+  -- that migration was superseded by 0159 -- ops-only via
+  -- cafe_feature_overrides, same lever as qr_ordering's kill switch.
+  ('function', 'whatsapp_bills_active',                 '0159')
 )
 select
   e.kind,
