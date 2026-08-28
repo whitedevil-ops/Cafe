@@ -148,7 +148,17 @@ export default function KotPrintingPanel({
       setEnabled(!next)
       return toast(error.message, 'error')
     }
-    toast(next ? 'KOT printing enabled.' : 'KOT printing disabled — the digital KDS is unaffected.')
+    // Flipping this on with zero printers configured previously gave the
+    // same reassuring "enabled" toast as a café with printers actually
+    // wired up — nothing would ever print, with no signal anything was
+    // still needed (found live: this exact state on the real pilot café).
+    toast(
+      next
+        ? printers.length === 0
+          ? 'KOT printing enabled — add a printer below, or tickets will only reach the digital KDS.'
+          : 'KOT printing enabled.'
+        : 'KOT printing disabled — the digital KDS is unaffected.',
+    )
   }
 
   // Covers both an item added and an item modified after the first KOT

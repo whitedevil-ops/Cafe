@@ -86,7 +86,7 @@ export default function KitchenClient({
   // Latest print_jobs status per order — the queue/bridge print automatically
   // now (see reprintQueued below), so this is the only way staff can tell
   // whether a ticket actually went out without walking to the printer.
-  const [printJobs, setPrintJobs] = useState<Record<string, { kind: string; status: string }>>({})
+  const [printJobs, setPrintJobs] = useState<Record<string, { kind: string; status: string; created_at: string }>>({})
 
   // Printer status is polled separately and slowly: it must never share a
   // failure path with the order poll, because the tickets have to keep
@@ -182,9 +182,9 @@ export default function KitchenClient({
           .in('order_id', ords.map((o) => o.id))
           .order('created_at', { ascending: true })
         if (jobs) {
-          const latest: Record<string, { kind: string; status: string }> = {}
-          for (const j of jobs as { order_id: string | null; kind: string; status: string }[]) {
-            if (j.order_id) latest[j.order_id] = { kind: j.kind, status: j.status }
+          const latest: Record<string, { kind: string; status: string; created_at: string }> = {}
+          for (const j of jobs as { order_id: string | null; kind: string; status: string; created_at: string }[]) {
+            if (j.order_id) latest[j.order_id] = { kind: j.kind, status: j.status, created_at: j.created_at }
           }
           setPrintJobs(latest)
         }
@@ -262,10 +262,21 @@ export default function KitchenClient({
 
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
-  function printBadge(job?: { kind: string; status: string }): { label: string; cls: string } | null {
+  function printBadge(job?: { kind: string; status: string; created_at: string }): { label: string; cls: string } | null {
     if (!job) return null
     if (job.status === 'failed') return { label: 'Print failed', cls: 'text-destructive' }
-    if (job.status === 'pending' || job.status === 'printing') return { label: 'Printing…', cls: 'text-muted-foreground' }
+    if (job.status === 'pending' || job.status === 'printing') {
+      // A LAN-bridge job normally claims within seconds. A non-LAN printer
+      // (USB/Bluetooth) is deliberately never claimed by the bridge at all —
+      // found live: a real job sat 'pending' for a full day with no signal
+      // anything was wrong, since this badge showed the same "Printing…" a
+      // genuinely in-flight LAN job gets. Past 2 minutes, say so honestly
+      // instead of implying it's still on its way.
+      if (mins(job.created_at) >= 2) {
+        return { label: 'Not printing automatically — use Print now', cls: 'text-warning' }
+      }
+      return { label: 'Printing…', cls: 'text-muted-foreground' }
+    }
     if (job.status === 'printed') {
       const label = job.kind === 'reprint' ? 'Reprinted' : job.kind === 'kot_update' ? 'Update printed' : 'Printed'
       return { label, cls: 'text-success' }
