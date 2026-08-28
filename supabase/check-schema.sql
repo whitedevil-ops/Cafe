@@ -718,6 +718,14 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0182: full-audit fix -- wallet_charge_order (the shared spend core both
+  -- wallet_pay_order and wallet_pay_for_order delegate to) and wallet_adjust
+  -- re-bodied to add the cafe_has_feature('wallet') check wallet_start_topup
+  -- already had -- closes a live, demonstrated bypass letting a non-entitled
+  -- café accumulate and spend real wallet balance. Neither was previously
+  -- tracked in this file at all (a pre-existing gap, not introduced here) --
+  -- no new rows added, this feature's tracking coverage is out of scope for
+  -- this fix.
   -- 0180: full-audit fix, CRITICAL, live-reproduced -- record_payment() had
   -- no concurrency protection; two overlapping calls for the same order
   -- both passed the outstanding-balance check and both inserted, producing
