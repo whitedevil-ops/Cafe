@@ -718,6 +718,13 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0183: full-audit fix, live-confirmed on the real pilot café -- the
+  -- customer QR checkout's coupon field rendered unconditionally regardless
+  -- of plan entitlement, so a real customer's raw rejection message from
+  -- resolve_coupon_discount was the first thing they saw. New anon-safe RPC
+  -- (cafe_has_feature itself is correctly revoked from anon) mirrors the
+  -- existing public_cafe_ordering_enabled() pattern.
+  ('function', 'public_cafe_coupons_enabled', '0183'),
   -- 0182: full-audit fix -- wallet_charge_order (the shared spend core both
   -- wallet_pay_order and wallet_pay_for_order delegate to) and wallet_adjust
   -- re-bodied to add the cafe_has_feature('wallet') check wallet_start_topup

@@ -24,6 +24,13 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = await getCachedCafeMenu(table.cafe_id)
   if (!cafe) notFound()
 
+  // cafe_has_feature() itself is revoked from anon (a real security
+  // boundary) — this narrow, anon-safe RPC is the only way this page can
+  // know whether to show the coupon field at all, instead of always
+  // rendering it and letting resolve_coupon_discount's raw rejection
+  // message be the first thing a real customer sees.
+  const { data: couponsEnabled } = await supabase.rpc('public_cafe_coupons_enabled', { p_table_token: token })
+
   // Operator-facing kill switch (operator console Feature control), separate
   // from account Suspend/Disable — this pauses only customer ordering while
   // staff keep dashboard access. Any RPC error (including this function not
@@ -59,6 +66,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       tableLabel={table.label}
       onlinePaymentsEnabled={(cafe.online_payments_enabled ?? false) && cafe.razorpay_status === 'connected'}
       acceptPayCounter={cafe.accept_pay_counter ?? true}
+      couponsEnabled={couponsEnabled ?? false}
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}

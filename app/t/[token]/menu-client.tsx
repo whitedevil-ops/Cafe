@@ -58,6 +58,7 @@ export default function MenuClient({
   tableLabel,
   onlinePaymentsEnabled,
   acceptPayCounter,
+  couponsEnabled,
   upsellThreshold,
   categories,
   items,
@@ -75,6 +76,7 @@ export default function MenuClient({
   tableLabel: string
   onlinePaymentsEnabled: boolean
   acceptPayCounter: boolean
+  couponsEnabled: boolean
   upsellThreshold: number
   categories: { id: string; name: string }[]
   items: PublicItem[]
@@ -749,34 +751,36 @@ export default function MenuClient({
           </div>
         </div>
 
-        <div className="mt-4">
-          {appliedCoupon ? (
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-primary bg-primary-subtle px-4 py-2.5">
-              <span className="text-[13.5px] font-medium text-primary">
-                {appliedCoupon.code}{appliedCoupon.name ? ` — ${appliedCoupon.name}` : ''} · saved ₹{appliedCoupon.discount}
-              </span>
-              <button onClick={removeCoupon} className="text-[13px] font-medium text-primary hover:underline">Remove</button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <input
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) applyCoupon() }}
-                placeholder="Have a coupon?"
-                className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-4 uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground outline-none"
-              />
-              <button
-                onClick={applyCoupon}
-                disabled={!couponCode.trim() || couponChecking}
-                className="rounded-[var(--radius)] border border-border-strong px-4 text-[13.5px] font-medium text-foreground disabled:opacity-40"
-              >
-                {couponChecking ? 'Checking…' : 'Apply'}
-              </button>
-            </div>
-          )}
-          {couponError && <p className="mt-2 text-[13px] text-destructive">{couponError}</p>}
-        </div>
+        {couponsEnabled && (
+          <div className="mt-4">
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-primary bg-primary-subtle px-4 py-2.5">
+                <span className="text-[13.5px] font-medium text-primary">
+                  {appliedCoupon.code}{appliedCoupon.name ? ` — ${appliedCoupon.name}` : ''} · saved ₹{appliedCoupon.discount}
+                </span>
+                <button onClick={removeCoupon} className="text-[13px] font-medium text-primary hover:underline">Remove</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && couponCode.trim()) applyCoupon() }}
+                  placeholder="Have a coupon?"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-4 uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground outline-none"
+                />
+                <button
+                  onClick={applyCoupon}
+                  disabled={!couponCode.trim() || couponChecking}
+                  className="rounded-[var(--radius)] border border-border-strong px-4 text-[13.5px] font-medium text-foreground disabled:opacity-40"
+                >
+                  {couponChecking ? 'Checking…' : 'Apply'}
+                </button>
+              </div>
+            )}
+            {couponError && <p className="mt-2 text-[13px] text-destructive">{couponError}</p>}
+          </div>
+        )}
 
         {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
 
