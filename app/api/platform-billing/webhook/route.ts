@@ -73,31 +73,40 @@ export async function POST(req: Request) {
   const currentEnd = sub.current_end ? new Date(sub.current_end * 1000).toISOString() : null
   const planKey = sub.notes?.plan_key
 
+  // Routed through the audited RPC (not a raw service-role write) — every
+  // one of these flips billing_status/status/plan, which platform_audit_logs
+  // is supposed to have a record of regardless of who/what triggered it.
   switch (eventName) {
     case 'subscription.activated':
     case 'subscription.charged':
-      await admin
-        .from('cafes')
-        .update({
-          billing_status: 'active',
-          status: 'active',
-          subscription_ends_at: currentEnd,
-          expiry_reminder_sent_at: null,
-          expiry_reminder_30d_sent_at: null,
-          ...(planKey ? { plan: planKey } : {}),
-        })
-        .eq('id', cafe.id)
+      await admin.rpc('system_update_cafe_billing', {
+        p_cafe_id: cafe.id,
+        p_source: 'webhook:razorpay:' + eventName,
+        p_billing_status: 'active',
+        p_status: 'active',
+        p_subscription_ends_at: currentEnd,
+        p_plan: planKey ?? null,
+        p_reset_reminders: true,
+      })
       break
     case 'subscription.pending':
     case 'subscription.halted':
       // Razorpay is retrying a failed charge — grace period, not an
       // immediate suspension. The expiry cron is what eventually acts on this
       // once subscription_ends_at actually passes.
-      await admin.from('cafes').update({ billing_status: 'past_due' }).eq('id', cafe.id)
+      await admin.rpc('system_update_cafe_billing', {
+        p_cafe_id: cafe.id,
+        p_source: 'webhook:razorpay:' + eventName,
+        p_billing_status: 'past_due',
+      })
       break
     case 'subscription.cancelled':
     case 'subscription.completed':
-      await admin.from('cafes').update({ billing_status: 'cancelled' }).eq('id', cafe.id)
+      await admin.rpc('system_update_cafe_billing', {
+        p_cafe_id: cafe.id,
+        p_source: 'webhook:razorpay:' + eventName,
+        p_billing_status: 'cancelled',
+      })
       break
     default:
       break

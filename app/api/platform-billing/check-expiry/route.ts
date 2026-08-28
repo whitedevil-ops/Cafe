@@ -106,11 +106,16 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const ids = (expired ?? []).map((c) => c.id as string)
-  if (ids.length > 0) {
-    await admin
-      .from('cafes')
-      .update({ status: 'suspended', status_reason: 'Subscription expired', status_changed_at: new Date().toISOString() })
-      .in('id', ids)
+  for (const id of ids) {
+    // Routed through the audited RPC, not a raw service-role write — this is
+    // the single most consequential thing this cron does, and it needs to
+    // show up in platform_audit_logs like every other status change.
+    await admin.rpc('system_update_cafe_billing', {
+      p_cafe_id: id,
+      p_source: 'cron:check-expiry',
+      p_status: 'suspended',
+      p_status_reason: 'Subscription expired',
+    })
   }
 
   let reminded = 0

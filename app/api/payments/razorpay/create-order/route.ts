@@ -47,6 +47,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'This café does not accept online payments.' }, { status: 400 })
   }
 
+  // Re-check entitlement here, not just at connect time — an admin override
+  // to OFF or a plan downgrade never touches the columns checked above, so
+  // without this an already-connected café could keep accepting real
+  // charges after losing the online_payments feature.
+  const { data: entitled } = await admin.rpc('cafe_payments_enabled', { p_cafe_id: order.cafe_id })
+  if (!entitled) {
+    return NextResponse.json({ error: 'This café does not accept online payments.' }, { status: 400 })
+  }
+
   const { data: secrets } = await admin
     .from('cafe_payment_secrets')
     .select('key_secret_enc')

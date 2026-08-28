@@ -655,7 +655,33 @@ with expected(kind, name, fix) as (values
   -- Owner-controlled bill CTA link, replacing the star-rating feedback gate (0161).
   ('column',   'cafes.bill_link_url',                   '0161'),
   -- Owner-customizable bill CTA button text, e.g. "Google Review" (0162).
-  ('column',   'cafes.bill_link_label',                 '0162')
+  ('column',   'cafes.bill_link_label',                 '0162'),
+  --
+  -- Phase 1 security lockdown (0163/0164/0165) -- ops-panel audit findings.
+  -- 0163: cafes gets a column-level UPDATE grant replacing the blanket
+  -- table grant (no new tracked object, verified by the migration's own
+  -- self-check block); platform_plans/cafe_feature_overrides/operator_notes/
+  -- password_reset_log RLS tightened to specific permissions (no new
+  -- object); op_delete_cafe and op_update_lead_status re-bodied only
+  -- (unchanged signatures).
+  -- 0164: place_order re-bodied only (unchanged signature) to enforce the
+  -- qr_ordering kill switch.
+  ('function', 'cafe_payments_enabled',                 '0164'),
+  -- 0165: service-role-only audited write path for the expiry cron and the
+  -- Razorpay platform-billing webhook.
+  ('function', 'system_update_cafe_billing',             '0165'),
+  -- 0166: 6 unprotected premium features (crm, inventory, expenses,
+  -- feedback, advanced_analytics, advanced_reports) get server-side
+  -- entitlement checks. v_customer_stats, update_customer_name,
+  -- record_inventory_movement, create_purchase_order, record_expense,
+  -- delete_expense, feedback_summary, advanced_analytics_report,
+  -- profitability_report, operations_report are all re-bodied only
+  -- (unchanged signatures) -- no new tracked object for any of them.
+  -- gst_invoice_report/adjustments_report are deliberately left untouched
+  -- (Day Close needs them ungated); these two new wrapper RPCs are the only
+  -- new objects.
+  ('function', 'gst_invoice_report_premium',              '0166'),
+  ('function', 'adjustments_report_premium',              '0166')
 )
 select
   e.kind,

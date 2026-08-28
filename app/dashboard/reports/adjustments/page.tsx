@@ -22,7 +22,7 @@ export default async function AdjustmentsReportPage() {
   const from = businessDaysAgoStartISO(6, cafe.timezone)
   const to = new Date().toISOString()
 
-  const { data, error } = await supabase.rpc('adjustments_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to })
+  const { data, error } = await supabase.rpc('adjustments_report_premium', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to })
 
   return (
     <AdjustmentsClient

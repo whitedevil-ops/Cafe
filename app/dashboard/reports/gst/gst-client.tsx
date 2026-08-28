@@ -34,7 +34,7 @@ export default function GstClient({
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<GstReport>({ cafeId, timezone, rpc: 'gst_invoice_report', initialFrom, initialTo, initialReport })
+    useReportRange<GstReport>({ cafeId, timezone, rpc: 'gst_invoice_report_premium', initialFrom, initialTo, initialReport })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than

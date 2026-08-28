@@ -38,7 +38,7 @@ export default function AdjustmentsClient({
   const canSeeProfit = role === 'owner' || role === 'manager'
   const [tab, setTab] = useState<Tab>('discounts')
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<AdjustmentsReport>({ cafeId, timezone, rpc: 'adjustments_report', initialFrom, initialTo, initialReport })
+    useReportRange<AdjustmentsReport>({ cafeId, timezone, rpc: 'adjustments_report_premium', initialFrom, initialTo, initialReport })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
