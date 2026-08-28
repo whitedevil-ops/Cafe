@@ -49,10 +49,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not start the subscription. Please try again.' }, { status: 502 })
   }
 
-  const { error: updateErr } = await supabase
-    .from('cafes')
-    .update({ razorpay_subscription_id: sub.id, billing_status: 'created' })
-    .eq('id', cafe.cafeId)
+  // cafes.razorpay_subscription_id/billing_status are deliberately outside
+  // the café-owner column allowlist (migration 0163) -- a raw update here
+  // would make them writable to any value via any authenticated path, not
+  // just this route's own safe, server-computed values. This RPC (0181)
+  // narrowly allows only this one transition.
+  const { error: updateErr } = await supabase.rpc('record_subscription_started', {
+    p_cafe_id: cafe.cafeId,
+    p_razorpay_subscription_id: sub.id,
+  })
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
   return NextResponse.json({ subscription_id: sub.id, key_id: RAZORPAY_KEY_ID, plan_name: plan.name })

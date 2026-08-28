@@ -712,6 +712,12 @@ with expected(kind, name, fix) as (values
   -- anon, scoped to exactly what a kitchen board needs.
   ('function', 'public_kds_orders',        '0178'),
   ('function', 'public_kds_advance_order', '0178'),
+  -- 0181: full-audit fix, CRITICAL -- self-service Razorpay subscribe/renew
+  -- was completely broken (this session's own 0163 lockdown omitted
+  -- razorpay_subscription_id/billing_status from the café-owner column
+  -- allowlist). New narrow RPC instead of widening the raw grant, which
+  -- would have made those columns writable to any value via any path.
+  ('function', 'record_subscription_started', '0181'),
   -- 0180: full-audit fix, CRITICAL, live-reproduced -- record_payment() had
   -- no concurrency protection; two overlapping calls for the same order
   -- both passed the outstanding-balance check and both inserted, producing
