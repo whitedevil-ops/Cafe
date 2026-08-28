@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { keepSignedIn, setKeepSignedIn, clearStoredSession, shouldSkipLoginSignOut } from '@/lib/desktop-session'
+import { isDesktopApp } from '@/lib/is-desktop'
 
 export default function LoginPage() {
   // useSearchParams needs a Suspense boundary for the static shell (Next build rule).
@@ -25,12 +26,23 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [keepMe, setKeepMe] = useState(true)
+  // "Keep me signed in" only does anything inside the desktop app — it gates
+  // whether a refresh token is written to a local file there (lib/desktop-
+  // session.ts). On an ordinary browser the Supabase session cookie persists
+  // for its own ~400-day default regardless of this checkbox, so showing it
+  // (with copy promising to "leave it off on a shared machine") on the web
+  // is actively misleading, not just inert. Hidden there instead of wired up
+  // to actually shorten the web session — that would mean overriding this
+  // project's shared cookie config for every login, a bigger change than an
+  // audit fix pass should make unilaterally.
+  const [desktop, setDesktop] = useState(false)
 
   useEffect(() => {
-    // Read after mount — localStorage does not exist while this renders on
-    // the server, and the box would flicker if it defaulted differently.
+    // Read after mount — localStorage/window do not exist while this renders
+    // on the server, and the box would flicker if it defaulted differently.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setKeepMe(keepSignedIn())
+    setDesktop(isDesktopApp())
   }, [])
 
   useEffect(() => {
@@ -98,22 +110,28 @@ function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <div className="-mt-2 flex flex-wrap items-center justify-between gap-2">
-          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
-            <input
-              type="checkbox"
-              checked={keepMe}
-              onChange={(e) => setKeepMe(e.target.checked)}
-              className="h-4 w-4 rounded border-border-strong accent-[var(--primary)]"
-            />
-            Keep me signed in
-          </label>
+          {desktop ? (
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
+              <input
+                type="checkbox"
+                checked={keepMe}
+                onChange={(e) => setKeepMe(e.target.checked)}
+                className="h-4 w-4 rounded border-border-strong accent-[var(--primary)]"
+              />
+              Keep me signed in
+            </label>
+          ) : (
+            <span />
+          )}
           <Link href="/forgot-password" className="text-[13px] font-medium text-primary hover:underline">
             Forgot password?
           </Link>
         </div>
-        <p className="-mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
-          Stays signed in on this computer until you sign out. Leave it off on a shared or public machine.
-        </p>
+        {desktop && (
+          <p className="-mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+            Stays signed in on this computer until you sign out. Leave it off on a shared or public machine.
+          </p>
+        )}
         {error && (
           <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
             {error}
