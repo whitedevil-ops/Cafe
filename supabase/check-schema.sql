@@ -651,7 +651,9 @@ with expected(kind, name, fix) as (values
   -- cafe_feature_overrides, same lever as qr_ordering's kill switch.
   ('function', 'whatsapp_bills_active',                 '0159'),
   -- get_receipt: payment breakdown + customer name for the redesigned bill (0160).
-  ('function', 'get_receipt',                           '0160')
+  ('function', 'get_receipt',                           '0160'),
+  -- Owner-controlled bill CTA link, replacing the star-rating feedback gate (0161).
+  ('column',   'cafes.bill_link_url',                   '0161')
 )
 select
   e.kind,

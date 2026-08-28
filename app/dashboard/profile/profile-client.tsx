@@ -51,7 +51,8 @@ export type CafeProfile = {
   dine_in: boolean
   takeaway: boolean
   receipt_footer: string
-  google_review_url: string
+  bill_link_url: string
+  bill_link_enabled: boolean
 }
 
 export type Hours = Record<string, { open: string; close: string; closed: boolean }>
@@ -142,6 +143,15 @@ export default function ProfileClient({
       if (!GSTIN_RE.test(gstin)) { setSection('gst'); return setError('GSTIN format looks invalid (e.g. 06AABCB1234F1Z5). Format check only — it does not verify official registration.') }
       if (!form.legal_name.trim()) { setSection('gst'); return setError('Legal business name is required on a GST tax invoice.') }
     }
+    const billLink = form.bill_link_url.trim()
+    if (billLink) {
+      let scheme: string | null = null
+      try { scheme = new URL(billLink).protocol } catch { scheme = null }
+      if (scheme !== 'http:' && scheme !== 'https:') {
+        setSection('basic')
+        return setError('Customer bill link must be a valid web address starting with https:// (e.g. https://instagram.com/yourcafe).')
+      }
+    }
     setBusy(true)
     setError(null)
 
@@ -173,7 +183,8 @@ export default function ProfileClient({
       pincode: form.pincode.trim() || null,
       dine_in: form.dine_in,
       takeaway: form.takeaway,
-      google_review_url: form.google_review_url.trim() || null,
+      bill_link_url: billLink || null,
+      bill_link_enabled: form.bill_link_enabled,
     }
 
     const { error: cafeErr } = await supabase.from('cafes').update(cafeUpdate).eq('id', cafeId)
@@ -189,7 +200,7 @@ export default function ProfileClient({
     // Audit trail: one row per materially changed field, compared to the last
     // saved baseline (no-op if nothing changed since the last save).
     const audit: { field: string; from: unknown; to: unknown }[] = []
-    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'gst_sac_code', 'gst_registered', 'legal_name', 'tax_inclusive', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway']
+    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'gst_sac_code', 'gst_registered', 'legal_name', 'tax_inclusive', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway', 'bill_link_url', 'bill_link_enabled']
     for (const k of watch) {
       if (String(baseline.form[k] ?? '') !== String(form[k] ?? '')) audit.push({ field: k, from: baseline.form[k], to: form[k] })
     }
@@ -296,14 +307,30 @@ export default function ProfileClient({
                   <Input label="Business phone" type="tel" value={form.phone} onChange={set('phone')} disabled={dis} />
                 </div>
                 <Input label="Website" placeholder="https://…" value={form.website} onChange={set('website')} disabled={dis} />
-                <Input
-                  label="Google review link"
-                  placeholder="https://g.page/r/…/review"
-                  value={form.google_review_url}
-                  onChange={set('google_review_url')}
-                  disabled={dis}
-                  hint="Shown to customers who rate their visit 4 or 5 stars, after they submit feedback."
-                />
+                <div>
+                  <Input
+                    label="Customer bill link"
+                    placeholder="https://instagram.com/yourcafe"
+                    value={form.bill_link_url}
+                    onChange={set('bill_link_url')}
+                    disabled={dis}
+                    hint="A “Visit Us” button on every customer bill, opening whatever link you set — your Instagram, Google Maps listing, website, anything."
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-[12.5px] font-medium text-foreground">Show the button on bills</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.bill_link_enabled}
+                      aria-label="Bill link enabled"
+                      disabled={dis}
+                      onClick={() => patch({ bill_link_enabled: !form.bill_link_enabled })}
+                      className={`h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${form.bill_link_enabled ? 'bg-primary' : 'bg-surface-subtle border border-border-strong'}`}
+                    >
+                      <span className={`block h-6 w-6 rounded-full bg-white shadow transition-transform ${form.bill_link_enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
 
                 <div className="border-t border-border pt-4">
                   <Input label="Address line 1" value={form.address} onChange={set('address')} disabled={dis} />

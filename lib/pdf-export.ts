@@ -18,7 +18,7 @@ export type ReceiptData = {
     address: string | null; city: string | null; state: string | null; pincode: string | null
     gstin: string | null; logo_url: string | null; phone: string | null
     gst_registered: boolean; tax_inclusive: boolean; timezone: string | null
-    google_review_url: string | null
+    bill_link_url: string | null
   }
   order: {
     short_code: string; created_at: string; order_type: string

@@ -21,7 +21,7 @@ export default async function CafeProfilePage() {
   const [{ data }, { data: settings }] = await Promise.all([
     supabase
       .from('cafes')
-      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, accept_cash, accept_upi_counter, accept_card_counter, accept_pay_counter, online_payments_enabled, razorpay_status, razorpay_key_id, razorpay_webhook_token, address, city, state, pincode, dine_in, takeaway, google_review_url')
+      .select('name, description, logo_url, email, phone, website, gstin, gst_sac_code, gst_registered, legal_name, trade_name, state_code, invoice_prefix, tax_inclusive, tax_percent, service_charge, accept_cash, accept_upi_counter, accept_card_counter, accept_pay_counter, online_payments_enabled, razorpay_status, razorpay_key_id, razorpay_webhook_token, address, city, state, pincode, dine_in, takeaway, bill_link_url, bill_link_enabled')
       .eq('id', cafe.cafeId)
       .single(),
     supabase.from('cafe_settings').select('hours, receipt').eq('cafe_id', cafe.cafeId).maybeSingle(),
@@ -60,7 +60,8 @@ export default async function CafeProfilePage() {
     takeaway: data?.takeaway ?? true,
     receipt_footer:
       ((settings?.receipt as { footer?: string } | null)?.footer ?? '') || '',
-    google_review_url: data?.google_review_url ?? '',
+    bill_link_url: data?.bill_link_url ?? '',
+    bill_link_enabled: data?.bill_link_enabled ?? true,
   }
 
   const hours = { ...DEFAULT_HOURS, ...((settings?.hours as Hours | null) ?? {}) }

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { resolvePaymentState, RECEIPT_STATE_LABEL, methodLabel } from '@/lib/receipt-status'
-import { FeedbackForm } from '@/components/receipt/feedback-form'
+import { BillLinkCta } from '@/components/receipt/bill-link-cta'
 import { ReceiptDownloadButton } from '@/components/receipt/download-button'
 import { AutoPrint } from '@/components/receipt/auto-print'
 import { SpinWheel } from '@/components/qr/spin-wheel'
@@ -283,10 +283,11 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
           <ReceiptDownloadButton receipt={r} />
 
-          <p className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground">
+          <div className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground">
             Thank you for visiting!
-            <span className="mt-0.5 block text-[10.5px] text-muted-foreground/70">Powered by KhaoPiyo</span>
-          </p>
+            <BillLinkCta url={r.cafe.bill_link_url} />
+            <p className="mt-3 text-[10.5px] text-muted-foreground/70">Powered by KhaoPiyo</p>
+          </div>
         </div>
       </div>
 
@@ -296,10 +297,6 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           unless this café runs a wheel and the bill is settled. */}
       <div className="mt-6 print:hidden">
         <SpinWheel receiptToken={token} />
-      </div>
-
-      <div className="print:hidden">
-        <FeedbackForm token={token} googleReviewUrl={r.cafe.google_review_url} />
       </div>
     </main>
   )
