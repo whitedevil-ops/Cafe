@@ -718,6 +718,14 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0185: full-audit fix -- "Add Inventory Item" was completely broken since
+  -- migration 0050 revoked direct writes on inventory_items with no
+  -- replacement create-RPC (record_inventory_movement/create_purchase_order
+  -- only update an existing row's stock). New create_inventory_item, gated
+  -- by owner/manager role AND cafe_has_feature('inventory'). Zero live
+  -- impact until now -- no café in production is on the plan that gates
+  -- this feature -- but the create step was 100% broken, not incomplete.
+  ('function', 'create_inventory_item', '0185'),
   -- 0184: full-audit fix, live-confirmed on the real pilot café --
   -- gst_invoice_report/adjustments_report re-bodied only, adding a range-
   -- aware advanced_reports check (reject only when BOTH the plan lacks the

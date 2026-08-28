@@ -50,19 +50,18 @@ export default function InventoryClient({
     if (!name.trim()) return setError('Item name is required.')
     setSaving(true)
     setError(null)
-    const { data, error: err } = await supabase
-      .from('inventory_items')
-      .insert({
-        cafe_id: cafeId,
-        name: name.trim(),
-        sku: sku.trim() || null,
-        unit: unit.trim() || 'unit',
-        min_stock: Number(minStock) || 0,
-        cost: cost ? Math.round(Number(cost)) : null,
-        supplier: supplier.trim() || null,
-      })
-      .select('id, name, sku, unit, current_stock, min_stock, cost, supplier')
-      .single()
+    // inventory_items has had no direct insert/update/delete grant since
+    // migration 0050 (writes go through audited RPCs) -- create_inventory_item
+    // (0185) is the create path that was missing entirely until now.
+    const { data, error: err } = await supabase.rpc('create_inventory_item', {
+      p_cafe_id: cafeId,
+      p_name: name.trim(),
+      p_unit: unit.trim() || 'unit',
+      p_sku: sku.trim() || null,
+      p_min_stock: Number(minStock) || 0,
+      p_cost: cost ? Math.round(Number(cost)) : null,
+      p_supplier: supplier.trim() || null,
+    })
     setSaving(false)
     if (err) return setError(err.message)
     setItems((list) => [...list, data as InventoryItem].sort((a, b) => a.name.localeCompare(b.name)))
