@@ -282,14 +282,25 @@ export function MonoId({ id }: { id: string }) {
  * For breakdowns where the split matters more than the raw counts — a bare
  * list of "starter 4 / growth 1" makes you do the ratio in your head.
  */
-export function ProportionRow({ label, value, total }: { label: string; value: number; total: number }) {
+export function ProportionRow({
+  label,
+  value,
+  total,
+  formatValue,
+}: {
+  label: string
+  value: number
+  total: number
+  /** Defaults to the raw number — pass this to render money (e.g. `₹${v.toLocaleString('en-IN')}`) instead. */
+  formatValue?: (v: number) => string
+}) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0
   return (
     <li className="py-1.5">
       <div className="flex items-baseline justify-between text-[13px]">
         <span className="capitalize text-foreground">{label}</span>
         <span className="tabular-nums text-muted-foreground">
-          {value} <span className="text-[11.5px]">({pct}%)</span>
+          {formatValue ? formatValue(value) : value} <span className="text-[11.5px]">({pct}%)</span>
         </span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-subtle">

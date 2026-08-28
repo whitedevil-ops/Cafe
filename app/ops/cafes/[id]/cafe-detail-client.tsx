@@ -178,10 +178,30 @@ function daysRemainingLabel(iso: string | null): string {
   return `${Math.ceil(ms / 86_400_000)}d left`
 }
 
-function trialStatus(plan: string, trialEndsAt: string | null): { label: string; tone: StripTone } {
+// Checked against subscription_ends_at, NOT trial_ends_at. trial_ends_at is
+// set once at signup (0118_trial_autostart_plan_renewal.sql) and never moves
+// again on its own; subscription_ends_at is the field an ops admin's
+// "Change / renew plan" action actually updates (op_apply_plan et al. leave
+// trial_ends_at untouched via `coalesce(p_trial_ends_at, trial_ends_at)`
+// unless explicitly passed). So a Trial café whose access was manually
+// extended has a trial_ends_at stuck in the past while subscription_ends_at
+// -- the date that actually governs access -- is still in the future.
+// Reading trial_ends_at here produced exactly that: a "Trial expired" badge
+// sitting next to "16d left", which reads as a contradiction because it is
+// answering two different questions with one label. subscription_ends_at is
+// the one that answers "can this café still get in".
+function trialExtendedHint(trialEndsAt: string | null, subscriptionEndsAt: string | null): string | undefined {
+  if (!trialEndsAt || !subscriptionEndsAt) return undefined
+  const now = Date.now()
+  const trialOver = new Date(trialEndsAt).getTime() < now
+  const stillActive = new Date(subscriptionEndsAt).getTime() > now
+  return trialOver && stillActive ? 'Original offer — extended, see Subscription ends' : undefined
+}
+
+function trialStatus(plan: string, subscriptionEndsAt: string | null): { label: string; tone: StripTone } {
   if (plan !== 'trial') return { label: 'Converted', tone: 'success' }
-  if (!trialEndsAt) return { label: 'No trial', tone: 'neutral' }
-  return new Date(trialEndsAt).getTime() > Date.now()
+  if (!subscriptionEndsAt) return { label: 'No trial', tone: 'neutral' }
+  return new Date(subscriptionEndsAt).getTime() > Date.now()
     ? { label: 'Trialing', tone: 'info' }
     : { label: 'Trial expired', tone: 'warning' }
 }
@@ -416,13 +436,17 @@ export default function CafeDetailClient({
         <div className="mt-3 grid grid-cols-2 gap-3 text-[13.5px] sm:grid-cols-3">
           <Field label="Plan" value={data.account.plan} capitalize />
           <Field label="Plan price" value={planPrice(plans, data.account.plan)} />
-          <Field label="Trial ends" value={fmt(data.account.trial_ends_at)} />
+          <Field
+            label="Trial ends"
+            value={fmt(data.account.trial_ends_at)}
+            hint={trialExtendedHint(data.account.trial_ends_at, data.account.subscription_ends_at)}
+          />
           <Field label="Subscription ends" value={fmt(data.account.subscription_ends_at)} />
           <Field label="Days remaining" value={daysRemainingLabel(data.account.subscription_ends_at)} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {(() => {
-            const t = trialStatus(data.account.plan, data.account.trial_ends_at)
+            const t = trialStatus(data.account.plan, data.account.subscription_ends_at)
             return <Badge tone={t.tone}>{t.label}</Badge>
           })()}
           <Badge tone={BILLING_STATUS_TONE[data.account.billing_status] ?? 'neutral'}>
@@ -753,11 +777,12 @@ export default function CafeDetailClient({
   )
 }
 
-function Field({ label, value, capitalize }: { label: string; value: string | null; capitalize?: boolean }) {
+function Field({ label, value, capitalize, hint }: { label: string; value: string | null; capitalize?: boolean; hint?: string }) {
   return (
     <div>
       <p className="text-[11.5px] text-muted-foreground">{label}</p>
       <p className={`mt-0.5 text-foreground ${capitalize ? 'capitalize' : ''}`}>{value || '—'}</p>
+      {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   )
 }
