@@ -765,7 +765,7 @@ with expected(kind, name, fix) as (values
   -- already tracked above, no new row for it) plus a new hard trigger-level
   -- backstop that rejects ANY insert into payments that would push an
   -- order's total collected past its own total, through any path.
-  ('function', 'trg_payments_no_overcollect', '0180')
+  ('function', 'trg_payments_no_overcollect', '0180'),
   -- 0179: full-audit fix -- sales_report re-bodied only. Its `base` CTE
   -- required payment_status='paid', so a fully refunded order's revenue
   -- vanished from every figure in the report while refund_total still
@@ -797,6 +797,17 @@ with expected(kind, name, fix) as (values
   -- account object gains billing_status (already tracked at line 94). All
   -- four are re-bodies/signature changes of already-tracked functions -- no
   -- new tracked object for any of them.
+  -- 0188: full-audit follow-up -- the multi-cafe cap (0059) was only ever
+  -- checked at cafe CREATION time; downgrading a Growth-plan owner's cafe
+  -- back to Starter left every existing cafe running fully forever, with a
+  -- gaming loophole (upgrade one cafe briefly to spawn a free extra cafe,
+  -- downgrade back, keep both). New internal-only reconcile_owner_cafe_cap
+  -- helper, called from op_change_plan and system_update_cafe_billing after
+  -- every plan/status write, suspends the owner's newest-created active
+  -- cafe(s) immediately once their aggregate cap no longer covers their
+  -- active cafe count. op_change_plan/system_update_cafe_billing unchanged
+  -- signatures, already tracked above, no new rows for them.
+  ('function', 'reconcile_owner_cafe_cap', '0188')
 )
 select
   e.kind,
