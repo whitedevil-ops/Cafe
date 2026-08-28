@@ -37,6 +37,7 @@ export default function TablesClient({
   const [origin, setOrigin] = useState('')
   const [qr, setQr] = useState<Record<string, string>>({})
   const [newLabel, setNewLabel] = useState('')
+  const [newSeats, setNewSeats] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [zoom, setZoom] = useState<TableRow | null>(null)
@@ -77,6 +78,11 @@ export default function TablesClient({
       setError('Type a table name or number first — e.g. 13 or Patio.')
       return
     }
+    const seats = newSeats.trim()
+    if (seats && (!/^\d+$/.test(seats) || Number(seats) < 1 || Number(seats) > 50)) {
+      setError('Seats must be a number between 1 and 50, or left blank.')
+      return
+    }
     setBusy(true)
     setError(null)
     // The insert still writes the token normally — INSERT needs no SELECT
@@ -86,7 +92,7 @@ export default function TablesClient({
     // through the member-gated RPC to pick up the new row with its token.
     const { error } = await supabase
       .from('cafe_tables')
-      .insert({ cafe_id: cafeId, label, token: makeToken(slug) })
+      .insert({ cafe_id: cafeId, label, capacity: seats ? Number(seats) : null, token: makeToken(slug) })
     if (error) {
       setBusy(false)
       return setError(error.message)
@@ -99,6 +105,7 @@ export default function TablesClient({
     if (listErr) return setError(listErr.message)
     setTables((fresh ?? []) as TableRow[])
     setNewLabel('')
+    setNewSeats('')
   }
 
   async function deleteTable(t: TableRow) {
@@ -149,6 +156,16 @@ export default function TablesClient({
               onKeyDown={(e) => e.key === 'Enter' && addTable()}
             />
           </div>
+          <div className="w-24">
+            <Input
+              label="Seats"
+              placeholder="Optional"
+              inputMode="numeric"
+              value={newSeats}
+              onChange={(e) => setNewSeats(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addTable()}
+            />
+          </div>
           <Button onClick={addTable} loading={busy}>Add</Button>
         </div>
       </div>
@@ -166,7 +183,10 @@ export default function TablesClient({
           {sorted.map((t) => (
             <div key={t.id} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-foreground">Table {t.label}</span>
+                <span className="font-medium text-foreground">
+                  Table {t.label}
+                  {t.capacity != null && <span className="ml-1.5 font-normal text-muted-foreground">· {t.capacity} seat{t.capacity === 1 ? '' : 's'}</span>}
+                </span>
                 <button onClick={() => deleteTable(t)} aria-label={`Delete table ${t.label}`} className="min-h-11 px-2 text-[13px] text-muted-foreground hover:text-destructive">Delete</button>
               </div>
               <button
