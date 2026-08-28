@@ -681,7 +681,11 @@ with expected(kind, name, fix) as (values
   -- (Day Close needs them ungated); these two new wrapper RPCs are the only
   -- new objects.
   ('function', 'gst_invoice_report_premium',              '0166'),
-  ('function', 'adjustments_report_premium',              '0166')
+  ('function', 'adjustments_report_premium',              '0166'),
+  -- record_expense re-bodied only (unchanged signature) -- fixes a
+  -- pre-existing (since 0050) missing ::payment_method cast that made every
+  -- call fail. No new tracked object.
+  ('table',    'expenses',                                'schema.sql / 0034')
 )
 select
   e.kind,
