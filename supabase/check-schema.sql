@@ -718,6 +718,13 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0186: full-audit fix -- outstanding_summary re-bodied only, adding
+  -- `order_id is not null` to its Collected sum. Unlike list_bills (already
+  -- safe -- its paid figure is a per-order correlated subquery), this one
+  -- summed ALL payments rows in range directly, so an order_id-less orphan
+  -- row (found live: 7 real rows, a historical abandoned split-bill attempt,
+  -- ₹1,056) inflated the owner dashboard's Collected figure. Unchanged
+  -- signature, already tracked above, no new row.
   -- 0185: full-audit fix -- "Add Inventory Item" was completely broken since
   -- migration 0050 revoked direct writes on inventory_items with no
   -- replacement create-RPC (record_inventory_movement/create_purchase_order
