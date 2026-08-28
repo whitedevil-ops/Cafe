@@ -440,7 +440,7 @@ export default function CafeDetailClient({
               {data.account.verified ? 'Remove verification' : 'Verify café'}
             </button>
           )}
-          {permissions['cafes.edit'] && (
+          {permissions['cafes.reset_password'] && (
             <button onClick={resetPassword} disabled={resettingPw || !data.business.owner_email} className="flex min-h-10 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3.5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">
               <Key size={14} /> {resettingPw ? 'Sending…' : 'Reset owner password'}
             </button>

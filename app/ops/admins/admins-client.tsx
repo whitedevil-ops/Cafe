@@ -26,10 +26,11 @@ type AdminDetail = AdminRow & {
 
 const ROLES: { key: string; label: string; blurb: string }[] = [
   { key: 'super_admin', label: 'Super Admin', blurb: 'Full platform control, including managing other admins.' },
-  { key: 'operations_admin', label: 'Operations Admin', blurb: 'Cafés, verification, health, and users. No admin management.' },
-  { key: 'support_admin', label: 'Support Admin', blurb: 'Read-only café/user lookup for support work.' },
+  { key: 'operations_admin', label: 'Operations Admin', blurb: 'Cafés, verification, health, plans/subscriptions, and users. No admin management.' },
+  { key: 'support_admin', label: 'Support Admin', blurb: 'Café/user lookup and owner password resets for support work.' },
   { key: 'billing_admin', label: 'Billing Admin', blurb: 'Plans and subscriptions only.' },
   { key: 'read_only', label: 'Read Only', blurb: 'Can view permitted information, cannot change anything.' },
+  { key: 'sales_admin', label: 'Sales Admin', blurb: 'Leads pipeline and read-only café info. No security or system controls.' },
 ]
 
 const PERMISSION_GROUPS: { label: string; keys: { key: string; label: string }[] }[] = [
@@ -37,12 +38,18 @@ const PERMISSION_GROUPS: { label: string; keys: { key: string; label: string }[]
     { key: 'cafes.view', label: 'View Cafés' },
     { key: 'cafes.verify', label: 'Verify Cafés' },
     { key: 'cafes.edit', label: 'Edit Cafés' },
+    { key: 'cafes.reset_password', label: 'Reset Owner Password' },
     { key: 'cafes.suspend', label: 'Suspend Cafés' },
+    { key: 'cafes.delete', label: 'Delete Cafés' },
     { key: 'cafes.impersonate', label: 'Open Café Dashboards' },
   ] },
   { label: 'Users & Health', keys: [
     { key: 'users.view', label: 'View Users' },
     { key: 'health.view', label: 'View Health' },
+  ] },
+  { label: 'Alerts', keys: [
+    { key: 'alerts.view', label: 'View Alerts' },
+    { key: 'alerts.manage', label: 'Acknowledge / Resolve Alerts' },
   ] },
   { label: 'Plans & Subscriptions', keys: [
     { key: 'plans.view', label: 'View Plans' },
@@ -75,49 +82,58 @@ const roleLabel = (role: string) => ROLES.find((r) => r.key === role)?.label ?? 
 // later role change on this admin still does something.
 const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   super_admin: {
-    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': true,
-    'cafes.impersonate': true,
-    'users.view': true, 'health.view': true,
+    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.reset_password': true, 'cafes.suspend': true,
+    'cafes.delete': true, 'cafes.impersonate': true,
+    'users.view': true, 'health.view': true, 'alerts.view': true, 'alerts.manage': true,
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': true,
     'admins.view': true, 'admins.create': true, 'admins.edit': true, 'admins.disable': true,
     'leads.view': true, 'leads.manage': true,
   },
   operations_admin: {
-    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.suspend': false,
-    'cafes.impersonate': false,
-    'users.view': true, 'health.view': true,
-    'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
+    'cafes.view': true, 'cafes.verify': true, 'cafes.edit': true, 'cafes.reset_password': true, 'cafes.suspend': false,
+    'cafes.delete': false, 'cafes.impersonate': false,
+    'users.view': true, 'health.view': true, 'alerts.view': true, 'alerts.manage': true,
+    'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
     'leads.view': true, 'leads.manage': false,
   },
   support_admin: {
-    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
-    'cafes.impersonate': false,
-    'users.view': true, 'health.view': true,
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.reset_password': true, 'cafes.suspend': false,
+    'cafes.delete': false, 'cafes.impersonate': false,
+    'users.view': true, 'health.view': true, 'alerts.view': true, 'alerts.manage': false,
     'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
     'leads.view': false, 'leads.manage': false,
   },
   billing_admin: {
-    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
-    'cafes.impersonate': false,
-    'users.view': false, 'health.view': false,
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.reset_password': false, 'cafes.suspend': false,
+    'cafes.delete': false, 'cafes.impersonate': false,
+    'users.view': false, 'health.view': false, 'alerts.view': false, 'alerts.manage': false,
     'plans.view': true, 'plans.change': true, 'subscriptions.view': true, 'subscriptions.manage': true,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
     'leads.view': false, 'leads.manage': false,
   },
   read_only: {
-    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.suspend': false,
-    'cafes.impersonate': false,
-    'users.view': true, 'health.view': true,
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.reset_password': false, 'cafes.suspend': false,
+    'cafes.delete': false, 'cafes.impersonate': false,
+    'users.view': true, 'health.view': true, 'alerts.view': true, 'alerts.manage': false,
     'plans.view': true, 'plans.change': false, 'subscriptions.view': true, 'subscriptions.manage': false,
     'audit.view': false,
     'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
     'leads.view': true, 'leads.manage': false,
+  },
+  sales_admin: {
+    'cafes.view': true, 'cafes.verify': false, 'cafes.edit': false, 'cafes.reset_password': false, 'cafes.suspend': false,
+    'cafes.delete': false, 'cafes.impersonate': false,
+    'users.view': false, 'health.view': false, 'alerts.view': false, 'alerts.manage': false,
+    'plans.view': false, 'plans.change': false, 'subscriptions.view': false, 'subscriptions.manage': false,
+    'audit.view': false,
+    'admins.view': false, 'admins.create': false, 'admins.edit': false, 'admins.disable': false,
+    'leads.view': true, 'leads.manage': true,
   },
 }
 

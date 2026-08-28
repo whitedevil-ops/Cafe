@@ -6,12 +6,11 @@ import { createClient } from '@/utils/supabase/server'
 // would use themselves from "forgot password", just triggered on their
 // behalf.
 //
-// Gated on cafes.edit (the same permission the "Reset owner password"
-// button itself is hidden behind, cafe-detail-client.tsx) — checked BEFORE
-// the reset email fires, not just inside the logging RPC. Previously this
-// only checked bare is_platform_admin() (true for any active admin
-// regardless of role), so an admin with zero café-edit rights could POST
-// here directly and force a reset email to any café's owner.
+// Gated on cafes.reset_password — a narrower permission than cafes.edit,
+// separate since Phase 4, so a Support Admin can reset a café owner's
+// password (an explicit part of that role) without also getting full café
+// edit rights. Checked BEFORE the reset email fires, not just inside the
+// logging RPC.
 export async function POST(req: NextRequest) {
   const { cafe_id } = (await req.json().catch(() => ({}))) as { cafe_id?: string }
   if (!cafe_id) return NextResponse.json({ error: 'cafe_id required' }, { status: 400 })
@@ -22,8 +21,8 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const { data: canEdit } = await supabase.rpc('has_platform_permission', { p_permission: 'cafes.edit' })
-  if (!canEdit) return NextResponse.json({ error: 'not authorized' }, { status: 403 })
+  const { data: canReset } = await supabase.rpc('has_platform_permission', { p_permission: 'cafes.reset_password' })
+  if (!canReset) return NextResponse.json({ error: 'not authorized' }, { status: 403 })
 
   const { data: cafe } = await supabase.from('cafes').select('owner_id').eq('id', cafe_id).maybeSingle()
   if (!cafe) return NextResponse.json({ error: 'cafe not found' }, { status: 404 })

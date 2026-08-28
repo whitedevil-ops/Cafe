@@ -412,7 +412,7 @@ function CafeRowTr({ c, indent, ...actions }: { c: CafeRow; indent?: boolean } &
 
 function CafeActionsMenu({ c, permissions, openMenuId, setOpenMenuId, onVerify, onStatusAction, onChangePlan, onResetPassword, resettingId }: { c: CafeRow } & RowActionsProps) {
   const isOpen = openMenuId === c.cafe_id
-  const canAny = permissions['cafes.verify'] || permissions['cafes.suspend'] || permissions['plans.change'] || permissions['cafes.edit']
+  const canAny = permissions['cafes.verify'] || permissions['cafes.suspend'] || permissions['plans.change'] || permissions['cafes.reset_password']
   if (!canAny) return null
   return (
     <>
@@ -432,7 +432,7 @@ function CafeActionsMenu({ c, permissions, openMenuId, setOpenMenuId, onVerify, 
             {permissions['plans.change'] && (
               <MenuItem onClick={() => { setOpenMenuId(null); onChangePlan(c) }}>Change plan…</MenuItem>
             )}
-            {permissions['cafes.edit'] && (
+            {permissions['cafes.reset_password'] && (
               <MenuItem disabled={!c.owner_email || resettingId === c.cafe_id} onClick={() => { setOpenMenuId(null); onResetPassword(c) }}>
                 {resettingId === c.cafe_id ? 'Sending…' : 'Reset owner password'}
               </MenuItem>

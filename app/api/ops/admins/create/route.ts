@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient, adminConfigured } from '@/utils/supabase/admin'
 
-const ROLES = ['super_admin', 'operations_admin', 'support_admin', 'billing_admin', 'read_only']
+const ROLES = ['super_admin', 'operations_admin', 'support_admin', 'billing_admin', 'read_only', 'sales_admin']
 
 // Creates a brand-new operator-console login. The password the Super Admin
 // types here is sent straight to Supabase Auth's service-role admin API and
