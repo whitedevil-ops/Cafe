@@ -718,6 +718,13 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0184: full-audit fix, live-confirmed on the real pilot café --
+  -- gst_invoice_report/adjustments_report re-bodied only, adding a range-
+  -- aware advanced_reports check (reject only when BOTH the plan lacks the
+  -- entitlement AND the requested range exceeds one day) so Day Close's
+  -- always-narrow calls keep working on every plan while a direct wide-range
+  -- call bypassing the _premium wrapper is now rejected. Unchanged
+  -- signatures, already tracked above, no new rows.
   -- 0183: full-audit fix, live-confirmed on the real pilot café -- the
   -- customer QR checkout's coupon field rendered unconditionally regardless
   -- of plan entitlement, so a real customer's raw rejection message from
