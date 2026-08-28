@@ -712,6 +712,12 @@ with expected(kind, name, fix) as (values
   -- anon, scoped to exactly what a kitchen board needs.
   ('function', 'public_kds_orders',        '0178'),
   ('function', 'public_kds_advance_order', '0178')
+  -- 0179: full-audit fix -- sales_report re-bodied only. Its `base` CTE
+  -- required payment_status='paid', so a fully refunded order's revenue
+  -- vanished from every figure in the report while refund_total still
+  -- subtracted the same refund again -- double-counting the loss. Now
+  -- includes payment_status in ('paid','refunded'). Unchanged signature,
+  -- already tracked above, no new row.
   -- 0174: op_list_alerts re-bodied only (fixes a runtime ambiguous-column
   -- bug in the upsert, caught live -- unchanged signature, already tracked
   -- above, no new row).
