@@ -702,6 +702,12 @@ with expected(kind, name, fix) as (values
   -- 0174: op_list_alerts re-bodied only (fixes a runtime ambiguous-column
   -- bug in the upsert, caught live -- unchanged signature, already tracked
   -- above, no new row).
+  -- 0176: op_list_alerts re-bodied a second time -- 0174 qualified the
+  -- SELECT list but missed the ON CONFLICT target list/predicate (structurally
+  -- unqualifiable Postgres syntax), which still collided with the same
+  -- OUT-parameter names. Fixed with `#variable_conflict use_column`. Caught
+  -- live via authenticated RPC testing after 0174 alone still errored --
+  -- unchanged signature, already tracked above, no new row.
   -- Phase 4 (RBAC completeness) -- 0175: adds sales_admin role (widens
   -- platform_admins_role_chk, not separately tracked here) and a new
   -- cafes.reset_password permission key. Re-bodies role_default_permissions,
