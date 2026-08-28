@@ -10,7 +10,18 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
 import { DeleteCafeDialog } from '@/components/ops/delete-cafe-dialog'
 import { OpenCafeDashboard } from '@/components/ops/open-cafe-dashboard'
+import { Badge, type StripTone } from '@/components/ops/ui'
 import { formatDate, formatDateTime } from '@/lib/datetime'
+
+export type HealthRow = {
+  cafe_id: string
+  name: string
+  status: string
+  days_since_last_order: number | null
+  onboarding_percent: number
+  failed_sms_count: number
+  days_until_expiry: number | null
+}
 
 export type CafeDetail = {
   business: {
@@ -21,6 +32,7 @@ export type CafeDetail = {
   account: {
     status: string; status_reason: string | null; status_changed_at: string | null; verified: boolean
     verified_at: string | null; plan: string; trial_ends_at: string | null; subscription_ends_at: string | null
+    billing_status: string
   }
   usage: {
     staff_count: number; menu_items_count: number; tables_count: number; customers_count: number
@@ -104,16 +116,88 @@ const STATUS_ACTIONS: { to: string; label: string; destructive: boolean }[] = [
 const fmt = (iso: string | null) => formatDate(iso)
 const fmtDateTime = (iso: string) => formatDateTime(iso)
 
+// Priority order mirrors the tones /ops/health already assigns its four
+// buckets (destructive > warning > info), plus one addition: an already-
+// expired subscription (days_until_expiry < 0), a state the raw signal can
+// represent but /ops/health's own >= 0 filter ignores.
+function getHealthVerdict(h: HealthRow): { label: 'Healthy' | 'Needs Attention' | 'Critical'; tone: StripTone; reason: string } {
+  if (h.failed_sms_count > 0) {
+    return {
+      label: 'Critical',
+      tone: 'destructive',
+      reason: `${h.failed_sms_count} SMS ${h.failed_sms_count === 1 ? 'delivery has' : 'deliveries have'} failed`,
+    }
+  }
+  if (h.days_until_expiry !== null && h.days_until_expiry < 0) {
+    const days = Math.abs(h.days_until_expiry)
+    return { label: 'Critical', tone: 'destructive', reason: `Subscription expired ${days} day${days === 1 ? '' : 's'} ago` }
+  }
+  if (h.status === 'active' && (h.days_since_last_order === null || h.days_since_last_order >= 7)) {
+    return {
+      label: 'Needs Attention',
+      tone: 'warning',
+      reason: h.days_since_last_order === null ? 'No orders placed yet' : `No orders in ${h.days_since_last_order} days`,
+    }
+  }
+  if (h.days_until_expiry !== null && h.days_until_expiry <= 30) {
+    return {
+      label: 'Needs Attention',
+      tone: 'warning',
+      reason: h.days_until_expiry === 0 ? 'Subscription expires today' : `Subscription expires in ${h.days_until_expiry} day${h.days_until_expiry === 1 ? '' : 's'}`,
+    }
+  }
+  if (h.onboarding_percent < 100) {
+    return { label: 'Needs Attention', tone: 'warning', reason: `Onboarding ${h.onboarding_percent}% complete` }
+  }
+  return { label: 'Healthy', tone: 'success', reason: 'No active health signals' }
+}
+
+const BILLING_STATUS_LABEL: Record<string, string> = {
+  none: 'No billing', created: 'Checkout started', active: 'Active', past_due: 'Payment issue', cancelled: 'Cancelled',
+}
+const BILLING_STATUS_TONE: Record<string, StripTone> = {
+  none: 'neutral', created: 'info', active: 'success', past_due: 'warning', cancelled: 'destructive',
+}
+
+function planPrice(plans: { key: string; price_monthly: number; price_yearly: number | null }[], planKey: string): string {
+  const p = plans.find((x) => x.key === planKey)
+  if (!p) return '—'
+  if (p.price_yearly) return `₹${p.price_yearly.toLocaleString('en-IN')}/yr`
+  if (p.price_monthly) return `₹${p.price_monthly.toLocaleString('en-IN')}/mo`
+  return 'Free'
+}
+
+// Duration math on two absolute timestamptz instants -- no café-local
+// timezone conversion needed (that machinery exists to bucket events into
+// café-local CALENDAR days; a duration between two instants is timezone-
+// invariant). Matches op_cafe_health's own days_until_expiry precedent.
+function daysRemainingLabel(iso: string | null): string {
+  if (!iso) return '—'
+  const ms = new Date(iso).getTime() - Date.now()
+  if (ms <= 0) return 'Expired'
+  return `${Math.ceil(ms / 86_400_000)}d left`
+}
+
+function trialStatus(plan: string, trialEndsAt: string | null): { label: string; tone: StripTone } {
+  if (plan !== 'trial') return { label: 'Converted', tone: 'success' }
+  if (!trialEndsAt) return { label: 'No trial', tone: 'neutral' }
+  return new Date(trialEndsAt).getTime() > Date.now()
+    ? { label: 'Trialing', tone: 'info' }
+    : { label: 'Trial expired', tone: 'warning' }
+}
+
 export default function CafeDetailClient({
   cafeId,
   detail,
   plans,
   permissions,
+  health,
 }: {
   cafeId: string
   detail: CafeDetail
   plans: { key: string; name: string; price_monthly: number; price_yearly: number | null }[]
   permissions: Record<string, boolean>
+  health: HealthRow | null
 }) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -168,6 +252,13 @@ export default function CafeDetailClient({
   }
 
   async function applyPlan() {
+    const planName = plans.find((p) => p.key === planKey)?.name ?? planKey
+    const ok = await confirm({
+      title: `Change plan to ${planName}?`,
+      description: `Effective ${fmt(new Date(effectiveDate).toISOString())}. The new subscription end date is calculated automatically (14 days for Trial, 365 for an annual plan, 30 otherwise), and this reactivates the café if it's currently suspended for expiry.`,
+      confirmLabel: 'Change plan',
+    })
+    if (!ok) return
     setApplyingPlan(true)
     const { data: newEndsAt, error } = await supabase.rpc('op_change_plan', {
       p_cafe_id: cafeId, p_plan_key: planKey, p_effective_date: new Date(effectiveDate).toISOString(),
@@ -180,6 +271,12 @@ export default function CafeDetailClient({
 
   async function extendSubscription() {
     if (!subEndsAt) return
+    const ok = await confirm({
+      title: 'Override subscription end date?',
+      description: `Manually sets the subscription end date to ${fmt(new Date(subEndsAt).toISOString())}, bypassing the plan's normal billing cycle. Use only when the automatic calculation is wrong.`,
+      confirmLabel: 'Save override',
+    })
+    if (!ok) return
     const { error } = await supabase.rpc('op_extend_subscription', {
       p_cafe_id: cafeId, p_subscription_ends_at: new Date(subEndsAt).toISOString(),
     })
@@ -274,6 +371,7 @@ export default function CafeDetailClient({
   const onboardingPct = onboardingFlags.length
     ? Math.round((onboardingFlags.filter(([, v]) => v).length / onboardingFlags.length) * 100)
     : 0
+  const healthVerdict = health ? getHealthVerdict(health) : null
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -289,9 +387,13 @@ export default function CafeDetailClient({
           </span>
         )}
         <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-[12px] font-medium capitalize text-foreground">{data.account.status}</span>
+        {healthVerdict && <Badge tone={healthVerdict.tone}>{healthVerdict.label}</Badge>}
       </div>
       {data.account.status_reason && (
         <p className="mt-1 text-[13px] text-muted-foreground">Reason: {data.account.status_reason}</p>
+      )}
+      {healthVerdict && (
+        <p className="mt-1 text-[13px] text-muted-foreground">Health: {healthVerdict.reason}</p>
       )}
 
       {/* Business */}
@@ -313,8 +415,19 @@ export default function CafeDetailClient({
         <p className="text-sm font-medium text-foreground">Account</p>
         <div className="mt-3 grid grid-cols-2 gap-3 text-[13.5px] sm:grid-cols-3">
           <Field label="Plan" value={data.account.plan} capitalize />
+          <Field label="Plan price" value={planPrice(plans, data.account.plan)} />
           <Field label="Trial ends" value={fmt(data.account.trial_ends_at)} />
           <Field label="Subscription ends" value={fmt(data.account.subscription_ends_at)} />
+          <Field label="Days remaining" value={daysRemainingLabel(data.account.subscription_ends_at)} />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {(() => {
+            const t = trialStatus(data.account.plan, data.account.trial_ends_at)
+            return <Badge tone={t.tone}>{t.label}</Badge>
+          })()}
+          <Badge tone={BILLING_STATUS_TONE[data.account.billing_status] ?? 'neutral'}>
+            {BILLING_STATUS_LABEL[data.account.billing_status] ?? data.account.billing_status}
+          </Badge>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">

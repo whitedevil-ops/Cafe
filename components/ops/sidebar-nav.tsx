@@ -46,12 +46,14 @@ const GROUPS: { heading: string | null; items: Item[] }[] = [
     heading: 'Monitoring',
     items: [
       { key: 'health', label: 'Café health', href: '/ops/health', icon: Activity },
-      { key: 'audit', label: 'Audit logs', href: '/ops/audit-logs', icon: ScrollText },
     ],
   },
   {
-    heading: 'Console',
-    items: [{ key: 'admins', label: 'Admins', href: '/ops/admins', icon: ShieldCheck }],
+    heading: 'Admins & audit',
+    items: [
+      { key: 'admins', label: 'Admins', href: '/ops/admins', icon: ShieldCheck },
+      { key: 'audit', label: 'Audit logs', href: '/ops/audit-logs', icon: ScrollText },
+    ],
   },
 ]
 

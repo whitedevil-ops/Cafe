@@ -14,6 +14,7 @@ import {
   ProportionRow,
   StatCard,
   StatStrip,
+  type StripTone,
 } from '@/components/ops/ui'
 
 export const dynamic = 'force-dynamic'
@@ -58,6 +59,21 @@ export default async function PlatformOverview() {
 
   const planTotal = o.plan_breakdown.reduce((s, p) => s + p.count, 0)
 
+  // Every count here is already computed by op_platform_overview() -- this
+  // surfaces all of them instead of only the expiring-subscription banner
+  // the page used to show. Ordered most time-sensitive first; disabled and
+  // archived are population counts, not overdue actions, so they sit after
+  // the three expiry windows. The whole block disappears when every count
+  // is zero, exactly like the banner it replaces.
+  const allAttention: { key: string; label: string; count: number; href: string; tone: StripTone }[] = [
+    { key: 'expiring_7', label: 'Subscriptions expiring within 7 days', count: o.expiring_7, href: '/ops/health', tone: 'destructive' },
+    { key: 'expiring_15', label: 'Subscriptions expiring within 15 days', count: o.expiring_15, href: '/ops/health', tone: 'warning' },
+    { key: 'expiring_30', label: 'Subscriptions expiring within 30 days', count: o.expiring_30, href: '/ops/health', tone: 'info' },
+    { key: 'disabled', label: 'Cafés disabled', count: o.disabled_cafes, href: '/ops/cafes?status=disabled', tone: 'destructive' },
+    { key: 'archived', label: 'Cafés archived', count: o.archived_cafes, href: '/ops/cafes?status=archived', tone: 'neutral' },
+  ]
+  const attention = allAttention.filter((s) => s.count > 0)
+
   return (
     <Page>
       <PageHeader
@@ -97,21 +113,23 @@ export default async function PlatformOverview() {
         />
       </div>
 
-      {(o.expiring_7 > 0 || o.expiring_15 > 0 || o.expiring_30 > 0) && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--radius)] border border-warning bg-warning-subtle px-4 py-3 text-[13px] text-warning">
-          <span className="font-medium">Subscriptions expiring</span>
-          <span className="tabular-nums">
-            <strong className="font-semibold">{o.expiring_7}</strong> within 7 days
-          </span>
-          <span className="tabular-nums">
-            <strong className="font-semibold">{o.expiring_15}</strong> within 15
-          </span>
-          <span className="tabular-nums">
-            <strong className="font-semibold">{o.expiring_30}</strong> within 30
-          </span>
-          <Link href="/ops/health" className="ml-auto font-medium underline underline-offset-2">
-            Review
-          </Link>
+      {attention.length > 0 && (
+        <div className="mt-4">
+          <Panel title="Attention required" count={attention.length} tone="warning">
+            <ul className="divide-y divide-border">
+              {attention.map((s) => (
+                <li key={s.key}>
+                  <Link
+                    href={s.href}
+                    className="group flex items-center justify-between gap-3 py-2 text-[13px]"
+                  >
+                    <span className="text-foreground group-hover:text-primary">{s.label}</span>
+                    <Badge tone={s.tone}>{s.count}</Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
         </div>
       )}
 

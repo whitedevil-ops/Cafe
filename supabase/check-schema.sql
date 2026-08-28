@@ -686,6 +686,15 @@ with expected(kind, name, fix) as (values
   -- pre-existing (since 0050) missing ::payment_method cast that made every
   -- call fail. No new tracked object.
   ('table',    'expenses',                                'schema.sql / 0034')
+  -- Phase 2 (ops panel) -- 0168: op_cafe_health gains a trailing
+  -- p_cafe_id uuid default null (old zero-arg signature dropped first, per
+  -- this repo's established arity-bump convention; already tracked above at
+  -- line 95). 0169: op_list_cafes gains subscription_ends_at +
+  -- p_expiring_within_days (already tracked at line 93). 0170: op_list_users
+  -- gains p_has_cafe (already tracked at line 519). 0171: op_get_cafe_detail's
+  -- account object gains billing_status (already tracked at line 94). All
+  -- four are re-bodies/signature changes of already-tracked functions -- no
+  -- new tracked object for any of them.
 )
 select
   e.kind,

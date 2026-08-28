@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
+import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 
 // Shared chrome for the operator console.
 //
@@ -213,8 +214,35 @@ export function Thead({ children }: { children: ReactNode }) {
   )
 }
 
-export function Th({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'right' }) {
-  return <th className={`px-4 py-2.5 font-medium ${align === 'right' ? 'text-right' : ''}`}>{children}</th>
+export function Th({
+  children,
+  align = 'left',
+  sortDir,
+  onSort,
+}: {
+  children: ReactNode
+  align?: 'left' | 'right'
+  /** Only meaningful when onSort is passed. null = sortable but not the active column. */
+  sortDir?: 'asc' | 'desc' | null
+  /** Presence makes the header clickable; omit for a plain static header (today's behavior). */
+  onSort?: () => void
+}) {
+  if (!onSort) {
+    return <th className={`px-4 py-2.5 font-medium ${align === 'right' ? 'text-right' : ''}`}>{children}</th>
+  }
+  return (
+    <th className={`px-4 py-2.5 font-medium ${align === 'right' ? 'text-right' : ''}`}>
+      <button
+        onClick={onSort}
+        className={`inline-flex items-center gap-1 hover:text-foreground ${align === 'right' ? 'flex-row-reverse' : ''} ${sortDir ? 'text-foreground' : ''}`}
+      >
+        {children}
+        {sortDir === 'asc' && <ChevronUp size={12} />}
+        {sortDir === 'desc' && <ChevronDown size={12} />}
+        {!sortDir && <ChevronsUpDown size={12} className="opacity-40" />}
+      </button>
+    </th>
+  )
 }
 
 export function Td({

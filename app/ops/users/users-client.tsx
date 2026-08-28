@@ -48,30 +48,41 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
   const supabase = useMemo(() => createClient(), [])
   const [users, setUsers] = useState(initialUsers)
   const [search, setSearch] = useState('')
+  const [hasCafe, setHasCafe] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   const run = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.rpc('op_list_users', { p_search: search || null, p_limit: 200 })
+    const { data } = await supabase.rpc('op_list_users', {
+      p_search: search || null,
+      p_limit: 200,
+      p_has_cafe: hasCafe === '' ? null : hasCafe === 'true',
+    })
     setUsers((data ?? []) as UserRow[])
     setLoading(false)
-  }, [supabase, search])
+  }, [supabase, search, hasCafe])
 
   useEffect(() => {
     const t = setTimeout(run, 300)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search])
+  }, [search, hasCafe])
+
+  const filtersOn = Boolean(search || hasCafe)
 
   return (
     <Page width="full">
       <PageHeader
         title="Users"
-        subtitle={`${users.length} café owner${users.length === 1 ? '' : 's'} and staff, most recently active first.`}
+        subtitle={
+          filtersOn
+            ? `${users.length} user${users.length === 1 ? '' : 's'} matching, most recently active first.`
+            : `${users.length} café owner${users.length === 1 ? '' : 's'} and staff, most recently active first.`
+        }
       />
 
-      <div className="mt-5 max-w-md">
-        <div className="relative">
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
@@ -80,11 +91,20 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
             className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface pl-8 pr-3 text-[13.5px] text-foreground placeholder:text-muted-foreground"
           />
         </div>
+        <select
+          value={hasCafe}
+          onChange={(e) => setHasCafe(e.target.value)}
+          className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground"
+        >
+          <option value="">All users</option>
+          <option value="true">Has café</option>
+          <option value="false">No café</option>
+        </select>
       </div>
 
       <div className={`mt-5 transition-opacity ${loading ? 'opacity-60' : ''}`}>
         {users.length === 0 ? (
-          <EmptyPanel message={loading ? 'Searching…' : search ? 'No users match.' : 'No users yet.'} />
+          <EmptyPanel message={loading ? 'Searching…' : filtersOn ? 'No users match these filters.' : 'No users yet.'} />
         ) : (
           <TableWrap minWidth={1040}>
             <Thead>
@@ -106,7 +126,10 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
                     >
                       {u.full_name?.trim() || 'Unnamed'}
                     </Link>
-                    <p className="text-[11.5px] text-muted-foreground">{u.email ?? '—'}</p>
+                    <p className="text-[11.5px] text-muted-foreground">
+                      {u.email ?? '—'}
+                      {u.phone && <span className="tabular-nums"> · {u.phone}</span>}
+                    </p>
                   </td>
                   <Td muted>
                     {u.cafe_count === 0 ? (

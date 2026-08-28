@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { NotAuthorized } from '@/components/ops/not-authorized'
-import CafeDetailClient, { type CafeDetail } from './cafe-detail-client'
+import CafeDetailClient, { type CafeDetail, type HealthRow } from './cafe-detail-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,5 +19,13 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
     supabase.from('platform_plans').select('key, name, price_monthly, price_yearly').eq('active', true).order('sort'),
   ])
 
-  return <CafeDetailClient cafeId={id} detail={data as CafeDetail} plans={plans ?? []} permissions={permissions} />
+  // billing_admin has cafes.view but NOT health.view (0142) -- gate the RPC
+  // call itself, not just the render, so a role without the permission never
+  // even triggers the "not authorized" exception path.
+  const { data: healthRows } = permissions['health.view']
+    ? await supabase.rpc('op_cafe_health', { p_cafe_id: id })
+    : { data: null }
+  const health = (healthRows as HealthRow[] | null)?.[0] ?? null
+
+  return <CafeDetailClient cafeId={id} detail={data as CafeDetail} plans={plans ?? []} permissions={permissions} health={health} />
 }
