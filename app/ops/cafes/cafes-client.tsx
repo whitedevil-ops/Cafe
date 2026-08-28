@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search, ShieldCheck, MoreVertical, X } from 'lucide-react'
+import { Search, ShieldCheck, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
 import { formatDate } from '@/lib/datetime'
 import {
-  Badge, EmptyPanel, MonoId, Page, PageHeader, TableWrap, Td, Th, Thead, Tr, type StripTone,
+  ActionsMenu, Badge, EmptyPanel, MenuItem, MonoId, Page, PageHeader, TableWrap, Td, Th, Thead, Tr, type StripTone,
 } from '@/components/ops/ui'
 
 export type CafeRow = {
@@ -415,44 +415,22 @@ function CafeActionsMenu({ c, permissions, openMenuId, setOpenMenuId, onVerify, 
   const canAny = permissions['cafes.verify'] || permissions['cafes.suspend'] || permissions['plans.change'] || permissions['cafes.reset_password']
   if (!canAny) return null
   return (
-    <>
-      <button onClick={() => setOpenMenuId(isOpen ? null : c.cafe_id)} aria-label="Actions" className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground">
-        <MoreVertical size={16} />
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-          <div className="absolute right-4 top-11 z-50 w-52 rounded-[var(--radius-lg)] border border-border bg-surface p-1.5 text-left shadow-[var(--shadow-lg)]">
-            {permissions['cafes.verify'] && (
-              <MenuItem onClick={() => { setOpenMenuId(null); onVerify(c) }}>{c.verified ? 'Remove verification' : 'Verify café'}</MenuItem>
-            )}
-            {permissions['cafes.suspend'] && STATUS_ACTIONS.filter((a) => a.to !== c.status).map((a) => (
-              <MenuItem key={a.to} destructive={a.destructive} onClick={() => { setOpenMenuId(null); onStatusAction(c, a) }}>{a.label}</MenuItem>
-            ))}
-            {permissions['plans.change'] && (
-              <MenuItem onClick={() => { setOpenMenuId(null); onChangePlan(c) }}>Change plan…</MenuItem>
-            )}
-            {permissions['cafes.reset_password'] && (
-              <MenuItem disabled={!c.owner_email || resettingId === c.cafe_id} onClick={() => { setOpenMenuId(null); onResetPassword(c) }}>
-                {resettingId === c.cafe_id ? 'Sending…' : 'Reset owner password'}
-              </MenuItem>
-            )}
-          </div>
-        </>
+    <ActionsMenu open={isOpen} onToggle={() => setOpenMenuId(isOpen ? null : c.cafe_id)} onClose={() => setOpenMenuId(null)}>
+      {permissions['cafes.verify'] && (
+        <MenuItem onClick={() => { setOpenMenuId(null); onVerify(c) }}>{c.verified ? 'Remove verification' : 'Verify café'}</MenuItem>
       )}
-    </>
-  )
-}
-
-// Local, not shared — mirrors app/ops/admins/admins-client.tsx's MenuItem,
-// which keeps its own local copy too rather than a components/ops/ui.tsx
-// export.
-function MenuItem({ children, onClick, disabled, destructive }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; destructive?: boolean }) {
-  return (
-    <button onClick={onClick} disabled={disabled}
-      className={`flex w-full items-center rounded-[var(--radius)] px-2.5 py-2 text-left text-[13px] disabled:opacity-50 ${destructive ? 'text-destructive hover:bg-destructive-subtle' : 'text-foreground hover:bg-surface-subtle'}`}>
-      {children}
-    </button>
+      {permissions['cafes.suspend'] && STATUS_ACTIONS.filter((a) => a.to !== c.status).map((a) => (
+        <MenuItem key={a.to} destructive={a.destructive} onClick={() => { setOpenMenuId(null); onStatusAction(c, a) }}>{a.label}</MenuItem>
+      ))}
+      {permissions['plans.change'] && (
+        <MenuItem onClick={() => { setOpenMenuId(null); onChangePlan(c) }}>Change plan…</MenuItem>
+      )}
+      {permissions['cafes.reset_password'] && (
+        <MenuItem disabled={!c.owner_email || resettingId === c.cafe_id} onClick={() => { setOpenMenuId(null); onResetPassword(c) }}>
+          {resettingId === c.cafe_id ? 'Sending…' : 'Reset owner password'}
+        </MenuItem>
+      )}
+    </ActionsMenu>
   )
 }
 

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { MoreVertical, UserPlus, X } from 'lucide-react'
+import { UserPlus, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { ActionsMenu, MenuItem } from '@/components/ops/ui'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 
 export type AdminRow = {
@@ -274,40 +275,32 @@ export default function AdminsClient({
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{a.last_login_at ? formatDateTime(a.last_login_at) : 'Never'}</td>
                 <td className="px-4 py-3 text-muted-foreground">{formatDate(a.created_at)}</td>
-                <td className="relative px-4 py-3 text-right">
-                  <button
-                    onClick={() => setOpenMenuId(openMenuId === a.admin_id ? null : a.admin_id)}
-                    aria-label="Actions"
-                    className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
+                <td className="px-4 py-3 text-right">
+                  <ActionsMenu
+                    open={openMenuId === a.admin_id}
+                    onToggle={() => setOpenMenuId(openMenuId === a.admin_id ? null : a.admin_id)}
+                    onClose={() => setOpenMenuId(null)}
                   >
-                    <MoreVertical size={16} />
-                  </button>
-                  {openMenuId === a.admin_id && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                      <div className="absolute right-4 top-11 z-50 w-52 rounded-[var(--radius-lg)] border border-border bg-surface p-1.5 text-left shadow-[var(--shadow-lg)]">
-                        {permissions['admins.view'] && (
-                          <MenuItem onClick={() => { setViewing(a); setOpenMenuId(null) }}>View activity</MenuItem>
-                        )}
-                        {permissions['admins.edit'] && (
-                          <MenuItem onClick={() => { setEditing(a); setOpenMenuId(null) }}>Edit admin</MenuItem>
-                        )}
-                        {permissions['admins.edit'] && a.admin_id !== selfAdminId && (
-                          <MenuItem onClick={() => { setPermEditing(a); setOpenMenuId(null) }}>Change permissions</MenuItem>
-                        )}
-                        {permissions['admins.edit'] && (
-                          <MenuItem onClick={() => { setOpenMenuId(null); void resetPassword(a) }} disabled={resettingId === a.admin_id}>
-                            {resettingId === a.admin_id ? 'Sending…' : 'Reset password'}
-                          </MenuItem>
-                        )}
-                        {permissions['admins.disable'] && a.admin_id !== selfAdminId && (
-                          <MenuItem destructive={a.status === 'active'} onClick={() => { setOpenMenuId(null); void toggleStatus(a) }}>
-                            {a.status === 'active' ? 'Deactivate' : 'Activate'}
-                          </MenuItem>
-                        )}
-                      </div>
-                    </>
-                  )}
+                    {permissions['admins.view'] && (
+                      <MenuItem onClick={() => { setViewing(a); setOpenMenuId(null) }}>View activity</MenuItem>
+                    )}
+                    {permissions['admins.edit'] && (
+                      <MenuItem onClick={() => { setEditing(a); setOpenMenuId(null) }}>Edit admin</MenuItem>
+                    )}
+                    {permissions['admins.edit'] && a.admin_id !== selfAdminId && (
+                      <MenuItem onClick={() => { setPermEditing(a); setOpenMenuId(null) }}>Change permissions</MenuItem>
+                    )}
+                    {permissions['admins.edit'] && (
+                      <MenuItem onClick={() => { setOpenMenuId(null); void resetPassword(a) }} disabled={resettingId === a.admin_id}>
+                        {resettingId === a.admin_id ? 'Sending…' : 'Reset password'}
+                      </MenuItem>
+                    )}
+                    {permissions['admins.disable'] && a.admin_id !== selfAdminId && (
+                      <MenuItem destructive={a.status === 'active'} onClick={() => { setOpenMenuId(null); void toggleStatus(a) }}>
+                        {a.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </MenuItem>
+                    )}
+                  </ActionsMenu>
                 </td>
               </tr>
             ))}
@@ -346,22 +339,6 @@ export default function AdminsClient({
         <ActivityDialog admin={viewing} supabase={supabase} onClose={() => setViewing(null)} />
       )}
     </div>
-  )
-}
-
-function MenuItem({
-  children, onClick, disabled, destructive,
-}: { children: React.ReactNode; onClick: () => void; disabled?: boolean; destructive?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center rounded-[var(--radius)] px-2.5 py-2 text-left text-[13px] disabled:opacity-50 ${
-        destructive ? 'text-destructive hover:bg-destructive-subtle' : 'text-foreground hover:bg-surface-subtle'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
 

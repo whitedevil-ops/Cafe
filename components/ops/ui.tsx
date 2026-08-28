@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
-import type { ReactNode } from 'react'
-import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, MoreVertical } from 'lucide-react'
 
 // Shared chrome for the operator console.
 //
@@ -307,5 +310,106 @@ export function ProportionRow({
         <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
       </div>
     </li>
+  )
+}
+
+/* ── Row actions menu ───────────────────────────────────────────────────── */
+
+/**
+ * A kebab-menu whose panel renders through a portal to <body>, positioned
+ * from the trigger button's own bounding rect -- not a plain `absolute`
+ * child of the table row. A wide table's wrapper needs `overflow-x-auto`,
+ * and per the CSS overflow spec, setting only overflow-x to a non-visible
+ * value forces the COMPUTED overflow-y to 'auto' too, even though overflow-y
+ * was never set -- so a menu positioned `absolute` inside that wrapper gets
+ * clipped by the table's own edges instead of floating freely above/below
+ * the row. Portaling to <body> sidesteps that clipping ancestor entirely.
+ * Previously duplicated near-identically in both cafes-client.tsx and
+ * admins-client.tsx (each with the plain-absolute version, and each
+ * clipped) -- consolidated here once, fixed once.
+ */
+export function ActionsMenu({
+  open,
+  onToggle,
+  onClose,
+  children,
+  width = 208,
+}: {
+  open: boolean
+  onToggle: () => void
+  onClose: () => void
+  children: ReactNode
+  width?: number
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    // No need to clear pos when closing -- the portal below is gated on
+    // `open` too, so a stale coordinate just sits unused until the next
+    // open recomputes it.
+    if (!open) return
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) setPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - width) })
+
+    // The portal doesn't move with the row, so a scroll would leave it
+    // floating over the wrong spot -- closing on scroll is simpler and
+    // safer than continuously re-tracking the trigger's position.
+    window.addEventListener('scroll', onClose, true)
+    window.addEventListener('resize', onClose)
+    return () => {
+      window.removeEventListener('scroll', onClose, true)
+      window.removeEventListener('resize', onClose)
+    }
+  }, [open, onClose, width])
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={onToggle}
+        aria-label="Actions"
+        className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && pos && typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-40" onClick={onClose} />
+            <div
+              className="fixed z-50 rounded-[var(--radius-lg)] border border-border bg-surface p-1.5 text-left shadow-[var(--shadow-lg)]"
+              style={{ top: pos.top, left: pos.left, width }}
+            >
+              {children}
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
+  )
+}
+
+export function MenuItem({
+  children,
+  onClick,
+  disabled,
+  destructive,
+}: {
+  children: ReactNode
+  onClick: () => void
+  disabled?: boolean
+  destructive?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-center rounded-[var(--radius)] px-2.5 py-2 text-left text-[13px] disabled:opacity-50 ${
+        destructive ? 'text-destructive hover:bg-destructive-subtle' : 'text-foreground hover:bg-surface-subtle'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
