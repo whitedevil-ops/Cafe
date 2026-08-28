@@ -10,7 +10,7 @@
 // mockable — there is no test double for tenant-scoped SQL logic worth
 // trusting). Orders are tagged with a distinct phone number and a "vitest:"
 // note prefix so they're easy to tell apart from seeded or manual demo data.
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -122,6 +122,23 @@ describe('order engine — live integration against the Brewora demo café', () 
     addonPrice = addons[0].price
   })
 
+  // Found via a full production audit: this file wrote real, persistent
+  // orders into the live Brewora café (see the header comment) with no
+  // cleanup at all, ever — 349 stray rows had accumulated (50% of Brewora's
+  // entire order history), 20 of them still sitting in 'placed' status,
+  // which would show up as real phantom tickets on an actual kitchen screen.
+  // TEST_PHONE is reserved exactly so this filter finds (and only finds)
+  // what this suite created — order_items cascade-deletes with the order.
+  // No date bound, so this also retroactively cleans up everything already
+  // stranded from every prior run, the first time it executes.
+  afterAll(async () => {
+    if (!cafeId) return
+    await fetch(`${URL}/rest/v1/orders?cafe_id=eq.${cafeId}&phone=eq.${TEST_PHONE}`, {
+      method: 'DELETE',
+      headers: { apikey: SERVICE_KEY!, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: 'return=minimal' },
+    })
+  })
+
   it('prices consistently end to end through place_order + get_receipt', async () => {
     const qty = 2
     const unit = basePrice + largeDelta + addonPrice
@@ -223,6 +240,7 @@ describe('order engine — live integration against the Brewora demo café', () 
     const placed = await rpc('place_order', {
       p_token: token,
       p_items: [{ item_id: cappuccinoId, qty: 1, variant_id: largeVariantId }],
+      p_phone: TEST_PHONE,
       p_payment_method: 'counter',
     })
     expect(placed.ok).toBe(true)
