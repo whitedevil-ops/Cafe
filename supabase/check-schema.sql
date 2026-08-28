@@ -698,7 +698,14 @@ with expected(kind, name, fix) as (values
   ('function', 'op_list_alerts',        '0172'),
   ('function', 'op_acknowledge_alert',  '0172'),
   ('function', 'op_resolve_alert',      '0172'),
-  ('function', 'op_list_audit_logs',    '0173')
+  ('function', 'op_list_audit_logs',    '0173'),
+  -- Phase 5 (real-data-only portion) -- 0177: platform-wide orders-by-source
+  -- and payment-method-mix, gated on the existing subscriptions.view key (no
+  -- new permission key needed). Deliberately excludes revenue/MRR/churn --
+  -- platform_billing_events has 0 rows, every café's billing_status is
+  -- 'none', so that would be fabricated. This is real, already-happened
+  -- money only: orders placed, payments collected.
+  ('function', 'op_platform_analytics', '0177')
   -- 0174: op_list_alerts re-bodied only (fixes a runtime ambiguous-column
   -- bug in the upsert, caught live -- unchanged signature, already tracked
   -- above, no new row).
