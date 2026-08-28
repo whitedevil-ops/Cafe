@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Order, OrderItem } from '@/lib/types'
+import type { KdsRow } from '@/lib/db'
 import { OfflineBanner } from '@/components/offline-banner'
 
-type Row = { order: Order; items: OrderItem[]; table_label: string }
+type Row = KdsRow
 
 // Synthesised rather than an mp3: no asset to fail to load, and a cheap tablet in a
 // kitchen with an exhaust fan running needs this loud and mid-range to cut through.
@@ -53,9 +53,9 @@ export default function KdsClient({ slug }: { slug: string }) {
         if (!alive || !json.orders) return
         const next = json.orders as Row[]
 
-        const fresh = next.filter((r) => !known.current.has(r.order.id))
+        const fresh = next.filter((r) => !known.current.has(r.order_id))
         if (fresh.length && known.current.size > 0) ding()
-        next.forEach((r) => known.current.add(r.order.id))
+        next.forEach((r) => known.current.add(r.order_id))
 
         setRows(next)
       } catch {
@@ -74,12 +74,12 @@ export default function KdsClient({ slug }: { slug: string }) {
     }
   }, [slug, ding])
 
-  async function done(id: string) {
-    setRows((prev) => prev.filter((r) => r.order.id !== id))
-    await fetch(`/api/orders/${id}`, {
-      method: 'PATCH',
+  async function done(orderId: string) {
+    setRows((prev) => prev.filter((r) => r.order_id !== orderId))
+    await fetch(`/api/kds/${slug}/done`, {
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status: 'done' }),
+      body: JSON.stringify({ orderId }),
     })
   }
 
@@ -106,25 +106,24 @@ export default function KdsClient({ slug }: { slug: string }) {
         <p className="py-32 text-center text-2xl text-stone-600">No open orders</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map(({ order, items, table_label }) => {
-            const age = minutesAgo(order.created_at)
+          {rows.map(({ order_id, short_code, created_at, table_label, paid, items }) => {
+            const age = minutesAgo(created_at)
             const late = age >= 8
             return (
               <section
-                key={order.id}
+                key={order_id}
                 className={`rounded-xl border-2 bg-stone-900 p-5 ${
                   late ? 'border-red-500' : 'border-stone-700'
                 }`}
               >
                 <div className="flex items-baseline justify-between">
-                  <span className="text-4xl font-medium tracking-wide">{order.short_code}</span>
+                  <span className="text-4xl font-medium tracking-wide">{short_code}</span>
                   <span className={`text-xl ${late ? 'text-red-400' : 'text-stone-400'}`}>
                     {age}m
                   </span>
                 </div>
                 <p className="mt-1 text-lg text-stone-400">
-                  Table {table_label} ·{' '}
-                  {order.payment_method === 'upi' ? 'Paid' : 'Counter'}
+                  Table {table_label} · {paid ? 'Paid' : 'Counter'}
                 </p>
 
                 <ul className="my-4 space-y-2 border-y border-stone-800 py-4">
@@ -137,7 +136,7 @@ export default function KdsClient({ slug }: { slug: string }) {
                 </ul>
 
                 <button
-                  onClick={() => done(order.id)}
+                  onClick={() => done(order_id)}
                   className="w-full rounded-lg bg-emerald-600 py-4 text-xl font-medium"
                 >
                   Done

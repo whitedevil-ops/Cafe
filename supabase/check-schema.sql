@@ -705,7 +705,13 @@ with expected(kind, name, fix) as (values
   -- platform_billing_events has 0 rows, every café's billing_status is
   -- 'none', so that would be fabricated. This is real, already-happened
   -- money only: orders placed, payments collected.
-  ('function', 'op_platform_analytics', '0177')
+  ('function', 'op_platform_analytics', '0177'),
+  -- 0178: full-audit fix -- the public, no-login kitchen display (/kds/[slug])
+  -- showed zero orders because orders' RLS requires auth.uid(), which this
+  -- screen never has by design. Two new SECURITY DEFINER RPCs granted to
+  -- anon, scoped to exactly what a kitchen board needs.
+  ('function', 'public_kds_orders',        '0178'),
+  ('function', 'public_kds_advance_order', '0178')
   -- 0174: op_list_alerts re-bodied only (fixes a runtime ambiguous-column
   -- bug in the upsert, caught live -- unchanged signature, already tracked
   -- above, no new row).

@@ -1,6 +1,6 @@
 import { supabase, isConfigured } from './supabase'
 import { demoCafe, demoTables, demoMenu, demoOrders, demoOrderItems } from './demo'
-import type { Cafe, CafeTable, MenuItem, Order, OrderItem } from './types'
+import type { Cafe, CafeTable, MenuItem } from './types'
 
 // SECURITY (audit F-01): `NewOrder`/`createOrder()` were removed. They accepted
 // a client-supplied `total` and per-item `price` and inserted them directly.
@@ -39,48 +39,51 @@ export async function getTableContext(
   return { cafe, table, menu: menu ?? [] }
 }
 
-export type KdsRow = { order: Order; items: OrderItem[]; table_label: string }
+export type KdsRow = {
+  order_id: string
+  short_code: string
+  created_at: string
+  table_label: string
+  paid: boolean
+  items: { id: string; qty: number; name: string }[]
+}
 
+// Deliberately unauthenticated — this feeds the public, no-login kitchen
+// display (/kds/[slug]). It calls the public_kds_orders() RPC (migration
+// 0178) rather than selecting from `orders` directly: that table's RLS
+// requires auth.uid() (is_cafe_member), which this screen never has by
+// design, so a raw select here always silently returned zero rows. The RPC
+// is SECURITY DEFINER and returns only what a kitchen board needs — no
+// totals, no customer PII, no payment detail beyond a plain paid/unpaid flag.
 export async function listOpenOrders(slug: string): Promise<KdsRow[]> {
   if (!isConfigured) {
     return demoOrders
       .filter((o) => o.status !== 'done' && o.status !== 'cancelled')
       .map((order) => ({
-        order,
-        items: demoOrderItems.filter((i) => i.order_id === order.id),
+        order_id: order.id,
+        short_code: order.short_code,
+        created_at: order.created_at,
         table_label: demoTables.find((t) => t.id === order.table_id)?.label ?? '—',
+        paid: order.payment_method === 'upi',
+        items: demoOrderItems
+          .filter((i) => i.order_id === order.id)
+          .map((i) => ({ id: i.id, qty: i.qty, name: i.name })),
       }))
   }
 
-  const { data: cafe } = await supabase!.from('cafes').select('id').eq('slug', slug).single()
-  if (!cafe) return []
+  const { data } = await supabase!.rpc('public_kds_orders', { p_slug: slug })
+  return (data as KdsRow[] | null) ?? []
+}
 
-  const { data: orders } = await supabase!
-    .from('orders')
-    .select('*')
-    .eq('cafe_id', cafe.id)
-    .in('status', ['placed', 'preparing', 'ready'])
-    .order('created_at', { ascending: true })
-  if (!orders?.length) return []
-
-  const tableIds = [...new Set(orders.map((o) => o.table_id).filter(Boolean))] as string[]
-  const [{ data: items }, { data: tables }] = await Promise.all([
-    supabase!
-      .from('order_items')
-      .select('*')
-      .in(
-        'order_id',
-        orders.map((o) => o.id),
-      ),
-    tableIds.length
-      ? supabase!.from('cafe_tables').select('id,label').in('id', tableIds)
-      : Promise.resolve({ data: [] as { id: string; label: string }[] }),
-  ])
-  const labelOf = new Map((tables ?? []).map((t) => [t.id, t.label]))
-
-  return orders.map((order) => ({
-    order,
-    items: (items ?? []).filter((i) => i.order_id === order.id),
-    table_label: (order.table_id && labelOf.get(order.table_id)) || '—',
-  }))
+// Marks a ticket done from the same unauthenticated kitchen display. Calls
+// public_kds_advance_order() (migration 0178) — SECURITY DEFINER, re-derives
+// the café from the slug and only allows the status forward into 'completed'
+// from an open state, so a guessed/forged order id from another café can
+// never be touched. Deliberately separate from PATCH /api/orders/[id], which
+// requires a signed-in staff session (an earlier F-01 fix) that this
+// no-login screen was never meant to carry.
+export async function advanceKdsOrder(slug: string, orderId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isConfigured) return { ok: true }
+  const { error } = await supabase!.rpc('public_kds_advance_order', { p_slug: slug, p_order_id: orderId })
+  return error ? { ok: false, error: error.message } : { ok: true }
 }
