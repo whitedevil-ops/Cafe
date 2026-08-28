@@ -711,7 +711,15 @@ with expected(kind, name, fix) as (values
   -- screen never has by design. Two new SECURITY DEFINER RPCs granted to
   -- anon, scoped to exactly what a kitchen board needs.
   ('function', 'public_kds_orders',        '0178'),
-  ('function', 'public_kds_advance_order', '0178')
+  ('function', 'public_kds_advance_order', '0178'),
+  -- 0180: full-audit fix, CRITICAL, live-reproduced -- record_payment() had
+  -- no concurrency protection; two overlapping calls for the same order
+  -- both passed the outstanding-balance check and both inserted, producing
+  -- a real double payment. Re-bodied with an advisory lock (record_payment
+  -- already tracked above, no new row for it) plus a new hard trigger-level
+  -- backstop that rejects ANY insert into payments that would push an
+  -- order's total collected past its own total, through any path.
+  ('function', 'trg_payments_no_overcollect', '0180')
   -- 0179: full-audit fix -- sales_report re-bodied only. Its `base` CTE
   -- required payment_status='paid', so a fully refunded order's revenue
   -- vanished from every figure in the report while refund_total still
