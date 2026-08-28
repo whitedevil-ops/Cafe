@@ -132,6 +132,31 @@ export default function BillsClient({
     [supabase, cafeId, bounds, payment],
   )
 
+  // list_bills caps at 200 rows per call with no on-screen indication
+  // anything was cut off — found live: the real pilot café has 278 orders
+  // in its own 30-day range, so its owner's summary tiles (computed over
+  // the full filtered set) never reconciled with the visible list, and the
+  // oldest ~78 bills in that window were unfindable via search on this page.
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true)
+    const { from, to } = bounds(range)
+    const { data, error: err } = await supabase.rpc('list_bills', {
+      p_cafe_id: cafeId,
+      p_from: from,
+      p_to: to,
+      p_type: type,
+      p_search: search.trim() || null,
+      p_limit: 200,
+      p_offset: payload?.bills.length ?? 0,
+      p_payment: payment,
+    })
+    setLoadingMore(false)
+    if (err) return setError(err.message)
+    const next = data as BillsPayload
+    setPayload((prev) => (prev ? { summary: prev.summary, bills: [...prev.bills, ...next.bills] } : next))
+  }, [supabase, cafeId, bounds, range, type, search, payment, payload])
+
   const downloadPdf = useCallback(async () => {
     setPdfBusy(true)
     setPdfNotice(null)
@@ -385,6 +410,18 @@ export default function BillsClient({
               </tbody>
             </table>
           </div>
+
+          {s && bills.length < s.count && (
+            <div className="mt-4 flex flex-col items-center gap-1.5">
+              <button
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="min-h-10 rounded-[var(--radius)] border border-border-strong px-5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : `Load more (${bills.length} of ${s.count})`}
+              </button>
+            </div>
+          )}
         </>
       )}
 
