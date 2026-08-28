@@ -11,7 +11,7 @@ const PLANS = [
     monthly: 999,
     yearly: 10000,
     blurb: 'Billing and QR ordering for a single counter.',
-    features: ['POS billing & KOT', 'QR ordering', 'Up to 3 staff', 'GST invoicing'],
+    features: ['POS billing & KOT', 'QR ordering', 'Up to 3 staff', 'GST invoicing', '1 café'],
     recommended: false,
   },
   {
@@ -19,7 +19,7 @@ const PLANS = [
     monthly: 2499,
     yearly: 18000,
     blurb: 'Everything a growing café needs to build repeat business.',
-    features: ['Everything in Starter', 'Loyalty & coupons', 'Online payments (UPI)', 'Up to 8 staff'],
+    features: ['Everything in Starter', 'Loyalty & coupons', 'Online payments (UPI)', 'Up to 8 staff', 'Up to 2 cafés'],
     recommended: true,
   },
   {
@@ -27,7 +27,7 @@ const PLANS = [
     monthly: 4999,
     yearly: 21000,
     blurb: 'Multi-outlet operations with full inventory control.',
-    features: ['Everything in Growth', 'Inventory & recipes', 'No staff cap', 'Advanced analytics'],
+    features: ['Everything in Growth', 'Inventory & recipes', 'No staff cap', 'Advanced analytics', 'Up to 6 cafés'],
     recommended: false,
   },
 ] as const

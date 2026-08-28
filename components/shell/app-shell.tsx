@@ -104,6 +104,7 @@ export function AppShell({
   screenAccess,
   cafes,
   canAddCafe,
+  upgradeTo,
   userName,
   children,
 }: {
@@ -116,6 +117,7 @@ export function AppShell({
   screenAccess: string[]
   cafes: CafeOption[]
   canAddCafe: boolean
+  upgradeTo?: { key: string; name: string } | null
   userName: string
   children: React.ReactNode
 }) {
@@ -187,9 +189,9 @@ export function AppShell({
         )}
       </div>
 
-      {!effectiveCollapsed && (cafes.length > 1 || canAddCafe) && (
+      {!effectiveCollapsed && (cafes.length > 1 || canAddCafe || upgradeTo) && (
         <div className="px-3 pb-1">
-          <CafeSwitcher cafes={cafes} activeCafeId={cafeId} canAddCafe={canAddCafe} />
+          <CafeSwitcher cafes={cafes} activeCafeId={cafeId} canAddCafe={canAddCafe} upgradeTo={upgradeTo} />
         </div>
       )}
 

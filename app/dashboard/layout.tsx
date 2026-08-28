@@ -28,14 +28,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ) : null
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }] = await Promise.all([
+  const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }, { data: allPlans }] = await Promise.all([
     supabase.from('cafes').select('cash_management_enabled, plan').eq('id', cafe.cafeId).maybeSingle(),
     supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
     supabase.rpc('owned_cafe_capacity'),
     supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),
     supabase.rpc('my_screen_access', { p_cafe_id: cafe.cafeId }),
+    supabase.from('platform_plans').select('key, name, max_owned_cafes').eq('active', true),
   ])
   const canAddCafe = Boolean((capacity as { can_add?: boolean } | null)?.can_add)
+  // Only relevant when the owner is AT their cap — the cheapest active plan
+  // that would actually raise it, so the café switcher can offer a concrete
+  // "+ Add café — upgrade to X" instead of just hiding the option outright.
+  // null when no such plan exists (already on the highest tier).
+  const currentCap = (capacity as { cap?: number } | null)?.cap ?? 1
+  const upgradeTo = canAddCafe
+    ? null
+    : ((allPlans ?? []) as { key: string; name: string; max_owned_cafes: number }[])
+        .filter((p) => p.max_owned_cafes > currentCap)
+        .sort((a, b) => a.max_owned_cafes - b.max_owned_cafes)[0] ?? null
 
   // Same override-beats-plan-default precedence as cafe_has_feature(), just
   // resolved once here for every nav-relevant key instead of one RPC round
@@ -131,6 +142,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       screenAccess={cafe.role === 'operator' ? ALL_SCREENS : ((screenAccess as string[] | null) ?? ALL_SCREENS)}
       cafes={myCafes}
       canAddCafe={canAddCafe}
+      upgradeTo={upgradeTo ? { key: upgradeTo.key, name: upgradeTo.name } : null}
       userName={profile?.full_name ?? ''}
     >
       {banner}
