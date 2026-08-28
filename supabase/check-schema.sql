@@ -699,6 +699,16 @@ with expected(kind, name, fix) as (values
   ('function', 'op_acknowledge_alert',  '0172'),
   ('function', 'op_resolve_alert',      '0172'),
   ('function', 'op_list_audit_logs',    '0173')
+  -- 0174: op_list_alerts re-bodied only (fixes a runtime ambiguous-column
+  -- bug in the upsert, caught live -- unchanged signature, already tracked
+  -- above, no new row).
+  -- Phase 4 (RBAC completeness) -- 0175: adds sales_admin role (widens
+  -- platform_admins_role_chk, not separately tracked here) and a new
+  -- cafes.reset_password permission key. Re-bodies role_default_permissions,
+  -- op_update_admin_permissions, op_create_admin, op_update_admin, and
+  -- op_log_password_reset -- all five already tracked above, no new rows;
+  -- only op_update_admin and op_log_password_reset had never been touched by
+  -- a migration since 0079.
   -- Phase 2 (ops panel) -- 0168: op_cafe_health gains a trailing
   -- p_cafe_id uuid default null (old zero-arg signature dropped first, per
   -- this repo's established arity-bump convention; already tracked above at
