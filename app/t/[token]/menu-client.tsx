@@ -892,7 +892,10 @@ export default function MenuClient({
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search dishes…"
               aria-label="Search dishes"
-              className="h-11 w-full rounded-full border border-border-strong bg-surface pl-10 pr-10 text-[14px] text-foreground placeholder:text-muted-foreground"
+              // 16px, not 14 — under 16px WebKit auto-zooms the viewport on
+              // focus, and this box sits at the top of every screen a
+              // customer sees, mobile-only.
+              className="h-11 w-full rounded-full border border-border-strong bg-surface pl-10 pr-10 text-[16px] text-foreground placeholder:text-muted-foreground"
             />
             {searching && (
               <button onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground">

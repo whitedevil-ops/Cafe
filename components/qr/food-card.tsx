@@ -99,16 +99,24 @@ export function FoodCard({
               <button
                 onClick={onAdd}
                 aria-label={`Add ${item.name}`}
-                className="h-9 min-w-[68px] rounded-full border border-primary bg-surface px-4 text-[13px] font-semibold uppercase tracking-wide text-primary shadow-[var(--shadow-md)] transition-transform active:scale-95"
+                className="h-10 min-w-[68px] rounded-full border border-primary bg-surface px-4 text-[13px] font-semibold uppercase tracking-wide text-primary shadow-[var(--shadow-md)] transition-transform active:scale-95"
               >
                 Add
               </button>
             ) : (
-              <div className="flex h-9 items-center gap-0.5 rounded-full border border-primary bg-primary px-1 shadow-[var(--shadow-md)]">
+              <div className="flex h-10 items-center gap-0.5 rounded-full border border-primary bg-primary px-1 shadow-[var(--shadow-md)]">
+                {/* 32px, up from 28 — the most-tapped control on the highest-
+                    traffic page in the app was under both the 44px Apple and
+                    48px Android touch-target guidelines. Not raised all the
+                    way to 44 here: the two buttons sit close together either
+                    side of the qty number, and growing them further without
+                    live device testing (unavailable this session) risks
+                    making an accidental hit on the wrong one more likely,
+                    not less. */}
                 <button
                   onClick={onDecrement}
                   aria-label={`Remove one ${item.name}`}
-                  className="grid h-7 w-7 place-items-center rounded-full text-primary-foreground active:scale-90"
+                  className="grid h-8 w-8 place-items-center rounded-full text-primary-foreground active:scale-90"
                 >
                   <Minus size={14} strokeWidth={2.5} />
                 </button>
@@ -118,7 +126,7 @@ export function FoodCard({
                 <button
                   onClick={onAdd}
                   aria-label={`Add one ${item.name}`}
-                  className="grid h-7 w-7 place-items-center rounded-full text-primary-foreground active:scale-90"
+                  className="grid h-8 w-8 place-items-center rounded-full text-primary-foreground active:scale-90"
                 >
                   <Plus size={14} strokeWidth={2.5} />
                 </button>

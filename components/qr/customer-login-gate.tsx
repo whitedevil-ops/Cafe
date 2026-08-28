@@ -136,7 +136,9 @@ export function CustomerLoginGate({
             placeholder="Your name"
             autoComplete="name"
             autoFocus
-            className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground placeholder:text-muted-foreground"
+            // 16px, not 15 — this field autofocuses on load, so it's the
+            // very first thing WebKit's zoom-under-16px rule can fire on.
+            className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
           />
           <div className="flex items-center rounded-[var(--radius)] border border-border-strong bg-surface">
             <span className="pl-4 pr-2 text-muted-foreground">+91</span>
@@ -155,7 +157,7 @@ export function CustomerLoginGate({
               onChange={(e) => setRefCode(e.target.value.toUpperCase().slice(0, 12))}
               placeholder="Referral code (optional)"
               autoCapitalize="characters"
-              className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] uppercase tracking-wide text-foreground placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
+              className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] uppercase tracking-wide text-foreground placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
             />
           ) : (
             <button

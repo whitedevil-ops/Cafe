@@ -22,7 +22,10 @@ export const Input = forwardRef<HTMLInputElement, Props>(function Input(
         ref={ref}
         id={inputId}
         aria-invalid={Boolean(error)}
-        className={`h-11 w-full rounded-[var(--radius)] border bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors ${
+        // text-base (16px) below sm: WebKit auto-zooms the viewport on focus
+        // for any input under 16px — this is every field on /login and
+        // /signup, so that page zoomed on tap on an iPhone.
+        className={`h-11 w-full rounded-[var(--radius)] border bg-surface px-3 text-base sm:text-sm text-foreground placeholder:text-muted-foreground transition-colors ${
           error ? 'border-destructive' : 'border-border-strong'
         } ${className}`}
         {...rest}
