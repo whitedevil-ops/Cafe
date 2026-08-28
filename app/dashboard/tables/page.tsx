@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
+import { hasFeature } from '@/lib/entitlements'
 import FloorClient, { type FloorTable } from './floor-client'
 import type { MenuCategory, MenuItem, MenuVariant, MenuAddon } from '@/components/waiter/quick-add-sheet'
 
@@ -24,13 +25,14 @@ export default async function TablesFloorPage() {
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
-  const [{ data: variants }, { data: addons }] = await Promise.all([
+  const [{ data: variants }, { data: addons }, smsBillsEnabled] = await Promise.all([
     itemIds.length
       ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
       : Promise.resolve({ data: [] }),
     itemIds.length
       ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
       : Promise.resolve({ data: [] }),
+    hasFeature(cafe.cafeId, 'sms_bills'),
   ])
 
   return (
@@ -40,6 +42,7 @@ export default async function TablesFloorPage() {
       timezone={cafe.timezone}
       areas={(areas ?? []) as { id: string; name: string }[]}
       initialTables={(data ?? []) as FloorTable[]}
+      smsBillsEnabled={smsBillsEnabled}
       menu={{
         categories: (categories ?? []) as MenuCategory[],
         items: (items ?? []) as MenuItem[],

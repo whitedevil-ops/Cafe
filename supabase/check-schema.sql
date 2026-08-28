@@ -718,6 +718,9 @@ with expected(kind, name, fix) as (values
   -- allowlist). New narrow RPC instead of widening the raw grant, which
   -- would have made those columns writable to any value via any path.
   ('function', 'record_subscription_started', '0181'),
+  -- 0187: full-audit fix -- list_reservations/set_reservation_status re-bodied
+  -- to add the cafe_has_feature('reservations') check create_reservation
+  -- already had. Unchanged signatures, already tracked above, no new rows.
   -- 0186: full-audit fix -- outstanding_summary re-bodied only, adding
   -- `order_id is not null` to its Collected sum. Unlike list_bills (already
   -- safe -- its paid figure is a per-order correlated subquery), this one

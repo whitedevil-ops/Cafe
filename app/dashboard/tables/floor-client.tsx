@@ -63,6 +63,7 @@ export default function FloorClient({
   timezone,
   areas,
   initialTables,
+  smsBillsEnabled,
   menu,
 }: {
   cafeId: string
@@ -70,6 +71,7 @@ export default function FloorClient({
   timezone: string
   areas: { id: string; name: string }[]
   initialTables: FloorTable[]
+  smsBillsEnabled: boolean
   menu: { categories: MenuCategory[]; items: MenuItem[]; variants: MenuVariant[]; addons: MenuAddon[] }
 }) {
   const canEditLayout = role === 'owner' || role === 'manager'
@@ -1032,7 +1034,12 @@ export default function FloorClient({
                             <a href={`/r/${o.receipt_token}?print=1`} target="_blank" className="text-primary hover:underline">Print</a>
                           </div>
                         </div>
-                        {log && (
+                        {/* This rendered on every plan, including ones without sms_bills
+                            — the section's own enqueue trigger has no entitlement check
+                            either (unlike its WhatsApp counterpart), so a completed order
+                            on a non-entitled café got a real 'pending' row here with a
+                            Retry button that could only ever fail with the plan error. */}
+                        {log && smsBillsEnabled && (
                           <div className="mt-1.5 flex items-center justify-between text-[12px]">
                             <span className={log.status === 'sent' || log.status === 'delivered' ? 'text-success' : log.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
                               SMS bill: {log.status}{log.status === 'failed' && log.error ? ` — ${log.error.slice(0, 60)}` : ''}
