@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
 import SettingsClient, { type StaffMember, type StaffInvite } from './settings-client'
 import type { KotPrinter, KitchenStation, BridgeToken } from './kot-printing-panel'
@@ -12,6 +13,9 @@ export default async function SettingsPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
+  // Entitlement first: everything the Payments card says depends on whether
+  // online payments are on this cafe's plan at all.
+  const onlinePaymentsAllowed = await hasFeature(cafe.cafeId, 'online_payments')
   const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }] =
     await Promise.all([
       supabase
@@ -62,6 +66,7 @@ export default async function SettingsPage() {
       timezone={cafe.timezone}
       cashEnabled={data?.cash_management_enabled ?? false}
       onlinePayments={{
+        allowed: onlinePaymentsAllowed,
         enabled: data?.online_payments_enabled ?? false,
         razorpayStatus: data?.razorpay_status ?? 'not_connected',
       }}

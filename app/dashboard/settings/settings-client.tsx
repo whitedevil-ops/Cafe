@@ -35,7 +35,13 @@ export type PrintingState = {
 
 const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
 
-export type OnlinePaymentsState = { enabled: boolean; razorpayStatus: string | null }
+export type OnlinePaymentsState = {
+  /** Whether online payments are on this cafe's plan at all (ops feature flag). */
+  allowed: boolean
+  /** The cafe's own switch. */
+  enabled: boolean
+  razorpayStatus: string | null
+}
 
 export default function SettingsClient({
   cafeId,
@@ -199,7 +205,11 @@ export default function SettingsClient({
           <p className="mt-1 text-[13px] text-muted-foreground">
             Customers place orders and pay at the counter — staff record <span className="font-medium text-foreground">cash</span> or{' '}
             <span className="font-medium text-foreground">card</span> on the Tables or Kitchen screen.{' '}
-            {onlinePayments.enabled && onlinePayments.razorpayStatus === 'connected' ? (
+            {!onlinePayments.allowed ? (
+              <>Online UPI/card collection <span className="font-medium text-foreground">isn&apos;t on your plan</span>.</>
+            ) : onlinePayments.razorpayStatus === 'connected' && !onlinePayments.enabled ? (
+              <>Razorpay is connected but online collection is <span className="font-medium text-warning">switched off</span>.</>
+            ) : onlinePayments.enabled && onlinePayments.razorpayStatus === 'connected' ? (
               <>Online UPI/card collection via Razorpay is <span className="font-medium text-success">connected and live</span>.</>
             ) : onlinePayments.razorpayStatus === 'pending' ? (
               <>Razorpay is connected but <span className="font-medium text-warning">still pending verification</span> — online collection isn&apos;t live yet.</>
@@ -208,11 +218,15 @@ export default function SettingsClient({
             ) : (
               <>Online UPI/card collection <span className="font-medium text-foreground">isn&apos;t connected yet</span>.</>
             )}{' '}
-            {onlinePayments.razorpayStatus !== 'connected' && (
+            {onlinePayments.allowed && onlinePayments.razorpayStatus !== 'connected' ? (
               <Link href="/dashboard/profile?tab=payments" className="font-medium text-primary hover:underline">
                 Connect Razorpay in Café profile →
               </Link>
-            )}
+            ) : onlinePayments.allowed && !onlinePayments.enabled ? (
+              <Link href="/dashboard/profile?tab=payments" className="font-medium text-primary hover:underline">
+                Turn it on in Café profile →
+              </Link>
+            ) : null}
           </p>
         </div>
 
