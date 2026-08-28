@@ -19,6 +19,7 @@ export type ReceiptData = {
     gstin: string | null; logo_url: string | null; phone: string | null
     gst_registered: boolean; tax_inclusive: boolean; timezone: string | null
     bill_link_url: string | null
+    bill_link_label: string | null
   }
   order: {
     short_code: string; created_at: string; order_type: string

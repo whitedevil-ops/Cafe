@@ -12,7 +12,7 @@ import { ExternalLink } from 'lucide-react'
  * boundary is the RPC's own case-when plus the cafes table's scheme CHECK
  * constraint, neither of which a customer can influence from this page.
  */
-export function BillLinkCta({ url }: { url: string | null }) {
+export function BillLinkCta({ url, label }: { url: string | null; label: string | null }) {
   if (!url) return null
   return (
     <a
@@ -21,7 +21,7 @@ export function BillLinkCta({ url }: { url: string | null }) {
       rel="noopener noreferrer"
       className="mt-4 flex items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3.5 text-[13.5px] font-medium text-foreground hover:bg-surface-subtle print:hidden"
     >
-      Visit Us
+      {label?.trim() || 'Visit Us'}
       <ExternalLink size={14} className="text-muted-foreground" />
     </a>
   )

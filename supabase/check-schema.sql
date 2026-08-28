@@ -653,7 +653,9 @@ with expected(kind, name, fix) as (values
   -- get_receipt: payment breakdown + customer name for the redesigned bill (0160).
   ('function', 'get_receipt',                           '0160'),
   -- Owner-controlled bill CTA link, replacing the star-rating feedback gate (0161).
-  ('column',   'cafes.bill_link_url',                   '0161')
+  ('column',   'cafes.bill_link_url',                   '0161'),
+  -- Owner-customizable bill CTA button text, e.g. "Google Review" (0162).
+  ('column',   'cafes.bill_link_label',                 '0162')
 )
 select
   e.kind,

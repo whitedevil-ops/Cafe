@@ -53,6 +53,7 @@ export type CafeProfile = {
   receipt_footer: string
   bill_link_url: string
   bill_link_enabled: boolean
+  bill_link_label: string
 }
 
 export type Hours = Record<string, { open: string; close: string; closed: boolean }>
@@ -152,6 +153,11 @@ export default function ProfileClient({
         return setError('Customer bill link must be a valid web address starting with https:// (e.g. https://instagram.com/yourcafe).')
       }
     }
+    const billLinkLabel = form.bill_link_label.trim()
+    if (billLinkLabel.length > 30) {
+      setSection('basic')
+      return setError('Button text must be 30 characters or fewer.')
+    }
     setBusy(true)
     setError(null)
 
@@ -185,6 +191,7 @@ export default function ProfileClient({
       takeaway: form.takeaway,
       bill_link_url: billLink || null,
       bill_link_enabled: form.bill_link_enabled,
+      bill_link_label: billLinkLabel || null,
     }
 
     const { error: cafeErr } = await supabase.from('cafes').update(cafeUpdate).eq('id', cafeId)
@@ -200,7 +207,7 @@ export default function ProfileClient({
     // Audit trail: one row per materially changed field, compared to the last
     // saved baseline (no-op if nothing changed since the last save).
     const audit: { field: string; from: unknown; to: unknown }[] = []
-    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'gst_sac_code', 'gst_registered', 'legal_name', 'tax_inclusive', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway', 'bill_link_url', 'bill_link_enabled']
+    const watch: (keyof CafeProfile)[] = ['name', 'gstin', 'gst_sac_code', 'gst_registered', 'legal_name', 'tax_inclusive', 'logo_url', 'tax_percent', 'service_charge', 'dine_in', 'takeaway', 'bill_link_url', 'bill_link_enabled', 'bill_link_label']
     for (const k of watch) {
       if (String(baseline.form[k] ?? '') !== String(form[k] ?? '')) audit.push({ field: k, from: baseline.form[k], to: form[k] })
     }
@@ -307,16 +314,24 @@ export default function ProfileClient({
                   <Input label="Business phone" type="tel" value={form.phone} onChange={set('phone')} disabled={dis} />
                 </div>
                 <Input label="Website" placeholder="https://…" value={form.website} onChange={set('website')} disabled={dis} />
-                <div>
+                <div className="space-y-3">
                   <Input
                     label="Customer bill link"
                     placeholder="https://instagram.com/yourcafe"
                     value={form.bill_link_url}
                     onChange={set('bill_link_url')}
                     disabled={dis}
-                    hint="A “Visit Us” button on every customer bill, opening whatever link you set — your Instagram, Google Maps listing, website, anything."
+                    hint="A button on every customer bill, opening whatever link you set — your Instagram, Google Maps listing, website, anything."
                   />
-                  <div className="mt-2 flex items-center justify-between">
+                  <Input
+                    label="Button text"
+                    placeholder="Visit Us"
+                    value={form.bill_link_label}
+                    onChange={set('bill_link_label')}
+                    disabled={dis}
+                    hint={'Optional — e.g. “Google Review” or “Follow us on Instagram”. Defaults to “Visit Us”.'}
+                  />
+                  <div className="flex items-center justify-between">
                     <span className="text-[12.5px] font-medium text-foreground">Show the button on bills</span>
                     <button
                       type="button"

@@ -285,7 +285,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
           <div className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground">
             Thank you for visiting!
-            <BillLinkCta url={r.cafe.bill_link_url} />
+            <BillLinkCta url={r.cafe.bill_link_url} label={r.cafe.bill_link_label} />
             <p className="mt-3 text-[10.5px] text-muted-foreground/70">Powered by KhaoPiyo</p>
           </div>
         </div>
