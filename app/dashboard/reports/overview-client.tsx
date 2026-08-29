@@ -297,7 +297,7 @@ export default function OverviewClient({
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Average Order Value</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.aov}</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.aov.toLocaleString('en-IN')}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Customers</p>

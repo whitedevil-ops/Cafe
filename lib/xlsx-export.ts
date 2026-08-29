@@ -167,7 +167,14 @@ export async function downloadReport(meta: ReportMeta, sheets: SheetSpec[]): Pro
   for (const spec of sheets) buildSheet(wb, spec, meta)
 
   const buf = await wb.xlsx.writeBuffer()
-  const stamp = new Date().toISOString().slice(0, 10)
+  // The report's own selected range, not today's date — two exports of
+  // different periods taken on the same day used to collide on an
+  // identical filename and silently overwrite each other. Plain ISO date
+  // slices (not café-timezone-adjusted) are fine here: this is a
+  // human-readable disambiguator, not a figure the report computes with.
+  const stamp = meta.from.slice(0, 10) === meta.to.slice(0, 10)
+    ? meta.from.slice(0, 10)
+    : `${meta.from.slice(0, 10)}_to_${meta.to.slice(0, 10)}`
   const file = `KhaoPiyo_${meta.reportName.replace(/[^A-Za-z0-9]+/g, '-')}_${stamp}.xlsx`
 
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })

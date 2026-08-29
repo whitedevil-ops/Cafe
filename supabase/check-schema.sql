@@ -837,6 +837,16 @@ with expected(kind, name, fix) as (values
   ('column', 'spin_segments.claims_used', '0191'),
   ('column', 'spin_segments.expiry_days', '0191'),
   ('function', 'spin_wheel_analytics', '0191')
+  -- 0192: full Reports-module audit (14-agent live verification) found 4
+  -- critical bugs, fixed here -- all pure re-bodies of already-tracked
+  -- functions, no new rows. business_overview_report: collected_now/
+  -- by_payment_method summed orphan (order-less) payments (same class 0186
+  -- fixed in outstanding_summary); top_customers/low_stock_count were
+  -- redacted only in TypeScript, never inside the RPC. sales_report:
+  -- expense_total's ::date cast on p_to excluded same-day expenses on every
+  -- preset except Yesterday. recommendation_report: had no
+  -- cafe_has_feature('advanced_reports') check at all, unlike its
+  -- Profitability nav-sibling.
 )
 select
   e.kind,

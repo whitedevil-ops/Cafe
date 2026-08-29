@@ -233,7 +233,7 @@ export default function DashboardClient({
   const metrics = [
     ['Today’s revenue', `₹${data.revenue.toLocaleString('en-IN')}`],
     ['Today’s orders', data.orderCount],
-    ['Avg order value', `₹${data.aov}`],
+    ['Avg order value', `₹${data.aov.toLocaleString('en-IN')}`],
     ['New customers today', data.newCustomersToday],
   ] as const
 
@@ -358,7 +358,7 @@ export default function DashboardClient({
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Average order value</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{dailySummary.aov}</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{dailySummary.aov.toLocaleString('en-IN')}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Top item</p>
