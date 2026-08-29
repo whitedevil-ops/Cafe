@@ -181,7 +181,22 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
 
   const cookieStore = await cookies()
   const preferred = cookieStore.get(ACTIVE_CAFE_COOKIE)?.value
-  const row = m.rows.find((r) => r.cafe_id === preferred) ?? m.rows[0]
+  // An explicit cookie match wins even if that café is inactive — the owner
+  // picked it on purpose, and the blocked-status screen below is the escape
+  // hatch for that case, not this fallback. Only the no-cookie/stale-cookie
+  // path falls through here, and rows are newest-first (see getMemberships),
+  // which is also the exact order reconcile_owner_cafe_cap() (migration 0188)
+  // suspends in — so blindly taking rows[0] would default a multi-café owner
+  // straight onto whichever café was JUST auto-suspended, even though an
+  // older, perfectly usable café sits right behind it. Prefer any active
+  // membership first; fall back to the newest only if none are active.
+  const row =
+    m.rows.find((r) => r.cafe_id === preferred) ??
+    m.rows.find((r) => {
+      const c = Array.isArray(r.cafes) ? r.cafes[0] : r.cafes
+      return c?.status === 'active'
+    }) ??
+    m.rows[0]
 
   const cafe = Array.isArray(row.cafes) ? row.cafes[0] : row.cafes
   if (!cafe) return null

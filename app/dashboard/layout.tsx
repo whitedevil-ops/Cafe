@@ -3,6 +3,7 @@ import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
 import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
+import { SwitchAwayHint } from '@/components/billing/switch-away-hint'
 import { UserActivityTracker } from '@/components/user-activity-tracker'
 import { OperatorSessionBanner } from '@/components/shell/operator-session-banner'
 
@@ -82,6 +83,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               Renew to get back to billing, QR ordering, and your kitchen display.
             </p>
             <ExpiryRenewal cafeId={cafe.cafeId} />
+            <SwitchAwayHint cafes={myCafes} currentCafeId={cafe.cafeId} />
             <form action="/auth/signout" method="post" className="mt-6">
               <button className="text-sm font-medium text-primary hover:underline">Sign out</button>
             </form>
@@ -93,8 +95,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     return (
       <>
       {banner}
-      <div className="grid w-full min-h-dvh place-items-center bg-background px-6 text-center">
-        <div>
+      <div className="grid w-full min-h-dvh place-items-center bg-background px-6 py-12 text-center">
+        <div className="w-full max-w-lg">
           <p className="text-sm font-medium text-destructive">Account access paused</p>
           <h1 className="mt-2 text-xl font-semibold text-foreground">
             {STATUS_MESSAGE[cafe.status] ?? 'This café account is not currently active.'}
@@ -105,6 +107,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <p className="mt-2 text-sm text-muted-foreground">
             Orders, POS, and staff access are paused until this is resolved. Contact support to continue.
           </p>
+          <SwitchAwayHint cafes={myCafes} currentCafeId={cafe.cafeId} />
           <form action="/auth/signout" method="post" className="mt-6">
             <button className="text-sm font-medium text-primary hover:underline">Sign out</button>
           </form>
