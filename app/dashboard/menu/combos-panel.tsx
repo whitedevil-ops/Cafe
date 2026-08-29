@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { downloadCombosExport, type ComboExportRow } from '@/lib/menu-workbook'
 import { savedFileHint } from '@/lib/is-desktop'
 import type { Combo, ComboSlot } from '@/lib/combos'
@@ -405,16 +406,14 @@ export default function CombosPanel({
                           </select>
                         ) : (
                           <>
-                            <select
+                            <SearchableSelect
                               value={s.menu_item_id}
-                              onChange={(e) => patchSlot(idx, { menu_item_id: e.target.value, variant_id: '' })}
-                              className={`${SELECT_CLS} flex-1`}
-                            >
-                              <option value="">…which item?</option>
-                              {liveItems.map((i) => (
-                                <option key={i.id} value={i.id}>{i.name}</option>
-                              ))}
-                            </select>
+                              onChange={(v) => patchSlot(idx, { menu_item_id: v, variant_id: '' })}
+                              options={liveItems.map((i) => ({ value: i.id, label: i.name }))}
+                              placeholder="…which item?"
+                              searchPlaceholder="Search menu items…"
+                              className="flex-1"
+                            />
                             {slotVariants.length > 0 && (
                               <select
                                 value={s.variant_id}
