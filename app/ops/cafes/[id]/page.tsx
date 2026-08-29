@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { NotAuthorized } from '@/components/ops/not-authorized'
-import CafeDetailClient, { type CafeDetail, type HealthRow } from './cafe-detail-client'
+import CafeDetailClient, { type CafeDetail, type HealthRow, type StaffRow } from './cafe-detail-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,8 +15,9 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
   const { data, error } = await supabase.rpc('op_get_cafe_detail', { p_cafe_id: id })
   if (error || !data) notFound()
 
-  const [{ data: plans }] = await Promise.all([
-    supabase.from('platform_plans').select('key, name, price_monthly, price_yearly').eq('active', true).order('sort'),
+  const [{ data: plans }, { data: staff }] = await Promise.all([
+    supabase.from('platform_plans').select('key, name, price_monthly, price_yearly, max_staff').eq('active', true).order('sort'),
+    permissions['cafes.view'] ? supabase.rpc('op_list_cafe_staff', { p_cafe_id: id }) : Promise.resolve({ data: [] }),
   ])
 
   // billing_admin has cafes.view but NOT health.view (0142) -- gate the RPC
@@ -27,5 +28,14 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
     : { data: null }
   const health = (healthRows as HealthRow[] | null)?.[0] ?? null
 
-  return <CafeDetailClient cafeId={id} detail={data as CafeDetail} plans={plans ?? []} permissions={permissions} health={health} />
+  return (
+    <CafeDetailClient
+      cafeId={id}
+      detail={data as CafeDetail}
+      plans={plans ?? []}
+      permissions={permissions}
+      health={health}
+      initialStaff={(staff ?? []) as StaffRow[]}
+    />
+  )
 }
