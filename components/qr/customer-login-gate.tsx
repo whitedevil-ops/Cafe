@@ -50,8 +50,6 @@ export function CustomerLoginGate({
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showRefCode, setShowRefCode] = useState(false)
-  const [refCode, setRefCode] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -93,7 +91,7 @@ export function CustomerLoginGate({
       p_phone: phone,
       p_name: name,
       p_device_id: getOrCreateDeviceId(),
-      p_ref_code: refCode.trim() || null,
+      p_ref_code: null,
     })
     setBusy(false)
     if (rpcError) return setError(rpcError.message)
@@ -151,23 +149,6 @@ export function CustomerLoginGate({
               className="h-12 w-full rounded-r-[var(--radius)] bg-transparent pr-4 text-foreground placeholder:text-muted-foreground outline-none"
             />
           </div>
-          {showRefCode ? (
-            <input
-              value={refCode}
-              onChange={(e) => setRefCode(e.target.value.toUpperCase().slice(0, 12))}
-              placeholder="Referral code (optional)"
-              autoCapitalize="characters"
-              className="h-12 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] uppercase tracking-wide text-foreground placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowRefCode(true)}
-              className="text-[12.5px] font-medium text-primary hover:underline"
-            >
-              Have a referral code?
-            </button>
-          )}
           <button
             type="submit"
             disabled={busy || name.trim().length === 0 || !PHONE_RE.test(phone)}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Gift, Award, Users, Lock, Trash2 } from 'lucide-react'
+import { Gift, Award, Trash2 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -21,12 +21,6 @@ export type Reward = {
 }
 export type MenuItemOption = { id: string; name: string }
 export type MenuItemVariantOption = { id: string; menu_item_id: string; name: string }
-export type Referral = {
-  referrer_name: string | null; referrer_phone: string | null
-  referee_name: string | null; referee_phone: string | null
-  status: 'pending' | 'rewarded'; reward_amount: number | null
-  created_at: string; rewarded_at: string | null
-}
 
 function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; onClick: () => void }) {
   return (
@@ -47,11 +41,6 @@ export default function LoyaltyClient({
   initialRewards,
   menuItems,
   menuItemVariants,
-  referralAllowed,
-  referralPlan,
-  initialReferralEnabled,
-  initialReferralReward,
-  initialReferrals,
 }: {
   cafeId: string
   role: string
@@ -60,11 +49,6 @@ export default function LoyaltyClient({
   initialRewards: Reward[]
   menuItems: MenuItemOption[]
   menuItemVariants: MenuItemVariantOption[]
-  referralAllowed: boolean
-  referralPlan: string
-  initialReferralEnabled: boolean
-  initialReferralReward: number
-  initialReferrals: Referral[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -95,11 +79,6 @@ export default function LoyaltyClient({
   const [adjustReason, setAdjustReason] = useState('')
   const [adjusting, setAdjusting] = useState(false)
   const [adjustError, setAdjustError] = useState<string | null>(null)
-
-  const [referralEnabled, setReferralEnabled] = useState(initialReferralEnabled)
-  const [referralReward, setReferralReward] = useState(String(initialReferralReward))
-  const [savingReferral, setSavingReferral] = useState(false)
-  const [referrals] = useState(initialReferrals)
 
   async function saveSettings(nextEnabled: boolean, nextRate: string) {
     setSavingSettings(true)
@@ -180,24 +159,6 @@ export default function LoyaltyClient({
     setAdjustPhone('')
     setAdjustPoints('')
     setAdjustReason('')
-  }
-
-  async function saveReferralSettings(nextEnabled: boolean, nextReward: string) {
-    setSavingReferral(true)
-    const amount = Math.max(0, Math.round(Number(nextReward)) || 0)
-    const { error } = await supabase.from('cafes').update({
-      referral_enabled: nextEnabled,
-      referral_reward_amount: amount,
-    }).eq('id', cafeId)
-    setSavingReferral(false)
-    if (error) return toast(error.message, 'error')
-    toast('Referral settings saved.')
-  }
-
-  async function toggleReferral() {
-    const next = !referralEnabled
-    setReferralEnabled(next)
-    await saveReferralSettings(next, referralReward)
   }
 
   return (
@@ -335,85 +296,6 @@ export default function LoyaltyClient({
             <Award size={14} /> Apply adjustment
           </Button>
         </Card>
-      )}
-
-      {!referralAllowed ? (
-        <Card className="mt-8">
-          <div className="flex items-start gap-3 p-1">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius)] bg-surface-subtle text-muted-foreground">
-              <Lock size={16} />
-            </div>
-            <div>
-              <p className="text-[13.5px] font-medium text-foreground">Refer & earn is on the Scale plan</p>
-              <p className="mt-1 text-[12.5px] text-muted-foreground">
-                Your café is on the <span className="font-medium text-foreground">{referralPlan}</span> plan. Customers
-                inviting friends for a wallet-credit reward unlocks on Scale.
-              </p>
-            </div>
-          </div>
-        </Card>
-      ) : (
-        <>
-          <Card className="mt-8">
-            <CardHeader title="Refer & earn" description="A customer shares their code. When whoever they invited pays for their first order, both get a wallet credit." />
-            <div className="mt-5 space-y-4">
-              <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border px-4 py-3">
-                <div>
-                  <p className="text-[13.5px] font-medium text-foreground">Referral program</p>
-                  <p className="text-[12px] text-muted-foreground">Off by default. Customers see their code on the Wallet page once this is on.</p>
-                </div>
-                <Toggle on={referralEnabled} disabled={!isAdmin || savingReferral} onClick={toggleReferral} />
-              </div>
-              <div className="flex items-end gap-3">
-                <Input
-                  label="Reward per side (₹)" type="number" min={0} value={referralReward}
-                  onChange={(e) => setReferralReward(e.target.value)} disabled={!isAdmin}
-                  hint="Both the referrer and the new customer get this amount credited to their wallet."
-                  className="max-w-[180px]"
-                />
-                {isAdmin && (
-                  <Button variant="secondary" size="sm" loading={savingReferral} onClick={() => saveReferralSettings(referralEnabled, referralReward)}>
-                    Save amount
-                  </Button>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <div className="mt-8">
-            <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Referral activity</p>
-            {referrals.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">No referrals yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-2.5">
-                {referrals.map((r, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius)] bg-primary-subtle text-primary">
-                        <Users size={16} />
-                      </div>
-                      <div>
-                        <p className="text-[13.5px] font-medium text-foreground">
-                          {r.referrer_name ?? 'Unknown'} → {r.referee_name ?? 'Unknown'}
-                        </p>
-                        <p className="text-[12px] text-muted-foreground">
-                          {r.status === 'rewarded'
-                            ? `Rewarded ₹${r.reward_amount} each`
-                            : 'Waiting on the invited customer’s first paid order'}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                      r.status === 'rewarded' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'
-                    }`}>
-                      {r.status === 'rewarded' ? 'Rewarded' : 'Pending'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
       )}
     </div>
   )

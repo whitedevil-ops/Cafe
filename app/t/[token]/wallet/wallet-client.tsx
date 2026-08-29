@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, PiggyBank, Users, Check, Share2 } from 'lucide-react'
+import { ArrowLeft, PiggyBank } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
 import { formatDayMonth } from '@/lib/datetime'
@@ -12,7 +12,6 @@ import { CustomerLoginGate } from '@/components/qr/customer-login-gate'
 
 type Tier = { id: string; pay_amount: number; credit_amount: number }
 type Transaction = { kind: string; amount: number; created_at: string }
-type ReferralState = { enabled: boolean; reward_amount?: number; code?: string; referred_count?: number; rewarded_count?: number }
 const KIND_LABEL: Record<string, string> = { topup: 'Top-up', spend: 'Order payment', adjustment: 'Adjustment' }
 
 export default function WalletClient({
@@ -40,8 +39,6 @@ export default function WalletClient({
   const [loading, setLoading] = useState(false)
   const [toppingUp, setToppingUp] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [referral, setReferral] = useState<ReferralState | null>(null)
-  const [copied, setCopied] = useState(false)
 
   function handleSessionReady(session: CustomerSession) {
     setSessionToken(session.token)
@@ -67,30 +64,6 @@ export default function WalletClient({
   useEffect(() => {
     if (sessionToken) void loadState(sessionToken)
   }, [sessionToken, loadState])
-
-  useEffect(() => {
-    if (!sessionToken) return
-    let cancelled = false
-    async function loadReferral() {
-      const { data, error: rpcError } = await supabase.rpc('customer_referral_state', { p_session_token: sessionToken })
-      if (cancelled || rpcError) return
-      setReferral(data as ReferralState)
-    }
-    void loadReferral()
-    return () => { cancelled = true }
-  }, [sessionToken, supabase])
-
-  async function copyCode() {
-    if (!referral?.code) return
-    try {
-      await navigator.clipboard.writeText(referral.code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      // Clipboard API can be unavailable (e.g. non-HTTPS) — the code is
-      // still visible on screen to copy manually.
-    }
-  }
 
   async function startTopup(tier: Tier) {
     if (!sessionToken) return
@@ -191,35 +164,6 @@ export default function WalletClient({
 
         {error && (
           <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2.5 text-[13px] text-destructive">{error}</p>
-        )}
-
-        {referral?.enabled && referral.code && (
-          <div className="mt-6 rounded-[var(--radius-lg)] border border-border bg-surface p-5">
-            <div className="flex items-center gap-2 text-foreground">
-              <Users size={16} className="text-primary" />
-              <p className="text-[13.5px] font-semibold">Refer a friend, you both earn ₹{referral.reward_amount}</p>
-            </div>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Share your code. When they order here for the first time and pay, you each get ₹{referral.reward_amount} in wallet credit.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="flex-1 rounded-[var(--radius)] border border-dashed border-border-strong bg-background px-3 py-2.5 text-center">
-                <span className="text-[16px] font-semibold tracking-[0.15em] text-foreground">{referral.code}</span>
-              </div>
-              <button
-                onClick={copyCode}
-                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle"
-              >
-                {copied ? <Check size={14} className="text-success" /> : <Share2 size={14} />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-            {(referral.referred_count ?? 0) > 0 && (
-              <p className="mt-2 text-[12px] text-muted-foreground">
-                {referral.rewarded_count} of {referral.referred_count} referral{referral.referred_count === 1 ? '' : 's'} rewarded so far.
-              </p>
-            )}
-          </div>
         )}
 
         <div className="mt-6">
