@@ -234,7 +234,12 @@ export function OrderConfirmModal({
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
-                        {l.modLabel && <p className="truncate text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
+                        {/* Not truncated — a combo's modLabel can list several
+                            component items and all of them matter here (it's
+                            the only place staff see what's actually in the
+                            bundle), unlike a single variant/add-on line which
+                            is short enough that wrapping never shows in practice. */}
+                        {l.modLabel && <p className="text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
                         {!l.rewardId && (
                           l.originalUnitPrice != null && l.originalUnitPrice > l.unitPrice ? (
                             <p className="flex items-baseline gap-1.5 text-[12px]">

@@ -694,7 +694,11 @@ export default function MenuClient({
             <li key={l.key} className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0">
               <div className="min-w-0">
                 <p className="truncate text-[14px] text-foreground">{l.name}</p>
-                {l.modLabel && <p className="truncate text-[12px] text-muted-foreground">{l.modLabel}</p>}
+                {/* Not truncated — a combo's modLabel can list several
+                    component items and all of them matter here, unlike a
+                    single variant/add-on line which is short enough that
+                    wrapping never shows in practice. */}
+                {l.modLabel && <p className="text-[12px] text-muted-foreground">{l.modLabel}</p>}
                 {l.note && <p className="truncate text-[12px] italic text-muted-foreground">“{l.note}”</p>}
                 <p className="text-[13px] text-muted-foreground">₹{l.unitPrice} × {l.qty}</p>
               </div>
