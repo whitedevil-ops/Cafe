@@ -639,6 +639,7 @@ export default function PosClient({
     setCouponCode('')
     setAppliedCoupon(null)
     setCouponError(null)
+    setSpinPrize(null)
     setCartOpen(false)
     void fetchHeld()
   }
@@ -658,6 +659,19 @@ export default function PosClient({
     })
   }
 
+  // A held spin prize is only a checked-but-not-yet-redeemed code — nothing
+  // is spent until staff_place_order actually runs. Closing the review
+  // screen without placing the order (the X button, or Escape) means this
+  // attempt is abandoned; unlike the cart/discount/coupon/customer info
+  // (which the draft-restore effect above deliberately keeps so reopening
+  // resumes the same in-progress order), the prize shouldn't keep riding
+  // along in case a DIFFERENT order gets built next — clear it here rather
+  // than at every place cartOpen is toggled off.
+  function closeCart() {
+    setCartOpen(false)
+    setSpinPrize(null)
+  }
+
   async function discardHeld(id: string) {
     const ok = await confirm({ title: 'Discard held order?', description: 'This cannot be undone.', confirmLabel: 'Discard', destructive: true })
     if (!ok) return
@@ -675,7 +689,7 @@ export default function PosClient({
         if (customizing) return setCustomizing(null)
         if (tableSelectorOpen) return setTableSelectorOpen(false)
         if (heldOrdersOpen) return setHeldOrdersOpen(false)
-        if (cartOpen) return setCartOpen(false)
+        if (cartOpen) return closeCart()
         return
       }
       const typingTarget = e.target instanceof HTMLElement
@@ -1175,7 +1189,7 @@ export default function PosClient({
           <span className="text-[15px] font-semibold">₹{cartTotal} · View cart</span>
         </button>
       )}
-      <CartPanel {...cartProps} open={cartOpen} onClose={() => setCartOpen(false)} />
+      <CartPanel {...cartProps} open={cartOpen} onClose={closeCart} />
 
       {tableSelectorOpen && (
         <TableSelector tables={liveTables} areas={areas} onPick={pickTable} onClose={() => setTableSelectorOpen(false)} />
