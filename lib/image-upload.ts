@@ -62,7 +62,3 @@ export function uploadMenuImage(cafeId: string, file: File) {
 export function uploadCafeLogo(cafeId: string, file: File) {
   return uploadToCafeFolder(cafeId, file, 'logo')
 }
-
-export function uploadPaymentQr(cafeId: string, file: File) {
-  return uploadToCafeFolder(cafeId, file, 'payqr')
-}

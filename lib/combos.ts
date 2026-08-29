@@ -47,16 +47,6 @@ export function slotsOf(slots: ComboSlot[], comboId: string): ComboSlot[] {
 }
 
 /**
- * A combo is orderable once every CHOICE slot has exactly as many picks as it
- * asks for. Fixed slots need nothing from the guest.
- */
-export function comboComplete(slots: ComboSlot[], selections: ComboSelection[]): boolean {
-  return slots
-    .filter((s) => s.kind === 'choice')
-    .every((s) => selections.filter((x) => x.slot_id === s.id).length === s.qty)
-}
-
-/**
  * Stable cart key. Two differently-configured instances of the same combo are
  * separate cart lines; two identically-configured ones merge and bump qty.
  * Sorted so pick order never forks the line — same reasoning as the sorted

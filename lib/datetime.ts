@@ -143,13 +143,3 @@ export function isToday(value: Input, timeZone: string = DEFAULT_TIMEZONE): bool
   return businessDayKey(d, timeZone) === businessDayKey(new Date(), timeZone)
 }
 
-/** "Today" / "Yesterday" / "23 Jul 2026" — order-history grouping headers. */
-export function relativeDayLabel(value: Input, timeZone: string = DEFAULT_TIMEZONE): string {
-  const d = toDate(value)
-  if (!d) return '—'
-  const key = businessDayKey(d, timeZone)
-  const now = new Date()
-  if (key === businessDayKey(now, timeZone)) return 'Today'
-  if (key === businessDayKey(new Date(now.getTime() - 86400_000), timeZone)) return 'Yesterday'
-  return formatDate(d, timeZone)
-}

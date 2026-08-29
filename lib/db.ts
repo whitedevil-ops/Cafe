@@ -1,6 +1,5 @@
 import { supabase, isConfigured } from './supabase'
-import { demoCafe, demoTables, demoMenu, demoOrders, demoOrderItems } from './demo'
-import type { Cafe, CafeTable, MenuItem } from './types'
+import { demoTables, demoOrders, demoOrderItems } from './demo'
 
 // SECURITY (audit F-01): `NewOrder`/`createOrder()` were removed. They accepted
 // a client-supplied `total` and per-item `price` and inserted them directly.
@@ -9,35 +8,6 @@ import type { Cafe, CafeTable, MenuItem } from './types'
 // orders/order_items from the anon and authenticated roles.
 // `setOrderStatus()` was removed too — it mutated orders through the anon
 // client; app/api/orders/[id] now performs that update as the signed-in user.
-
-export async function getTableContext(
-  token: string,
-): Promise<{ cafe: Cafe; table: CafeTable; menu: MenuItem[] } | null> {
-  if (!isConfigured) {
-    const table = demoTables.find((t) => t.token === token)
-    if (!table) return null
-    return { cafe: demoCafe, table, menu: demoMenu }
-  }
-
-  const { data: table } = await supabase!
-    .from('cafe_tables')
-    .select('*')
-    .eq('token', token)
-    .single()
-  if (!table) return null
-
-  const [{ data: cafe }, { data: menu }] = await Promise.all([
-    supabase!.from('cafes').select('*').eq('id', table.cafe_id).single(),
-    supabase!
-      .from('menu_items')
-      .select('*')
-      .eq('cafe_id', table.cafe_id)
-      .eq('available', true)
-      .order('sort'),
-  ])
-  if (!cafe) return null
-  return { cafe, table, menu: menu ?? [] }
-}
 
 export type KdsRow = {
   order_id: string

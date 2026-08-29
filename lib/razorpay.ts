@@ -14,9 +14,6 @@ export const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET ?? ''
 export function razorpayConfigured(): boolean {
   return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET)
 }
-export function webhookConfigured(): boolean {
-  return Boolean(RAZORPAY_WEBHOOK_SECRET)
-}
 
 /**
  * Verify a Razorpay webhook signature: HMAC-SHA256 of the RAW request body

@@ -16,10 +16,6 @@
 
 export type WhatsAppResult = { ok: boolean; error?: string }
 
-export function whatsappConfigured(): boolean {
-  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID)
-}
-
 async function sendTemplate(
   templateName: string,
   templateLang: string,
