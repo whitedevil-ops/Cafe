@@ -131,9 +131,6 @@ export default function OnboardingClient({ draft }: { draft: OnboardingDraft }) 
   const [takeaway, setTakeaway] = useState(draft?.takeaway ?? true)
   const [floors, setFloors] = useState<string[]>(['Ground Floor'])
   const [skipFloors, setSkipFloors] = useState(false)
-  const [approxTables, setApproxTables] = useState('')
-  const [staffCount, setStaffCount] = useState('')
-  const [ordersPerDay, setOrdersPerDay] = useState('')
   const [menuChoice, setMenuChoice] = useState<MenuChoice>('later')
 
   function addFloor() {
@@ -161,7 +158,7 @@ export default function OnboardingClient({ draft }: { draft: OnboardingDraft }) 
       .update({
         dine_in: dineIn,
         takeaway,
-        onboarding_meta: { approx_tables: approxTables || null, staff_count: staffCount || null, orders_per_day: ordersPerDay || null, menu_choice: menuChoice },
+        onboarding_meta: { menu_choice: menuChoice },
         onboarding_step: 'complete',
       })
       .eq('id', cafeId)
@@ -306,12 +303,6 @@ export default function OnboardingClient({ draft }: { draft: OnboardingDraft }) 
                 </div>
               </div>
             )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <Input label="Approx. tables" type="number" min={0} value={approxTables} onChange={(e) => setApproxTables(e.target.value)} />
-              <Input label="Staff" type="number" min={0} value={staffCount} onChange={(e) => setStaffCount(e.target.value)} />
-              <Input label="Orders/day" type="number" min={0} value={ordersPerDay} onChange={(e) => setOrdersPerDay(e.target.value)} />
-            </div>
 
             <div>
               <p className="text-[13px] font-medium text-foreground">How would you like to add your menu?</p>
