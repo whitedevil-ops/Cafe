@@ -807,7 +807,17 @@ with expected(kind, name, fix) as (values
   -- cafe(s) immediately once their aggregate cap no longer covers their
   -- active cafe count. op_change_plan/system_update_cafe_billing unchanged
   -- signatures, already tracked above, no new rows for them.
-  ('function', 'reconcile_owner_cafe_cap', '0188')
+  ('function', 'reconcile_owner_cafe_cap', '0188'),
+  -- 0189: Spin & Win upgrade -- subtitle, min_order_amount, confetti/sound
+  -- toggles on spin_wheels, color on spin_segments. save_spin_wheel's
+  -- signature widened (subtitle + 3 settings) -- old 5-arg overload dropped
+  -- first, per this repo's arity-bump convention. get_spin_wheel/
+  -- spin_the_wheel unchanged signatures, already tracked above, no new rows.
+  ('column', 'spin_wheels.subtitle', '0189'),
+  ('column', 'spin_wheels.min_order_amount', '0189'),
+  ('column', 'spin_wheels.enable_confetti', '0189'),
+  ('column', 'spin_wheels.enable_sound', '0189'),
+  ('column', 'spin_segments.color', '0189')
 )
 select
   e.kind,

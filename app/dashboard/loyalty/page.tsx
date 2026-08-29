@@ -25,13 +25,13 @@ export default async function LoyaltyPage() {
       supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100').eq('id', cafe.cafeId).single(),
       supabase.from('rewards').select('id, name, points_cost, active, created_at, menu_item_id, variant_id').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
       supabase.from('menu_items').select('id, name, price, archived').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
-      supabase.from('spin_wheels').select('id, cafe_id, title, active, expiry_days').eq('cafe_id', cafe.cafeId).maybeSingle(),
+      supabase.from('spin_wheels').select('id, cafe_id, title, subtitle, active, expiry_days, min_order_amount, enable_confetti, enable_sound').eq('cafe_id', cafe.cafeId).maybeSingle(),
     ])
 
   const { data: wheelSegments } = wheel
     ? await supabase
         .from('spin_segments')
-        .select('id, label, kind, menu_item_id, variant_id, value, weight')
+        .select('id, label, kind, menu_item_id, variant_id, value, weight, color')
         .eq('wheel_id', wheel.id)
         .order('sort')
     : { data: [] }
@@ -56,6 +56,7 @@ export default async function LoyaltyPage() {
       cafeId={cafe.cafeId}
       canManage={cafe.role === 'owner' || cafe.role === 'manager'}
       items={(menuItems ?? []) as { id: string; name: string; price: number; archived: boolean }[]}
+      itemVariants={menuItemVariants ?? []}
       initialWheel={(wheel ?? null) as SpinWheel | null}
       initialSegments={(wheelSegments ?? []) as SpinSegment[]}
     />

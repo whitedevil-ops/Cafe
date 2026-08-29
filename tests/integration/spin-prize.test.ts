@@ -101,8 +101,12 @@ describe.skipIf(!hasAdmin)('spin prize at the till (live)', () => {
     const { error: wheelErr } = await owner.rpc('save_spin_wheel', {
       p_cafe_id: cafeId,
       p_title: 'Spin & win',
+      p_subtitle: null,
       p_active: true,
       p_expiry_days: 7,
+      p_min_order_amount: 0,
+      p_enable_confetti: true,
+      p_enable_sound: true,
       p_segments: [{ label: 'Free Cold Coffee', kind: 'item', menu_item_id: coldCoffeeId, value: 0, weight: 1 }],
     })
     if (wheelErr) throw new Error(`fixture: could not save wheel — ${wheelErr.message}`)

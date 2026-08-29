@@ -17,14 +17,31 @@ export type SpinSegment = {
   value: number
   /** Relative chance. Probability is weight ÷ the total of all weights. */
   weight: number
+  /** Hex or CSS color for this slice. Null falls back to a palette by sort position. */
+  color: string | null
 }
 
 export type SpinWheel = {
   id: string
   cafe_id: string
   title: string
+  subtitle: string | null
   active: boolean
   expiry_days: number | null
+  min_order_amount: number
+  enable_confetti: boolean
+  enable_sound: boolean
+}
+
+/** Deterministic fallback palette, used whenever a slice has no color set —
+ *  keeps every wheel legible out of the box without forcing color choices
+ *  on an owner who just wants to type labels and go. */
+export const WHEEL_PALETTE = [
+  '#C2410C', '#0F766E', '#7C3AED', '#B45309', '#0369A1', '#BE123C', '#4D7C0F', '#A21CAF',
+]
+
+export function colorFor(color: string | null | undefined, index: number): string {
+  return color || WHEEL_PALETTE[index % WHEEL_PALETTE.length]
 }
 
 /** What a guest actually won, as returned by spin_the_wheel. */
