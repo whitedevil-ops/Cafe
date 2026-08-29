@@ -343,7 +343,7 @@ export default function PosClient({
   // expands it into real component rows and prices the bundle itself.
   function addCombo(combo: Combo, selections: ComboSelection[]) {
     const key = comboCartKey(combo.id, selections)
-    const label = comboSelectionLabel(selections, (itemId, variantId) => {
+    const label = comboSelectionLabel(slotsOf(comboSlots, combo.id), selections, (itemId, variantId) => {
       const name = items.find((i) => i.id === itemId)?.name ?? 'Item'
       const v = variantId ? variantsByItem.get(itemId)?.find((x) => x.id === variantId)?.name : null
       return v ? `${name} (${v})` : name

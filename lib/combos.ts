@@ -60,12 +60,25 @@ export function comboCartKey(comboId: string, selections: ComboSelection[]): str
   return `combo:${comboId}:${sig}`
 }
 
-/** "Margherita, Mint Mojito × 2" — what the guest picked, for the cart line. */
+/**
+ * "Classic Maggi, Margherita, Mint Mojito × 2" — every component actually in
+ * the combo, for the cart line: the always-included FIXED slots first (a
+ * combo with no choice slots at all would otherwise show nothing here — the
+ * guest never "selects" a fixed item, so it never appeared in `selections`),
+ * then what the guest picked for any choice slots.
+ */
 export function comboSelectionLabel(
+  slots: ComboSlot[],
   selections: ComboSelection[],
   nameOf: (itemId: string, variantId: string | null) => string,
 ): string {
   const counts = new Map<string, number>()
+  for (const s of slots) {
+    if (s.kind === 'fixed' && s.menu_item_id) {
+      const label = nameOf(s.menu_item_id, s.variant_id)
+      counts.set(label, (counts.get(label) ?? 0) + s.qty)
+    }
+  }
   for (const s of selections) {
     const label = nameOf(s.item_id, s.variant_id)
     counts.set(label, (counts.get(label) ?? 0) + 1)

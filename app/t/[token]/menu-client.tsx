@@ -316,7 +316,7 @@ export default function MenuClient({
   }
 
   function addCombo(combo: Combo, selections: ComboSelection[], qty: number) {
-    const label = comboSelectionLabel(selections, (itemId, variantId) => {
+    const label = comboSelectionLabel(slotsOf(comboSlots, combo.id), selections, (itemId, variantId) => {
       const name = byId.get(itemId)?.name ?? 'Item'
       const v = variantId ? variants.find((x) => x.id === variantId)?.name : null
       return v ? `${name} (${v})` : name
