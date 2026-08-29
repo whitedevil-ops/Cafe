@@ -708,15 +708,35 @@ export default function CafeDetailClient({
                         {keys.map((key) => {
                           const f = FEATURES.find((x) => x.key === key)!
                           const included = data.features.plan_defaults[key] ?? false
+                          const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
+                          const effective = override ?? included
                           return (
                             <li key={key} className="flex items-center justify-between gap-3 py-2.5 text-[13.5px]">
                               <div className="min-w-0">
                                 <p className="text-foreground">{f.label}</p>
                                 <p className="truncate text-[11.5px] text-muted-foreground">{f.description}</p>
                               </div>
-                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${included ? 'bg-success-subtle text-success' : 'bg-surface-subtle text-muted-foreground'}`}>
-                                {included ? 'Included' : 'Not included'}
-                              </span>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${included ? 'bg-success-subtle text-success' : 'bg-surface-subtle text-muted-foreground'}`}>
+                                  Plan: {included ? 'Included' : 'Not included'}
+                                </span>
+                                {/* This café has a manual override on this feature — the plan
+                                    badge above is what the PLAN provides, not what the café can
+                                    actually use right now. Without this, an admin skimming only
+                                    the Plan tab could see "Included" for a feature an override
+                                    has actually turned off (or the reverse), with no indication
+                                    a second, decisive setting exists on the Manual tab. */}
+                                {override !== null && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setFeatureTab('manual')}
+                                    title="A manual override changes this café's actual access — see the Manual tab"
+                                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium underline decoration-dotted underline-offset-2 ${effective ? 'bg-primary-subtle text-primary' : 'bg-warning-subtle text-warning'}`}
+                                  >
+                                    Overridden — Effective {effective ? 'ON' : 'OFF'}
+                                  </button>
+                                )}
+                              </div>
                             </li>
                           )
                         })}
