@@ -328,10 +328,14 @@ export default function PosClient({
   }
 
   function addPlain(item: FullItem) {
+    const unit = effectivePrice(item, todayWeekday)
     setCart((c) => {
       const found = c.find((l) => l.key === item.id)
       if (found) return c.map((l) => (l.key === item.id ? { ...l, qty: l.qty + 1 } : l))
-      return [...c, { key: item.id, itemId: item.id, variantId: null, addonIds: [], name: item.name, modLabel: '', unitPrice: effectivePrice(item, todayWeekday), qty: 1 }]
+      return [...c, {
+        key: item.id, itemId: item.id, variantId: null, addonIds: [], name: item.name, modLabel: '',
+        unitPrice: unit, originalUnitPrice: unit !== item.price ? item.price : undefined, qty: 1,
+      }]
     })
   }
 
@@ -369,13 +373,20 @@ export default function PosClient({
   function confirmCustom(item: FullItem, variantId: string | null, addonIds: string[]) {
     const v = variantId ? variantsByItem.get(item.id)?.find((x) => x.id === variantId) : null
     const chosen = (addonsByItem.get(item.id) ?? []).filter((a) => addonIds.includes(a.id))
-    const unit = effectivePrice(item, todayWeekday) + (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+    const deltas = (v?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
+    const unit = effectivePrice(item, todayWeekday) + deltas
+    // Only the base item is ever discounted (offer_price lives on menu_items,
+    // not variants/add-ons) — the original comparison keeps the same deltas.
+    const originalUnit = item.price + deltas
     const label = [v?.name, ...chosen.map((a) => a.name)].filter(Boolean).join(', ')
     const key = `${item.id}|${variantId ?? ''}|${[...addonIds].sort().join(',')}`
     setCart((c) => {
       const found = c.find((l) => l.key === key)
       if (found) return c.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l))
-      return [...c, { key, itemId: item.id, variantId, addonIds, name: item.name, modLabel: label, unitPrice: unit, qty: 1 }]
+      return [...c, {
+        key, itemId: item.id, variantId, addonIds, name: item.name, modLabel: label,
+        unitPrice: unit, originalUnitPrice: unit !== originalUnit ? originalUnit : undefined, qty: 1,
+      }]
     })
     setCustomizing(null)
   }

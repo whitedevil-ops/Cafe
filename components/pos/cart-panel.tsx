@@ -10,6 +10,11 @@ export type CartLine = {
   name: string
   modLabel: string
   unitPrice: number
+  /** Set only when a Today's Offer discount is actually active for this line
+   *  (i.e. it differs from unitPrice) — purely for the struck-through display,
+   *  same variant/add-on deltas already folded in as unitPrice. Never used in
+   *  any total/tax calculation; unitPrice alone remains what's charged. */
+  originalUnitPrice?: number
   qty: number
   note?: string
   rewardId?: string | null

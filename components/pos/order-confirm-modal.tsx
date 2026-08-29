@@ -235,7 +235,16 @@ export function OrderConfirmModal({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13.5px] font-medium text-foreground">{l.name}</p>
                         {l.modLabel && <p className="truncate text-[11.5px] text-muted-foreground">{l.modLabel}</p>}
-                        {!l.rewardId && <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>}
+                        {!l.rewardId && (
+                          l.originalUnitPrice != null && l.originalUnitPrice > l.unitPrice ? (
+                            <p className="flex items-baseline gap-1.5 text-[12px]">
+                              <span className="font-medium text-special">₹{l.unitPrice}</span>
+                              <span className="text-muted-foreground line-through">₹{l.originalUnitPrice}</span>
+                            </p>
+                          ) : (
+                            <p className="text-[12px] text-muted-foreground">₹{l.unitPrice}</p>
+                          )
+                        )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong px-1">
                         <button onClick={() => onQty(l.key, -1)} aria-label="Decrease" className="grid h-8 w-8 place-items-center text-muted-foreground">
