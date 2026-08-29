@@ -8,7 +8,7 @@ import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from '../_shared'
 
 export type SalesReport = {
-  summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number; net_profit: number }
+  summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number | null; net_profit: number | null }
   by_day: { date: string; revenue: number; orders: number }[]
   top_items: { name: string; qty: number; revenue: number }[]
   by_category: { category: string; revenue: number }[]
@@ -128,8 +128,8 @@ export default function SalesReportClient({
           { k: 'Discounts given', v: r.summary.discount },
           { k: 'Tax collected', v: r.summary.tax },
           { k: 'Refunded', v: r.summary.refunds },
-          { k: 'Expenses', v: r.summary.expenses },
-          { k: 'Net profit', v: r.summary.net_profit },
+          ...(canSeeProfit && r.summary.expenses != null ? [{ k: 'Expenses', v: r.summary.expenses }] : []),
+          ...(canSeeProfit && r.summary.net_profit != null ? [{ k: 'Net profit', v: r.summary.net_profit }] : []),
         ],
       },
       {
@@ -234,12 +234,21 @@ export default function SalesReportClient({
             <Metric label="Revenue" value={`₹${report.summary.revenue.toLocaleString('en-IN')}`} />
             <Metric label="Orders" value={report.summary.orders} />
             <Metric label="Avg order value" value={`₹${report.summary.aov}`} />
-            <Metric label="Net profit" value={`₹${report.summary.net_profit.toLocaleString('en-IN')}`} />
+            {canSeeProfit && report.summary.net_profit != null && (
+              <Metric label="Net profit" value={`₹${report.summary.net_profit.toLocaleString('en-IN')}`} />
+            )}
             <Metric label="Discounts given" value={`₹${report.summary.discount.toLocaleString('en-IN')}`} />
             <Metric label="Tax collected" value={`₹${report.summary.tax.toLocaleString('en-IN')}`} />
             <Metric label="Refunded" value={`₹${report.summary.refunds.toLocaleString('en-IN')}`} />
-            <Metric label="Expenses" value={`₹${report.summary.expenses.toLocaleString('en-IN')}`} />
+            {canSeeProfit && report.summary.expenses != null && (
+              <Metric label="Expenses" value={`₹${report.summary.expenses.toLocaleString('en-IN')}`} />
+            )}
           </div>
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            Revenue here counts only paid or refunded orders and includes tax — a different basis than the Overview
+            page&apos;s &quot;Net Sales&quot;, which counts every non-cancelled order regardless of payment status and
+            excludes tax. Both are correct for what they measure; they won&apos;t match.
+          </p>
 
           {report.by_day.length > 0 && (
             <Section title="Revenue by day">

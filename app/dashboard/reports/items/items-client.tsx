@@ -73,7 +73,7 @@ export default function ItemsClient({
       <ReportsSubnav active="/dashboard/reports/items" canSeeProfit={canSeeProfit} />
       <ReportHeader
         title="Items & Categories"
-        subtitle="What's selling, what isn't, and how your menu's categories split — volume and mix, not margin."
+        subtitle="What's selling, what isn't, and how your menu's categories split — volume and mix, not margin. Paid or refunded orders only."
         links={[]}
         onExport={exportExcel}
         canExport={Boolean(report)}

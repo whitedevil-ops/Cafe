@@ -836,7 +836,7 @@ with expected(kind, name, fix) as (values
   ('column', 'spin_segments.max_claims', '0191'),
   ('column', 'spin_segments.claims_used', '0191'),
   ('column', 'spin_segments.expiry_days', '0191'),
-  ('function', 'spin_wheel_analytics', '0191')
+  ('function', 'spin_wheel_analytics', '0191'),
   -- 0192: full Reports-module audit (14-agent live verification) found 4
   -- critical bugs, fixed here -- all pure re-bodies of already-tracked
   -- functions, no new rows. business_overview_report: collected_now/
@@ -847,6 +847,25 @@ with expected(kind, name, fix) as (values
   -- preset except Yesterday. recommendation_report: had no
   -- cafe_has_feature('advanced_reports') check at all, unlike its
   -- Profitability nav-sibling.
+  --
+  -- 0193/0194: same audit's 12 HIGH-severity findings -- all pure re-bodies
+  -- of already-tracked functions except the one new column below.
+  -- payments_outstanding_report/sales_report/items_categories_report/
+  -- advanced_analytics_report/business_overview_report (0193): orphan-
+  -- payment guard extended to payments_outstanding_report; sales_report's
+  -- expenses/net_profit now null for non-owner/manager (was RPC-exposed
+  -- regardless of role); items_categories_report/advanced_analytics_report
+  -- gained the same payment_status filter sales_report already had;
+  -- business_overview_report's by_day/by_hour were tax-inclusive against a
+  -- tax-exclusive headline KPI. profitability_report/refund_order/
+  -- log_recommendation_event/recommendation_report (0194): profitability no
+  -- longer treats an uncosted item as zero-cost in its summary; refund_order
+  -- now splits GST credit-note tax exactly per refunded line instead of one
+  -- blended order-level ratio; recommendation_report's added_sales uses the
+  -- price AT THE TIME of the event (needs the new column below), and
+  -- top_pairings is computed live for the requested date range instead of
+  -- reading the unwindowed order_pair_stats cache.
+  ('column', 'recommendation_events.price_snapshot', '0194')
 )
 select
   e.kind,

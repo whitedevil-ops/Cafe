@@ -14,6 +14,9 @@ export type AdjustmentsReport = {
   discounts: { order_id: string; short_code: string | null; actor: string; type: string | null; coupon_code: string | null; amount: number; created_at: string }[]
   refunds: { order_id: string; short_code: string | null; actor: string; kind: string; reason: string; amount: number; approved_by: string | null; created_at: string }[]
   cancellations: { order_id: string; short_code: string; actor: string; reason: string; amount: number; created_at: string }[]
+  discounts_truncated: boolean
+  refunds_truncated: boolean
+  cancellations_truncated: boolean
 }
 
 type Tab = 'discounts' | 'refunds' | 'cancellations'
@@ -136,6 +139,21 @@ export default function AdjustmentsClient({
             ))}
           </div>
 
+          {tab === 'discounts' && report.discounts_truncated && (
+            <p className="mt-4 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+              Showing the most recent 500 of {report.summary.discounts_count} — narrow the date range to see everything.
+            </p>
+          )}
+          {tab === 'refunds' && report.refunds_truncated && (
+            <p className="mt-4 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+              Showing the most recent 500 of {report.summary.refunds_count} — narrow the date range to see everything.
+            </p>
+          )}
+          {tab === 'cancellations' && report.cancellations_truncated && (
+            <p className="mt-4 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+              Showing the most recent 500 of {report.summary.cancellations_count} — narrow the date range to see everything.
+            </p>
+          )}
           <div className="mt-4 rounded-xl border border-border bg-surface p-4">
             {tab === 'discounts' && (
               report.discounts.length === 0 ? <p className="text-sm text-muted-foreground">No discounts in this range.</p> : (

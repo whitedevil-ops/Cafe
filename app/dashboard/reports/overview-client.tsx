@@ -25,7 +25,7 @@ export type OverviewReport = {
   by_type: { type: string; gross_sales: number; orders: number }[]
   by_source: { source: string; gross_sales: number; orders: number }[]
   by_payment_method: { method: string; amount: number }[]
-  by_day: { date: string; net_sales: number; orders: number }[]
+  by_day: { date: string; sales: number; orders: number }[]
   by_hour: { hour: number; sales: number; orders: number }[]
   top_items: { name: string; qty: number; gross_sales: number }[]
   top_categories: { category: string; gross_sales: number }[]
@@ -195,8 +195,8 @@ export default function OverviewClient({
         rows: r.by_payment_method.map((m) => ({ method: METHOD_LABEL[m.method] ?? m.method, amount: m.amount })),
       },
       {
-        name: 'By day', title: 'Net sales by day',
-        columns: [{ header: 'Date', key: 'date', kind: 'text' }, { header: 'Orders', key: 'orders', kind: 'qty' }, { header: 'Net Sales (₹)', key: 'net_sales', kind: 'money' }],
+        name: 'By day', title: 'Sales by day',
+        columns: [{ header: 'Date', key: 'date', kind: 'text' }, { header: 'Orders', key: 'orders', kind: 'qty' }, { header: 'Sales (₹)', key: 'sales', kind: 'money' }],
         rows: r.by_day,
       },
       {
@@ -208,7 +208,7 @@ export default function OverviewClient({
     return downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
   }
 
-  const maxDayNet = Math.max(1, ...(report?.by_day.map((d) => d.net_sales) ?? [0]))
+  const maxDaySales = Math.max(1, ...(report?.by_day.map((d) => d.sales) ?? [0]))
   const maxHourSales = Math.max(1, ...(report?.by_hour.map((h) => h.sales) ?? [0]))
 
   const presets: { key: Preset; label: string }[] = [
@@ -286,7 +286,9 @@ export default function OverviewClient({
           {/* Headline KPIs with vs-previous-period comparison */}
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Net Sales</p>
+              <p className="text-[12.5px] text-muted-foreground" title="Every non-cancelled order regardless of payment status, tax-exclusive. The Sales report's Revenue counts only paid/refunded orders and includes tax — the two won't match.">
+                Net Sales
+              </p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.net_sales.toLocaleString('en-IN')}</p>
               <Change current={report.summary.net_sales} previous={report.compare.net_sales} />
             </div>
@@ -361,11 +363,15 @@ export default function OverviewClient({
           )}
 
           {report.by_day.length > 0 && (
-            <Section title="Net sales by day">
+            <Section title="Sales by day">
+              <p className="mb-3 text-[12px] text-muted-foreground">
+                Tax-exclusive, after discounts — not refund-adjusted (refunds are dated by when they were issued, not
+                the original order&apos;s day, so see &quot;Refunds&quot; above for the period total).
+              </p>
               <div className="flex items-end gap-1.5 overflow-x-auto pb-1" style={{ height: 140 }}>
                 {report.by_day.map((d) => (
-                  <div key={d.date} className="flex min-w-[28px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date}: ₹${d.net_sales} (${d.orders} orders)`}>
-                    <div className="w-full rounded-t bg-primary" style={{ height: `${Math.max(4, (d.net_sales / maxDayNet) * 110)}px` }} />
+                  <div key={d.date} className="flex min-w-[28px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date}: ₹${d.sales} (${d.orders} orders)`}>
+                    <div className="w-full rounded-t bg-primary" style={{ height: `${Math.max(4, (d.sales / maxDaySales) * 110)}px` }} />
                     <span className="whitespace-nowrap text-[10px] text-muted-foreground">{d.date.slice(5)}</span>
                   </div>
                 ))}

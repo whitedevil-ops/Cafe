@@ -8,8 +8,10 @@ import { ReportsSubnav, Section, Kpi, Row, List } from '../_shared'
 const METHOD_LABEL: Record<string, string> = { cash: 'Cash', card: 'Card', counter: 'Pay at counter', upi: 'UPI' }
 
 type SalesData = {
-  summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number; net_profit: number }
-  by_payment_method: { method: string; revenue: number }[]
+  summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number | null; net_profit: number | null }
+}
+type PaymentsData = {
+  by_method: { method: string; amount: number; transactions: number }[]
 }
 type GstData = {
   gst_registered: boolean
@@ -32,7 +34,7 @@ export type DayCloseReports = {
   sales: SalesData | null
   gst: GstData | null
   adjustments: AdjustmentsData | null
-  payments: unknown | null // not rendered directly here — by_payment_method above already covers collections by method
+  payments: PaymentsData | null
   shifts: ShiftRow[] | null
 }
 
@@ -89,7 +91,7 @@ export default function DayCloseClient({
         sales: sales.data as SalesData,
         gst: gst.data as GstData,
         adjustments: adjustments.data as AdjustmentsData,
-        payments: payments.data,
+        payments: payments.data as PaymentsData,
         shifts: shifts.data as ShiftRow[],
       })
     },
@@ -173,13 +175,21 @@ export default function DayCloseClient({
               value={`₹${(reports.sales?.summary.refunds ?? 0).toLocaleString('en-IN')}`}
               tone={(reports.sales?.summary.refunds ?? 0) > 0 ? 'destructive' : undefined}
             />
-            {canSeeProfit && <Kpi label="Expenses" value={`₹${(reports.sales?.summary.expenses ?? 0).toLocaleString('en-IN')}`} />}
-            {canSeeProfit && <Kpi label="Net profit" value={`₹${(reports.sales?.summary.net_profit ?? 0).toLocaleString('en-IN')}`} />}
+            {canSeeProfit && reports.sales?.summary.expenses != null && (
+              <Kpi label="Expenses" value={`₹${reports.sales.summary.expenses.toLocaleString('en-IN')}`} />
+            )}
+            {canSeeProfit && reports.sales?.summary.net_profit != null && (
+              <Kpi label="Net profit" value={`₹${reports.sales.summary.net_profit.toLocaleString('en-IN')}`} />
+            )}
           </div>
 
-          {(reports.sales?.by_payment_method.length ?? 0) > 0 && (
+          {/* Actual till reconciliation — real payment rows by tender type, not
+              the order's single declared payment_method (which collapses a
+              split payment into one 'split' row and can't show real cash vs
+              UPI collected). */}
+          {(reports.payments?.by_method.length ?? 0) > 0 && (
             <Section title="By payment method">
-              <List rows={(reports.sales?.by_payment_method ?? []).map((m) => ({ label: METHOD_LABEL[m.method] ?? m.method, value: m.revenue }))} />
+              <List rows={(reports.payments?.by_method ?? []).map((m) => ({ label: METHOD_LABEL[m.method] ?? m.method, value: m.amount }))} />
             </Section>
           )}
 

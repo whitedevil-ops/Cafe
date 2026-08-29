@@ -13,6 +13,8 @@ export type GstReport = {
   by_rate: { hsn_sac: string; tax_percent: number; taxable_value: number; cgst: number; sgst: number; tax: number }[]
   invoices: { invoice_number: string; issued_at: string; short_code: string; taxable_value: number; tax: number; cgst: number; sgst: number; total: number }[]
   credit_notes: { credit_note_number: string; issued_at: string; order_id: string; amount: number; taxable_value: number; tax: number; cgst: number; sgst: number; reason: string }[]
+  invoices_truncated: boolean
+  credit_notes_truncated: boolean
 }
 
 export default function GstClient({
@@ -179,6 +181,11 @@ export default function GstClient({
 
           <div className="mt-8">
             <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Invoice register ({report.invoices.length})</p>
+            {report.invoices_truncated && (
+              <p className="mt-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+                Showing the most recent 500 of {report.summary.invoices} invoices — narrow the date range to see everything. Summary totals above cover the full range.
+              </p>
+            )}
             <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface p-4">
               {report.invoices.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No invoices in this range.</p>
@@ -211,6 +218,11 @@ export default function GstClient({
 
           <div className="mt-8">
             <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Credit note register ({report.credit_notes.length})</p>
+            {report.credit_notes_truncated && (
+              <p className="mt-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
+                Showing the most recent 500 of {report.credit_note_summary.count} credit notes — narrow the date range to see everything. Summary totals above cover the full range.
+              </p>
+            )}
             <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-surface p-4">
               {report.credit_notes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No credit notes in this range.</p>

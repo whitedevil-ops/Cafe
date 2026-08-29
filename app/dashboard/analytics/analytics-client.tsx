@@ -122,7 +122,7 @@ export default function AnalyticsClient({
     <div className="mx-auto max-w-4xl px-6 py-10">
       <PageHeader
         title="Analytics"
-        subtitle="Trends and patterns beyond a single period total — where revenue is heading, when the café is actually busy, and how many customers keep coming back."
+        subtitle="Trends and patterns beyond a single period total — where revenue is heading, when the café is actually busy, and how many customers keep coming back. Paid or refunded orders only."
       />
       <RangePicker preset={preset} choosePreset={choosePreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} applyCustom={applyCustom} />
 

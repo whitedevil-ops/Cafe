@@ -19,7 +19,7 @@ type Item = {
   has_cost: boolean
 }
 type Payload = {
-  summary: { net_sales: number; cost: number; contribution: number; margin_pct: number }
+  summary: { net_sales: number; cost: number; contribution: number; margin_pct: number; uncosted_sales: number }
   items: Item[]
 }
 type Range = 'today' | '7d' | '30d' | 'custom'
@@ -159,6 +159,9 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
       {missingCost && (
         <p className="mt-3 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12.5px] text-warning">
           Some items have no cost or profit set (shown as “—”). Add either one in <Link href="/dashboard/menu" className="font-medium underline">Menu</Link> so their profit is calculated accurately. Orders sold before costing was enabled have no cost snapshot.
+          {s && s.uncosted_sales > 0 && (
+            <> Gross profit and margin above exclude {money(s.uncosted_sales)} of sales from these uncosted items — they are not assumed to be zero-cost.</>
+          )}
         </p>
       )}
 
