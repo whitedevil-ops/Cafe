@@ -19,6 +19,37 @@ export type SpinSegment = {
   weight: number
   /** Hex or CSS color for this slice. Null falls back to a palette by sort position. */
   color: string | null
+  /** Null = unlimited. Enforced server-side in spin_the_wheel, not just here. */
+  max_claims: number | null
+  /** Server-maintained — never write this from the client, it's ignored either way. */
+  claims_used: number
+  /** Per-slice expiry override. Null falls back to the wheel's own expiry_days. */
+  expiry_days: number | null
+}
+
+export type PrizeStatus = 'n/a' | 'unlimited' | 'available' | 'low_stock' | 'sold_out'
+
+export type SpinAnalytics = {
+  total_spins: number
+  total_won: number
+  total_better_luck: number
+  total_redeemed: number
+  total_unredeemed: number
+  total_expired: number
+  estimated_flat_and_item_cost: number
+  percent_redemptions_uncosted: number
+  prizes: {
+    segment_id: string; label: string; kind: SpinPrizeKind
+    max_claims: number | null; claims_used: number; remaining: number | null; status: PrizeStatus
+  }[]
+}
+
+export function prizeStatus(kind: SpinPrizeKind, maxClaims: number | null, claimsUsed: number): PrizeStatus {
+  if (kind === 'none') return 'n/a'
+  if (maxClaims === null) return 'unlimited'
+  if (claimsUsed >= maxClaims) return 'sold_out'
+  if (maxClaims - claimsUsed <= Math.max(1, Math.floor(maxClaims / 10))) return 'low_stock'
+  return 'available'
 }
 
 export type SpinWheel = {

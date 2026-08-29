@@ -5,7 +5,7 @@ import { hasFeature } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import LoyaltyClient, { type Reward } from './loyalty-client'
 import SpinWheelPanel from './spin-wheel-panel'
-import type { SpinSegment, SpinWheel } from '@/lib/spin-wheel'
+import type { SpinSegment, SpinWheel, SpinAnalytics } from '@/lib/spin-wheel'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,10 +31,16 @@ export default async function LoyaltyPage() {
   const { data: wheelSegments } = wheel
     ? await supabase
         .from('spin_segments')
-        .select('id, label, kind, menu_item_id, variant_id, value, weight, color')
+        .select('id, label, kind, menu_item_id, variant_id, value, weight, color, max_claims, claims_used, expiry_days')
         .eq('wheel_id', wheel.id)
         .order('sort')
     : { data: [] }
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString()
+  const { data: spinAnalytics } = wheel
+    ? await supabase.rpc('spin_wheel_analytics', { p_cafe_id: cafe.cafeId, p_from: monthStart, p_to: now.toISOString() })
+    : { data: null }
 
   const itemIds = (menuItems ?? []).map((i) => i.id)
   const { data: menuItemVariants } = itemIds.length
@@ -59,6 +65,7 @@ export default async function LoyaltyPage() {
       itemVariants={menuItemVariants ?? []}
       initialWheel={(wheel ?? null) as SpinWheel | null}
       initialSegments={(wheelSegments ?? []) as SpinSegment[]}
+      initialAnalytics={spinAnalytics as SpinAnalytics | null}
     />
     </>
   )

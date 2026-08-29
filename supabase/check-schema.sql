@@ -817,7 +817,26 @@ with expected(kind, name, fix) as (values
   ('column', 'spin_wheels.min_order_amount', '0189'),
   ('column', 'spin_wheels.enable_confetti', '0189'),
   ('column', 'spin_wheels.enable_sound', '0189'),
-  ('column', 'spin_segments.color', '0189')
+  ('column', 'spin_segments.color', '0189'),
+  -- 0190: ops café-detail redesign -- a real Users & Staff tab needs the
+  -- console to actually list a café's staff (nothing could before:
+  -- op_list_users is platform-wide, no p_cafe_id filter existed anywhere)
+  -- and to disable/reactivate one (previously only possible via a raw RLS
+  -- table write from the OWNER's own session -- no admin-side path existed
+  -- at all). Adding staff/changing role/removing staff from the admin side
+  -- deliberately NOT built -- each needs its own design pass.
+  ('function', 'op_list_cafe_staff', '0190'),
+  ('function', 'op_set_staff_status', '0190'),
+  -- 0191: Spin & Win claim limits -- found and fixed a real architectural
+  -- bug while building this: save_spin_wheel was delete-then-reinsert on
+  -- every save, which would have silently zeroed a running claims_used
+  -- counter the next time an owner edited anything about the wheel.
+  -- Switched to a real upsert-by-id. spin_the_wheel/save_spin_wheel
+  -- unchanged signatures, already tracked above, no new rows for them.
+  ('column', 'spin_segments.max_claims', '0191'),
+  ('column', 'spin_segments.claims_used', '0191'),
+  ('column', 'spin_segments.expiry_days', '0191'),
+  ('function', 'spin_wheel_analytics', '0191')
 )
 select
   e.kind,

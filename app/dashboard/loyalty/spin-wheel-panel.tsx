@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Trash2, Percent, ChevronUp, ChevronDown, Volume2, Sparkles } from 'lucide-react'
+import { Trash2, Percent, ChevronUp, ChevronDown, Volume2, Sparkles, TrendingUp } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,11 +11,13 @@ import {
   type SpinSegment,
   type SpinWheel,
   type SpinPrizeKind,
+  type SpinAnalytics,
   WHEEL_PALETTE,
   totalWeight,
   oneInPhrase,
   percentPhrase,
   weightsForOneIn,
+  prizeStatus,
 } from '@/lib/spin-wheel'
 
 type MenuItemLite = { id: string; name: string; price: number; archived: boolean }
@@ -31,16 +33,24 @@ const KINDS: { value: SpinPrizeKind; label: string }[] = [
   { value: 'none', label: 'No prize' },
 ]
 
-const emptySegment: SpinSegment = { label: '', kind: 'none', menu_item_id: null, variant_id: null, value: 0, weight: 1, color: null }
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  sold_out: { label: 'SOLD OUT', cls: 'bg-destructive-subtle text-destructive' },
+  low_stock: { label: 'LOW STOCK', cls: 'bg-warning-subtle text-warning' },
+  available: { label: 'AVAILABLE', cls: 'bg-success-subtle text-success' },
+}
+
+const emptySegment: SpinSegment = { label: '', kind: 'none', menu_item_id: null, variant_id: null, value: 0, weight: 1, color: null, max_claims: null, claims_used: 0, expiry_days: null }
 
 // A wheel that only ever pays out is a wheel that bankrupts the café, so a new
 // one starts with losing slices already outnumbering the prize.
 const STARTER: SpinSegment[] = [
-  { label: 'Better luck next time', kind: 'none', menu_item_id: null, variant_id: null, value: 0, weight: 10, color: null },
-  { label: '10% off next visit', kind: 'percent', menu_item_id: null, variant_id: null, value: 10, weight: 6, color: null },
-  { label: '₹50 off next visit', kind: 'flat', menu_item_id: null, variant_id: null, value: 50, weight: 3, color: null },
-  { label: 'Free item', kind: 'item', menu_item_id: null, variant_id: null, value: 0, weight: 1, color: null },
+  { label: 'Better luck next time', kind: 'none', menu_item_id: null, variant_id: null, value: 0, weight: 10, color: null, max_claims: null, claims_used: 0, expiry_days: null },
+  { label: '10% off next visit', kind: 'percent', menu_item_id: null, variant_id: null, value: 10, weight: 6, color: null, max_claims: null, claims_used: 0, expiry_days: null },
+  { label: '₹50 off next visit', kind: 'flat', menu_item_id: null, variant_id: null, value: 50, weight: 3, color: null, max_claims: null, claims_used: 0, expiry_days: null },
+  { label: 'Free item', kind: 'item', menu_item_id: null, variant_id: null, value: 0, weight: 1, color: null, max_claims: null, claims_used: 0, expiry_days: null },
 ]
+
+const money = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
 export default function SpinWheelPanel({
   cafeId,
@@ -49,6 +59,7 @@ export default function SpinWheelPanel({
   itemVariants,
   initialWheel,
   initialSegments,
+  initialAnalytics,
 }: {
   cafeId: string
   canManage: boolean
@@ -56,6 +67,7 @@ export default function SpinWheelPanel({
   itemVariants: VariantLite[]
   initialWheel: SpinWheel | null
   initialSegments: SpinSegment[]
+  initialAnalytics: SpinAnalytics | null
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -113,6 +125,10 @@ export default function SpinWheelPanel({
       if (s.kind === 'item' && !s.menu_item_id) return setError(`Pick the item for "${s.label}".`)
       if (s.kind === 'percent' && (s.value < 1 || s.value > 100)) return setError(`"${s.label}" — a discount is between 1 and 100%.`)
       if (s.kind === 'flat' && s.value <= 0) return setError(`"${s.label}" — enter how many rupees off.`)
+      if (s.max_claims !== null && s.max_claims <= 0) return setError(`"${s.label}" — maximum claims must be a positive number.`)
+      if (s.max_claims !== null && s.max_claims < s.claims_used) {
+        return setError(`"${s.label}" already has ${s.claims_used} claim${s.claims_used === 1 ? '' : 's'} — the maximum can't be set below that.`)
+      }
     }
     if (active && total <= 0) return setError('Give at least one slice a chance above zero before switching the wheel on.')
 
@@ -128,6 +144,7 @@ export default function SpinWheelPanel({
       p_enable_confetti: enableConfetti,
       p_enable_sound: enableSound,
       p_segments: segments.map((s) => ({
+        id: s.id ?? null,
         label: s.label.trim(),
         kind: s.kind,
         menu_item_id: s.kind === 'item' ? s.menu_item_id : null,
@@ -135,6 +152,8 @@ export default function SpinWheelPanel({
         value: s.kind === 'percent' || s.kind === 'flat' ? Math.round(s.value) : 0,
         weight: Math.max(0, Math.round(s.weight)),
         color: s.color,
+        max_claims: s.kind === 'none' ? null : s.max_claims,
+        expiry_days: s.expiry_days,
       })),
     })
     setBusy(false)
@@ -215,8 +234,10 @@ export default function SpinWheelPanel({
           {segments.map((s, idx) => {
             const segVariants = s.menu_item_id ? (variantsByItem.get(s.menu_item_id) ?? []) : []
             const swatch = s.color || WHEEL_PALETTE[idx % WHEEL_PALETTE.length]
+            const status = prizeStatus(s.kind, s.max_claims, s.claims_used)
+            const badge = STATUS_BADGE[status]
             return (
-              <div key={idx} className="rounded-[var(--radius)] border border-border-strong p-3">
+              <div key={idx} className={`rounded-[var(--radius)] border p-3 ${status === 'sold_out' ? 'border-destructive/30 bg-destructive-subtle/20' : 'border-border-strong'}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   {canManage && (
                     <div className="flex shrink-0 flex-col">
@@ -245,6 +266,7 @@ export default function SpinWheelPanel({
                       <option key={k.value} value={k.value}>{k.label}</option>
                     ))}
                   </select>
+                  {badge && <span className={`shrink-0 rounded-full px-2 py-1 text-[10.5px] font-semibold tracking-wide ${badge.cls}`}>{badge.label}</span>}
                   {canManage && (
                     <button
                       onClick={() => setSegments((l) => l.filter((_, i) => i !== idx))}
@@ -327,9 +349,46 @@ export default function SpinWheelPanel({
                   </span>
                 </div>
 
+                {s.kind !== 'none' && (
+                  <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-border pt-2">
+                    <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                      Max claims
+                      <input
+                        type="number"
+                        min={1}
+                        value={s.max_claims ?? ''}
+                        placeholder="Unlimited"
+                        onChange={(e) => patch(idx, { max_claims: e.target.value.trim() === '' ? null : Math.max(1, Math.round(Number(e.target.value) || 1)) })}
+                        aria-label={`Maximum claims for ${s.label || 'this slice'}`}
+                        className="h-8 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[12.5px] text-foreground"
+                        disabled={!canManage}
+                      />
+                    </label>
+                    {s.max_claims !== null && (
+                      <span className="text-[11.5px] text-muted-foreground">{s.claims_used} / {s.max_claims} claimed</span>
+                    )}
+                    <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                      Expires after
+                      <input
+                        type="number"
+                        min={1}
+                        value={s.expiry_days ?? ''}
+                        placeholder="Wheel default"
+                        onChange={(e) => patch(idx, { expiry_days: e.target.value.trim() === '' ? null : Math.max(1, Math.round(Number(e.target.value) || 1)) })}
+                        aria-label={`Expiry override for ${s.label || 'this slice'}`}
+                        className="h-8 w-28 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[12.5px] text-foreground"
+                        disabled={!canManage}
+                      />
+                      <span className="text-[11.5px]">days</span>
+                    </label>
+                  </div>
+                )}
+
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[11.5px] text-muted-foreground">
-                    {oneInPhrase(s.weight, total)
+                    {status === 'sold_out'
+                      ? 'Sold out — excluded from the wheel automatically, guests can no longer land on it.'
+                      : oneInPhrase(s.weight, total)
                       ? <>Comes up <span className="font-medium text-foreground">{oneInPhrase(s.weight, total)}</span> spins · {percentPhrase(s.weight, total)}</>
                       : 'Never comes up — give it a chance above zero.'}
                   </p>
@@ -378,6 +437,49 @@ export default function SpinWheelPanel({
       {canManage && (
         <div className="mt-4 flex justify-end">
           <Button loading={busy} onClick={save}>Save wheel</Button>
+        </div>
+      )}
+
+      {initialAnalytics && initialAnalytics.total_spins > 0 && (
+        <div className="mt-6 border-t border-border pt-4">
+          <p className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+            <TrendingUp size={14} /> Spin &amp; Win performance <span className="font-normal text-muted-foreground">(last ~90 days)</span>
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              ['Total spins', initialAnalytics.total_spins],
+              ['Prizes won', initialAnalytics.total_won],
+              ['Better luck', initialAnalytics.total_better_luck],
+              ['Redeemed', initialAnalytics.total_redeemed],
+              ['Unredeemed', initialAnalytics.total_unredeemed],
+              ['Expired', initialAnalytics.total_expired],
+            ].map(([label, value]) => (
+              <div key={label as string} className="rounded-[var(--radius)] border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">{label}</p>
+                <p className="mt-0.5 text-[16px] font-semibold text-foreground">{value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[12px] text-muted-foreground">
+            Redemption rate: <span className="font-medium text-foreground">{initialAnalytics.total_won > 0 ? Math.round((initialAnalytics.total_redeemed / initialAnalytics.total_won) * 100) : 0}%</span>
+            {' · '}Estimated redeemed cost (₹-off + free items): <span className="font-medium text-foreground">{money(initialAnalytics.estimated_flat_and_item_cost)}</span>
+            {initialAnalytics.percent_redemptions_uncosted > 0 && (
+              <> · plus {initialAnalytics.percent_redemptions_uncosted} %-off redemption{initialAnalytics.percent_redemptions_uncosted === 1 ? '' : 's'} (varies by bill, not summed)</>
+            )}
+          </p>
+
+          <p className="mt-4 text-[12px] font-medium uppercase tracking-wide text-muted-foreground">Prize-wise claims</p>
+          <ul className="mt-2 space-y-1.5">
+            {initialAnalytics.prizes.filter((p) => p.kind !== 'none').map((p) => (
+              <li key={p.segment_id} className="flex items-center justify-between rounded-[var(--radius)] border border-border px-3 py-2 text-[13px]">
+                <span className="text-foreground">{p.label}</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{p.max_claims === null ? `${p.claims_used} claimed` : `${p.claims_used} / ${p.max_claims} claimed`}</span>
+                  {STATUS_BADGE[p.status] && <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold tracking-wide ${STATUS_BADGE[p.status].cls}`}>{STATUS_BADGE[p.status].label}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
