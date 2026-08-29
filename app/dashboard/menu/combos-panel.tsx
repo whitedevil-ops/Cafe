@@ -408,7 +408,18 @@ export default function CombosPanel({
                           <>
                             <SearchableSelect
                               value={s.menu_item_id}
-                              onChange={(v) => patchSlot(idx, { menu_item_id: v, variant_id: '' })}
+                              onChange={(v) => {
+                                // Only fill an EMPTY label — never overwrite one the
+                                // owner already typed, so a deliberately different
+                                // label (e.g. "Side" instead of "French Fries")
+                                // survives switching the picked item.
+                                const name = liveItems.find((i) => i.id === v)?.name
+                                patchSlot(idx, {
+                                  menu_item_id: v,
+                                  variant_id: '',
+                                  ...(s.label.trim() === '' && name ? { label: name } : {}),
+                                })
+                              }}
                               options={liveItems.map((i) => ({ value: i.id, label: i.name }))}
                               placeholder="…which item?"
                               searchPlaceholder="Search menu items…"
