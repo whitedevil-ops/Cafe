@@ -39,6 +39,16 @@ export type StaffRow = {
   last_device: string | null
 }
 
+export type SessionRow = {
+  id: string
+  admin_name: string | null
+  admin_email: string | null
+  reason: string
+  started_at: string
+  expires_at: string
+  ended_at: string | null
+}
+
 export type CafeDetail = {
   business: {
     id: string; name: string; logo_url: string | null; owner_name: string | null; owner_email: string | null
@@ -209,6 +219,13 @@ function trialExtendedHint(trialEndsAt: string | null, subscriptionEndsAt: strin
   return trialOver && stillActive ? 'Original offer — extended, see Subscription ends' : undefined
 }
 
+function sessionStatus(s: SessionRow): { label: string; tone: StripTone } {
+  if (s.ended_at !== null) return { label: 'Ended', tone: 'neutral' }
+  return new Date(s.expires_at).getTime() > Date.now()
+    ? { label: 'Active', tone: 'success' }
+    : { label: 'Expired', tone: 'warning' }
+}
+
 function trialStatus(plan: string, subscriptionEndsAt: string | null): { label: string; tone: StripTone } {
   if (plan !== 'trial') return { label: 'Converted', tone: 'success' }
   if (!subscriptionEndsAt) return { label: 'No trial', tone: 'neutral' }
@@ -229,6 +246,7 @@ export default function CafeDetailClient({
   permissions,
   health,
   initialStaff,
+  initialSessions,
 }: {
   cafeId: string
   detail: CafeDetail
@@ -236,6 +254,7 @@ export default function CafeDetailClient({
   permissions: Record<string, boolean>
   health: HealthRow | null
   initialStaff: StaffRow[]
+  initialSessions: SessionRow[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -260,6 +279,7 @@ export default function CafeDetailClient({
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [staff, setStaff] = useState(initialStaff)
+  const [sessions] = useState(initialSessions)
   const [staffBusy, setStaffBusy] = useState<string | null>(null)
 
   async function refresh() {
@@ -941,7 +961,37 @@ export default function CafeDetailClient({
         )}
 
         {tab === 'activity' && (
+          <>
           <section className="rounded-xl border border-border bg-surface p-5">
+            <p className="text-sm font-medium text-foreground">Session history</p>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              Every time a platform admin opened this café&apos;s own dashboard, with their stated reason — not the
+              same as the actions log below, which is every action taken anywhere on the platform, not just inside a
+              session here.
+            </p>
+            {sessions.length === 0 ? (
+              <p className="mt-3 text-[13px] text-muted-foreground">No admin has opened this café&apos;s dashboard yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {sessions.map((s) => {
+                  const { label, tone } = sessionStatus(s)
+                  return (
+                    <li key={s.id} className="rounded-[var(--radius)] border border-border p-3 text-[13px]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{s.admin_name ?? s.admin_email ?? 'Unknown admin'}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge tone={tone}>{label}</Badge>
+                          <span className="text-[11.5px] text-muted-foreground">{fmtDateTime(s.started_at)}</span>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 text-[11.5px] text-muted-foreground">{s.reason}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+          <section className="mt-4 rounded-xl border border-border bg-surface p-5">
             <p className="text-sm font-medium text-foreground">Activity on this café</p>
             <p className="mt-1 text-[12px] text-muted-foreground">The most recent 20 operator actions. Immutable — this list only ever grows via real actions taken above, never edited from here.</p>
             {data.recent_audit.length === 0 ? (
@@ -961,6 +1011,7 @@ export default function CafeDetailClient({
             )}
             <Link href="/ops/audit-logs" className="mt-3 inline-block text-[12.5px] font-medium text-primary hover:underline">See the full platform audit log →</Link>
           </section>
+          </>
         )}
 
         {tab === 'settings' && (

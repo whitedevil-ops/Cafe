@@ -756,7 +756,7 @@ export default function KotPrintingPanel({
             )}
           </div>
 
-          <PrintQueuePanel cafeId={cafeId} timezone={timezone} />
+          <PrintQueuePanel cafeId={cafeId} timezone={timezone} canManage={canManage} />
         </div>
       )}
     </section>

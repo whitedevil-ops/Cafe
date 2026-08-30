@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { History, RefreshCw } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDateTime } from '@/lib/datetime'
+import { useToast } from '@/components/ui/toast'
 
 type PrintJobRow = {
   id: string
@@ -31,15 +32,26 @@ const STATUS_CLS: Record<PrintJobRow['status'], string> = {
 /**
  * Recent print_jobs for this café — the KOT history/audit view the spec
  * asks for (every automatic print, reprint, and failure, with who/when).
- * Read-only: print_jobs itself is written only by the enqueue trigger and
- * the SECURITY DEFINER reprint/test RPCs, never directly by staff (see the
- * table's own RLS comment in 0027_kot_printing.sql) — this component never
- * inserts or updates a row, only lists them.
+ * Mostly read-only: print_jobs itself is written only by the enqueue
+ * trigger and the SECURITY DEFINER reprint/test/retry RPCs, never directly
+ * by staff (see the table's own RLS comment in 0027_kot_printing.sql) —
+ * this component never inserts or updates a row itself, it only lists them
+ * and, for managers, can call retry_print_job on a stuck failed job.
  */
-export default function PrintQueuePanel({ cafeId, timezone }: { cafeId: string; timezone: string }) {
+export default function PrintQueuePanel({
+  cafeId,
+  timezone,
+  canManage,
+}: {
+  cafeId: string
+  timezone: string
+  canManage: boolean
+}) {
   const supabase = createClient()
+  const { toast } = useToast()
   const [jobs, setJobs] = useState<PrintJobRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [retrying, setRetrying] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -52,6 +64,15 @@ export default function PrintQueuePanel({ cafeId, timezone }: { cafeId: string; 
     setJobs((data ?? []) as PrintJobRow[])
     setLoading(false)
   }, [supabase, cafeId])
+
+  async function retryJob(jobId: string) {
+    setRetrying(jobId)
+    const { error } = await supabase.rpc('retry_print_job', { p_job_id: jobId })
+    setRetrying(null)
+    if (error) return toast(error.message, 'error')
+    toast('Print job requeued.')
+    void refresh()
+  }
 
   useEffect(() => {
     // refresh() is async and only calls setState after its own network
@@ -105,8 +126,19 @@ export default function PrintQueuePanel({ cafeId, timezone }: { cafeId: string; 
                 </p>
                 {j.error && <p className="mt-0.5 truncate text-[11px] text-destructive">{j.error}</p>}
               </div>
-              <span className="shrink-0 text-[11px] text-muted-foreground">
-                {formatDateTime(j.completed_at ?? j.created_at, timezone)}
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {formatDateTime(j.completed_at ?? j.created_at, timezone)}
+                </span>
+                {canManage && j.status === 'failed' && (
+                  <button
+                    onClick={() => void retryJob(j.id)}
+                    disabled={retrying === j.id}
+                    className="text-[11px] font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {retrying === j.id ? 'Retrying…' : 'Retry'}
+                  </button>
+                )}
               </span>
             </li>
           ))}
