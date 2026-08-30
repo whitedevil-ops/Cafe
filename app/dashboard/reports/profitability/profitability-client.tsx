@@ -105,8 +105,11 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Profitability</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Profit by item, calculated automatically as items sell — from actual finalised orders, after discounts and
-            refunds, excluding cancelled orders and tax. This is gross profit; rent, salaries and utilities are not
-            included, so it&apos;s not your true bottom-line net profit.
+            refunds, excluding cancelled orders and tax. This is gross profit (revenue minus item cost); rent,
+            salaries, utilities and other logged expenses are not included, so it&apos;s not the same figure as the
+            Sales report&apos;s &quot;Net profit&quot;, and the two won&apos;t match. A refund here reduces the
+            item&apos;s ORIGINAL sale period, even if the refund itself happened later — the Sales report instead
+            counts a refund in the period it was issued.
           </p>
         </div>
         <button

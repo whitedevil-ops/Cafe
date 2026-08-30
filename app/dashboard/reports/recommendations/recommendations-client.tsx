@@ -58,7 +58,7 @@ export default function RecommendationsClient({ cafeId, timezone }: { cafeId: st
                   <th className="px-3 py-2.5 text-right font-medium">Shown</th>
                   <th className="px-3 py-2.5 text-right font-medium">Added</th>
                   <th className="px-3 py-2.5 text-right font-medium">Conversion</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Added sales</th>
+                  <th className="px-3 py-2.5 text-right font-medium" title="Value of cart-adds at the time each happened — not linked to whether the order was later completed, cancelled, or refunded">Cart adds value</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border bg-surface">

@@ -99,7 +99,7 @@ export default function ExpensesClient({
     <div className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="text-2xl font-semibold tracking-tight text-foreground">Expenses</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Day-to-day operational spend — not an accounting system, just enough to see real profit in Reports.
+        Day-to-day operational spend — not an accounting system, just enough to see it deducted in the Sales report&apos;s Net profit figure.
       </p>
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-5">

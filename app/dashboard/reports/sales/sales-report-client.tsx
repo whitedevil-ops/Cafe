@@ -256,6 +256,13 @@ export default function SalesReportClient({
             Revenue here counts only paid or refunded orders and includes tax — a different basis than the Overview
             page&apos;s &quot;Net Sales&quot;, which counts every non-cancelled order regardless of payment status and
             excludes tax. Both are correct for what they measure; they won&apos;t match.
+            {canSeeProfit && (
+              <>
+                {' '}Net profit here is revenue minus refunds minus logged expenses — a cash-basis figure, not the
+                same thing as the Profitability report&apos;s per-item gross profit (which nets item cost instead of
+                expenses, and excludes tax). The two also won&apos;t match.
+              </>
+            )}
           </p>
 
           {report.by_day.length > 0 && (
