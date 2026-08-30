@@ -311,13 +311,17 @@ export default function FloorClient({
   // Per-table payment state, computed against the whole running bill so one
   // paid order never marks the table paid while others are still due.
   const payStateByTable = useMemo(() => {
-    const m = new Map<string, { total: number; paid: number; due: number; state: 'paid' | 'partial' | 'unpaid' }>()
+    const m = new Map<string, { total: number; paid: number; due: number; state: 'empty' | 'paid' | 'partial' | 'unpaid' }>()
     for (const s of sessions) {
       const os = ordersBySession.get(s.id) ?? []
       const total = os.reduce((sum, o) => sum + o.total, 0)
       const paid = Math.min(total, paidBySession.get(s.id) ?? 0)
       const due = Math.max(0, total - paid)
-      const state = total > 0 && paid >= total ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
+      // A table with a session but no orders yet (just seated, nothing
+      // ordered) is neither "paid" nor genuinely "unpaid" — it owes nothing.
+      // Without this branch it fell into 'unpaid' and rendered a false
+      // "DUE ₹0" badge on every table the moment it was opened.
+      const state = total === 0 ? 'empty' : paid >= total ? 'paid' : paid > 0 ? 'partial' : 'unpaid'
       m.set(s.table_id, { total, paid, due, state })
     }
     return m
@@ -741,15 +745,19 @@ export default function FloorClient({
           else if (session) {
             border = ps?.state === 'paid' ? 'border-success bg-success-subtle'
               : ps?.state === 'partial' ? 'border-warning bg-warning-subtle'
+              : ps?.state === 'empty' ? 'border-border-strong bg-surface-subtle'
               : 'border-destructive bg-destructive-subtle'
           }
 
           const payBadge = ps && (
             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-              ps.state === 'paid' ? 'bg-success text-white' : ps.state === 'partial' ? 'bg-warning text-white' : 'bg-destructive text-white'
+              ps.state === 'paid' ? 'bg-success text-white'
+                : ps.state === 'partial' ? 'bg-warning text-white'
+                : ps.state === 'empty' ? 'bg-muted-foreground text-white'
+                : 'bg-destructive text-white'
             }`}>
               <span className="h-1 w-1 rounded-full bg-white/90" />
-              {ps.state === 'paid' ? 'PAID' : ps.state === 'partial' ? 'PARTIAL' : 'DUE'}
+              {ps.state === 'paid' ? 'PAID' : ps.state === 'partial' ? 'PARTIAL' : ps.state === 'empty' ? 'OPEN' : 'DUE'}
             </span>
           )
 
