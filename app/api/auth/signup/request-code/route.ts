@@ -8,10 +8,14 @@ import { sendEmail, emailConfigured, signupCodeEmail } from '@/lib/email'
 // only to this server route, and delivered by email — never in the HTTP
 // response. Mirrors app/api/customer/request-otp/route.ts's shape.
 export async function POST(req: NextRequest) {
-  const rawEmail = (await req.json().catch(() => ({}))) as { email?: string }
-  const email = (rawEmail.email ?? '').trim().toLowerCase()
+  const rawBody = (await req.json().catch(() => ({}))) as { email?: string; token?: string }
+  const email = (rawBody.email ?? '').trim().toLowerCase()
+  const token = (rawBody.token ?? '').trim()
   if (!email) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 })
+  }
+  if (!token) {
+    return NextResponse.json({ error: 'This is an invite-only signup link.' }, { status: 400 })
   }
 
   if (!adminConfigured() || !emailConfigured()) {
@@ -22,6 +26,17 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient()
+
+  // Re-validate the invite before spending an OTP issuance on it — a
+  // request with an invalid/expired/wrong-email token should never reach
+  // the point of actually emailing a code.
+  const { data: inviteData, error: inviteErr } = await admin.rpc('resolve_signup_invite', { p_token: token })
+  if (inviteErr) {
+    return NextResponse.json({ error: inviteErr.message }, { status: 400 })
+  }
+  if ((inviteData as { email?: string } | null)?.email !== email) {
+    return NextResponse.json({ error: 'This signup link is for a different email address.' }, { status: 400 })
+  }
 
   // Same IP-throttle table and threshold as customer OTP requests — this
   // is a shared "an OTP was requested from this IP" budget, not specific

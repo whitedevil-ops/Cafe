@@ -881,7 +881,23 @@ with expected(kind, name, fix) as (values
   -- costed item from a flat manual estimate per period, instead of both
   -- rendering identically as a plain "cost". snapshot_order_item_tax/
   -- profitability_report are pure re-bodies, no new rows for them.
-  ('column', 'order_items.cost_source_snapshot', '0196')
+  ('column', 'order_items.cost_source_snapshot', '0196'),
+  -- 0197: /signup lock-down. Unlinked from marketing (goes through
+  -- /get-started's lead-only path instead) but had no gate of any kind — a
+  -- visitor who knew the URL could self-register directly. New
+  -- signup_invites table + issue/revoke/list (ops console, leads.manage/
+  -- .view) + resolve/consume (service_role only, called from the Next.js
+  -- API routes' admin client, never anon-callable). Does not touch the
+  -- separate, already-working staff paths (api/staff/create, the dormant
+  -- cafe_invites/claim_my_invites flow — 0 rows in production, unaffected
+  -- either way since it runs at /onboarding decoupled from how the auth
+  -- user was created).
+  ('table', 'signup_invites', '0197'),
+  ('function', 'issue_signup_invite', '0197'),
+  ('function', 'revoke_signup_invite', '0197'),
+  ('function', 'op_list_signup_invites', '0197'),
+  ('function', 'resolve_signup_invite', '0197'),
+  ('function', 'consume_signup_invite', '0197')
 )
 select
   e.kind,

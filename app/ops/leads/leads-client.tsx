@@ -19,6 +19,15 @@ export type LeadRow = {
 }
 
 export type NotificationEmailRow = { id: string; email: string; created_at: string }
+export type SignupInviteRow = {
+  id: string
+  email: string
+  expires_at: string
+  used_at: string | null
+  revoked_at: string | null
+  created_at: string
+  created_by_name: string
+}
 
 const STATUS_STYLE: Record<string, string> = {
   new: 'border-warning bg-warning-subtle text-warning',
@@ -29,13 +38,22 @@ const STATUS_STYLE: Record<string, string> = {
 
 const STATUSES = ['new', 'contacted', 'converted', 'dismissed']
 
+function inviteStatus(row: SignupInviteRow): { label: string; cls: string } {
+  if (row.used_at) return { label: 'Used', cls: 'border-success bg-success-subtle text-success' }
+  if (row.revoked_at) return { label: 'Revoked', cls: 'border-border bg-surface-subtle text-muted-foreground' }
+  if (new Date(row.expires_at).getTime() < Date.now()) return { label: 'Expired', cls: 'border-border bg-surface-subtle text-muted-foreground' }
+  return { label: 'Pending', cls: 'border-warning bg-warning-subtle text-warning' }
+}
+
 export default function LeadsClient({
   initialLeads,
   initialNotificationEmails,
+  initialInvites,
   canManage,
 }: {
   initialLeads: LeadRow[]
   initialNotificationEmails: NotificationEmailRow[]
+  initialInvites: SignupInviteRow[]
   canManage: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -46,6 +64,40 @@ export default function LeadsClient({
   const [emails, setEmails] = useState(initialNotificationEmails)
   const [newEmail, setNewEmail] = useState('')
   const [adding, setAdding] = useState(false)
+  const [invites, setInvites] = useState(initialInvites)
+  const [issuingFor, setIssuingFor] = useState<string | null>(null)
+  const [revealedLink, setRevealedLink] = useState<{ email: string; url: string } | null>(null)
+
+  async function refreshInvites() {
+    const { data } = await supabase.rpc('op_list_signup_invites')
+    if (data) setInvites(data as SignupInviteRow[])
+  }
+
+  async function issueInvite(lead: LeadRow) {
+    if (!lead.email) return
+    setIssuingFor(lead.id)
+    const { data, error } = await supabase.rpc('issue_signup_invite', { p_email: lead.email, p_expiry_days: 14 })
+    setIssuingFor(null)
+    if (error) return toast(error.message, 'error')
+    const url = `${window.location.origin}/signup?token=${data as string}`
+    await navigator.clipboard.writeText(url).catch(() => {})
+    setRevealedLink({ email: lead.email, url })
+    toast('Signup link copied — valid for 14 days. Shown only once, so send it now.')
+    void refreshInvites()
+  }
+
+  async function revokeInvite(row: SignupInviteRow) {
+    const ok = await confirm({
+      title: `Revoke the signup link for ${row.email}?`,
+      description: 'They will no longer be able to use it to register, even if they still have it.',
+      confirmLabel: 'Revoke',
+      destructive: true,
+    })
+    if (!ok) return
+    const { error } = await supabase.rpc('revoke_signup_invite', { p_invite_id: row.id })
+    if (error) return toast(error.message, 'error')
+    setInvites((rows) => rows.map((r) => (r.id === row.id ? { ...r, revoked_at: new Date().toISOString() } : r)))
+  }
 
   async function setStatus(lead: LeadRow, status: string) {
     const { error } = await supabase.rpc('op_update_lead_status', { p_lead_id: lead.id, p_status: status })
@@ -85,6 +137,28 @@ export default function LeadsClient({
         People who tapped &quot;Start free&quot; on the website — {leads.length} total, most recent first.
       </p>
 
+      {revealedLink && (
+        <div className="mt-6 rounded-xl border border-primary bg-primary-subtle p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-foreground">Signup link for {revealedLink.email}</p>
+              <p className="mt-1 break-all font-mono text-[12px] text-foreground">{revealedLink.url}</p>
+              <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                Already copied to your clipboard. Shown only this once — if you navigate away, you&apos;ll need to
+                revoke it below and generate a new one.
+              </p>
+            </div>
+            <button
+              onClick={() => setRevealedLink(null)}
+              aria-label="Dismiss"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {canManage && (
         <div className="mt-6 rounded-xl border border-border bg-surface p-5">
           <p className="text-sm font-medium text-foreground">Notification emails</p>
@@ -115,6 +189,38 @@ export default function LeadsClient({
               Add
             </button>
           </form>
+        </div>
+      )}
+
+      {canManage && invites.length > 0 && (
+        <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+          <p className="text-sm font-medium text-foreground">Signup invites</p>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            /signup is invite-only — every link issued from a lead above, most recent first.
+          </p>
+          <ul className="mt-3 divide-y divide-border">
+            {invites.map((inv) => {
+              const st = inviteStatus(inv)
+              return (
+                <li key={inv.id} className="flex items-center justify-between gap-3 py-2 text-[13px]">
+                  <div className="min-w-0">
+                    <p className="truncate text-foreground">{inv.email}</p>
+                    <p className="text-[11.5px] text-muted-foreground">
+                      Issued by {inv.created_by_name} · {formatDateTime(inv.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.label}</span>
+                    {st.label === 'Pending' && (
+                      <button onClick={() => revokeInvite(inv)} className="text-[11.5px] text-muted-foreground hover:text-destructive">
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
 
@@ -150,6 +256,16 @@ export default function LeadsClient({
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
+                  {canManage && (
+                    <button
+                      onClick={() => issueInvite(l)}
+                      disabled={!l.email || issuingFor === l.id}
+                      title={l.email ? undefined : 'This lead has no email on file'}
+                      className="text-[11.5px] font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                    >
+                      {issuingFor === l.id ? 'Generating…' : 'Generate signup link'}
+                    </button>
+                  )}
                 </div>
               </div>
             </li>

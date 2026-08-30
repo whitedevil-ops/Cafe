@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, adminConfigured } from '@/utils/supabase/admin'
 import { sendEmail, emailConfigured, welcomeEmail } from '@/lib/email'
 
-// Verifies the code from /request-code, then creates the Supabase user
-// directly with email_confirm: true — bypassing Supabase Auth's own
-// magic-link mailer entirely, same pattern app/api/staff/create/route.ts
-// already uses. The account is only created AFTER the code is proven
-// correct, so there is no unconfirmed "ghost" account left behind if
-// someone abandons mid-verification. Password/name/phone are never
-// persisted server-side — they travel in this one request only.
+// Verifies the code from /request-code, spends the invite token (0197),
+// then creates the Supabase user directly with email_confirm: true —
+// bypassing Supabase Auth's own magic-link mailer entirely, same pattern
+// app/api/staff/create/route.ts already uses. The account is only created
+// AFTER the code is proven correct and the invite is confirmed unused, so
+// there is no unconfirmed "ghost" account left behind if someone abandons
+// mid-verification. Password/name/phone are never persisted server-side —
+// they travel in this one request only.
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     email?: string
@@ -16,11 +17,15 @@ export async function POST(req: NextRequest) {
     full_name?: string
     phone?: string
     password?: string
+    token?: string
   }
   const email = (body.email ?? '').trim().toLowerCase()
-  const { code, full_name, phone, password } = body
+  const { code, full_name, phone, password, token } = body
   if (!email || !code || !full_name || !password) {
     return NextResponse.json({ error: 'email, code, full_name and password are required' }, { status: 400 })
+  }
+  if (!token) {
+    return NextResponse.json({ error: 'This is an invite-only signup link.' }, { status: 400 })
   }
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 })
@@ -38,6 +43,14 @@ export async function POST(req: NextRequest) {
   const { error: verifyErr } = await admin.rpc('verify_signup_otp', { p_email: email, p_code: code })
   if (verifyErr) {
     return NextResponse.json({ error: verifyErr.message }, { status: 400 })
+  }
+
+  // Spend the invite atomically, right before creating the account — a race
+  // between two completions of the same token resolves to one success and
+  // one "already been used", never two accounts off one invite.
+  const { error: consumeErr } = await admin.rpc('consume_signup_invite', { p_token: token, p_email: email })
+  if (consumeErr) {
+    return NextResponse.json({ error: consumeErr.message }, { status: 400 })
   }
 
   const { error: createErr } = await admin.auth.admin.createUser({

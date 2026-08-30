@@ -1,14 +1,39 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 export default function SignupPage() {
+  // useSearchParams needs a Suspense boundary for the static shell (Next build rule).
+  return (
+    <Suspense fallback={<div className="h-64" aria-hidden />}>
+      <SignupForm />
+    </Suspense>
+  )
+}
+
+function SignupForm() {
   const router = useRouter()
+  const params = useSearchParams()
+  const token = params.get('token') ?? ''
+
+  // /signup is deliberately unlinked from every marketing page (those go
+  // through /get-started's lead-only path) but had no gate of its own — a
+  // visitor who knew the URL could self-register directly. An invite is
+  // issued from the ops Leads console once a lead is actually approved, and
+  // is bound to one specific email — resolved here before any form renders.
+  // Lazy-initialized from the URL directly — "no token" is knowable at the
+  // very first render, so it belongs in the initial state, not set inside
+  // an effect (which would trigger an avoidable extra render).
+  const [invite, setInvite] = useState<'checking' | 'valid' | 'invalid'>(token ? 'checking' : 'invalid')
+  const [inviteError, setInviteError] = useState<string | null>(
+    token ? null : 'This is an invite-only signup link — the link you used is missing its invite code.',
+  )
+
   const [step, setStep] = useState<'details' | 'code'>('details')
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm_password: '' })
   const [agreed, setAgreed] = useState(false)
@@ -24,6 +49,31 @@ export default function SignupPage() {
     void createClient().auth.signOut()
   }, [])
 
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    void (async () => {
+      const res = await fetch('/api/auth/signup/validate-invite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (cancelled) return
+      if (!res.ok) {
+        setInvite('invalid')
+        setInviteError(body.error ?? 'This signup link is not valid.')
+        return
+      }
+      // The email is locked to whatever the invite was issued for — never
+      // typed by the visitor — so a forwarded/leaked link can't be used to
+      // register a different account than the one actually approved.
+      setForm((f) => ({ ...f, email: body.email ?? '' }))
+      setInvite('valid')
+    })()
+    return () => { cancelled = true }
+  }, [token])
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -31,7 +81,7 @@ export default function SignupPage() {
     const res = await fetch('/api/auth/signup/request-code', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: form.email.trim().toLowerCase() }),
+      body: JSON.stringify({ email: form.email.trim().toLowerCase(), token }),
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(body.error ?? 'Could not send the verification code.')
@@ -75,7 +125,7 @@ export default function SignupPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          email, code, full_name: form.full_name, phone: form.phone, password: form.password,
+          email, code, full_name: form.full_name, phone: form.phone, password: form.password, token,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -107,6 +157,38 @@ export default function SignupPage() {
     } finally {
       setResending(false)
     }
+  }
+
+  if (invite === 'checking') {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Checking your invite…</h1>
+      </div>
+    )
+  }
+
+  if (invite === 'invalid') {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Invite-only signup</h1>
+        <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
+          {inviteError}
+        </p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Registration isn&apos;t open to the public — if you&apos;re interested in KhaoPiyo,{' '}
+          <Link href="/get-started" className="font-medium text-primary hover:underline">
+            tell us about your café
+          </Link>{' '}
+          and we&apos;ll follow up.
+        </p>
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Already have an account?{' '}
+          <Link href="/login" className="font-medium text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    )
   }
 
   if (step === 'code') {
@@ -173,7 +255,18 @@ export default function SignupPage() {
 
       <form onSubmit={onSubmitDetails} className="mt-8 space-y-4">
         <Input label="Full name" name="full_name" required value={form.full_name} onChange={set('full_name')} />
-        <Input label="Email" name="email" type="email" autoComplete="email" required value={form.email} onChange={set('email')} />
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          readOnly
+          disabled
+          value={form.email}
+          onChange={set('email')}
+          hint="Locked to the email your invite was sent to."
+        />
         <Input label="Mobile number" name="phone" type="tel" inputMode="numeric" value={form.phone} onChange={set('phone')} />
         <Input
           label="Password"
