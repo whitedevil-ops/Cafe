@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import * as Sentry from '@sentry/nextjs'
 
 // Root-level fallback for every route NOT already covered by a more specific
 // error.tsx (dashboard has its own, which shows the real error message since
@@ -9,11 +11,16 @@ import Link from 'next/link'
 // of which face the open internet — so it deliberately shows no raw error
 // text or stack, only a generic message.
 export default function RootError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-5 p-6 text-center">
       <div className="grid h-14 w-14 place-items-center rounded-full bg-destructive-subtle text-2xl text-destructive">!</div>

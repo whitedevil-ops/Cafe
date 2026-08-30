@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Menu photos live in Supabase Storage, so next/image must be told that host is
 // allowed — without a matching remotePattern every image returns 400. Derived
@@ -53,4 +54,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// org/project/authToken are all optional — without SENTRY_AUTH_TOKEN the
+// plugin just skips the source-map upload step and the build proceeds
+// normally, so this is safe to deploy before a Sentry project exists.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+});

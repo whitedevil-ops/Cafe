@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
+
 // Without this, any crash inside /dashboard/* renders the browser's blank
 // "This page couldn't load" card with no message — which told us nothing
 // while the dashboard was down. An error boundary that shows the real
@@ -11,6 +14,10 @@ export default function DashboardError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">Something broke on this screen</h1>

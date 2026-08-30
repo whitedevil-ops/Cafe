@@ -5,14 +5,21 @@
 // Toast/ConfirmProvider) so the one file whose job is to survive a broken
 // root layout doesn't carry its own extra ways to fail. Still imports
 // globals.css so the design tokens render correctly, not raw unstyled HTML.
+import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import './globals.css'
 
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
+
   return (
     <html lang="en" className="h-full">
       <body className="grid min-h-full place-items-center bg-background p-6 antialiased">

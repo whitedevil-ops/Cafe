@@ -14,6 +14,7 @@
     "test:security": "vitest run tests/integration/security-boundaries.test.ts tests/integration/race-conditions.test.ts tests/integration/spin-prize.test.ts tests/integration/inventory-reversal.test.ts"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.72.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "exceljs": "^4.4.0",
