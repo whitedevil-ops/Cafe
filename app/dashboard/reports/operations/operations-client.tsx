@@ -17,6 +17,7 @@ export default function OperationsClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -25,10 +26,11 @@ export default function OperationsClient({
   initialFrom: string
   initialTo: string
   initialReport: OperationsReport | null
+  initialError?: string | null
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<OperationsReport>({ cafeId, timezone, rpc: 'operations_report', initialFrom, initialTo, initialReport })
+    useReportRange<OperationsReport>({ cafeId, timezone, rpc: 'operations_report', initialFrom, initialTo, initialReport, initialError })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
@@ -83,11 +85,15 @@ export default function OperationsClient({
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Avg order-to-completion</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{report.turnaround.avg_mins} min</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+                {report.turnaround.completed_orders > 0 ? `${report.turnaround.avg_mins} min` : '—'}
+              </p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Median order-to-completion</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{report.turnaround.median_mins} min</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">
+                {report.turnaround.completed_orders > 0 ? `${report.turnaround.median_mins} min` : '—'}
+              </p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Avg table turnover</p>

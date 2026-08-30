@@ -33,6 +33,7 @@ export default async function OperationsReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as OperationsReport)) ?? null}
+      initialError={error?.message ?? null}
     />
   )
 }

@@ -18,6 +18,7 @@ export default function ItemsClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -26,10 +27,11 @@ export default function ItemsClient({
   initialFrom: string
   initialTo: string
   initialReport: ItemsReport | null
+  initialError?: string | null
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<ItemsReport>({ cafeId, timezone, rpc: 'items_categories_report', initialFrom, initialTo, initialReport })
+    useReportRange<ItemsReport>({ cafeId, timezone, rpc: 'items_categories_report', initialFrom, initialTo, initialReport, initialError })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
@@ -73,7 +75,7 @@ export default function ItemsClient({
       <ReportsSubnav active="/dashboard/reports/items" canSeeProfit={canSeeProfit} />
       <ReportHeader
         title="Items & Categories"
-        subtitle="What's selling, what isn't, and how your menu's categories split — volume and mix, not margin. Paid or refunded orders only."
+        subtitle="What's selling, what isn't, and how your menu's categories split — volume and mix, not margin. Paid or refunded orders only, net of item-level refunds."
         links={[]}
         onExport={exportExcel}
         canExport={Boolean(report)}
@@ -124,7 +126,7 @@ export default function ItemsClient({
                         <td className="py-1.5 text-foreground">{i.name}</td>
                         <td className="py-1.5 text-right text-foreground">{i.qty}</td>
                         <td className="py-1.5 text-right text-muted-foreground">{i.orders}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{i.avg_price}</td>
+                        <td className="py-1.5 text-right text-muted-foreground">₹{i.avg_price.toLocaleString('en-IN')}</td>
                         <td className="py-1.5 text-right font-medium text-foreground">₹{i.gross_sales.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}

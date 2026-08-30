@@ -25,6 +25,7 @@ export default async function ItemsReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as ItemsReport)) ?? null}
+      initialError={error?.message ?? null}
     />
   )
 }

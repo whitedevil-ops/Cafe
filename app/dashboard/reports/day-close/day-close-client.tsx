@@ -167,7 +167,7 @@ export default function DayCloseClient({
           <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
             <Kpi label="Revenue" value={`₹${(reports.sales?.summary.revenue ?? 0).toLocaleString('en-IN')}`} />
             <Kpi label="Orders" value={String(reports.sales?.summary.orders ?? 0)} />
-            <Kpi label="Avg order value" value={`₹${reports.sales?.summary.aov ?? 0}`} />
+            <Kpi label="Avg order value" value={`₹${(reports.sales?.summary.aov ?? 0).toLocaleString('en-IN')}`} />
             <Kpi label="Discounts given" value={`₹${(reports.sales?.summary.discount ?? 0).toLocaleString('en-IN')}`} />
             <Kpi label="Tax collected" value={`₹${(reports.sales?.summary.tax ?? 0).toLocaleString('en-IN')}`} />
             <Kpi

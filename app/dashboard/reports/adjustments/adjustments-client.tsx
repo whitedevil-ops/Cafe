@@ -29,6 +29,7 @@ export default function AdjustmentsClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -37,11 +38,12 @@ export default function AdjustmentsClient({
   initialFrom: string
   initialTo: string
   initialReport: AdjustmentsReport | null
+  initialError?: string | null
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const [tab, setTab] = useState<Tab>('discounts')
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<AdjustmentsReport>({ cafeId, timezone, rpc: 'adjustments_report_premium', initialFrom, initialTo, initialReport })
+    useReportRange<AdjustmentsReport>({ cafeId, timezone, rpc: 'adjustments_report_premium', initialFrom, initialTo, initialReport, initialError })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than

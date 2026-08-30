@@ -33,6 +33,7 @@ export default async function AdjustmentsReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as AdjustmentsReport)) ?? null}
+      initialError={error?.message ?? null}
     />
   )
 }

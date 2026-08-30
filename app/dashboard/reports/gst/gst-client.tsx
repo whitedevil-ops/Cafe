@@ -25,6 +25,7 @@ export default function GstClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -33,10 +34,11 @@ export default function GstClient({
   initialFrom: string
   initialTo: string
   initialReport: GstReport | null
+  initialError?: string | null
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<GstReport>({ cafeId, timezone, rpc: 'gst_invoice_report_premium', initialFrom, initialTo, initialReport })
+    useReportRange<GstReport>({ cafeId, timezone, rpc: 'gst_invoice_report_premium', initialFrom, initialTo, initialReport, initialError })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
@@ -44,7 +46,26 @@ export default function GstClient({
     // instead of a button that silently does nothing.
     if (!report) throw new Error("no report loaded yet")
     const { from, to } = activeRange()
+    const r = report
     const sheets: SheetSpec[] = [
+      {
+        name: 'Summary', title: 'GST summary',
+        columns: [{ header: 'Metric', key: 'k', kind: 'text' }, { header: 'Value', key: 'v', kind: 'money' }],
+        rows: [
+          { k: 'Invoices', v: r.summary.invoices },
+          { k: 'Taxable value', v: r.summary.taxable_value },
+          { k: 'CGST', v: r.summary.cgst },
+          { k: 'SGST', v: r.summary.sgst },
+          { k: 'Tax', v: r.summary.tax },
+          { k: 'Credit notes issued', v: r.credit_note_summary.count },
+          { k: 'Credit notes — taxable value', v: r.credit_note_summary.taxable_value },
+          { k: 'Credit notes — tax reversed', v: r.credit_note_summary.tax },
+          { k: 'Net taxable value (original − credit notes)', v: r.net_summary.taxable_value },
+          { k: 'Net CGST', v: r.net_summary.cgst },
+          { k: 'Net SGST', v: r.net_summary.sgst },
+          { k: 'Net tax', v: r.net_summary.tax },
+        ],
+      },
       {
         name: 'By rate', title: 'Tax by HSN/SAC and rate',
         columns: [
@@ -118,18 +139,24 @@ export default function GstClient({
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{report.summary.invoices}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Taxable value</p>
+              <p className="text-[12.5px] text-muted-foreground">Taxable value (before credit notes)</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.taxable_value.toLocaleString('en-IN')}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">CGST</p>
+              <p className="text-[12.5px] text-muted-foreground">CGST (before credit notes)</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.cgst.toLocaleString('en-IN')}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">SGST</p>
+              <p className="text-[12.5px] text-muted-foreground">SGST (before credit notes)</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.sgst.toLocaleString('en-IN')}</p>
             </div>
           </div>
+
+          <p className="mt-4 rounded-[var(--radius)] bg-info-subtle px-3 py-2.5 text-[12.5px] text-info">
+            Credit-note tax on an order mixing multiple GST rates is approximated (split proportionally to the order&apos;s
+            overall tax ratio, not per rate), and there is no automatic check against the CGST Act s.34 credit-note
+            deadline. Have a CA or GST practitioner review this report before relying on it for a return.
+          </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-xl border border-border bg-surface p-4">

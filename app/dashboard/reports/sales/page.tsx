@@ -30,6 +30,7 @@ export default async function SalesReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as SalesReport)) ?? null}
+      initialError={error?.message ?? null}
       todayStart={businessDayStartISO(cafe.timezone)}
     />
   )

@@ -865,7 +865,23 @@ with expected(kind, name, fix) as (values
   -- price AT THE TIME of the event (needs the new column below), and
   -- top_pairings is computed live for the requested date range instead of
   -- reading the unwindowed order_pair_stats cache.
-  ('column', 'recommendation_events.price_snapshot', '0194')
+  ('column', 'recommendation_events.price_snapshot', '0194'),
+  -- 0195: same audit's remaining MEDIUM findings, part 1 -- all pure
+  -- re-bodies of already-tracked functions, no new rows.
+  -- adjustments_report: approved_by_name now falls back to email/'Staff'
+  -- like its sibling actor field. advanced_analytics_report: forecast
+  -- window now uses the café's own timezone (was the DB session's) and both
+  -- daily_revenue/hourly_heatmap are now refund-netted. items_categories_
+  -- report: qty/gross_sales now net item-level refunds. payments_
+  -- outstanding_report: new purely-additive `refunded` summary field.
+  --
+  -- 0196: same audit's remaining MEDIUM findings, part 2. order_items
+  -- gained cost_source_snapshot (frozen alongside the existing cost_snapshot
+  -- by the same trigger) so profitability_report can tell a real recipe-
+  -- costed item from a flat manual estimate per period, instead of both
+  -- rendering identically as a plain "cost". snapshot_order_item_tax/
+  -- profitability_report are pure re-bodies, no new rows for them.
+  ('column', 'order_items.cost_source_snapshot', '0196')
 )
 select
   e.kind,

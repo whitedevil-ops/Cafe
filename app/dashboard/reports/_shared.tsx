@@ -47,16 +47,20 @@ export function useReportRange<T>(args: {
   initialFrom: string
   initialTo: string
   initialReport: T | null
+  /** Set when the server-side initial fetch itself failed, so that failure
+   *  renders as a real error banner instead of silently collapsing into the
+   *  same "No data for this range." an actually-empty period would show. */
+  initialError?: string | null
   extraParams?: Record<string, unknown>
 }) {
-  const { cafeId, timezone, rpc, initialFrom, initialTo, initialReport, extraParams } = args
+  const { cafeId, timezone, rpc, initialFrom, initialTo, initialReport, initialError, extraParams } = args
   const supabase = useMemo(() => createClient(), [])
   const [preset, setPreset] = useState<Preset>('7d')
   const [customFrom, setCustomFrom] = useState(businessDayKey(initialFrom, timezone))
   const [customTo, setCustomTo] = useState(businessDayKey(initialTo, timezone))
   const [report, setReport] = useState<T | null>(initialReport)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError ?? null)
 
   const load = useCallback(
     async (from: string, to: string) => {
@@ -64,7 +68,13 @@ export function useReportRange<T>(args: {
       setError(null)
       const { data, error: err } = await supabase.rpc(rpc, { p_cafe_id: cafeId, p_from: from, p_to: to, ...extraParams })
       setLoading(false)
-      if (err) return setError(err.message)
+      if (err) {
+        // Clear the previous range's numbers rather than leaving them on
+        // screen underneath the error — otherwise a failed reload looks like
+        // stale-but-current data for whatever range is now selected.
+        setReport(null)
+        return setError(err.message)
+      }
       setReport(data as T)
     },
     [supabase, cafeId, rpc, extraParams],
@@ -164,6 +174,12 @@ export function List({ rows }: { rows: { label: string; value: number }[] }) {
 // One nav strip, every report page — so nine separate reports read as one
 // product instead of nine bolted-on pages each linking to a different subset
 // of its siblings.
+// ownerOnly on Profitability is a real margin-data restriction (cost/
+// contribution/margin per item). Recommendations is gated the same way as a
+// deliberate product choice, not because it exposes cost data too — its own
+// RPC returns no cost/contribution/margin field at all, only impression/add/
+// conversion counts. Kept ownerOnly anyway since recommendation performance
+// is treated as owner-level business insight, same tier as Profitability.
 export const REPORT_LINKS: { href: string; label: string; ownerOnly?: boolean }[] = [
   { href: '/dashboard/reports', label: 'Overview' },
   { href: '/dashboard/reports/day-close', label: 'Day Close' },

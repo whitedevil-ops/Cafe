@@ -17,6 +17,7 @@ type Item = {
   contribution: number
   margin_pct: number
   has_cost: boolean
+  cost_source: 'recipe' | 'manual' | 'mixed' | null
 }
 type Payload = {
   summary: { net_sales: number; cost: number; contribution: number; margin_pct: number; uncosted_sales: number }
@@ -141,7 +142,13 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
           <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
-          <button onClick={() => void load('custom', type)} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground">Apply</button>
+          <button
+            onClick={() => void load('custom', type)}
+            disabled={!customFrom || !customTo}
+            className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-40"
+          >
+            Apply
+          </button>
         </div>
       )}
 
@@ -196,7 +203,22 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
                   <td className="px-3 py-2.5 font-medium text-foreground">{i.name}</td>
                   <td className="px-3 py-2.5 text-right text-muted-foreground">{i.qty}</td>
                   <td className="px-3 py-2.5 text-right text-foreground">{money(i.sales)}</td>
-                  <td className="px-3 py-2.5 text-right text-muted-foreground">{i.has_cost ? money(i.cost) : '—'}</td>
+                  <td className="px-3 py-2.5 text-right text-muted-foreground">
+                    {i.has_cost ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        {money(i.cost)}
+                        {i.cost_source === 'recipe' && (
+                          <span className="rounded-full bg-success-subtle px-1.5 py-0.5 text-[10px] font-medium text-success" title="Costed from your recipe & inventory prices">recipe</span>
+                        )}
+                        {i.cost_source === 'manual' && (
+                          <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title="A flat cost you entered manually, not from a recipe">manual</span>
+                        )}
+                        {i.cost_source === 'mixed' && (
+                          <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title="Different orders in this range used different costing methods for this item">mixed</span>
+                        )}
+                      </span>
+                    ) : '—'}
+                  </td>
                   <td className={`px-3 py-2.5 text-right font-medium ${i.contribution < 0 ? 'text-destructive' : 'text-foreground'}`}>{money(i.contribution)}</td>
                   <td className={`px-3 py-2.5 text-right ${!i.has_cost ? 'text-muted-foreground' : i.margin_pct < 25 ? 'text-warning' : 'text-success'}`}>{i.has_cost ? `${i.margin_pct}%` : '—'}</td>
                 </tr>

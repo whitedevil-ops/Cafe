@@ -51,6 +51,7 @@ export default function SalesReportClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -59,6 +60,7 @@ export default function SalesReportClient({
   initialFrom: string
   initialTo: string
   initialReport: SalesReport | null
+  initialError?: string | null
   todayStart: string
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -68,7 +70,7 @@ export default function SalesReportClient({
   const [customTo, setCustomTo] = useState(businessDayKey(initialTo, timezone))
   const [report, setReport] = useState<SalesReport | null>(initialReport)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError ?? null)
   const { runExport, exporting } = useFileExport()
 
   const load = useCallback(
@@ -77,7 +79,13 @@ export default function SalesReportClient({
       setError(null)
       const { data, error: err } = await supabase.rpc('sales_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
       setLoading(false)
-      if (err) return setError(err.message)
+      if (err) {
+        // Clear the previous range's numbers rather than leaving them on
+        // screen underneath the error — otherwise a failed reload looks like
+        // stale-but-current data for whatever range is now selected.
+        setReport(null)
+        return setError(err.message)
+      }
       setReport(data as SalesReport)
     },
     [supabase, cafeId],
@@ -233,7 +241,7 @@ export default function SalesReportClient({
           <div className="mt-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
             <Metric label="Revenue" value={`₹${report.summary.revenue.toLocaleString('en-IN')}`} />
             <Metric label="Orders" value={report.summary.orders} />
-            <Metric label="Avg order value" value={`₹${report.summary.aov}`} />
+            <Metric label="Avg order value" value={`₹${report.summary.aov.toLocaleString('en-IN')}`} />
             {canSeeProfit && report.summary.net_profit != null && (
               <Metric label="Net profit" value={`₹${report.summary.net_profit.toLocaleString('en-IN')}`} />
             )}
@@ -254,7 +262,7 @@ export default function SalesReportClient({
             <Section title="Revenue by day">
               <div className="flex items-end gap-1.5 overflow-x-auto pb-1" style={{ height: 140 }}>
                 {report.by_day.map((d) => (
-                  <div key={d.date} className="flex min-w-[28px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date}: ₹${d.revenue} (${d.orders} orders)`}>
+                  <div key={d.date} className="flex min-w-[28px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date}: ₹${d.revenue.toLocaleString('en-IN')} (${d.orders} orders)`}>
                     <div className="w-full rounded-t bg-primary" style={{ height: `${Math.max(4, (d.revenue / maxDayRevenue) * 110)}px` }} />
                     <span className="whitespace-nowrap text-[10px] text-muted-foreground">{d.date.slice(5)}</span>
                   </div>

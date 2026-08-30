@@ -33,6 +33,7 @@ export default async function GstReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as GstReport)) ?? null}
+      initialError={error?.message ?? null}
     />
   )
 }

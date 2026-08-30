@@ -25,6 +25,7 @@ export default async function PaymentsReportPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={(error ? null : (data as PaymentsReport)) ?? null}
+      initialError={error?.message ?? null}
     />
   )
 }

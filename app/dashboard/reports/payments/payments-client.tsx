@@ -5,7 +5,7 @@ import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
 import { ReportsSubnav, ReportHeader, RangePicker, Section, List, useReportRange } from '../_shared'
 
 export type PaymentsReport = {
-  summary: { collected: number; collected_transactions: number; outstanding_amount: number; outstanding_orders: number }
+  summary: { collected: number; collected_transactions: number; refunded: number; outstanding_amount: number; outstanding_orders: number }
   by_method: { method: string; amount: number; transactions: number }[]
   aging: { bucket: string; amount: number; orders: number }[]
   outstanding_bills: { order_id: string; short_code: string; type: string; total: number; paid: number; due: number; created_at: string }[]
@@ -23,6 +23,7 @@ export default function PaymentsClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialError,
 }: {
   cafeId: string
   cafeName: string
@@ -31,10 +32,11 @@ export default function PaymentsClient({
   initialFrom: string
   initialTo: string
   initialReport: PaymentsReport | null
+  initialError?: string | null
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
-    useReportRange<PaymentsReport>({ cafeId, timezone, rpc: 'payments_outstanding_report', initialFrom, initialTo, initialReport })
+    useReportRange<PaymentsReport>({ cafeId, timezone, rpc: 'payments_outstanding_report', initialFrom, initialTo, initialReport, initialError })
 
   function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
@@ -105,10 +107,19 @@ export default function PaymentsClient({
         <p className="mt-8 text-sm text-muted-foreground">No data for this range.</p>
       ) : (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Collected ({report.summary.collected_transactions} transactions)</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-success">₹{report.summary.collected.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Refunded</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.refunded.toLocaleString('en-IN')}</p>
+              {/* "Collected" above isn't netted against this — it's a raw
+                  cash-basis "what physically came in" figure. A refunded
+                  order's original payment still shows there; this tile is
+                  the offsetting figure, same relationship Sales Report's
+                  Revenue/Refunded tiles already have. */}
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Outstanding ({report.summary.outstanding_orders} orders)</p>
