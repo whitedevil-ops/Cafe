@@ -67,23 +67,34 @@ export default function LeadsClient({
   const [invites, setInvites] = useState(initialInvites)
   const [issuingFor, setIssuingFor] = useState<string | null>(null)
   const [revealedLink, setRevealedLink] = useState<{ email: string; url: string } | null>(null)
+  const [standaloneEmail, setStandaloneEmail] = useState('')
 
   async function refreshInvites() {
     const { data } = await supabase.rpc('op_list_signup_invites')
     if (data) setInvites(data as SignupInviteRow[])
   }
 
-  async function issueInvite(lead: LeadRow) {
-    if (!lead.email) return
-    setIssuingFor(lead.id)
-    const { data, error } = await supabase.rpc('issue_signup_invite', { p_email: lead.email, p_expiry_days: 14 })
+  // Shared by the per-lead button and the standalone "not a lead yet" form
+  // below — issue_signup_invite itself doesn't care where the email came
+  // from, it just needs a valid address.
+  async function issueInviteForEmail(email: string, key: string) {
+    setIssuingFor(key)
+    const { data, error } = await supabase.rpc('issue_signup_invite', { p_email: email, p_expiry_days: 14 })
     setIssuingFor(null)
     if (error) return toast(error.message, 'error')
     const url = `${window.location.origin}/signup?token=${data as string}`
     await navigator.clipboard.writeText(url).catch(() => {})
-    setRevealedLink({ email: lead.email, url })
+    setRevealedLink({ email, url })
     toast('Signup link copied — valid for 14 days. Shown only once, so send it now.')
     void refreshInvites()
+  }
+
+  async function issueStandaloneInvite(e: React.FormEvent) {
+    e.preventDefault()
+    const email = standaloneEmail.trim().toLowerCase()
+    if (!email) return
+    await issueInviteForEmail(email, '__standalone__')
+    setStandaloneEmail('')
   }
 
   async function revokeInvite(row: SignupInviteRow) {
@@ -192,13 +203,31 @@ export default function LeadsClient({
         </div>
       )}
 
-      {canManage && invites.length > 0 && (
+      {canManage && (
         <div className="mt-6 rounded-xl border border-border bg-surface p-5">
           <p className="text-sm font-medium text-foreground">Signup invites</p>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
-            /signup is invite-only — every link issued from a lead above, most recent first.
+            /signup is invite-only. Every link issued from a lead above shows up here — plus this, for someone who
+            isn&apos;t in the list yet (a direct referral, a phone call).
           </p>
-          <ul className="mt-3 divide-y divide-border">
+          <form onSubmit={issueStandaloneInvite} className="mt-3 flex gap-2">
+            <input
+              type="email"
+              placeholder="name@example.com"
+              value={standaloneEmail}
+              onChange={(e) => setStandaloneEmail(e.target.value)}
+              className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+            />
+            <button
+              type="submit"
+              disabled={!standaloneEmail.trim() || issuingFor === '__standalone__'}
+              className="h-9 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40"
+            >
+              {issuingFor === '__standalone__' ? 'Generating…' : 'Generate link'}
+            </button>
+          </form>
+          {invites.length === 0 && <p className="mt-4 text-[12.5px] text-muted-foreground">No invites issued yet.</p>}
+          <ul className="mt-4 divide-y divide-border">
             {invites.map((inv) => {
               const st = inviteStatus(inv)
               return (
@@ -258,7 +287,7 @@ export default function LeadsClient({
                   </select>
                   {canManage && (
                     <button
-                      onClick={() => issueInvite(l)}
+                      onClick={() => l.email && issueInviteForEmail(l.email, l.id)}
                       disabled={!l.email || issuingFor === l.id}
                       title={l.email ? undefined : 'This lead has no email on file'}
                       className="text-[11.5px] font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
