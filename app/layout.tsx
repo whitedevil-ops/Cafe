@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
@@ -173,6 +174,14 @@ export default function RootLayout({
             lands on /login, and that is exactly where the stored session has
             to be restored from. */}
         <DesktopSessionBridge />
+        {/* Cloudflare Web Analytics — afterInteractive per Next's own guidance
+            (analytics is a listed good candidate), so it never delays hydration. */}
+        <Script
+          type="module"
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          strategy="afterInteractive"
+          data-cf-beacon='{"token": "f2fcb9d748eb4d5282887d5f2ee57b0b"}'
+        />
         <ToastProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
         </ToastProvider>
