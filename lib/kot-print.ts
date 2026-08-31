@@ -117,8 +117,11 @@ function itemLine(i: KotItem, marker?: '+' | '-'): string {
   return [
     `<div class="item${markerCls}">`,
     `<div class="line"><span class="qty">${marker ? esc(marker) + ' ' : ''}${i.qty}&times;</span><span class="nm">${esc(i.name)}</span></div>`,
-    mods.length ? `<div class="mod">${mods.map((m) => `+ ${esc(m)}`).join('<br/>')}</div>` : '',
-    i.note ? `<div class="note">Note: ${esc(i.note.toUpperCase())}</div>` : '',
+    // Bullet rather than "+" for modifiers — "+" is now the update-ticket's
+    // own added-item marker, and reusing it here read as two unrelated
+    // meanings sharing one symbol.
+    mods.length ? `<div class="mod">${mods.map((m) => `&bull; ${esc(m)}`).join('<br/>')}</div>` : '',
+    i.note ? `<div class="note">NOTE: ${esc(i.note.toUpperCase())}</div>` : '',
     '</div>',
   ].join('')
 }
@@ -128,20 +131,35 @@ function noteBox(orderNote?: string | null): string {
   return `<div class="rule"></div><div class="notebox"><div class="notehead">&#9733; KITCHEN NOTE</div><div class="notebody">${esc(orderNote.toUpperCase())}</div></div>`
 }
 
+/** Order#/station on one line, date/time on the next — was four stacked
+ * one-per-line paragraphs, which read as filler rather than information. */
+function subLine(kotNumber: string, station?: string | null): string {
+  return [
+    '<div class="subline">',
+    `<span class="ordno">#${esc(kotNumber)}</span>`,
+    station ? `<span class="station">${esc(station.toUpperCase())}</span>` : '',
+    '</div>',
+  ].join('')
+}
+
 function ticketBody(t: KotTicket): string {
   const items = t.items.map((i) => itemLine(i)).join('')
 
   return [
     '<div class="kot">',
+    // The one splash of branded identity a thermal ticket can carry —
+    // everything below stays plain black-on-white for legibility across a
+    // hot kitchen, but this reversed bar is what stops it reading as a
+    // generic till-roll printout.
+    t.cafeName ? `<div class="brandbar">${esc(t.cafeName)}</div>` : '',
     `<div class="otype">${esc(orderTypeLabel(t.orderType))}</div>`,
     `<div class="hero">${heroLabel(t)}</div>`,
-    `<div class="ordno">#${esc(t.kotNumber)}</div>`,
-    t.station ? `<div class="station">${esc(t.station.toUpperCase())}</div>` : '',
+    subLine(t.kotNumber, t.station),
     `<div class="meta">${metaLine(t.placedAt, t.timezone)}</div>`,
     '<div class="rule"></div>',
     items,
     noteBox(t.orderNote),
-    '<div class="rule"></div>',
+    '<div class="rule solid"></div>',
     `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source, t.cafeName)}</div>`,
     '<div class="tail"></div>',
     '</div>',
@@ -154,16 +172,16 @@ function updateTicketBody(t: KotUpdateTicket): string {
 
   return [
     '<div class="kot upd">',
+    t.cafeName ? `<div class="brandbar">${esc(t.cafeName)}</div>` : '',
     '<div class="updhead">KOT UPDATE</div>',
     `<div class="hero">${heroLabel(t)}</div>`,
-    `<div class="ordno">#${esc(t.kotNumber)}</div>`,
-    t.station ? `<div class="station">${esc(t.station.toUpperCase())}</div>` : '',
+    subLine(t.kotNumber, t.station),
     `<div class="meta">${metaLine(t.placedAt, t.timezone)}</div>`,
     '<div class="rule"></div>',
     added,
     removed,
     noteBox(t.orderNote),
-    '<div class="rule"></div>',
+    '<div class="rule solid"></div>',
     `<div class="footer">${footerLine(t.placedAt, t.timezone, t.source, t.cafeName)}</div>`,
     '<div class="tail"></div>',
     '</div>',
@@ -185,34 +203,60 @@ const TICKET_CSS = (width: '58mm' | '80mm', mm: number) => `
   .kot { padding-bottom: 2mm; }
   /* Each copy after the first starts its own sheet so the cutter has a seam. */
   .kot + .kot { page-break-before: always; }
-  .otype { font-size: 13px; font-weight: 800; letter-spacing: 1px; }
+  /* The one piece of branded identity a thermal ticket can carry. Full-bleed
+     reversed bar, not another line of body text, so the ticket reads as
+     "from this café" before a cook reads a single word of the order. */
+  .brandbar {
+    background: #000; color: #fff; margin: 0 0 2.5mm; padding: 1.6mm 0;
+    font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-align: center;
+    text-transform: uppercase;
+  }
+  .otype { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #555; }
   /* The single biggest thing on the ticket — read from across the kitchen. */
-  .hero { font-size: 34px; font-weight: 900; line-height: 1.05; letter-spacing: -0.5px; margin-top: 1mm; }
-  .ordno { font-size: 13px; font-weight: 600; color: #333; margin-top: 0.5mm; }
-  .station { font-size: 13px; font-weight: 800; letter-spacing: 0.5px; margin-top: 1.5mm; }
-  .meta { font-size: 11px; color: #333; margin-top: 1mm; }
-  .rule { border-top: 1px dashed #000; margin: 2mm 0; }
-  .item { margin-bottom: 3mm; }
+  .hero { font-size: 32px; font-weight: 900; line-height: 1.05; letter-spacing: -0.5px; margin-top: 0.5mm; }
+  /* Order # and station share a row instead of each getting its own stacked
+     line — four one-line paragraphs in a row read as padding, not content. */
+  .subline { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5mm; }
+  .ordno { font-size: 13px; font-weight: 700; }
+  .station { font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; background: #000; color: #fff; padding: 0.6mm 1.8mm; }
+  .meta { font-size: 10.5px; color: #555; margin-top: 0.5mm; }
+  .rule { border-top: 1px dashed #000; margin: 2.5mm 0; }
+  /* A solid rule reads as a real section break; dashed is for "more of the
+     same list continues" — the footer is neither, so it gets the heavier one. */
+  .rule.solid { border-top: 1.5px solid #000; }
+  /* A hairline between items instead of relying on margin alone — the list
+     was legible before but had no actual structure separating one dish from
+     the next, which is a lot of what read as "cheap". */
+  .item { margin-bottom: 2.5mm; padding-bottom: 2.5mm; border-bottom: 1px dotted #bbb; }
+  .item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
   /* The cook reads this across a pass, so quantity and name are the largest
      things after the hero line, and never wrap into an indistinct block. */
-  .line { display: flex; gap: 2mm; align-items: baseline; }
-  .qty { font-size: 22px; font-weight: 900; min-width: 9mm; }
-  .nm { font-size: 18px; font-weight: 700; line-height: 1.2; word-break: break-word; }
-  .mod { font-size: 12px; padding-left: 11mm; line-height: 1.4; }
-  .note { font-size: 12px; font-weight: 700; padding-left: 11mm; }
+  .line { display: flex; gap: 2mm; align-items: center; }
+  /* Boxed rather than bare bold text — a ticket-stub qty marker reads as
+     deliberately designed, not just "big number, hope it stands out". */
+  .qty {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 8mm; font-size: 15px; font-weight: 900;
+    border: 1.4px solid #000; padding: 0.4mm 1.2mm;
+  }
+  .nm { flex: 1; font-size: 18px; font-weight: 700; line-height: 1.2; word-break: break-word; }
+  .mod { font-size: 11.5px; padding-left: 10mm; line-height: 1.45; color: #333; }
+  .note { font-size: 11.5px; font-weight: 700; padding-left: 10mm; margin-top: 0.5mm; }
   .item.add .qty, .item.add .nm { color: #14532d; }
+  .item.add .qty { border-color: #14532d; }
   .item.rm .qty, .item.rm .nm { color: #7f1d1d; text-decoration: line-through; }
+  .item.rm .qty { border-color: #7f1d1d; }
   /* A kitchen note is the one thing that must never blend into the rest of
      the ticket — a bordered box with a star, not just an uppercased line. */
-  .notebox { border: 2px solid #000; padding: 1.5mm 2mm; margin-top: 1mm; }
-  .notehead { font-size: 12px; font-weight: 900; letter-spacing: 0.5px; }
-  .notebody { font-size: 14px; font-weight: 800; margin-top: 0.5mm; }
+  .notebox { border: 2px solid #000; padding: 1.5mm 2mm; margin-top: 0.5mm; }
+  .notehead { font-size: 11px; font-weight: 900; letter-spacing: 0.5px; }
+  .notebody { font-size: 13.5px; font-weight: 800; margin-top: 0.5mm; }
   /* An update ticket must never be mistaken for a new order at a glance. */
   .upd .updhead {
-    display: inline-block; border: 2px solid #000; padding: 1mm 2.5mm;
-    font-size: 14px; font-weight: 900; letter-spacing: 1px;
+    display: inline-block; border: 2px solid #000; padding: 1mm 2.5mm; margin-bottom: 1mm;
+    font-size: 13px; font-weight: 900; letter-spacing: 1px;
   }
-  .footer { font-size: 10px; color: #555; margin-top: 1mm; }
+  .footer { font-size: 9.5px; color: #777; margin-top: 1.5mm; text-align: center; }
   /* Thermal cutters trim a few mm above the last line — this is the sacrifice. */
   .tail { height: 6mm; }
 `
