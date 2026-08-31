@@ -170,6 +170,15 @@ impl Builder {
         self.buf.extend_from_slice(&[ESC, b'E', if on { 1 } else { 0 }]);
         self
     }
+    /// `GS B n` — white-on-black reverse video. Part of the base ESC/POS spec
+    /// (Epson and effectively every compatible clone honours it), and the
+    /// only way this printer class can render anything resembling the filled
+    /// black header bar the browser/native HTML ticket uses — there is no
+    /// bordered-box or background-fill equivalent in plain text mode.
+    fn reverse(&mut self, on: bool) -> &mut Self {
+        self.buf.extend_from_slice(&[GS, b'B', if on { 1 } else { 0 }]);
+        self
+    }
     fn align(&mut self, n: u8) -> &mut Self {
         self.buf.extend_from_slice(&[ESC, b'a', n]);
         self
@@ -205,6 +214,22 @@ struct Header<'a> {
     order_type: Option<&'a str>,
     time_label: Option<&'a str>,
     station: Option<&'a str>,
+}
+
+/// The one piece of branded identity this ticket carries — reverse video
+/// (white text on a black fill) rather than plain bold, so it reads as "from
+/// this café" before a cook reads a single word of the order, matching the
+/// filled header bar on the browser/native HTML ticket as closely as plain
+/// ESC/POS text mode can. Omitted entirely when there's no café name to show,
+/// same as the HTML version.
+fn render_brand_bar(b: &mut Builder, cafe_name: Option<&str>, cols: usize) {
+    if let Some(name) = cafe_name.map(str::trim).filter(|s| !s.is_empty()) {
+        b.align(1).reverse(true).bold(true);
+        for l in wrap(&name.to_uppercase(), cols) {
+            b.line(&l);
+        }
+        b.reverse(false).bold(false).align(0);
+    }
 }
 
 /// "dine_in" → "DINE-IN", "takeaway" → "TAKEAWAY", and so on for whatever
@@ -352,6 +377,7 @@ fn render_footer(b: &mut Builder, source: Option<&str>, cafe_name: Option<&str>,
 }
 
 fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
+    render_brand_bar(b, t.cafe_name.as_deref(), cols);
     render_header(
         b,
         &Header {
@@ -364,18 +390,29 @@ fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
         cols,
     );
 
-    for item in &t.items {
+    // A light dotted rule between dishes, not after the last one — real
+    // structure separating one item from the next instead of relying on
+    // blank-line spacing alone. Matches the HTML ticket's per-item hairline.
+    for (i, item) in t.items.iter().enumerate() {
+        if i > 0 {
+            b.line(&".".repeat(cols));
+        }
         item_line(b, None, item.qty, &item.name, cols);
         item_extras(b, item, cols);
         b.feed(1);
     }
 
     render_kitchen_note(b, t.order_note.as_deref(), cols);
+    // A real rule before the footer rather than nothing — the footer used to
+    // just trail straight off the last item with no section break at all.
+    b.line(&"-".repeat(cols));
     render_footer(b, t.source.as_deref(), t.cafe_name.as_deref(), cols);
     b.feed(3).cut();
 }
 
 fn render_update_one(b: &mut Builder, t: &TicketUpdate, cols: usize) {
+    render_brand_bar(b, t.cafe_name.as_deref(), cols);
+
     // A header unmistakably different from a normal ticket's, so a cook can
     // never mistake a change slip for a brand new order.
     b.align(1).bold(true);
@@ -394,18 +431,23 @@ fn render_update_one(b: &mut Builder, t: &TicketUpdate, cols: usize) {
         cols,
     );
 
-    for item in &t.added {
-        item_line(b, Some('+'), item.qty, &item.name, cols);
-        item_extras(b, item, cols);
-        b.feed(1);
-    }
-    for item in &t.removed {
-        item_line(b, Some('-'), item.qty, &item.name, cols);
+    // A dotted rule between entries, skipped only before the very first one —
+    // added and removed items share one continuous separator sequence rather
+    // than each list getting its own independent numbering.
+    let mut first = true;
+    for item in t.added.iter().map(|i| (Some('+'), i)).chain(t.removed.iter().map(|i| (Some('-'), i))) {
+        if !first {
+            b.line(&".".repeat(cols));
+        }
+        first = false;
+        let (marker, item) = item;
+        item_line(b, marker, item.qty, &item.name, cols);
         item_extras(b, item, cols);
         b.feed(1);
     }
 
     render_kitchen_note(b, t.order_note.as_deref(), cols);
+    b.line(&"-".repeat(cols));
     render_footer(b, None, t.cafe_name.as_deref(), cols);
     b.feed(3).cut();
 }
@@ -479,6 +521,7 @@ mod tests {
                     i += match bytes.get(i + 1) {
                         Some(b'!') => 3, // GS ! n
                         Some(b'V') => 4, // GS V m n
+                        Some(b'B') => 3, // GS B n
                         _ => 2,
                     };
                 }
@@ -587,6 +630,51 @@ mod tests {
         t.cafe_name = None;
         let text = as_text(&render(&t));
         assert!(!text.contains("KhaoPiyo"), "must not fall back to the platform brand, got {text:?}");
+    }
+
+    #[test]
+    fn prints_a_reverse_video_brand_bar_with_the_cafes_name() {
+        let bytes = render(&ticket());
+        // The brand bar is the very first thing after ESC @ (init): align
+        // centre, GS B 1 (reverse on), bold on, then the uppercased name.
+        assert_eq!(&bytes[2..5], &[ESC, b'a', 1], "expected centre-align right after init");
+        assert!(
+            bytes.windows(3).any(|w| w == [GS, b'B', 1]),
+            "expected GS B 1 (reverse video on) somewhere in the ticket"
+        );
+        assert!(
+            bytes.windows(3).any(|w| w == [GS, b'B', 0]),
+            "expected GS B 0 (reverse video off) — the bar must not stay reversed for the rest of the ticket"
+        );
+        let text = as_text(&bytes);
+        assert!(text.contains("BREWORA"), "expected the uppercased cafe name in the brand bar, got {text:?}");
+    }
+
+    #[test]
+    fn omits_the_brand_bar_entirely_when_no_cafe_name_given() {
+        let mut t = ticket();
+        t.cafe_name = None;
+        let bytes = render(&t);
+        assert!(
+            !bytes.windows(3).any(|w| w == [GS, b'B', 1]),
+            "no cafe name means no brand bar, so reverse video should never turn on at all"
+        );
+    }
+
+    #[test]
+    fn separates_multiple_items_with_a_dotted_rule() {
+        let mut t = ticket();
+        t.items.push(TicketItem { qty: 1, name: "Cold Coffee".into(), modifiers: vec![], note: None });
+        let text = as_text(&render(&t));
+        assert!(text.contains(&".".repeat(32)), "expected a dotted rule between the two items, got {text:?}");
+        // Exactly one separator for two items — not one before every item.
+        assert_eq!(text.matches(&".".repeat(32)).count(), 1);
+    }
+
+    #[test]
+    fn does_not_print_a_dotted_rule_for_a_single_item() {
+        let text = as_text(&render(&ticket()));
+        assert!(!text.contains(&".".repeat(32)), "a single-item ticket has nothing to separate, got {text:?}");
     }
 
     #[test]
