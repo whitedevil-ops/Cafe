@@ -11,6 +11,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
+# The webview is sandboxed and drops target="_blank" links (View/Print bill)
+# on the floor with no error — this plugin is what makes it hand them to the
+# system's default browser instead. Also needs opener:default in capabilities.
+tauri-plugin-opener = "2"
 # Only one copy of the app may run: two processes fight over the WebView2
 # profile lock and neither persists cookies, which is why the login never
 # stuck.
@@ -33,6 +37,11 @@ chrono-tz = "0.10"
 # exposes crates listed as direct dependencies. Only the `time` feature is
 # needed: the bridge loop's poll interval.
 tokio = { version = "1", features = ["time"] }
+# Raw print-spooler access (winspool.rs) — sends ESC/POS bytes straight to a
+# named Windows printer queue, RAW datatype, no dialog. Pinned to the same
+# 0.61 line already resolved transitively by wry/webview2-com so this adds
+# no new major version to the dependency tree.
+windows = { version = "0.61", features = ["Win32_Graphics_Printing", "Win32_Foundation"] }
 
 [[bin]]
 name = "khaopiyo"

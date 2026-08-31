@@ -6,5 +6,5 @@
   "remote": {
     "urls": ["https://khaopiyo.ventron.in"]
   },
-  "permissions": ["core:default", "updater:default"]
+  "permissions": ["core:default", "updater:default", "opener:default"]
 }

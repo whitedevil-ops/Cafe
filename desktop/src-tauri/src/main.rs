@@ -4,6 +4,7 @@ mod bridge;
 mod escpos;
 mod printing;
 mod session;
+mod winspool;
 
 use tauri::Manager;
 use tauri_plugin_updater::UpdaterExt;
@@ -70,9 +71,11 @@ fn main() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             printing::list_serial_ports,
             printing::print_ticket,
+            printing::get_default_windows_printer,
             session::save_session,
             session::load_session,
             session::clear_session,

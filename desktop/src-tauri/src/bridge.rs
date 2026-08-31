@@ -233,16 +233,23 @@ fn build_ticket_update(doc: RawTicketUpdate) -> TicketUpdate {
     }
 }
 
-/// `None` means "not a LAN printer" — the signal to skip the job entirely
-/// rather than attempt or fail it.
+/// `None` means "this bridge has no way to reach it" — the signal to skip
+/// the job entirely rather than attempt or fail it.
 fn target_for(printer: &PrinterInfo) -> Option<Target> {
-    if printer.connection_type != "lan" {
-        return None;
+    match printer.connection_type.as_str() {
+        "lan" => Some(Target::Tcp {
+            host: printer.ip_address.clone().unwrap_or_default(),
+            port: printer.port,
+        }),
+        // A usb-configured printer means the machine running this bridge
+        // has it physically attached — reach it via whichever printer
+        // Windows currently treats as default, the same path the manual
+        // "Print now on this device" fallback already proved works for it.
+        // Bluetooth stays unhandled here: it has no reliable, driver-free
+        // Windows equivalent to fall back on the way USB does.
+        "usb" => Some(Target::Windows),
+        _ => None,
     }
-    Some(Target::Tcp {
-        host: printer.ip_address.clone().unwrap_or_default(),
-        port: printer.port,
-    })
 }
 
 async fn report(client: &reqwest::Client, token: &str, job_id: &str, ok: bool, error: Option<&str>) {
@@ -407,21 +414,35 @@ mod tests {
     }
 
     #[test]
-    fn only_targets_lan_printers() {
+    fn targets_lan_printers_over_tcp() {
         let lan = PrinterInfo {
             name: "Kitchen".into(),
             connection_type: "lan".into(),
             ip_address: Some("192.168.1.50".into()),
             port: None,
         };
-        assert!(target_for(&lan).is_some());
+        assert!(matches!(target_for(&lan), Some(Target::Tcp { .. })));
+    }
 
+    #[test]
+    fn targets_usb_printers_via_the_windows_default_printer() {
         let usb = PrinterInfo {
             name: "Counter".into(),
             connection_type: "usb".into(),
             ip_address: None,
             port: None,
         };
-        assert!(target_for(&usb).is_none());
+        assert!(matches!(target_for(&usb), Some(Target::Windows)));
+    }
+
+    #[test]
+    fn leaves_bluetooth_printers_unhandled() {
+        let bt = PrinterInfo {
+            name: "Handheld".into(),
+            connection_type: "bluetooth".into(),
+            ip_address: None,
+            port: None,
+        };
+        assert!(target_for(&bt).is_none());
     }
 }

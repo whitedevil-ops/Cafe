@@ -87,20 +87,39 @@ function toNativeTicket(t: KotTicket) {
 }
 
 /**
- * Try to print natively. Returns false when this isn't the desktop app or no
- * printer has been chosen on this machine, so the caller can fall back to the
- * browser path.
+ * Try to print natively. Returns false when this isn't the desktop app or
+ * nothing could be printed to, so the caller can fall back to the browser
+ * path.
  *
- * Throws only when a printer *is* configured and the write failed — an
- * unplugged printer or a wrong COM port is worth telling staff about, and must
- * not silently fall back to opening a print dialog nobody expected.
+ * Throws only when a printer *is* explicitly configured (serial/tcp) and the
+ * write failed — an unplugged printer or a wrong COM port is worth telling
+ * staff about, and must not silently fall back to opening a print dialog
+ * nobody expected.
+ *
+ * When nothing is explicitly configured, this opportunistically tries
+ * whichever printer Windows itself currently treats as default (the whole
+ * point: a café's one thermal printer becomes usable the moment it's
+ * installed, with nothing to set up in KhaoPiyo) — but that attempt is
+ * allowed to fail quietly, since a fresh machine with no real printer
+ * installed yet is exactly what the dialog fallback exists for.
  */
 export async function printKotNative(ticket: KotTicket): Promise<boolean> {
   if (!isDesktopApp()) return false
   const target = getDesktopPrinter()
-  if (!target) return false
-  await invoke<void>('print_ticket', { target, ticket: toNativeTicket(ticket) })
-  return true
+  if (target) {
+    await invoke<void>('print_ticket', { target, ticket: toNativeTicket(ticket) })
+    return true
+  }
+  try {
+    // Keep this object to exactly { kind: 'windows' } — the Rust side treats
+    // it as a unit variant, which serde's internally-tagged representation
+    // only accepts when the tag is the only key present. Adding a field
+    // here needs a matching change to Target::Windows in printing.rs first.
+    await invoke<void>('print_ticket', { target: { kind: 'windows' }, ticket: toNativeTicket(ticket) })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Same path as a real ticket, so a test proves the real thing works. */
