@@ -1,8 +1,16 @@
 name: Release desktop app
 
-# Cuts a real GitHub Release containing the Windows and macOS installers plus
+# Cuts a real GitHub Release containing the Windows installer plus
 # latest.json — the file the app's updater polls. Without this workflow the
 # updater has nothing to find, which is why it never worked before.
+#
+# Windows only. This used to also build a macOS leg via a matrix, but every
+# café running this app runs it on Windows — the macOS build had never once
+# succeeded, and because a matrix run is marked "Failure" overall if any leg
+# fails, it was making a run where the Windows build (the only one anyone
+# needs) built and published fine show up as a red X in the Actions list.
+# Confusing to read, no upside. Revisit if a café ever actually shows up on
+# a Mac.
 #
 # Triggered by pushing a tag like `desktop-v1.0.1`. Tags rather than every
 # push, because the desktop shell is a thin window over the live site: web
@@ -27,15 +35,7 @@ jobs:
   release:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-            args: ''
-          - platform: macos-latest
-            args: '--target universal-apple-darwin'
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -43,8 +43,6 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
@@ -52,9 +50,7 @@ jobs:
           workspaces: desktop/src-tauri
 
       # Builds, signs the updater artifacts, and creates/updates one draft
-      # release shared by both platforms. latest.json is assembled from the
-      # signatures produced on each runner, so it only lists a platform once
-      # that platform's job has succeeded.
+      # release with the Windows installer and latest.json.
       - name: Build and publish
         uses: tauri-apps/tauri-action@v0
         env:
@@ -66,12 +62,10 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v{0}', github.run_number) }}
           releaseName: 'KhaoPiyo Desktop __VERSION__'
           releaseBody: |
-            Windows: download the `.msi`.
-            macOS: download the `.dmg`.
+            Download the `.msi` below and run it.
 
             Existing installs update themselves the next time they are opened —
             no need to download anything.
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
