@@ -7,9 +7,13 @@ mod session;
 mod winspool;
 
 use tauri::Manager;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 
-/// Check for a new version once, shortly after launch, and install it silently.
+/// Check for a new version once, shortly after launch, and install it
+/// silently — no confirmation prompt, nothing to click, ever. A café till
+/// left unattended for hours must never sit there waiting on a "Yes"
+/// nobody's around to press.
 ///
 /// Deliberately done in Rust rather than from the page. The window loads a
 /// remote URL (khaopiyo.ventron.in), and letting a remote origin drive the
@@ -21,6 +25,11 @@ use tauri_plugin_updater::UpdaterExt;
 /// outage, or a malformed release must never stop the till from opening: the
 /// app is a window onto a live site and works perfectly without ever updating
 /// its shell. Worst case they keep the version they have.
+///
+/// The one visible trace of any of this is a native toast shown right
+/// *before* installing — informational only, never a prompt (nothing waits
+/// on it), and its own failure is swallowed too: a notification that didn't
+/// show is not a reason to have skipped the update it was announcing.
 fn spawn_update_check(app: &tauri::AppHandle) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -31,6 +40,17 @@ fn spawn_update_check(app: &tauri::AppHandle) {
         // check() resolves to None when already current, which is the common
         // path and not an error.
         if let Ok(Some(update)) = updater.check().await {
+            // Shown BEFORE installing, not after: on Windows the process
+            // exits as part of running the installer (a documented Tauri
+            // limitation, not a bug here), so a toast queued for "once
+            // installed" could easily never get a chance to render before
+            // the app is already gone.
+            let _ = handle
+                .notification()
+                .builder()
+                .title("KhaoPiyo is updating")
+                .body(format!("Installing version {} — the app will restart in a moment.", update.version))
+                .show();
             let _ = update.download_and_install(|_, _| {}, || {}).await;
         }
     });
