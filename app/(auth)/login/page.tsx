@@ -81,7 +81,23 @@ function LoginForm() {
       setLoading(false)
       return
     }
-    router.push(params.get('next') || '/dashboard')
+    const next = params.get('next') || '/dashboard'
+    if (isDesktopApp()) {
+      // The desktop webview's cookie store commits writes on a background
+      // task rather than synchronously (same root cause DesktopSessionBridge
+      // already works around with a hard window.location.replace after
+      // setSession — see that file's comment). A client-side router.push
+      // right after signInWithPassword can reach the server before the new
+      // session cookie has actually landed, so the very next navigation
+      // (e.g. tapping Settings) sees no cookie and bounces back to /login —
+      // reproduced live: login succeeds, dashboard shows, one more click
+      // anywhere throws the café straight back to the login form. A full
+      // navigation forces a fresh request after the write has had a moment
+      // to flush, the same fix already proven for the session-restore path.
+      window.location.href = next
+      return
+    }
+    router.push(next)
     router.refresh()
   }
 
