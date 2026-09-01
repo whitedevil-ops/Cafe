@@ -8,7 +8,11 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# "tray-icon" is off by default and is what makes `tauri::tray` compile at all.
+# Without a tray there is nowhere for the window to go when someone closes it,
+# so closing would have to keep meaning "quit" — and quitting takes the print
+# bridge, and therefore the kitchen tickets, with it.
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 # The webview is sandboxed and drops target="_blank" links (View/Print bill)
@@ -23,6 +27,14 @@ tauri-plugin-notification = "2"
 # profile lock and neither persists cookies, which is why the login never
 # stuck.
 tauri-plugin-single-instance = "2"
+# A till PC that reboots — power cut, overnight Windows update, staff switching
+# it off at closing — comes back with nothing running, and the half nobody
+# notices is that the print bridge is gone with it: kitchen tickets stop
+# silently, with no error anywhere, until someone eventually remembers the app
+# has to be opened by hand. This registers the app with Windows startup so that
+# never has to be remembered. Driven entirely from Rust — the website never
+# calls it — so it deliberately gets no entry in capabilities/default.json.
+tauri-plugin-autostart = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Bluetooth and USB thermal printers reach Windows as a COM port; this is how
