@@ -16,15 +16,22 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
 }
 
 /** No-op outside the desktop app — a browser tab was never going to run the
- * bridge loop anyway, so there is nothing local to pair. */
-export async function saveBridgeToken(token: string): Promise<void> {
-  if (!isDesktopApp()) return
+ * bridge loop anyway, so there is nothing local to pair.
+ *
+ * Returns whether the local save actually succeeded. This used to swallow
+ * every failure and the caller always showed "paired" regardless — found
+ * live: the save was silently failing (or the running bridge loop simply
+ * wasn't picking up the change) and staff had no way to know pairing hadn't
+ * really taken effect until a print never showed up. Pairing still succeeds
+ * server-side either way (the token exists in print_bridge_tokens); only the
+ * local auto-fill can fail, and now the caller finds out. */
+export async function saveBridgeToken(token: string): Promise<boolean> {
+  if (!isDesktopApp()) return false
   try {
     await invoke('save_bridge_token', { token })
+    return true
   } catch {
-    // Pairing still succeeded server-side (the token exists in
-    // print_bridge_tokens); only the local auto-fill failed. The café can
-    // still see/copy the token from the UI that called this.
+    return false
   }
 }
 

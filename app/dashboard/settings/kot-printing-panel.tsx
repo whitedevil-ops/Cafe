@@ -279,9 +279,21 @@ export default function KotPrintingPanel({
     // save it locally too so pairing is one click, not copy-paste into a
     // program that doesn't have its own UI. Still shown/copyable above for
     // re-pairing another machine, or if local save fails for any reason.
+    //
+    // The running app also needs a restart to actually start using a token
+    // saved while it's already open — the background print-checker was
+    // found live to not pick up a mid-session file change on its own, even
+    // though the save itself succeeds. Telling staff this explicitly beats
+    // them wondering why printing still isn't working after a "successful"
+    // pairing.
     if (desktop) {
-      await saveBridgeToken(token)
-      setPairedHere(true)
+      const saved = await saveBridgeToken(token)
+      setPairedHere(saved)
+      if (saved) {
+        toast('Paired — close and reopen the app once for it to start printing automatically.')
+      } else {
+        toast('Paired on the server, but this device could not save it locally — try clicking Pair this device again, or restart the app first and retry.', 'error')
+      }
     }
     void refresh()
   }
