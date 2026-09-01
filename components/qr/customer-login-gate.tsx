@@ -60,15 +60,17 @@ export function CustomerLoginGate({
         return
       }
       const supabase = supabaseRef.current
-      const { data, error: rpcError } = await supabase.rpc('customer_session_status', {
-        p_session_token: cached.token,
-      })
+      // Bounded: an unresponsive session check must not strand the customer
+      // on a blank screen forever — fall back to the phone form instead.
+      const { data, error: rpcError } = await supabase
+        .rpc('customer_session_status', { p_session_token: cached.token })
+        .abortSignal(AbortSignal.timeout(5000))
       if (cancelled) return
       const valid = !rpcError && (data as { valid?: boolean } | null)?.valid === true
       if (valid) {
         setWelcomeName(cached.name)
         setPhase('welcome')
-        setTimeout(() => { if (!cancelled) onReady(cached) }, 1100)
+        setTimeout(() => { if (!cancelled) onReady(cached) }, 300)
       } else {
         clearCustomerSession(cafeId)
         setPhase('phone')
@@ -102,7 +104,12 @@ export function CustomerLoginGate({
   }
 
   if (phase === 'checking') {
-    return <main className="min-h-dvh bg-background" />
+    return (
+      <main className="mx-auto flex w-full min-h-dvh max-w-sm flex-col items-center justify-center gap-3 px-6">
+        <div className="h-12 w-12 animate-pulse rounded-full bg-surface-subtle" />
+        <div className="h-3 w-32 animate-pulse rounded-full bg-surface-subtle" />
+      </main>
+    )
   }
 
   if (phase === 'welcome') {

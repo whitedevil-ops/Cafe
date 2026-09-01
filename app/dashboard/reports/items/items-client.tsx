@@ -1,6 +1,6 @@
 'use client'
 
-import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import type { SheetSpec } from '@/lib/xlsx-export'
 import { ReportsSubnav, ReportHeader, RangePicker, Section, List, useReportRange } from '../_shared'
 
 export type ItemsReport = {
@@ -33,7 +33,7 @@ export default function ItemsClient({
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
     useReportRange<ItemsReport>({ cafeId, timezone, rpc: 'items_categories_report', initialFrom, initialTo, initialReport, initialError })
 
-  function exportExcel() {
+  async function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
     // returning quietly means a bug here surfaces as a failed-export toast
     // instead of a button that silently does nothing.
@@ -67,6 +67,7 @@ export default function ItemsClient({
         rows: report.unsold_items,
       },
     ]
+    const { downloadReport } = await import('@/lib/xlsx-export')
     return downloadReport({ cafeName, reportName: 'Items-Categories', from, to }, sheets)
   }
 

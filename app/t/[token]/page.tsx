@@ -21,24 +21,30 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   const table = resolved as { table_id: string; label: string; cafe_id: string } | null
   if (!table) notFound()
 
-  const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = await getCachedCafeMenu(table.cafe_id)
+  // The menu fetch needs table.cafe_id, but the coupons/ordering checks below
+  // only need the raw token (they resolve cafe_id internally) — none of the
+  // three depend on each other, so run them concurrently instead of behind
+  // one another.
+  const [menu, couponsResult, orderingResult] = await Promise.all([
+    getCachedCafeMenu(table.cafe_id),
+    // cafe_has_feature() itself is revoked from anon (a real security
+    // boundary) — this narrow, anon-safe RPC is the only way this page can
+    // know whether to show the coupon field at all, instead of always
+    // rendering it and letting resolve_coupon_discount's raw rejection
+    // message be the first thing a real customer sees.
+    supabase.rpc('public_cafe_coupons_enabled', { p_table_token: token }),
+    // Operator-facing kill switch (operator console Feature control), separate
+    // from account Suspend/Disable — this pauses only customer ordering while
+    // staff keep dashboard access. Any RPC error (including this function not
+    // existing yet, mid-deploy) is treated as enabled: never let a lookup
+    // hiccup take a working café's ordering offline.
+    supabase.rpc('public_cafe_ordering_enabled', { p_table_token: token }),
+  ])
+  const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = menu
   if (!cafe) notFound()
 
-  // cafe_has_feature() itself is revoked from anon (a real security
-  // boundary) — this narrow, anon-safe RPC is the only way this page can
-  // know whether to show the coupon field at all, instead of always
-  // rendering it and letting resolve_coupon_discount's raw rejection
-  // message be the first thing a real customer sees.
-  const { data: couponsEnabled } = await supabase.rpc('public_cafe_coupons_enabled', { p_table_token: token })
-
-  // Operator-facing kill switch (operator console Feature control), separate
-  // from account Suspend/Disable — this pauses only customer ordering while
-  // staff keep dashboard access. Any RPC error (including this function not
-  // existing yet, mid-deploy) is treated as enabled: never let a lookup
-  // hiccup take a working café's ordering offline.
-  const { data: orderingEnabled, error: orderingErr } = await supabase.rpc('public_cafe_ordering_enabled', {
-    p_table_token: token,
-  })
+  const { data: couponsEnabled } = couponsResult
+  const { data: orderingEnabled, error: orderingErr } = orderingResult
   if (orderingEnabled === false && !orderingErr) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6 text-center">

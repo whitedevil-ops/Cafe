@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { FileDown, Search, X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO, formatDateTime } from '@/lib/datetime'
-import { downloadBulkReceiptsPdf, type ReceiptData } from '@/lib/pdf-export'
+import type { ReceiptData } from '@/lib/pdf-export'
 import { useFileExport } from '@/lib/use-file-export'
 import { BillDetailDrawer } from './bill-detail-drawer'
 
@@ -178,7 +178,13 @@ export default function BillsClient({
     // Through runExport so the save is confirmed and a jsPDF failure on a very
     // large range becomes a visible error. The notice line below stays for the
     // truncation case, which is information rather than a result.
-    await runExport(() => downloadBulkReceiptsPdf(receipts, { cafeName, fromISO: from, toISO: to }))
+    //
+    // Dynamic import: jsPDF (~136KB gzip) only needs to load once someone
+    // actually clicks Download PDF, not on every dashboard bills visit.
+    await runExport(async () => {
+      const { downloadBulkReceiptsPdf } = await import('@/lib/pdf-export')
+      return downloadBulkReceiptsPdf(receipts, { cafeName, fromISO: from, toISO: to })
+    })
 
     if (result?.is_truncated) {
       setPdfNotice(`Included the first ${receipts.length} of ${result.total} bills — narrow the date range to get the rest.`)

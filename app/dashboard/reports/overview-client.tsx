@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
-import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import type { SheetSpec } from '@/lib/xlsx-export'
 import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from './_shared'
 import { redactReport, type OverviewReport } from './redact-report'
@@ -115,7 +115,7 @@ export default function OverviewClient({
     return rangeFor(preset, timezone)
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
     // returning quietly means a bug here surfaces as a failed-export toast
     // instead of a button that silently does nothing.
@@ -166,6 +166,7 @@ export default function OverviewClient({
         rows: r.top_customers,
       },
     ]
+    const { downloadReport } = await import('@/lib/xlsx-export')
     return downloadReport({ cafeName, reportName: 'Business-Overview', from, to }, sheets)
   }
 

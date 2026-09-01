@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Search, X, Star, TrendingDown, Sparkles, Pencil } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -24,16 +24,19 @@ export default function CustomersClient({
   cafeId,
   timezone,
   initialCustomers,
+  totalCount,
   initialSegment = 'all',
 }: {
   cafeId: string
   timezone: string
   initialCustomers: CustomerStat[]
+  totalCount: number
   initialSegment?: Segment
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const [customers, setCustomers] = useState(initialCustomers)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [segment, setSegment] = useState<Segment>(initialSegment)
   const [selected, setSelected] = useState<CustomerStat | null>(null)
@@ -55,6 +58,21 @@ export default function CustomersClient({
       .filter((c) => (segment === 'all' ? true : c.segment === segment))
       .filter((c) => (q ? (c.name?.toLowerCase().includes(q) ?? false) || (c.phone?.includes(q) ?? false) : true))
   }, [customers, segment, search])
+
+  // Mirrors bills-client's Load more: segment/search filter the customers
+  // already loaded, same as before — they don't reach further pages.
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true)
+    const { data, error } = await supabase
+      .from('v_customer_stats')
+      .select('*')
+      .eq('cafe_id', cafeId)
+      .order('total_spend', { ascending: false })
+      .range(customers.length, customers.length + 99)
+    setLoadingMore(false)
+    if (error) return toast(error.message, 'error')
+    setCustomers((prev) => [...prev, ...((data ?? []) as CustomerStat[])])
+  }, [supabase, cafeId, customers.length, toast])
 
   async function saveName() {
     if (!selected) return
@@ -95,7 +113,7 @@ export default function CustomersClient({
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Customers</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{initialCustomers.length} customers — segments are computed automatically from order history.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{totalCount} customers — segments are computed automatically from order history.</p>
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -155,6 +173,18 @@ export default function CustomersClient({
             </li>
           ))}
         </ul>
+      )}
+
+      {customers.length < totalCount && (
+        <div className="mt-4 flex flex-col items-center gap-1.5">
+          <button
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="min-h-10 rounded-[var(--radius)] border border-border-strong px-5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50"
+          >
+            {loadingMore ? 'Loading…' : `Load more (${customers.length} of ${totalCount})`}
+          </button>
+        </div>
       )}
 
       {selected && (

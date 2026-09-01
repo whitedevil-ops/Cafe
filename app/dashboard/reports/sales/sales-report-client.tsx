@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayKey, businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
-import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import type { SheetSpec } from '@/lib/xlsx-export'
 import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from '../_shared'
 
@@ -118,7 +118,7 @@ export default function SalesReportClient({
 
   // Export the CURRENTLY loaded, filtered report to a real .xlsx — one sheet
   // per breakdown, numeric cells for money/qty, user text guarded downstream.
-  function exportExcel() {
+  async function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
     // returning quietly means a bug here surfaces as a failed-export toast
     // instead of a button that silently does nothing.
@@ -168,6 +168,7 @@ export default function SalesReportClient({
         rows: r.by_staff,
       })
     }
+    const { downloadReport } = await import('@/lib/xlsx-export')
     return downloadReport({ cafeName, reportName: 'Sales', from, to }, sheets)
   }
 

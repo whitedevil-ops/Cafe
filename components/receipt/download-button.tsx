@@ -1,7 +1,7 @@
 'use client'
 
 import { Download, Printer } from 'lucide-react'
-import { downloadReceiptPdf, type ReceiptData } from '@/lib/pdf-export'
+import type { ReceiptData } from '@/lib/pdf-export'
 import { useFileExport } from '@/lib/use-file-export'
 
 export function ReceiptDownloadButton({ receipt }: { receipt: ReceiptData }) {
@@ -14,7 +14,14 @@ export function ReceiptDownloadButton({ receipt }: { receipt: ReceiptData }) {
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">
       <button
-        onClick={() => void runExport(() => downloadReceiptPdf(receipt))}
+        onClick={() =>
+          void runExport(async () => {
+            // Dynamic import: jsPDF (~136KB gzip) should only load once a
+            // visitor actually wants a download, not on every receipt view.
+            const { downloadReceiptPdf } = await import('@/lib/pdf-export')
+            return downloadReceiptPdf(receipt)
+          })
+        }
         disabled={exporting}
         className="flex items-center justify-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface py-2.5 text-[13.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-60"
       >

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { downloadCombosExport, type ComboExportRow } from '@/lib/menu-workbook'
+import type { ComboExportRow } from '@/lib/menu-workbook'
 import { savedFileHint } from '@/lib/is-desktop'
 import type { Combo, ComboSlot } from '@/lib/combos'
 import type { MenuCategory, MenuItemRow } from './types'
@@ -211,7 +211,7 @@ export default function CombosPanel({
     toast(draft.id ? 'Combo updated.' : `Combo "${saved.name}" created.`)
   }
 
-  function exportToExcel() {
+  async function exportToExcel() {
     const rows: ComboExportRow[] = []
     for (const c of combos) {
       for (const s of slotsOfCombo(c.id)) {
@@ -235,6 +235,7 @@ export default function CombosPanel({
       }
     }
     if (rows.length === 0) return toast('Nothing to export yet — create a combo first.', 'error')
+    const { downloadCombosExport } = await import('@/lib/menu-workbook')
     toast(savedFileHint(downloadCombosExport(cafeName, rows)))
   }
 

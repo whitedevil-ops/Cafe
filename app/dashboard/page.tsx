@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import { getCurrentCafe } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
@@ -15,6 +16,13 @@ export async function loadCommandCenterData(
   const supabase = await createClient()
   const dayStart = businessDayStartISO(timezone)
   const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
+
+  // Fired once, up front, so it runs concurrently with the rest of the
+  // Promise.all below instead of serializing the whole page behind it — the
+  // v_customer_stats fetch further down chains off this same promise instead
+  // of running unconditionally, so a café without the CRM feature never
+  // issues that query at all.
+  const crmCheck = hasFeature(cafeId, 'crm')
 
   const [
     { count: itemCount },
@@ -45,7 +53,11 @@ export async function loadCommandCenterData(
     supabase.from('table_sessions').select('table_id').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
     supabase.from('cafe_tables').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('payments').select('method, amount').eq('cafe_id', cafeId).gte('created_at', dayStart),
-    supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
+    crmCheck.then(async (allowed) =>
+      allowed
+        ? await supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false })
+        : { data: [] as { name: string; total_spend: number }[] },
+    ),
     supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
     supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
     supabase.from('cafes').select('cash_management_enabled, gst_registered, gstin, upi_id, online_payments_enabled').eq('id', cafeId).maybeSingle(),
@@ -54,12 +66,14 @@ export async function loadCommandCenterData(
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).limit(1),
     // v_customer_stats and low_stock_items are plain member-scoped reads with
     // no plan check of their own (unlike e.g. loyalty's RPCs) — the customers
-    // and inventory PAGES correctly gate behind these same two flags, but this
-    // command-center summary queried both unconditionally, so a café on a
-    // plan without CRM or inventory still saw real customer names/spend and
-    // stock alerts here. Same bug class as the loyaltyEnabled fix, just found
-    // on the home dashboard instead of the POS.
-    hasFeature(cafeId, 'crm'),
+    // and inventory PAGES correctly gate behind these same two flags. This
+    // command-center summary used to query both unconditionally regardless of
+    // plan, throwing the result away below for a café without the feature.
+    // v_customer_stats is now skipped entirely for those cafés (see crmCheck
+    // above); low_stock_items still runs unconditionally and is only
+    // filtered by inventoryAllowed below — same bug class as the
+    // loyaltyEnabled fix, just found on the home dashboard instead of the POS.
+    crmCheck,
     hasFeature(cafeId, 'inventory'),
   ])
 
@@ -133,19 +147,42 @@ async function loadDailySummary(cafeId: string, timezone: string): Promise<Daily
   const supabase = await createClient()
   const from = businessDaysAgoStartISO(1, timezone)
   const to = businessDayStartISO(timezone)
-  const { data, error } = await supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
-  if (error || !data) return null
-  const r = data as OverviewReportShape
-  return {
-    netSales: r.summary.net_sales,
-    orders: r.summary.orders,
-    aov: r.summary.aov,
-    refunds: r.summary.refunds,
-    cancelledOrders: r.summary.cancelled_orders,
-    compareNetSales: r.compare.net_sales,
-    compareOrders: r.compare.orders,
-    topItem: r.top_items[0]?.name ?? null,
-  }
+
+  // business_overview_report computes ~10 full breakdowns (by type, source,
+  // payment method, day, hour, top items/categories/customers, plus a full
+  // comparison-period re-run) even though this recap only ever reads a
+  // handful of summary + top-item fields off it — so every dashboard load
+  // was paying for the whole report. Cached per (cafe, business day): the
+  // recap is for a CLOSED business day, so a 5-minute window just collapses
+  // repeat dashboard loads onto one RPC call, it never shows a stale "day".
+  // `supabase` is built above, outside this cache scope, because
+  // unstable_cache forbids calling cookies()/headers() from inside it (see
+  // lib/menu-cache.ts) — unlike that cache, this RPC needs the caller's own
+  // session (is_cafe_member checks auth.uid()), so the cookie-bound client
+  // is closed over rather than swapped for an anon one. keyParts spells out
+  // cafeId/from/to explicitly since the wrapped function takes no arguments
+  // of its own for unstable_cache to derive a key from.
+  const getCached = unstable_cache(
+    async (): Promise<DailySummary | null> => {
+      const { data, error } = await supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
+      if (error || !data) return null
+      const r = data as OverviewReportShape
+      return {
+        netSales: r.summary.net_sales,
+        orders: r.summary.orders,
+        aov: r.summary.aov,
+        refunds: r.summary.refunds,
+        cancelledOrders: r.summary.cancelled_orders,
+        compareNetSales: r.compare.net_sales,
+        compareOrders: r.compare.orders,
+        topItem: r.top_items[0]?.name ?? null,
+      }
+    },
+    ['dashboard-daily-summary', cafeId, from, to],
+    { revalidate: 300 },
+  )
+
+  return getCached()
 }
 
 export default async function DashboardPage() {

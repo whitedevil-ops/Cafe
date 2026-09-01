@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { formatDate } from '@/lib/datetime'
-import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import type { SheetSpec } from '@/lib/xlsx-export'
 import { ReportsSubnav, ReportHeader, RangePicker, useReportRange } from '../_shared'
 
 export type GstReport = {
@@ -40,7 +40,7 @@ export default function GstClient({
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
     useReportRange<GstReport>({ cafeId, timezone, rpc: 'gst_invoice_report_premium', initialFrom, initialTo, initialReport, initialError })
 
-  function exportExcel() {
+  async function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
     // returning quietly means a bug here surfaces as a failed-export toast
     // instead of a button that silently does nothing.
@@ -105,6 +105,7 @@ export default function GstClient({
         rows: report.credit_notes.map((c) => ({ ...c, issued: formatDate(c.issued_at, timezone) })),
       },
     ]
+    const { downloadReport } = await import('@/lib/xlsx-export')
     return downloadReport({ cafeName, reportName: 'GST', from, to }, sheets)
   }
 

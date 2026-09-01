@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Plus } from 'lucide-react'
 import { FoodImage, VegDot, FoodBadge } from '@/components/ui/food-image'
 
@@ -24,7 +25,7 @@ export type PosItem = {
 // category rail) so phones never download a desktop-sized image.
 const GRID_SIZES = '(max-width: 639px) 50vw, (max-width: 1279px) 33vw, 25vw'
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   item,
   qty,
   isOfferActiveToday,
@@ -35,12 +36,14 @@ export function ProductCard({
   /** Precomputed by the caller (which owns the café's timezone) — see
    *  lib/offers.ts. */
   isOfferActiveToday: boolean
-  onAdd: () => void
+  /** Stable across renders (see pos-client.tsx) so memo() actually skips
+   *  re-rendering cards whose own props haven't changed. */
+  onAdd: (itemId: string) => void
 }) {
   return (
     <button
       type="button"
-      onClick={onAdd}
+      onClick={() => onAdd(item.id)}
       disabled={!item.available}
       aria-label={item.available ? `Add ${item.name}` : `${item.name} is sold out`}
       className={`group relative flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface text-left transition-all ${
@@ -97,4 +100,4 @@ export function ProductCard({
       </div>
     </button>
   )
-}
+})

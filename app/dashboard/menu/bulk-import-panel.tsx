@@ -6,8 +6,6 @@ import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
-import { WorkbookTooLargeError } from '@/lib/menu-workbook'
-import { downloadMenuTemplate, downloadMenuExport, readWorkbookRows } from '@/lib/menu-workbook'
 import { effectiveOptionCost, optionToDeltas } from '@/lib/menu-options'
 import { savedFileHint } from '@/lib/is-desktop'
 import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
@@ -84,16 +82,19 @@ export default function BulkImportPanel({
     setResult(null)
     setParsing(true)
     try {
-      previewRows(
-        await readWorkbookRows(file),
-        'No items were found in this file. Check it matches the template format.',
-      )
-    } catch (e) {
-      setFileError(
-        e instanceof WorkbookTooLargeError
-          ? `This file is larger than 5 MB. A menu spreadsheet is normally tiny — check you picked the right file.`
-          : `Could not read this file. Make sure it's a .csv or .xlsx export from Excel/Google Sheets.`,
-      )
+      const { readWorkbookRows, WorkbookTooLargeError } = await import('@/lib/menu-workbook')
+      try {
+        previewRows(
+          await readWorkbookRows(file),
+          'No items were found in this file. Check it matches the template format.',
+        )
+      } catch (e) {
+        setFileError(
+          e instanceof WorkbookTooLargeError
+            ? `This file is larger than 5 MB. A menu spreadsheet is normally tiny — check you picked the right file.`
+            : `Could not read this file. Make sure it's a .csv or .xlsx export from Excel/Google Sheets.`,
+        )
+      }
     } finally {
       setParsing(false)
     }
@@ -186,6 +187,7 @@ export default function BulkImportPanel({
         choices: choicesByItem.get(i.id),
         addons: addonsByItem.get(i.id),
       }))
+    const { downloadMenuExport } = await import('@/lib/menu-workbook')
     toast(savedFileHint(downloadMenuExport(cafeName, rows)))
   }
 
@@ -472,7 +474,10 @@ export default function BulkImportPanel({
           {!result && (
             <div className="space-y-3">
               <button
-                onClick={() => toast(savedFileHint(downloadMenuTemplate(cafeName)))}
+                onClick={async () => {
+                  const { downloadMenuTemplate } = await import('@/lib/menu-workbook')
+                  toast(savedFileHint(downloadMenuTemplate(cafeName)))
+                }}
                 className="flex min-h-11 w-full items-center gap-3 rounded-[var(--radius)] border border-border-strong px-4 text-left text-sm font-medium text-foreground hover:bg-surface-subtle"
               >
                 <Download size={17} className="shrink-0 text-primary" />

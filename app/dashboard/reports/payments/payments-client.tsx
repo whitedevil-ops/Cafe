@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDate } from '@/lib/datetime'
-import { downloadReport, type SheetSpec } from '@/lib/xlsx-export'
+import type { SheetSpec } from '@/lib/xlsx-export'
 import { ReportsSubnav, ReportHeader, RangePicker, Section, List, useReportRange } from '../_shared'
 
 export type PaymentsReport = {
@@ -38,7 +38,7 @@ export default function PaymentsClient({
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
     useReportRange<PaymentsReport>({ cafeId, timezone, rpc: 'payments_outstanding_report', initialFrom, initialTo, initialReport, initialError })
 
-  function exportExcel() {
+  async function exportExcel() {
     // Defensive: the button is disabled without a report. Throwing rather than
     // returning quietly means a bug here surfaces as a failed-export toast
     // instead of a button that silently does nothing.
@@ -84,6 +84,7 @@ export default function PaymentsClient({
         ],
       },
     ]
+    const { downloadReport } = await import('@/lib/xlsx-export')
     return downloadReport({ cafeName, reportName: 'Payments-Outstanding', from, to }, sheets)
   }
 

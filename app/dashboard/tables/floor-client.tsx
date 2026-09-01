@@ -327,6 +327,20 @@ export default function FloorClient({
     return m
   }, [sessions, ordersBySession, paidBySession])
 
+  // Per-table item count and bill total for the floor board — computed once
+  // here instead of via a filter/reduce inside every table card's render,
+  // same pattern as sessionByTable/payStateByTable above.
+  const tableStatsByTable = useMemo(() => {
+    const m = new Map<string, { bill: number; itemCount: number }>()
+    for (const s of sessions) {
+      const active = ordersBySession.get(s.id) ?? []
+      const bill = active.reduce((sum, o) => sum + o.total, 0)
+      const itemCount = items.filter((i) => active.some((o) => o.id === i.order_id)).reduce((sum, i) => sum + i.qty, 0)
+      m.set(s.table_id, { bill, itemCount })
+    }
+    return m
+  }, [sessions, ordersBySession, items])
+
   // Waiter-first ordering: a table that needs a human RIGHT NOW floats to
   // the top (call waiter, then bill requested, then any occupied table), so
   // scanning this grid on a phone while walking the floor shows urgency
@@ -715,8 +729,9 @@ export default function FloorClient({
         {sorted.map((t) => {
           const session = sessionByTable.get(t.id)
           const active = session ? (ordersBySession.get(session.id) ?? []) : []
-          const bill = active.reduce((s, o) => s + o.total, 0)
-          const itemCount = items.filter((i) => active.some((o) => o.id === i.order_id)).reduce((s, i) => s + i.qty, 0)
+          const stats = session ? tableStatsByTable.get(t.id) : undefined
+          const bill = stats?.bill ?? 0
+          const itemCount = stats?.itemCount ?? 0
           const billRequested = session?.status === 'bill_requested'
           // The table's kitchen status is its LEAST-advanced order — if one
           // order on the table is still preparing, the table isn't "ready"

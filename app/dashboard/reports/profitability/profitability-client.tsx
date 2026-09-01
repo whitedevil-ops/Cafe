@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
-import { exportProfitabilityXlsx } from '@/lib/xlsx-export'
 import { useFileExport } from '@/lib/use-file-export'
 import { ReportsSubnav } from '../_shared'
 
@@ -114,11 +113,12 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
         </div>
         <button
           onClick={() =>
-            void runExport(() => {
+            void runExport(async () => {
               // Defensive: the button is disabled without a summary. Throwing
               // rather than returning quietly means a bug here surfaces as a
               // failed-export toast instead of a button that does nothing.
               if (!s) throw new Error('no report loaded yet')
+              const { exportProfitabilityXlsx } = await import('@/lib/xlsx-export')
               return exportProfitabilityXlsx({ cafeName, summary: s, items, from: bounds(range).from, to: bounds(range).to, type })
             })
           }

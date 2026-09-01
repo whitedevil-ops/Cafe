@@ -7,6 +7,10 @@ import PurchasesClient, { type Supplier, type PurchaseOrder, type InventoryItemO
 
 export const dynamic = 'force-dynamic'
 
+// Unbounded before this: every purchase order the cafe has ever placed was
+// fetched and rendered client-side in one go. Page it like bills does.
+const PAGE_SIZE = 100
+
 export default async function PurchasesPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
@@ -20,14 +24,15 @@ export default async function PurchasesPage() {
     return <UpgradeRequired feature="Purchases & Suppliers" plan={planRow?.plan ?? 'current'} />
   }
 
-  const [{ data: suppliers }, { data: orders }, { data: items }] = await Promise.all([
+  const [{ data: suppliers }, { data: orders, count: ordersCount }, { data: items }] = await Promise.all([
     supabase.from('suppliers').select('id, name, contact_name, phone, email, address, notes, active, created_at')
       .eq('cafe_id', cafe.cafeId).order('name'),
     supabase
       .from('purchase_orders')
-      .select('id, status, order_date, expected_date, notes, cancel_reason, created_at, suppliers(name), purchase_order_items(id, inventory_item_id, qty_ordered, qty_received, unit_cost, inventory_items(name, unit))')
+      .select('id, status, order_date, expected_date, notes, cancel_reason, created_at, suppliers(name), purchase_order_items(id, inventory_item_id, qty_ordered, qty_received, unit_cost, inventory_items(name, unit))', { count: 'exact' })
       .eq('cafe_id', cafe.cafeId)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .range(0, PAGE_SIZE - 1),
     supabase.from('inventory_items').select('id, name, unit').eq('cafe_id', cafe.cafeId).order('name'),
   ])
 
@@ -37,6 +42,7 @@ export default async function PurchasesPage() {
       role={cafe.role}
       initialSuppliers={(suppliers ?? []) as Supplier[]}
       initialOrders={(orders ?? []) as unknown as PurchaseOrder[]}
+      initialOrdersCount={ordersCount ?? (orders ?? []).length}
       inventoryItems={(items ?? []) as InventoryItemOption[]}
     />
   )

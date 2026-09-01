@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Truck, Plus, X, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -59,17 +59,22 @@ const STATUS_BADGE: Record<PurchaseOrder['status'], { label: string; cls: string
 
 type DraftLine = { inventoryItemId: string; qty: string; unitCost: string }
 
+const PURCHASE_ORDER_SELECT =
+  'id, status, order_date, expected_date, notes, cancel_reason, created_at, suppliers(name), purchase_order_items(id, inventory_item_id, qty_ordered, qty_received, unit_cost, inventory_items(name, unit))'
+
 export default function PurchasesClient({
   cafeId,
   role,
   initialSuppliers,
   initialOrders,
+  initialOrdersCount,
   inventoryItems,
 }: {
   cafeId: string
   role: string
   initialSuppliers: Supplier[]
   initialOrders: PurchaseOrder[]
+  initialOrdersCount: number
   inventoryItems: InventoryItemOption[]
 }) {
   const supabase = useMemo(() => createClient(), [])
@@ -79,6 +84,23 @@ export default function PurchasesClient({
   const [tab, setTab] = useState<'orders' | 'suppliers'>('orders')
   const [suppliers, setSuppliers] = useState(initialSuppliers)
   const [orders, setOrders] = useState(initialOrders)
+  const [ordersCount, setOrdersCount] = useState(initialOrdersCount)
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false)
+
+  // Mirrors bills-client's Load more — purchase orders were previously
+  // fetched in full (every order the cafe has ever placed) with no bound.
+  const loadMoreOrders = useCallback(async () => {
+    setLoadingMoreOrders(true)
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .select(PURCHASE_ORDER_SELECT)
+      .eq('cafe_id', cafeId)
+      .order('created_at', { ascending: false })
+      .range(orders.length, orders.length + 99)
+    setLoadingMoreOrders(false)
+    if (error) return toast(error.message, 'error')
+    setOrders((list) => [...list, ...((data ?? []) as unknown as PurchaseOrder[])])
+  }, [supabase, cafeId, orders.length, toast])
 
   // ── Suppliers ──────────────────────────────────────────────────────────
   const [supName, setSupName] = useState('')
@@ -164,6 +186,7 @@ export default function PurchasesClient({
       })),
     }
     setOrders((list) => [newOrder, ...list])
+    setOrdersCount((n) => n + 1)
     setCreating(false)
     setPoSupplierId(''); setPoExpected(''); setPoNotes(''); setLines([{ inventoryItemId: '', qty: '', unitCost: '' }])
     toast('Purchase order created.')
@@ -391,6 +414,18 @@ export default function PurchasesClient({
               )
             })}
           </ul>
+
+          {orders.length < ordersCount && (
+            <div className="mt-4 flex flex-col items-center gap-1.5">
+              <button
+                onClick={() => void loadMoreOrders()}
+                disabled={loadingMoreOrders}
+                className="min-h-10 rounded-[var(--radius)] border border-border-strong px-5 text-[13px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-50"
+              >
+                {loadingMoreOrders ? 'Loading…' : `Load more (${orders.length} of ${ordersCount})`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

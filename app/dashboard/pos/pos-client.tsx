@@ -327,7 +327,10 @@ export default function PosClient({
     })
   }
 
-  function addPlain(item: FullItem) {
+  // useCallback (not a plain function) so its identity only changes with
+  // todayWeekday — handleAddItem below depends on it staying stable across
+  // the 5s/20s polling re-renders.
+  const addPlain = useCallback((item: FullItem) => {
     const unit = effectivePrice(item, todayWeekday)
     setCart((c) => {
       const found = c.find((l) => l.key === item.id)
@@ -337,7 +340,19 @@ export default function PosClient({
         unitPrice: unit, originalUnitPrice: unit !== item.price ? item.price : undefined, qty: 1,
       }]
     })
-  }
+  }, [todayWeekday])
+
+  // Stable reference passed to every ProductCard as onAdd — looking the item
+  // up by id here (instead of building a per-item closure at the call site)
+  // means the same function identity survives the 5s table-status poll and
+  // 20s stats poll, so React.memo on ProductCard can actually skip
+  // re-rendering cards whose own data hasn't changed.
+  const handleAddItem = useCallback((itemId: string) => {
+    const item = items.find((i) => i.id === itemId)
+    if (!item) return
+    if (item.hasOptions) setCustomizing(item)
+    else addPlain(item)
+  }, [items, addPlain])
 
   // A combo is one cart line carrying its whole configuration; the server
   // expands it into real component rows and prices the bundle itself.
@@ -1153,7 +1168,7 @@ export default function PosClient({
                     item={item}
                     qty={qtyByItem.get(item.id) ?? 0}
                     isOfferActiveToday={offerActiveIds.has(item.id)}
-                    onAdd={() => (item.hasOptions ? setCustomizing(item) : addPlain(item))}
+                    onAdd={handleAddItem}
                   />
                 ))}
               </div>

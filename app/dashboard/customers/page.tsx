@@ -7,6 +7,10 @@ import CustomersClient from './customers-client'
 
 export const dynamic = 'force-dynamic'
 
+// Unbounded before this: every customer the cafe has ever had was fetched
+// and rendered client-side in one go. Page it like bills/purchases do.
+const PAGE_SIZE = 100
+
 export type CustomerStat = {
   customer_id: string
   cafe_id: string
@@ -37,14 +41,23 @@ export default async function CustomersPage({
     return <UpgradeRequired feature="Customer Directory" plan={planRow?.plan ?? 'current'} />
   }
 
-  const { data } = await supabase
+  const { data, count } = await supabase
     .from('v_customer_stats')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('cafe_id', cafe.cafeId)
     .order('total_spend', { ascending: false })
+    .range(0, PAGE_SIZE - 1)
 
   const { segment } = await searchParams
   const initialSegment = (['new', 'regular', 'vip', 'at_risk'] as const).includes(segment as never) ? (segment as CustomerStat['segment']) : 'all'
 
-  return <CustomersClient cafeId={cafe.cafeId} timezone={cafe.timezone} initialCustomers={(data ?? []) as CustomerStat[]} initialSegment={initialSegment} />
+  return (
+    <CustomersClient
+      cafeId={cafe.cafeId}
+      timezone={cafe.timezone}
+      initialCustomers={(data ?? []) as CustomerStat[]}
+      totalCount={count ?? (data ?? []).length}
+      initialSegment={initialSegment}
+    />
+  )
 }
