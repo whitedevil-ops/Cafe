@@ -105,10 +105,28 @@ fn main() {
         ])
         .setup(|app| {
             spawn_update_check(app.handle());
-            // Independent of the webview entirely: starts once at launch and
-            // runs for the life of the process, whether the Kitchen page is
-            // open, some other page is showing, or the window is hidden.
-            tauri::async_runtime::spawn(bridge::run(app.handle().clone()));
+            // A dedicated OS thread with its own single-threaded Tokio
+            // runtime — deliberately NOT tauri::async_runtime::spawn, which
+            // would share Tauri's own runtime with the update checker above,
+            // the webview's event handling, and everything else the app
+            // does. Found live: this loop would sometimes stay completely
+            // silent after a fresh launch — no job ever claimed, no error
+            // ever logged — and only start polling after the app was
+            // closed and reopened, occasionally more than once. The loop
+            // itself retries forever every 4 seconds on any failure, so a
+            // one-off network hiccup can't explain going quiet for a whole
+            // process's lifetime; losing a scheduling race against
+            // everything else queued on a shared runtime at startup can.
+            // Its own runtime removes that contention entirely rather than
+            // hoping it wins the race.
+            let bridge_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to start the print bridge's runtime");
+                rt.block_on(bridge::run(bridge_handle));
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

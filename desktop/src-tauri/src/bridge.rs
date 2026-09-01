@@ -11,9 +11,11 @@
 //! is why KOT printing only ever worked while a browser tab stayed open on the
 //! Kitchen page.
 //!
-//! v1 scope is LAN printers only. A job routed to a usb/bluetooth printer is
-//! left alone rather than attempted or failed — that printer keeps working
-//! through the existing browser/Kitchen-page path, untouched by any of this.
+//! Handles LAN printers (direct TCP) and USB printers (via the Windows print
+//! spooler, see `winspool.rs`) — see `target_for()` below for the exact
+//! routing. A job routed to a bluetooth printer is left alone rather than
+//! attempted or failed — that printer keeps working through the existing
+//! browser/Kitchen-page path, untouched by any of this.
 
 use std::fs;
 use std::path::PathBuf;
@@ -42,6 +44,39 @@ fn bridge_token_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| format!("no data directory: {e}"))?;
     fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     Ok(dir.join("bridge.json"))
+}
+
+/// A plain-text log the bridge writes its own key lifecycle events to —
+/// startup, its first successful poll, and any error. This exists because
+/// `eprintln!` goes nowhere useful for a windows_subsystem = "windows" build
+/// (no attached console, and redirecting stdout/stderr around a fresh
+/// process launch did not reliably capture anything either): a café's own
+/// staff, or anyone remote-diagnosing over their shoulder, can open this
+/// file directly instead. Best-effort only — a failed log write is not
+/// itself logged, to avoid a loop chasing its own tail.
+fn log_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_local_data_dir().ok()?;
+    fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("bridge.log"))
+}
+
+fn log_line(app: &tauri::AppHandle, line: &str) {
+    let Some(path) = log_path(app) else { return };
+    let stamped = format!("{} {line}\n", chrono::Utc::now().to_rfc3339());
+    // Capped rather than left to grow forever — a bridge that's been paired
+    // for months must not slowly fill a café PC's disk. 64 KiB comfortably
+    // holds several days of the sparse events this actually logs (startup,
+    // first-success, and errors — not every routine 4-second poll).
+    const MAX_BYTES: u64 = 64 * 1024;
+    if let Ok(meta) = fs::metadata(&path) {
+        if meta.len() > MAX_BYTES {
+            let _ = fs::write(&path, "");
+        }
+    }
+    use std::io::Write;
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(stamped.as_bytes());
+    }
 }
 
 /// Called once, when an owner/manager pairs this PC from the web UI's printer
@@ -319,13 +354,22 @@ async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, St
 /// one print job silently not printing is this loop dying and nothing ever
 /// printing again until someone notices the app needs a restart.
 pub async fn run(app: tauri::AppHandle) {
+    log_line(&app, "bridge thread started, entering poll loop");
+
     let client = match reqwest::Client::builder().timeout(Duration::from_secs(10)).build() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[bridge] could not build HTTP client, bridge disabled: {e}");
+            let msg = format!("[bridge] could not build HTTP client, bridge disabled: {e}");
+            eprintln!("{msg}");
+            log_line(&app, &msg);
             return;
         }
     };
+
+    // Tracks whether this process has ever completed a poll — logged once,
+    // the first time it flips, as the clearest possible answer to "did the
+    // bridge actually come up this launch, and how long did it take."
+    let mut polled_yet = false;
 
     loop {
         let token = match load_bridge_token(app.clone()) {
@@ -339,11 +383,18 @@ pub async fn run(app: tauri::AppHandle) {
         if let Some(token) = token {
             match poll_once(&client, &token).await {
                 Ok(jobs) => {
+                    if !polled_yet {
+                        polled_yet = true;
+                        log_line(&app, "first poll succeeded, bridge is live");
+                    }
                     for job in jobs {
                         process_job(&client, &token, job).await;
                     }
                 }
-                Err(e) => eprintln!("[bridge] poll failed: {e}"),
+                Err(e) => {
+                    eprintln!("[bridge] poll failed: {e}");
+                    log_line(&app, &format!("poll failed: {e}"));
+                }
             }
         }
 
