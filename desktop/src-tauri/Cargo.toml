@@ -1,6 +1,6 @@
 [package]
 name = "khaopiyo"
-version = "1.1.7"
+version = "1.1.8"
 description = "KhaoPiyo — Restaurant OS desktop app"
 edition = "2021"
 

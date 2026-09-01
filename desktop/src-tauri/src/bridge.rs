@@ -351,6 +351,18 @@ async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
     }
 }
 
+/// The actual bug behind a day's worth of "the bridge silently isn't
+/// working": this used to deserialize the response body straight into
+/// `PollResponse` with no status check at all. `PollResponse.jobs` is
+/// `#[serde(default)]` (needed so a genuine `{"jobs": [...]}` body with no
+/// error field parses fine) — but that same leniency means the *error* body
+/// `{"error": "invalid bridge token"}` the API sends back on a 401 also
+/// parses without a hitch, into an empty `jobs: []`. A revoked or malformed
+/// token therefore looked identical to "polled fine, nothing to print",
+/// forever, with no error ever logged — this is what the bridge.log tracing
+/// added for the runtime-hang investigation actually caught: successful-
+/// looking polls with a token the server had already revoked. Checking the
+/// status first is the one-line fix that whole investigation was missing.
 async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, String> {
     let resp = client
         .post(POLL_URL)
@@ -358,6 +370,11 @@ async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, St
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("HTTP {status}: {body}"));
+    }
     let body: PollResponse = resp.json().await.map_err(|e| e.to_string())?;
     Ok(body.jobs)
 }
