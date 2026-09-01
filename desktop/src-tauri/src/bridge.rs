@@ -47,36 +47,12 @@ fn bridge_token_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 /// A plain-text log the bridge writes its own key lifecycle events to —
-/// startup, its first successful poll, and any error. This exists because
-/// `eprintln!` goes nowhere useful for a windows_subsystem = "windows" build
-/// (no attached console, and redirecting stdout/stderr around a fresh
-/// process launch did not reliably capture anything either): a café's own
-/// staff, or anyone remote-diagnosing over their shoulder, can open this
-/// file directly instead. Best-effort only — a failed log write is not
-/// itself logged, to avoid a loop chasing its own tail.
-fn log_path(app: &tauri::AppHandle) -> Option<PathBuf> {
-    let dir = app.path().app_local_data_dir().ok()?;
-    fs::create_dir_all(&dir).ok()?;
-    Some(dir.join("bridge.log"))
-}
-
+/// startup, its first successful poll, and any error. The mechanics moved to
+/// `applog.rs` when the updater needed the same thing (see that module for
+/// why it's shared rather than copied); this stays as the bridge's own name
+/// for its own file, so every call site below reads exactly as it did.
 fn log_line(app: &tauri::AppHandle, line: &str) {
-    let Some(path) = log_path(app) else { return };
-    let stamped = format!("{} {line}\n", chrono::Utc::now().to_rfc3339());
-    // Capped rather than left to grow forever — a bridge that's been paired
-    // for months must not slowly fill a café PC's disk. 64 KiB comfortably
-    // holds several days of the sparse events this actually logs (startup,
-    // first-success, and errors — not every routine 4-second poll).
-    const MAX_BYTES: u64 = 64 * 1024;
-    if let Ok(meta) = fs::metadata(&path) {
-        if meta.len() > MAX_BYTES {
-            let _ = fs::write(&path, "");
-        }
-    }
-    use std::io::Write;
-    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = f.write_all(stamped.as_bytes());
-    }
+    crate::applog::log_line(app, "bridge.log", line);
 }
 
 /// Called once, when an owner/manager pairs this PC from the web UI's printer

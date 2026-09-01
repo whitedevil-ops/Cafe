@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod applog;
 mod bridge;
 mod escpos;
 mod printing;
@@ -30,31 +31,68 @@ use tauri_plugin_updater::UpdaterExt;
 /// *before* installing — informational only, never a prompt (nothing waits
 /// on it), and its own failure is swallowed too: a notification that didn't
 /// show is not a reason to have skipped the update it was announcing.
+///
+/// Swallowed is not the same as invisible, though, and until now this was
+/// both: every branch below ended in a bare `return` or a `let _ =`, so an
+/// updater that never initialised, a check that errored, and a download that
+/// failed all looked identical from the outside to a till that was simply
+/// already current. That is exactly the shape of the bug that hid a broken
+/// print bridge for a full day, and it is why a till observed sitting on the
+/// old version for over a minute could not be diagnosed at all. Every branch
+/// now writes one line to `updater.log`. Nothing else changes: no prompt, no
+/// retry, no different timing, and still nothing that can stop the till
+/// opening.
 fn spawn_update_check(app: &tauri::AppHandle) {
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
+        applog::log_line(&handle, UPDATE_LOG, "update check started");
         let updater = match handle.updater() {
             Ok(u) => u,
-            Err(_) => return,
+            Err(e) => {
+                applog::log_line(&handle, UPDATE_LOG, &format!("updater unavailable: {e}"));
+                return;
+            }
         };
         // check() resolves to None when already current, which is the common
-        // path and not an error.
-        if let Ok(Some(update)) = updater.check().await {
-            // Shown BEFORE installing, not after: on Windows the process
-            // exits as part of running the installer (a documented Tauri
-            // limitation, not a bug here), so a toast queued for "once
-            // installed" could easily never get a chance to render before
-            // the app is already gone.
-            let _ = handle
-                .notification()
-                .builder()
-                .title("KhaoPiyo is updating")
-                .body(format!("Installing version {} — the app will restart in a moment.", update.version))
-                .show();
-            let _ = update.download_and_install(|_, _| {}, || {}).await;
+        // path and not an error. Logged all the same: "checked, nothing to
+        // do" and "the check never happened" are the two possibilities a
+        // stalled-on-an-old-version report has to tell apart, and only a line
+        // in the log can do that.
+        let update = match updater.check().await {
+            Ok(Some(u)) => u,
+            Ok(None) => {
+                applog::log_line(&handle, UPDATE_LOG, "already up to date");
+                return;
+            }
+            Err(e) => {
+                applog::log_line(&handle, UPDATE_LOG, &format!("update check failed: {e}"));
+                return;
+            }
+        };
+        // Written before the install rather than after, for the same reason
+        // the toast is: on Windows this process does not survive to write
+        // anything afterwards. A log that ends here means the download or
+        // install is where it got stuck.
+        applog::log_line(&handle, UPDATE_LOG, &format!("update found: version {}", update.version));
+        // Shown BEFORE installing, not after: on Windows the process
+        // exits as part of running the installer (a documented Tauri
+        // limitation, not a bug here), so a toast queued for "once
+        // installed" could easily never get a chance to render before
+        // the app is already gone.
+        let _ = handle
+            .notification()
+            .builder()
+            .title("KhaoPiyo is updating")
+            .body(format!("Installing version {} — the app will restart in a moment.", update.version))
+            .show();
+        if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
+            applog::log_line(&handle, UPDATE_LOG, &format!("download/install failed: {e}"));
         }
     });
 }
+
+/// Its own file, not the bridge's — see `applog.rs` for why.
+const UPDATE_LOG: &str = "updater.log";
 
 /// How long to keep the webview alive after the window is dismissed.
 ///
