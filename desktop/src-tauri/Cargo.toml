@@ -1,6 +1,6 @@
 [package]
 name = "khaopiyo"
-version = "1.1.5"
+version = "1.1.6"
 description = "KhaoPiyo — Restaurant OS desktop app"
 edition = "2021"
 
@@ -36,12 +36,11 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 # download the way some OS tzdata packages do.
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 chrono-tz = "0.10"
-# `time` for the bridge loop's poll interval. `rt` for
-# tokio::runtime::Builder — the bridge runs on its own dedicated thread with
-# its own minimal runtime rather than sharing Tauri's (see main.rs's setup
-# hook for why), which needs the runtime builder directly rather than relying
-# on tauri::async_runtime's own tokio instance.
-tokio = { version = "1", features = ["time", "rt"] }
+# Tauri already runs on tokio (tauri::async_runtime::spawn is built on it),
+# but that doesn't make the `tokio` crate name usable here — Cargo only
+# exposes crates listed as direct dependencies. Only the `time` feature is
+# needed: the bridge loop's poll interval.
+tokio = { version = "1", features = ["time"] }
 # Raw print-spooler access (winspool.rs) — sends ESC/POS bytes straight to a
 # named Windows printer queue, RAW datatype, no dialog. Pinned to the same
 # 0.61 line already resolved transitively by wry/webview2-com so this adds

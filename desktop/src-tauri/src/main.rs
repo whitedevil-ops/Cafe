@@ -105,28 +105,28 @@ fn main() {
         ])
         .setup(|app| {
             spawn_update_check(app.handle());
-            // A dedicated OS thread with its own single-threaded Tokio
-            // runtime — deliberately NOT tauri::async_runtime::spawn, which
-            // would share Tauri's own runtime with the update checker above,
-            // the webview's event handling, and everything else the app
-            // does. Found live: this loop would sometimes stay completely
-            // silent after a fresh launch — no job ever claimed, no error
-            // ever logged — and only start polling after the app was
-            // closed and reopened, occasionally more than once. The loop
-            // itself retries forever every 4 seconds on any failure, so a
-            // one-off network hiccup can't explain going quiet for a whole
-            // process's lifetime; losing a scheduling race against
-            // everything else queued on a shared runtime at startup can.
-            // Its own runtime removes that contention entirely rather than
-            // hoping it wins the race.
-            let bridge_handle = app.handle().clone();
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("failed to start the print bridge's runtime");
-                rt.block_on(bridge::run(bridge_handle));
-            });
+            // Independent of the webview entirely: starts once at launch and
+            // runs for the life of the process, whether the Kitchen page is
+            // open, some other page is showing, or the window is hidden.
+            //
+            // v1.1.4 briefly moved this onto its own dedicated OS thread with
+            // its own bare tokio::runtime::Builder, on the theory that
+            // sharing Tauri's runtime with the update checker was losing a
+            // startup scheduling race. Reverted: that "fix" made things
+            // worse, not better — found live (bridge.rs's own bridge.log)
+            // that the dedicated-runtime loop didn't just occasionally start
+            // late, it hung completely, forever, with the network itself
+            // confirmed fine (a manual request to the same endpoint from the
+            // same machine succeeded in under 2 seconds while the bridge
+            // thread sat silent for minutes). Something about a bare
+            // current-thread runtime built on a plain std::thread — reqwest's
+            // client, AppHandle access from a foreign runtime, or an
+            // interaction between the two — deadlocks in a way Tauri's own
+            // runtime does not. Back to the original, imperfect-but-actually-
+            // working behavior until the real cause is understood; the
+            // occasional need for a restart is a known, lesser evil than a
+            // silent permanent hang.
+            tauri::async_runtime::spawn(bridge::run(app.handle().clone()));
             Ok(())
         })
         .on_window_event(|window, event| {
