@@ -19,6 +19,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { formatDateTime } from '@/lib/datetime'
 import PrintQueuePanel from '@/components/kitchen/print-queue-panel'
+import { BRIDGE_ONLINE_MS } from '@/components/shell/print-bridge-status'
 
 export type KitchenStation = { id: string; name: string }
 export type KotPrinter = {
@@ -401,7 +402,9 @@ export default function KotPrintingPanel({
                 {tokens.map((t) => {
                   // `now` is state refreshed by the poll below, never Date.now()
                   // read during render — that would make this component impure.
-                  const online = t.last_seen_at && now - new Date(t.last_seen_at).getTime() < 120000
+                  // Shares BRIDGE_ONLINE_MS with the header indicator so the
+                  // two can never disagree about the same bridge.
+                  const online = t.last_seen_at && now - new Date(t.last_seen_at).getTime() < BRIDGE_ONLINE_MS
                   return (
                     <li key={t.id} className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border-strong px-3 py-2.5">
                       <div className="min-w-0">

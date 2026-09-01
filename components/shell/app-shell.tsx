@@ -13,6 +13,7 @@ import {
 import type { CafeOption } from '@/lib/cafe'
 import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
+import { PrintBridgeStatus } from '@/components/shell/print-bridge-status'
 
 type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string; screenKey: string }
 type NavGroup = { heading: string; items: NavItem[] }
@@ -100,6 +101,7 @@ export function AppShell({
   role,
   timezone,
   cashEnabled,
+  kotPrintingEnabled,
   features,
   screenAccess,
   cafes,
@@ -113,6 +115,7 @@ export function AppShell({
   role: string
   timezone: string
   cashEnabled: boolean
+  kotPrintingEnabled: boolean
   features: Record<string, boolean>
   screenAccess: string[]
   cafes: CafeOption[]
@@ -286,6 +289,10 @@ export function AppShell({
           </div>
 
           <div className="ml-auto flex items-center gap-1">
+            {/* Before Help/notifications so it sits nearest the middle of the
+                bar, where the eye lands — this is the one header item staff
+                are meant to notice without looking for it. */}
+            <PrintBridgeStatus cafeId={cafeId} timezone={timezone} enabled={kotPrintingEnabled} />
             <a
               href="mailto:support@khaopiyo.app"
               className="hidden h-10 items-center gap-1.5 rounded-[var(--radius)] px-3 text-[13px] font-medium text-muted-foreground hover:bg-surface-subtle sm:inline-flex"

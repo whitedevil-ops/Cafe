@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const supabase = await createClient()
   const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }, { data: allPlans }] = await Promise.all([
-    supabase.from('cafes').select('cash_management_enabled, plan').eq('id', cafe.cafeId).maybeSingle(),
+    supabase.from('cafes').select('cash_management_enabled, kot_printing_enabled, plan').eq('id', cafe.cafeId).maybeSingle(),
     supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
     supabase.rpc('owned_cafe_capacity'),
     supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),
@@ -134,6 +134,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       role={cafe.role}
       timezone={cafe.timezone}
       cashEnabled={cafeRow?.cash_management_enabled ?? false}
+      // Gates the header's auto-printing indicator. Off (or unreadable) means
+      // the header shows nothing at all — a café that doesn't print must never
+      // be told its printing is broken.
+      kotPrintingEnabled={cafeRow?.kot_printing_enabled ?? false}
       features={navFeatures}
       // An operator session has no cafe_members row, so my_screen_access()
       // returns an EMPTY array rather than null — and `[] ?? ALL_SCREENS` is
