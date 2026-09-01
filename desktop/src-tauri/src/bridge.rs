@@ -228,7 +228,21 @@ fn format_time_label(placed_at: &str, timezone: &str) -> Option<String> {
     Some(formatted.to_uppercase())
 }
 
-fn build_ticket(doc: RawTicket) -> Ticket {
+/// "NEW ORDER" for a fresh auto-printed ticket, "REPRINT" for one queued via
+/// the Reprint KOT button (`print_jobs.kind = 'reprint'`, see `reprint_kot`
+/// in 0027_kot_printing.sql) — `None` for a test ticket, which is already
+/// self-explanatory from its own kot_number/order_note. Printed as its own
+/// line so a reprint, which auto-printing can legitimately produce alongside
+/// the original, can never be mistaken for a second unrelated order.
+fn status_for_kind(kind: &str) -> Option<String> {
+    match kind {
+        "kot" => Some("NEW ORDER".to_string()),
+        "reprint" => Some("REPRINT".to_string()),
+        _ => None,
+    }
+}
+
+fn build_ticket(doc: RawTicket, kind: &str) -> Ticket {
     let time_label = doc
         .placed_at
         .as_deref()
@@ -245,6 +259,7 @@ fn build_ticket(doc: RawTicket) -> Ticket {
         copies: doc.copies,
         source: doc.source,
         cafe_name: doc.cafe_name,
+        status: status_for_kind(kind),
     }
 }
 
@@ -322,7 +337,7 @@ async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
         },
         // kot | reprint | test all share the same document shape.
         kind => match serde_json::from_value::<RawTicket>(job.document) {
-            Ok(raw) => printing::dispatch(target, &build_ticket(raw)),
+            Ok(raw) => printing::dispatch(target, &build_ticket(raw, kind)),
             Err(e) => Err(format!("malformed {kind} payload: {e}")),
         },
     };
@@ -356,48 +371,80 @@ async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, St
 pub async fn run(app: tauri::AppHandle) {
     log_line(&app, "bridge thread started, entering poll loop");
 
+    // Every step of the client build and the first few loop ticks is logged
+    // individually below, deliberately more verbose than this file would
+    // normally be. Found live: both the dedicated-thread version (v1.1.4/
+    // v1.1.5) AND the original tauri::async_runtime::spawn version (v1.1.6,
+    // reverting back to what v1.1.2/1.1.3 shipped) exhibit the identical
+    // symptom — "bridge thread started" logs, then nothing else, ever, no
+    // success and no error, across five separate launches on the same
+    // machine with confirmed-working network. That rules out the runtime/
+    // threading model as the cause, which was the working theory behind the
+    // v1.1.4 change and the v1.1.6 revert — something else, introduced
+    // alongside this logging in v1.1.4 and never removed, is the real
+    // suspect. This granular tick-by-tick trace exists to find out which
+    // single line it actually stalls on, instead of guessing a fourth time.
     let client = match reqwest::Client::builder().timeout(Duration::from_secs(10)).build() {
         Ok(c) => c,
         Err(e) => {
-            let msg = format!("[bridge] could not build HTTP client, bridge disabled: {e}");
-            eprintln!("{msg}");
-            log_line(&app, &msg);
+            log_line(&app, &format!("could not build HTTP client, bridge disabled: {e}"));
             return;
         }
     };
+    log_line(&app, "http client built");
 
     // Tracks whether this process has ever completed a poll — logged once,
     // the first time it flips, as the clearest possible answer to "did the
     // bridge actually come up this launch, and how long did it take."
     let mut polled_yet = false;
+    let mut tick: u32 = 0;
 
     loop {
+        tick += 1;
+        let verbose = tick <= 5;
+
+        if verbose {
+            log_line(&app, &format!("tick {tick}: loading bridge token"));
+        }
         let token = match load_bridge_token(app.clone()) {
             Ok(Some(t)) if !t.is_empty() => Some(t),
-            // No token yet is the normal "not paired" state — no log spam.
-            // A read error is treated the same way: try again next tick
-            // rather than spinning on a broken disk read.
-            _ => None,
+            Ok(_) => None,
+            Err(e) => {
+                if verbose {
+                    log_line(&app, &format!("tick {tick}: load_bridge_token error: {e}"));
+                }
+                None
+            }
         };
+        if verbose {
+            log_line(&app, &format!("tick {tick}: token present = {}", token.is_some()));
+        }
 
         if let Some(token) = token {
+            if verbose {
+                log_line(&app, &format!("tick {tick}: calling poll_once"));
+            }
             match poll_once(&client, &token).await {
                 Ok(jobs) => {
                     if !polled_yet {
                         polled_yet = true;
-                        log_line(&app, "first poll succeeded, bridge is live");
+                        log_line(&app, &format!("first poll succeeded ({} jobs)", jobs.len()));
+                    } else if verbose {
+                        log_line(&app, &format!("tick {tick}: poll succeeded ({} jobs)", jobs.len()));
                     }
                     for job in jobs {
                         process_job(&client, &token, job).await;
                     }
                 }
                 Err(e) => {
-                    eprintln!("[bridge] poll failed: {e}");
-                    log_line(&app, &format!("poll failed: {e}"));
+                    log_line(&app, &format!("tick {tick}: poll failed: {e}"));
                 }
             }
         }
 
+        if verbose {
+            log_line(&app, &format!("tick {tick}: sleeping {POLL_INTERVAL:?}"));
+        }
         tokio::time::sleep(POLL_INTERVAL).await;
     }
 }
@@ -443,10 +490,19 @@ mod tests {
             items: vec![TicketItem { qty: 1, name: "Tea".into(), modifiers: vec![], note: None }],
             ..Default::default()
         };
-        let ticket = build_ticket(raw);
+        let ticket = build_ticket(raw, "kot");
         assert_eq!(ticket.paper_mm, Some(80));
         assert!(ticket.time_label.unwrap().contains("19:42"));
         assert_eq!(ticket.items.len(), 1);
+        assert_eq!(ticket.status.as_deref(), Some("NEW ORDER"));
+    }
+
+    #[test]
+    fn marks_a_reprint_distinctly_from_a_new_order() {
+        let raw = RawTicket { kot_number: "42".into(), ..Default::default() };
+        assert_eq!(build_ticket(raw, "reprint").status.as_deref(), Some("REPRINT"));
+        let raw2 = RawTicket { kot_number: "42".into(), ..Default::default() };
+        assert_eq!(build_ticket(raw2, "test").status, None);
     }
 
     #[test]

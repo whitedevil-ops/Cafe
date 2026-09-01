@@ -63,6 +63,17 @@ pub struct Ticket {
     /// this device is white-labelled onto someone else's counter.
     #[serde(default)]
     pub cafe_name: Option<String>,
+    /// "NEW ORDER" / "REPRINT" — which `print_jobs.kind` produced this
+    /// ticket. Set by the caller (bridge.rs knows the job kind; this struct
+    /// never parses one itself) rather than derived here, since the bridge
+    /// is the only place that ever sees both the job and its document
+    /// together. `None` for a test ticket, which is already self-explanatory
+    /// without a status line. Printed as its own loud line so an
+    /// automatically-reprinted ticket — auto-printing can legitimately
+    /// produce more than one ticket for the same order — can never be
+    /// mistaken for a second, unrelated new order at a glance.
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 /// A change-KOT delta ticket: what got added to and removed from an order
@@ -378,6 +389,11 @@ fn render_footer(b: &mut Builder, source: Option<&str>, cafe_name: Option<&str>,
 
 fn render_one(b: &mut Builder, t: &Ticket, cols: usize) {
     render_brand_bar(b, t.cafe_name.as_deref(), cols);
+    if let Some(status) = t.status.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        b.align(1).bold(true);
+        b.line(&format!("*** {status} ***"));
+        b.bold(false);
+    }
     render_header(
         b,
         &Header {
@@ -495,6 +511,7 @@ mod tests {
             copies: None,
             source: None,
             cafe_name: Some("Brewora".into()),
+            status: Some("NEW ORDER".into()),
         }
     }
 
@@ -532,6 +549,22 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn shows_the_status_line_when_set() {
+        let mut t = ticket();
+        t.status = Some("NEW ORDER".into());
+        assert!(as_text(&render(&t)).contains("*** NEW ORDER ***"));
+        t.status = Some("REPRINT".into());
+        assert!(as_text(&render(&t)).contains("*** REPRINT ***"));
+    }
+
+    #[test]
+    fn omits_the_status_line_when_none() {
+        let mut t = ticket();
+        t.status = None;
+        assert!(!as_text(&render(&t)).contains("***"));
     }
 
     #[test]
