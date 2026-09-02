@@ -4,52 +4,29 @@ import { createClient } from '@/utils/supabase/server'
 import { hasFeature } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import LoyaltyClient, { type Reward } from './loyalty-client'
-import SpinWheelPanel from './spin-wheel-panel'
-import type { SpinSegment, SpinWheel, SpinAnalytics } from '@/lib/spin-wheel'
 
 export const dynamic = 'force-dynamic'
 
+// Spin & Win used to render at the bottom of this page. It has its own screen
+// now (app/dashboard/spin) because it is its own sellable feature since
+// migration 0204 — leaving it here meant a café that bought Spin without
+// Loyalty had to reach it through a screen they had no entitlement to.
 export default async function LoyaltyPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
 
-  // Spin & Win is its own sellable feature now (see migration 0204), so this
-  // page can no longer be gated on `loyalty` alone: a café that bought Spin
-  // without Loyalty would be sold a wheel it could never configure, since the
-  // editor lives here. Each half is gated on its own key below, and the page
-  // only refuses outright when neither is on.
-  const [loyaltyOn, spinOn] = await Promise.all([
-    hasFeature(cafe.cafeId, 'loyalty'),
-    hasFeature(cafe.cafeId, 'spin'),
-  ])
-  if (!loyaltyOn && !spinOn) {
+  if (!(await hasFeature(cafe.cafeId, 'loyalty'))) {
     const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
     return <UpgradeRequired feature="Loyalty & rewards" plan={planRow?.plan ?? 'current'} />
   }
 
-  const [{ data: settings }, { data: rewards }, { data: menuItems }, { data: wheel }] =
-    await Promise.all([
-      supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100').eq('id', cafe.cafeId).single(),
-      supabase.from('rewards').select('id, name, points_cost, active, created_at, menu_item_id, variant_id').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
-      supabase.from('menu_items').select('id, name, price, archived').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
-      supabase.from('spin_wheels').select('id, cafe_id, title, subtitle, active, expiry_days, min_order_amount, enable_confetti, enable_sound').eq('cafe_id', cafe.cafeId).maybeSingle(),
-    ])
-
-  const { data: wheelSegments } = wheel
-    ? await supabase
-        .from('spin_segments')
-        .select('id, label, kind, menu_item_id, variant_id, value, weight, color, max_claims, claims_used, expiry_days')
-        .eq('wheel_id', wheel.id)
-        .order('sort')
-    : { data: [] }
-
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString()
-  const { data: spinAnalytics } = wheel
-    ? await supabase.rpc('spin_wheel_analytics', { p_cafe_id: cafe.cafeId, p_from: monthStart, p_to: now.toISOString() })
-    : { data: null }
+  const [{ data: settings }, { data: rewards }, { data: menuItems }] = await Promise.all([
+    supabase.from('cafes').select('loyalty_enabled, loyalty_points_per_100').eq('id', cafe.cafeId).single(),
+    supabase.from('rewards').select('id, name, points_cost, active, created_at, menu_item_id, variant_id').eq('cafe_id', cafe.cafeId).order('points_cost', { ascending: true }),
+    supabase.from('menu_items').select('id, name, price, archived').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
+  ])
 
   const itemIds = (menuItems ?? []).map((i) => i.id)
   const { data: menuItemVariants } = itemIds.length
@@ -57,8 +34,6 @@ export default async function LoyaltyPage() {
     : { data: [] }
 
   return (
-    <>
-    {loyaltyOn && (
     <LoyaltyClient
       cafeId={cafe.cafeId}
       role={cafe.role}
@@ -68,18 +43,5 @@ export default async function LoyaltyPage() {
       menuItems={menuItems ?? []}
       menuItemVariants={menuItemVariants ?? []}
     />
-    )}
-    {spinOn && (
-    <SpinWheelPanel
-      cafeId={cafe.cafeId}
-      canManage={cafe.role === 'owner' || cafe.role === 'manager'}
-      items={(menuItems ?? []) as { id: string; name: string; price: number; archived: boolean }[]}
-      itemVariants={menuItemVariants ?? []}
-      initialWheel={(wheel ?? null) as SpinWheel | null}
-      initialSegments={(wheelSegments ?? []) as SpinSegment[]}
-      initialAnalytics={spinAnalytics as SpinAnalytics | null}
-    />
-    )}
-    </>
   )
 }
