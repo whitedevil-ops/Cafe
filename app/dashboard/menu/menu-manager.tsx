@@ -1119,12 +1119,12 @@ export default function MenuManager({
                   Only if this is sold more than one way — Small/Medium/Large, 6 Slice, Steam/Fried. Give each one the
                   price a guest pays{canSeeCost && ' and the ₹ you keep'}. Leave empty if there&apos;s just one.
                 </p>
+                {/* px-3 mirrors the inputs' own padding so each label sits over
+                    its value instead of 12px to the left of it, and the money
+                    columns are right-aligned to match the figures beneath them
+                    — a price column that starts at the left edge reads as
+                    text, not as an amount. */}
                 {draft.variants.length > 0 && (
-                  {/* px-3 mirrors the inputs' own padding so each label sits
-                      over its value instead of 12px to the left of it, and the
-                      money columns are right-aligned to match the figures
-                      beneath them — a price column that starts at the left
-                      edge reads as text, not as an amount. */}
                   <div className="mt-2 flex gap-2 text-[11.5px] text-muted-foreground">
                     <span className="flex-1 px-3">Name</span>
                     <span className="w-24 px-3 text-right">Price ₹</span>
