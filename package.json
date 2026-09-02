@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration/order-engine.test.ts tests/integration/combos.test.ts",
+    "test:integration": "vitest run tests/integration/order-engine.test.ts tests/integration/combos.test.ts tests/integration/order-numbering.test.ts",
     "test:rls": "vitest run tests/integration/two-tenant-isolation.test.ts",
     "test:security": "vitest run tests/integration/security-boundaries.test.ts tests/integration/race-conditions.test.ts tests/integration/spin-prize.test.ts tests/integration/inventory-reversal.test.ts"
   },

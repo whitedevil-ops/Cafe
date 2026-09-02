@@ -24,9 +24,15 @@ export type HealthRow = {
   onboarding_percent: number
   failed_sms_count: number
   days_until_expiry: number | null
-  /** Desktop app version last reported by this café's print bridge, and when.
-   *  Both null when no bridge has ever connected — which is itself the useful
-   *  signal, since a café can be paired and still never have checked in. */
+  /** Desktop app version last reported by this café's print bridge, and when
+   *  it last checked in.
+   *
+   *  These two answer DIFFERENT questions and must not be conflated.
+   *  `bridge_last_seen_at` is the only evidence of whether printing has ever
+   *  worked. `app_version` is null for any café still on a build older than
+   *  v1.2.1, because reporting it is what that release added — so a perfectly
+   *  healthy café that checked in a minute ago has no version, and reading a
+   *  missing version as "never connected" reported two live cafés as dead. */
   app_version: string | null
   bridge_last_seen_at: string | null
 }
@@ -268,6 +274,11 @@ export default function CafeDetailClient({
   const router = useRouter()
   const { toast } = useToast()
   const confirm = useConfirm()
+  // Captured once at mount rather than read during render: Date.now() in JSX
+  // is impure and this repo's lint rejects it (the café-facing bridge indicator
+  // keeps its clock in state for the same reason). Freshness only needs to be
+  // right when the page is opened — ops reloads to re-check.
+  const [renderedAt] = useState(() => Date.now())
   const [data, setData] = useState(detail)
   const [tab, setTab] = useState<TabKey>('overview')
   const [statusDialog, setStatusDialog] = useState<{ to: string; label: string; destructive: boolean } | null>(null)
@@ -950,11 +961,20 @@ export default function CafeDetailClient({
                     longer than that. */}
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-border px-3 py-2.5">
                   <span className="text-[11.5px] uppercase tracking-wide text-muted-foreground">Desktop app</span>
-                  {health.app_version ? (
+                  {health.bridge_last_seen_at ? (
                     <>
-                      <Badge tone="success">v{health.app_version}</Badge>
+                      {/* Freshness uses the same 2-minute window as the café's
+                          own header indicator and printer_health(), so ops and
+                          the café never disagree about the same bridge. */}
+                      <Badge tone={renderedAt - new Date(health.bridge_last_seen_at).getTime() < 120000 ? 'success' : 'warning'}>
+                        {renderedAt - new Date(health.bridge_last_seen_at).getTime() < 120000 ? 'Connected' : 'Not printing now'}
+                      </Badge>
+                      {/* Absent on anything older than v1.2.1, which is what
+                          added version reporting — so "unknown" here means an
+                          older build, never a broken one. */}
+                      <Badge tone="neutral">{health.app_version ? `v${health.app_version}` : 'version unknown'}</Badge>
                       <span className="text-[12.5px] text-muted-foreground">
-                        print bridge last seen {health.bridge_last_seen_at ? fmtDateTime(health.bridge_last_seen_at) : '—'}
+                        last checked in {fmtDateTime(health.bridge_last_seen_at)}
                       </span>
                     </>
                   ) : (

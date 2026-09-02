@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy } from 'lucide-react'
+import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy, Download } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { isDesktopApp } from '@/lib/is-desktop'
 import { getDesktopPrinter, setDesktopPrinter, listSerialPorts, testPrintNative } from '@/lib/desktop-print'
@@ -123,6 +123,20 @@ export default function KotPrintingPanel({
   // Refreshed by the poll below so freshness checks read state, not a live
   // clock during render.
   const [now, setNow] = useState(() => Date.now())
+  const [pairing, setPairing] = useState(false)
+  // Pairing used to end the moment a token existed — which is not the same
+  // thing as printing working, and is exactly how two real cafés sat for weeks
+  // on a bridge that had never once checked in. So after pairing we watch for
+  // the first real check-in instead of congratulating anyone early. null means
+  // there is nothing to confirm right now.
+  const [pairedAt, setPairedAt] = useState<number | null>(null)
+  const [waitedMs, setWaitedMs] = useState(0)
+
+  // A check-in stamped AFTER the moment we paired — not merely "some bridge
+  // is online" — is the one thing that proves this particular pairing reached
+  // the app and came back.
+  const checkedIn =
+    pairedAt !== null && tokens.some((t) => t.last_seen_at && new Date(t.last_seen_at).getTime() > pairedAt)
 
   const refresh = useCallback(async () => {
     const [{ data: p }, { data: s }, { data: t }] = await Promise.all([
@@ -141,6 +155,16 @@ export default function KotPrintingPanel({
     const id = setInterval(() => { setNow(Date.now()); void refresh() }, 20000)
     return () => clearInterval(id)
   }, [enabled, refresh])
+
+  // While waiting for that first check-in, poll every 3s rather than 20s: the
+  // bridge polls every ~4 seconds, so a pairing that worked can be confirmed
+  // almost immediately — and whoever just clicked Pair is standing at the
+  // counter waiting for an answer. Stops the moment it checks in.
+  useEffect(() => {
+    if (pairedAt === null || checkedIn) return
+    const id = setInterval(() => { setWaitedMs(Date.now() - pairedAt); void refresh() }, 3000)
+    return () => clearInterval(id)
+  }, [pairedAt, checkedIn, refresh])
 
   async function toggleEnabled(next: boolean) {
     setEnabled(next)
@@ -268,37 +292,36 @@ export default function KotPrintingPanel({
     void refresh()
   }
 
+  // Only reachable inside the desktop app: the button that calls this isn't
+  // rendered in a browser at all, because this machine IS the one the bridge
+  // has to run on. A token issued in a browser had nowhere to go — there is no
+  // paste-a-token screen anywhere — so it only ever ended in somebody
+  // hand-editing bridge.json on the counter PC.
   async function pairBridge() {
+    setPairing(true)
     const { data, error } = await supabase.rpc('issue_print_bridge_token', {
       p_cafe_id: cafeId,
       p_name: 'Print bridge',
     })
+    setPairing(false)
     if (error) return toast(error.message, 'error')
     const token = data as string
     setNewToken(token)
-    // Inside the desktop app, this IS the machine the bridge should run on —
-    // save it locally too so pairing is one click, not copy-paste into a
-    // program that doesn't have its own UI. Still shown/copyable above for
-    // re-pairing another machine, or if local save fails for any reason.
-    //
-    // The running app also needs a restart to actually start using a token
-    // saved while it's already open — the background print-checker was
-    // found live to not pick up a mid-session file change on its own, even
-    // though the save itself succeeds. Telling staff this explicitly beats
-    // them wondering why printing still isn't working after a "successful"
-    // pairing.
-    if (desktop) {
-      const saved = await saveBridgeToken(token)
-      setPairedHere(saved.ok)
-      if (saved.ok) {
-        toast('Paired — close and reopen the app once for it to start printing automatically.')
-      } else {
-        // The reason is carried through verbatim rather than smoothed over:
-        // it is the difference between "this build of the app can't save at
-        // all, update it" and "this one PC can't write the file", and nobody
-        // standing at the counter can tell those apart otherwise.
-        toast(`Paired on the server, but this device could not save it locally (${saved.error}) — try clicking Pair this device again, or restart the app first and retry.`, 'error')
-      }
+    const saved = await saveBridgeToken(token)
+    setPairedHere(saved.ok)
+    if (saved.ok) {
+      // Deliberately does NOT say "you're done": a saved token is not a
+      // printing bridge. The banner below waits for the app's first check-in
+      // and only then calls it connected.
+      setWaitedMs(0)
+      setPairedAt(Date.now())
+      toast('Paired — checking that this computer connects.')
+    } else {
+      // The reason is carried through verbatim rather than smoothed over:
+      // it is the difference between "this build of the app can't save at
+      // all, update it" and "this one PC can't write the file", and nobody
+      // standing at the counter can tell those apart otherwise.
+      toast(`Paired on the server, but this device could not save it locally (${saved.error}) — try clicking Pair this device again, or restart the app first and retry.`, 'error')
     }
     void refresh()
   }
@@ -306,6 +329,7 @@ export default function KotPrintingPanel({
   async function unpairThisDevice() {
     await clearBridgeToken()
     setPairedHere(false)
+    setPairedAt(null)
     toast('This device will stop polling for print jobs.')
   }
 
@@ -319,6 +343,10 @@ export default function KotPrintingPanel({
     if (!ok) return
     const { error } = await supabase.rpc('revoke_print_bridge_token', { p_token_id: id })
     if (error) return toast(error.message, 'error')
+    // Whichever token that was, this panel can no longer claim a live pairing
+    // was just confirmed — the banner would otherwise sit there reassuring
+    // somebody about a bridge they have just switched off.
+    setPairedAt(null)
     // Deliberately does NOT clear this machine's local bridge.json: a café
     // can pair more than one machine, and this UI has no way to tell whether
     // the token being revoked here is the one this particular device is
@@ -384,16 +412,18 @@ export default function KotPrintingPanel({
           <div>
             <h3 className="text-[13.5px] font-semibold text-foreground">Print bridge</h3>
             <p className="mt-1 max-w-lg text-[12.5px] leading-relaxed text-muted-foreground">
-              This is what makes printing automatic — new orders print on their own, on a LAN printer, with
-              no Kitchen tab open and no one clicking Print. Pair the KhaoPiyo desktop app on the counter
-              computer once; it keeps polling for jobs in the background for as long as it&apos;s running.
+              This is what makes printing automatic — new orders print on their own, with no Kitchen tab open
+              and no one clicking Print. Pair the KhaoPiyo desktop app on the counter computer once; it keeps
+              polling for jobs in the background for as long as it&apos;s running.
             </p>
             <p className="mt-2 max-w-lg rounded-[var(--radius)] bg-surface-subtle px-3 py-2 text-[12px] leading-relaxed text-muted-foreground">
-              Without a paired bridge, printing still works — use <strong className="text-foreground">Reprint
-              KOT</strong> or <strong className="text-foreground">Print now on this device</strong> on the
-              Kitchen screen — but it needs a staff member to act on each order. USB printers print through
-              that manual path only; a Bluetooth printer can connect directly to this browser below for a
-              one-tap setup; the automatic bridge covers LAN/Wi-Fi printers.
+              The bridge prints to <strong className="text-foreground">LAN/Wi-Fi</strong> printers and to
+              <strong className="text-foreground"> USB</strong> printers plugged into that same computer (it
+              sends those through Windows, so the printer needs its driver installed there).
+              <strong className="text-foreground"> Bluetooth</strong> is the exception — a Bluetooth printer
+              connects straight to Chrome or Edge instead. Without a paired bridge nothing breaks: <strong className="text-foreground">Reprint
+              KOT</strong> and <strong className="text-foreground">Print now on this device</strong> on the
+              Kitchen screen still print, but someone has to act on every order.
             </p>
 
             {tokens.length === 0 ? (
@@ -416,8 +446,10 @@ export default function KotPrintingPanel({
                           {online ? <CircleCheck size={13} className="text-success" /> : <CircleAlert size={13} className="text-warning" />}
                           {t.name}
                         </p>
-                        <p className="text-[11.5px] text-muted-foreground">
-                          {t.last_seen_at ? `Last seen ${formatDateTime(t.last_seen_at, timezone)}` : 'Never connected'}
+                        <p className={`text-[11.5px] ${t.last_seen_at ? 'text-muted-foreground' : 'text-warning'}`}>
+                          {t.last_seen_at
+                            ? `Last seen ${formatDateTime(t.last_seen_at, timezone)}`
+                            : 'Never connected — nothing has ever printed automatically from this pairing.'}
                         </p>
                       </div>
                       {canManage && (
@@ -443,18 +475,80 @@ export default function KotPrintingPanel({
               </p>
             )}
 
-            {canManage && (
-              <Button variant="secondary" size="sm" className="mt-3" onClick={pairBridge}>
-                Pair {desktop ? 'this device' : 'a new bridge'}
-              </Button>
+            {desktop ? (
+              canManage && (
+                <Button variant="secondary" size="sm" className="mt-3" onClick={pairBridge} loading={pairing}>
+                  Pair this device
+                </Button>
+              )
+            ) : (
+              /* A browser tab cannot run the bridge and has nowhere to put a
+                 token, so offering Pair here was a dead end that ended in a
+                 file being written by hand on the counter PC. Say where
+                 pairing actually happens, and hand over the installer. */
+              <div className="mt-3 max-w-lg rounded-[var(--radius)] border border-border-strong bg-surface-subtle p-3">
+                <p className="text-[12.5px] font-medium text-foreground">
+                  Pairing happens in the KhaoPiyo desktop app, on the computer the printer is attached to —
+                  not in this browser.
+                </p>
+                <ol className="mt-2 list-decimal space-y-1 pl-4 text-[12px] leading-relaxed text-muted-foreground">
+                  <li>Install the app on that computer and sign in.</li>
+                  <li>Open <strong className="text-foreground">Settings → KOT printing</strong> inside the app.</li>
+                  <li>
+                    Click <strong className="text-foreground">Pair this device</strong>. It confirms there in
+                    seconds, and shows up connected on this page too.
+                  </li>
+                </ol>
+                <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                  <a
+                    href="/downloads/KhaoPiyo-Setup.exe"
+                    download
+                    className="inline-flex h-11 items-center gap-2 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] font-medium text-foreground hover:bg-surface-subtle"
+                  >
+                    <Download size={14} /> Download for Windows
+                  </a>
+                  <a href="/downloads/KhaoPiyo.dmg" download className="text-[12px] text-muted-foreground underline">
+                    Mac version
+                  </a>
+                </div>
+              </div>
             )}
+
+            {/* The end of pairing, and the only honest one: the app on this
+                counter actually came back for work. Before this, "paired" was
+                a token in a table and a café found out days later. */}
+            {pairedAt !== null &&
+              (checkedIn ? (
+                <p className="mt-3 flex max-w-lg items-start gap-1.5 rounded-[var(--radius)] border border-success bg-success-subtle px-3 py-2.5 text-[12.5px] font-medium text-success">
+                  <CircleCheck size={14} className="mt-px shrink-0" />
+                  Connected — this computer is picking up print jobs. Automatic printing is set up. Use Test
+                  print on a printer below to watch a real ticket come out.
+                </p>
+              ) : (
+                <div className="mt-3 max-w-lg rounded-[var(--radius)] border border-border-strong px-3 py-2.5 text-[12.5px] text-foreground">
+                  <p className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+                    Waiting for this computer to check in — usually about five seconds. Leave this page open.
+                  </p>
+                  {waitedMs > 45000 && (
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-warning">
+                      Still nothing after {Math.round(waitedMs / 1000)}s. Close the KhaoPiyo app completely —
+                      check the system tray — then open it again; the pairing stays saved. If it still
+                      doesn&apos;t connect, this computer is probably running an older version of the app.
+                    </p>
+                  )}
+                </div>
+              ))}
 
             {newToken && (
               <div className="mt-3 rounded-[var(--radius)] border border-primary bg-primary-subtle p-3">
+                {/* There is no paste-a-token screen anywhere, so this used to
+                    ask for something nobody could do. It is a support artefact,
+                    not a step: the app has already saved it itself. */}
                 <p className="text-[12.5px] font-medium text-primary">
-                  {desktop
-                    ? 'This device is paired. To pair another computer, copy this token and paste it there.'
-                    : 'Open Settings → KOT printing on the café computer’s desktop app and pair from there — this token is shown once and never again.'}
+                  This device&apos;s pairing token — already saved here, nothing to copy or type in anywhere.
+                  It is shown once and never again, so keep it only if support asks. Another computer pairs
+                  itself the same way: open the KhaoPiyo app there and click Pair this device.
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1.5 text-[11.5px] text-foreground">{newToken}</code>
@@ -597,9 +691,9 @@ export default function KotPrintingPanel({
             <div className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
               <p>
                 Pairing a print bridge above is the recommended way to print automatically. This is only for
-                the manual fallback button on the Kitchen screen, for a printer the bridge doesn&apos;t cover
-                (USB/Bluetooth) or while no bridge is paired yet — one-time setup so that button skips the
-                preview window too.
+                the manual fallback button on the Kitchen screen, for a Bluetooth printer (the one kind the
+                bridge doesn&apos;t cover) or while no bridge is paired yet — one-time setup so that button
+                skips the preview window too.
               </p>
               <p>
                 <strong className="text-foreground">1.</strong> In Windows → Printers &amp; scanners, turn
@@ -711,23 +805,24 @@ export default function KotPrintingPanel({
                     <select value={draft.connection_type}
                       onChange={(e) => setDraft({ ...draft, connection_type: e.target.value as KotPrinter['connection_type'] })}
                       className={inputCls}>
-                      {/* All three print, because none of them are reached by
-                          this app: Windows owns the connection and the browser
-                          prints to whatever it exposes. The field is kept
-                          because it is how a café thinks about its printer, and
-                          because a future bridge will need to know. */}
+                      {/* Not cosmetic: the bridge reads this to decide how to
+                          reach the printer — a raw TCP socket for lan, the
+                          Windows print spooler for usb, and nothing at all for
+                          bluetooth, which only the browser paths can drive. */}
                       <option value="lan">LAN / Wi-Fi</option>
                       <option value="usb">USB</option>
                       <option value="bluetooth">Bluetooth</option>
                     </select>
                   </Field>
                   <p className="text-[11.5px] leading-relaxed text-muted-foreground sm:col-span-2">
-                    However it connects, pair or plug the printer into this computer first and install its
-                    driver, so it appears in Windows under <strong className="text-foreground">Printers &amp;
-                    scanners</strong> — not just under Bluetooth devices. Tickets are printed by this
-                    browser, so any printer Windows can see will work, Bluetooth included. If pairing left
-                    it listed only as a device, Windows has no driver for it yet and nothing will print
-                    until one is installed.
+                    A <strong className="text-foreground">LAN/Wi-Fi</strong> printer needs nothing but its IP
+                    address here — the bridge opens the connection itself, no driver anywhere. A
+                    <strong className="text-foreground"> USB</strong> one must be plugged into the computer
+                    running the bridge and show up there under <strong className="text-foreground">Printers
+                    &amp; scanners</strong>, not just under Bluetooth devices: listed only as a device means
+                    Windows has no driver for it yet and nothing will print until one is installed.
+                    <strong className="text-foreground"> Bluetooth</strong> is not carried by the bridge —
+                    connect it to Chrome or Edge on the device you print from, or use the print dialog.
                   </p>
                   {draft.connection_type === 'lan' && (
                     <>
