@@ -1120,10 +1120,15 @@ export default function MenuManager({
                   price a guest pays{canSeeCost && ' and the ₹ you keep'}. Leave empty if there&apos;s just one.
                 </p>
                 {draft.variants.length > 0 && (
+                  {/* px-3 mirrors the inputs' own padding so each label sits
+                      over its value instead of 12px to the left of it, and the
+                      money columns are right-aligned to match the figures
+                      beneath them — a price column that starts at the left
+                      edge reads as text, not as an amount. */}
                   <div className="mt-2 flex gap-2 text-[11.5px] text-muted-foreground">
-                    <span className="flex-1">Name</span>
-                    <span className="w-24">Price ₹</span>
-                    {canSeeCost && <span className="w-24">Margin ₹</span>}
+                    <span className="flex-1 px-3">Name</span>
+                    <span className="w-24 px-3 text-right">Price ₹</span>
+                    {canSeeCost && <span className="w-24 px-3 text-right">Margin ₹</span>}
                     <span className="w-6" />
                   </div>
                 )}
@@ -1142,7 +1147,7 @@ export default function MenuManager({
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="149"
                       title="What a guest pays for this one"
-                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                     />
                     {canSeeCost && (
                       <input
@@ -1152,7 +1157,7 @@ export default function MenuManager({
                         onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, margin: e.target.value } : x)) })}
                         placeholder="optional"
                         title="What you keep on this one. Only you see it."
-                        className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                        className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                       />
                     )}
                     <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove option" className="w-6 text-muted-foreground hover:text-destructive">×</button>
@@ -1187,9 +1192,9 @@ export default function MenuManager({
                       min={0}
                       onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="₹"
-                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                     />
-                    <button type="button" onClick={() => setDraft({ ...draft, addons: draft.addons.filter((_, i) => i !== idx) })} aria-label="Remove add-on" className="px-2 text-muted-foreground hover:text-destructive">×</button>
+                    <button type="button" onClick={() => setDraft({ ...draft, addons: draft.addons.filter((_, i) => i !== idx) })} aria-label="Remove add-on" className="w-6 text-muted-foreground hover:text-destructive">×</button>
                   </div>
                 ))}
               </div>
