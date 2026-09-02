@@ -27,6 +27,16 @@ export type ReceiptData = {
     subtotal: number; discount: number; tax: number; service_charge: number; total: number
     coupon_code: string | null; table_label: string | null; phone_masked: string | null
     customer_name: string | null
+    /** Who rang the bill up — profiles.full_name via orders.staff_id (0209). */
+    staff_name?: string | null
+    /**
+     * The unmasked number, and ONLY present when the caller is an active member
+     * of the café — /r/<token> is a public link that gets forwarded, so a guest
+     * (and anyone they forward to) still gets phone_masked and nothing more.
+     * See migration 0209.
+     */
+    phone_full?: string | null
+    notes?: string | null
   }
   /** Every payments row for this order, oldest first — a paid order can have
    * more than one (a split payment across methods). */
@@ -155,9 +165,22 @@ function drawReceipt(doc: jsPDF, r: ReceiptData): void {
   doc.text(when, MARGIN + WIDTH, y, { align: 'right' })
   y += 6
 
-  if (r.order.customer_name || r.order.phone_masked) {
-    doc.text([r.order.customer_name, r.order.phone_masked].filter(Boolean).join(' · '), MARGIN, y)
+  // phone_full is present only for a café member (migration 0209); a guest
+  // downloading their own copy still gets the mask, same as the page.
+  const phoneShown = r.order.phone_full ?? r.order.phone_masked
+  if (r.order.customer_name || phoneShown) {
+    doc.text([r.order.customer_name, phoneShown].filter(Boolean).join(' · '), MARGIN, y)
     y += 6
+  }
+  if (r.order.staff_name) {
+    doc.text(`Served by ${r.order.staff_name}`, MARGIN, y)
+    y += 6
+  }
+  if (r.order.notes) {
+    // Wrapped, not truncated — a note is usually the reason a bill looks odd.
+    const noteLines = doc.splitTextToSize(`Note: ${r.order.notes}`, WIDTH)
+    doc.text(noteLines, MARGIN, y)
+    y += noteLines.length * 4.6 + 1.5
   }
   hr(doc, y); y += 7
 

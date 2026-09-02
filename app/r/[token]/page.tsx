@@ -67,6 +67,10 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
   const captured = payments.filter((p) => p.status === 'captured')
   const shownPayment = captured[captured.length - 1] ?? payments[payments.length - 1] ?? null
   const billNumber = r.gst_invoice?.invoice_number ?? r.order.short_code
+  // The full number only ever arrives when the person asking is a member of
+  // this café (migration 0209). A guest, and anyone they forward the link to,
+  // gets the mask — the same string this page has always shown.
+  const phoneShown = r.order.phone_full ?? r.order.phone_masked
 
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-4 py-8 sm:px-5 print:min-h-0 print:max-w-full print:px-0 print:py-0">
@@ -91,7 +95,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         {/* ── Payment status stamp — rotated, translucent, behind the
             content. Sized down on very small screens so it never forces
             horizontal scroll. print-color-adjust keeps it alive in Print/PDF. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center [print-color-adjust:exact] [-webkit-print-color-adjust:exact]">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center [print-color-adjust:exact] [-webkit-print-color-adjust:exact] print:hidden">
           <div
             className={`select-none whitespace-nowrap rounded-md px-5 py-2 text-[9vw] font-black uppercase tracking-[0.18em] opacity-[0.14] sm:px-7 sm:py-2.5 sm:text-4xl ${STAMP_TEXT_CLASS[state]}`}
             style={{
@@ -108,25 +112,25 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           <header className="border-b border-border pb-4 text-center print:pb-2.5">
             {r.cafe.logo_url && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={r.cafe.logo_url} alt="" className="mx-auto mb-2.5 h-14 w-14 rounded-xl object-cover shadow-sm" />
+              <img src={r.cafe.logo_url} alt="" className="mx-auto mb-2.5 h-14 w-14 rounded-xl object-cover shadow-sm print:mb-1.5 print:h-9 print:w-9" />
             )}
             <h1 className="text-xl font-bold tracking-tight text-foreground print:text-[15px]" style={{ fontFamily: 'var(--font-display)' }}>
               {r.cafe.name}
             </h1>
             {r.cafe.gst_registered && r.cafe.legal_name && r.cafe.legal_name !== r.cafe.name && (
-              <p className="mt-0.5 text-[12px] text-muted-foreground">{r.cafe.legal_name}</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground print:text-[10px]">{r.cafe.legal_name}</p>
             )}
             {(r.cafe.address || r.cafe.city) && (
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground print:text-[10px]">
                 {[r.cafe.address, r.cafe.city, r.cafe.state, r.cafe.pincode].filter(Boolean).join(', ')}
               </p>
             )}
-            {r.cafe.phone && <p className="text-[12px] text-muted-foreground">{r.cafe.phone}</p>}
+            {r.cafe.phone && <p className="text-[12px] text-muted-foreground print:text-[10px]">{r.cafe.phone}</p>}
             {/* Only meaningful for a registered café — never shown otherwise. */}
             {r.cafe.gst_registered && r.cafe.gstin && (
-              <p className="text-[12px] text-muted-foreground">GSTIN: {r.cafe.gstin}</p>
+              <p className="text-[12px] text-muted-foreground print:text-[10px]">GSTIN: {r.cafe.gstin}</p>
             )}
-            <p className="mt-2.5 inline-block rounded-full bg-surface-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground">
+            <p className="mt-2.5 inline-block rounded-full bg-surface-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground print:mt-1.5 print:px-0 print:py-0 print:text-[10px]">
               {r.gst_invoice ? 'Tax Invoice' : 'Bill'}
             </p>
           </header>
@@ -150,14 +154,18 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           {/* ── Customer info — deliberately smaller/quieter than the bill
               itself, and only the details already surfaced elsewhere in the
               app (masked phone, first name) — nothing extra collected here. */}
-          {(r.order.customer_name || r.order.phone_masked) && (
-            <p className="border-b border-border py-2.5 text-[12px] text-muted-foreground">
-              {[r.order.customer_name, r.order.phone_masked].filter(Boolean).join(' · ')}
-            </p>
+          {(r.order.customer_name || phoneShown || r.order.staff_name || r.order.notes) && (
+            <div className="space-y-0.5 border-b border-border py-2.5 text-[12px] text-muted-foreground print:py-1.5 print:text-[10px]">
+              {(r.order.customer_name || phoneShown) && (
+                <p>{[r.order.customer_name, phoneShown].filter(Boolean).join(' · ')}</p>
+              )}
+              {r.order.staff_name && <p>Served by {r.order.staff_name}</p>}
+              {r.order.notes && <p className="italic">Note: {r.order.notes}</p>}
+            </div>
           )}
 
           {/* ── Items ─────────────────────────────────────────────────── */}
-          <div className="pt-1">
+          <div className="pt-1 print:pt-0">
             {/* Column headings are meaningless once the rows stack for paper,
                 so they only exist on screen. */}
             <div className="flex justify-between gap-3 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground print:hidden">
@@ -217,7 +225,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           </div>
 
           {/* ── Summary ───────────────────────────────────────────────── */}
-          <div className="space-y-1.5 border-t border-border pt-3 text-[13.5px] print:text-[11.5px]">
+          <div className="space-y-1.5 border-t border-border pt-3 text-[13.5px] print:space-y-0.5 print:pt-2 print:text-[11.5px]">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span><span className="tabular-nums">₹{r.order.subtotal}</span>
             </div>
@@ -253,7 +261,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           </div>
 
           {/* ── Payment section ───────────────────────────────────────── */}
-          <div className="mt-4 rounded-xl border border-border bg-surface-subtle p-4">
+          <div className="mt-4 rounded-xl border border-border bg-surface-subtle p-4 print:mt-2 print:rounded-none print:border-0 print:border-t print:bg-transparent print:p-0 print:pt-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payment status</span>
               <span className={`text-[12.5px] font-bold uppercase tracking-wide ${
@@ -264,7 +272,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </div>
 
             {state === 'paid' && shownPayment && (
-              <div className="mt-2.5 space-y-1 text-[12.5px] text-muted-foreground">
+              <div className="mt-2.5 space-y-1 text-[12.5px] text-muted-foreground print:mt-1 print:space-y-0 print:text-[10.5px]">
                 <p className="flex items-center gap-1.5 text-success"><span aria-hidden="true">✓</span> Payment successful</p>
                 <p>Payment method: <span className="font-medium text-foreground">{methodLabel(shownPayment.method)}</span></p>
                 {shownPayment.reference && <p>Transaction ID: <span className="font-medium text-foreground">{shownPayment.reference}</span></p>}
@@ -311,10 +319,10 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
           <ReceiptDownloadButton receipt={r} />
 
-          <div className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground">
+          <div className="mt-5 border-t border-border pt-4 text-center text-[12px] text-muted-foreground print:mt-2.5 print:pt-2 print:text-[10px]">
             Thank you for visiting!
             <BillLinkCta url={r.cafe.bill_link_url} label={r.cafe.bill_link_label} />
-            <p className="mt-3 text-[10.5px] text-muted-foreground/70">Powered by KhaoPiyo</p>
+            <p className="mt-3 text-[10.5px] text-muted-foreground/70 print:mt-1 print:text-[9px]">Powered by KhaoPiyo</p>
           </div>
         </div>
       </div>
