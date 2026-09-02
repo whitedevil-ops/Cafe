@@ -25,6 +25,23 @@ import type { PosVariant, PosAddon } from './page'
 // single number here is simpler than adding a cross-surface import for it.
 const NEW_ITEM_DAYS = 14
 
+/**
+ * Turn a spin-prize rejection into something a counter staffer can act on.
+ *
+ * redeem_spin_prize runs inside staff_place_order's transaction, so when it
+ * raises, the whole order fails and its message lands in the order-placement
+ * error slot — nowhere near the spin code box, and phrased for a database.
+ * "that prize has already been claimed" as an ORDER failure reads like the
+ * till is broken, when the fix is simply to take the prize off the bill.
+ *
+ * The prize is on the bill either way, so naming the remedy is the whole job.
+ */
+function spinFailureHint(message: string): string {
+  const spin = /prize|spin/i.test(message)
+  if (!spin) return message
+  return `${message}. Remove the spin code from this bill and place the order again.`
+}
+
 type FullItem = PosItem & { category_id: string | null }
 type Line = CartLine & {
   itemId: string
@@ -899,7 +916,7 @@ export default function PosClient({
       ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
     })
     setPlacing(false)
-    if (rpcError) return setError(rpcError.message)
+    if (rpcError) return setError(spinFailureHint(rpcError.message))
     requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
     setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })

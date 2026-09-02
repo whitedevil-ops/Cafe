@@ -236,8 +236,19 @@ export function CartPanel({
   // number can't silently reach the RPC as garbage.
   const phoneValid = customerPhone.trim().length === 0 || /^[6-9]\d{9}$/.test(customerPhone)
   const nameValid = true
+  /**
+   * An item prize held against a bill that does not contain the item.
+   *
+   * staff_place_order raises on exactly this, and because the check runs inside
+   * the order transaction it rolls back the WHOLE order rather than just
+   * dropping the discount. So it surfaced as a generic order-placement failure,
+   * in the order-error slot, AFTER the staffer had read out the total and taken
+   * the customer's money out. Everything needed to catch it first is already
+   * here: spinDiscount is 0 for precisely this case.
+   */
+  const spinPrizeItemMissing = Boolean(spinPrize && spinPrize.kind === 'item' && spinDiscount === 0)
   const canSend = lines.length > 0 && !(orderType === 'dine_in' && !tableLabel)
-    && !placing && !overCap && phoneValid && nameValid
+    && !placing && !overCap && phoneValid && nameValid && !spinPrizeItemMissing
 
   // Primary action text carries the financial intent so staff never have to
   // reason about state: takeaway collects now (or is explicitly left pending);
@@ -291,6 +302,7 @@ export function CartPanel({
       spinEnabled={spinEnabled}
       couponsEnabled={couponsEnabled}
       spinPrize={spinPrize}
+      spinPrizeItemMissing={spinPrizeItemMissing}
       onHoldSpinPrize={onHoldSpinPrize}
       onClearSpinPrize={onClearSpinPrize}
       discountType={discountType}

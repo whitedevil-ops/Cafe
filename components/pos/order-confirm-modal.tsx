@@ -60,6 +60,7 @@ export function OrderConfirmModal({
   spinEnabled,
   couponsEnabled,
   spinPrize,
+  spinPrizeItemMissing,
   onHoldSpinPrize,
   onClearSpinPrize,
   discountType,
@@ -138,6 +139,8 @@ export function OrderConfirmModal({
   spinEnabled: boolean
   couponsEnabled: boolean
   spinPrize: HeldPrize | null
+  /** Held item prize whose won item is not on this bill — see cart-panel. */
+  spinPrizeItemMissing: boolean
   onHoldSpinPrize: (prize: HeldPrize) => void
   onClearSpinPrize: () => void
   discountType: 'percent' | 'flat' | null
@@ -424,6 +427,15 @@ export function OrderConfirmModal({
           {spinEnabled && (
             <div className="mt-3.5">
               <SpinClaim cafeId={cafeId} held={spinPrize} onHold={onHoldSpinPrize} onClear={onClearSpinPrize} />
+              {/* Said here, beside the prize it is about, rather than letting
+                  the server abort the entire order into the generic
+                  order-failed slot once payment has already been discussed. */}
+              {spinPrizeItemMissing && (
+                <p className="mt-1.5 rounded-[var(--radius-sm)] bg-warning-subtle px-2.5 py-1.5 text-[11.5px] text-warning">
+                  This prize is a free {spinPrize?.label ?? 'item'}. Add it to the bill, or remove the prize — the order
+                  can&apos;t go through while the won item isn&apos;t on it.
+                </p>
+              )}
             </div>
           )}
 
