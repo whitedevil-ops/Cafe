@@ -651,7 +651,7 @@ export default function MenuManager({
               onChange={(e) => setNewCat(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addCategory()}
               placeholder="New category name"
-              className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+              className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
             />
             <Button size="sm" onClick={addCategory} loading={busy}>
               Add
@@ -874,13 +874,20 @@ export default function MenuManager({
               on the inner one — a border-radius doesn't clip its own
               scrollbar, so combining both on one element leaves a sharp
               square notch where the scrollbar track meets the corner. */}
-          <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-surface sm:max-h-[85dvh] sm:rounded-2xl">
-          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {/* max-w-lg, not md: the Sizes rows are a four-column table (name,
+              price, margin, remove) and 448px could not hold one without
+              overflowing — which is exactly what it was doing. */}
+          <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-surface shadow-[var(--shadow-lg)] sm:max-h-[85dvh] sm:rounded-2xl">
+          {/* Title and actions are pinned; only the fields between them scroll.
+              Before, both scrolled with the form, so on a long item the heading
+              was gone and Save sat somewhere in the middle of the page. */}
+          <div className="shrink-0 border-b border-border px-6 py-4">
             <h2 className="text-lg font-semibold text-foreground">
               {draft.id ? 'Edit item' : 'Add item'}
             </h2>
-
-            <div className="mt-5 space-y-4">
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="space-y-5">
               {/* Photo */}
               <div className="flex items-center gap-3">
                 {draft.image_url ? (
@@ -1127,8 +1134,8 @@ export default function MenuManager({
                 {draft.variants.length > 0 && (
                   <div className="mt-2 flex gap-2 text-[11.5px] text-muted-foreground">
                     <span className="flex-1 px-3">Name</span>
-                    <span className="w-24 px-3 text-right">Price ₹</span>
-                    {canSeeCost && <span className="w-24 px-3 text-right">Margin ₹</span>}
+                    <span className="w-20 px-3 text-right">Price ₹</span>
+                    {canSeeCost && <span className="w-20 px-3 text-right">Margin ₹</span>}
                     <span className="w-6" />
                   </div>
                 )}
@@ -1138,7 +1145,7 @@ export default function MenuManager({
                       value={v.name}
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
                       placeholder="e.g. Large"
-                      className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                     />
                     <input
                       value={v.price}
@@ -1147,7 +1154,7 @@ export default function MenuManager({
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="149"
                       title="What a guest pays for this one"
-                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                     />
                     {canSeeCost && (
                       <input
@@ -1157,7 +1164,7 @@ export default function MenuManager({
                         onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, margin: e.target.value } : x)) })}
                         placeholder="optional"
                         title="What you keep on this one. Only you see it."
-                        className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                        className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                       />
                     )}
                     <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove option" className="w-6 text-muted-foreground hover:text-destructive">×</button>
@@ -1184,7 +1191,7 @@ export default function MenuManager({
                       value={a.name}
                       onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
                       placeholder="e.g. Extra shot"
-                      className="h-9 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
                     />
                     <input
                       value={a.price}
@@ -1192,7 +1199,7 @@ export default function MenuManager({
                       min={0}
                       onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="₹"
-                      className="h-9 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
                     />
                     <button type="button" onClick={() => setDraft({ ...draft, addons: draft.addons.filter((_, i) => i !== idx) })} aria-label="Remove add-on" className="w-6 text-muted-foreground hover:text-destructive">×</button>
                   </div>
@@ -1200,14 +1207,14 @@ export default function MenuManager({
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setDraft(null)}>
-                Cancel
-              </Button>
-              <Button onClick={saveItem} loading={busy}>
-                {draft.id ? 'Save' : 'Add item'}
-              </Button>
-            </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">
+            <Button variant="ghost" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveItem} loading={busy}>
+              {draft.id ? 'Save' : 'Add item'}
+            </Button>
           </div>
           </div>
         </div>
