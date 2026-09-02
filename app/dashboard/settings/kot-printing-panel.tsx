@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 
 import { Printer, Plus, Trash2, Wifi, Usb, Bluetooth, CircleCheck, CircleAlert, Copy, Download } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
@@ -553,7 +554,7 @@ export default function KotPrintingPanel({
                 <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 truncate rounded bg-surface px-2 py-1.5 text-[11.5px] text-foreground">{newToken}</code>
                   <button
-                    onClick={() => { void navigator.clipboard.writeText(newToken); toast('Token copied.') }}
+                    onClick={() => { void copyText(newToken).then((ok) => toast(ok ? 'Token copied.' : 'Could not copy — the token is shown above, copy it by hand before closing this.', ok ? 'success' : 'error')) }}
                     className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-sm)] border border-border-strong text-foreground"
                     aria-label="Copy token"
                   >

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import { Copy, Check, PartyPopper } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { type SpinPrize, prizeLabel } from '@/lib/spin-wheel'
@@ -119,12 +120,11 @@ export function SpinWheel({ receiptToken }: { receiptToken: string }) {
 
   async function copyCode() {
     if (!state?.result?.code) return
-    try {
-      await navigator.clipboard.writeText(state.result.code)
+    // The code stays on screen either way, so a failed copy is a nuisance
+    // rather than a loss — but the tick must not lie about having worked.
+    if (await copyText(state.result.code)) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
-    } catch {
-      // Clipboard API can be unavailable — the code is still visible to copy manually.
     }
   }
 

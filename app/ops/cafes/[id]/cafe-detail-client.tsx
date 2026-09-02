@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -463,12 +464,8 @@ export default function CafeDetailClient({
   }
 
   async function copyId() {
-    try {
-      await navigator.clipboard.writeText(data.business.id)
-      toast('Café ID copied.')
-    } catch {
-      // Clipboard API can be unavailable — the id is still visible to copy manually.
-    }
+    const ok = await copyText(data.business.id)
+    toast(ok ? 'Café ID copied.' : 'Could not copy — the ID is on screen, copy it manually.', ok ? 'success' : 'error')
   }
 
   const overrideByKey = new Map(data.features.overrides.map((o) => [o.feature_key, o.enabled]))

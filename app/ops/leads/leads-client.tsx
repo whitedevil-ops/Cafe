@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -83,9 +84,14 @@ export default function LeadsClient({
     setIssuingFor(null)
     if (error) return toast(error.message, 'error')
     const url = `${window.location.origin}/signup?token=${data as string}`
-    await navigator.clipboard.writeText(url).catch(() => {})
+    const copied = await copyText(url)
     setRevealedLink({ email, url })
-    toast('Signup link copied — valid for 14 days. Shown only once, so send it now.')
+    toast(
+      copied
+        ? 'Signup link copied — valid for 14 days. Shown only once, so send it now.'
+        : 'Could not copy it — the link is shown below and will not be shown again, so copy it now.',
+      copied ? 'success' : 'error',
+    )
     void refreshInvites()
   }
 

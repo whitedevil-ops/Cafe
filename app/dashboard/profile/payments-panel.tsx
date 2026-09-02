@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import { useRouter } from 'next/navigation'
 import { Wallet, CreditCard, Landmark, Coins, Info, Check, Copy, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -172,7 +173,7 @@ export function PaymentsPanel({
                   <p className="mt-0.5 text-[11.5px] text-muted-foreground">In your Razorpay dashboard → Settings → Webhooks, add this URL and subscribe to <strong>payment.captured</strong>, using the same webhook secret you entered here.</p>
                   <div className="mt-2 flex items-center gap-2">
                     <code className="min-w-0 flex-1 truncate rounded border border-border bg-surface px-2 py-1.5 text-[11.5px] text-foreground">{webhookUrl}</code>
-                    <button type="button" onClick={() => { void navigator.clipboard.writeText(webhookUrl); toast('Webhook URL copied.') }} className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius)] border border-border-strong text-muted-foreground hover:bg-surface"><Copy size={14} /></button>
+                    <button type="button" onClick={() => { void copyText(webhookUrl).then((ok) => toast(ok ? 'Webhook URL copied.' : 'Could not copy — select the URL above and copy it manually.', ok ? 'success' : 'error')) }} className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius)] border border-border-strong text-muted-foreground hover:bg-surface"><Copy size={14} /></button>
                   </div>
                 </div>
               )}

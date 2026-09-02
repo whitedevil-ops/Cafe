@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import QRCode from 'qrcode'
 import { createClient } from '@/utils/supabase/client'
 import { byTableLabel } from '@/lib/table-sort'
@@ -132,9 +133,11 @@ export default function TablesClient({
   }
 
   async function copyLink(t: TableRow) {
-    try {
-      await navigator.clipboard.writeText(urlFor(t.token))
-    } catch {}
+    const ok = await copyText(urlFor(t.token))
+    toast(
+      ok ? `${t.label} link copied.` : 'Could not copy the link. Open the QR page and copy it from the address bar.',
+      ok ? 'success' : 'error',
+    )
   }
 
   return (

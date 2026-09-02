@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { DesktopSessionBridge } from "@/components/desktop-session-bridge";
+import { DesktopExternalLinks } from "@/components/desktop-external-links";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -174,6 +175,10 @@ export default function RootLayout({
             lands on /login, and that is exactly where the stored session has
             to be restored from. */}
         <DesktopSessionBridge />
+        {/* Root for the same reason: _blank links sit on the bill drawer, Live
+            tables, POS and the guest's own order page alike, and every one of
+            them is inert in the webview without this. */}
+        <DesktopExternalLinks />
         {/* Cloudflare Web Analytics — afterInteractive per Next's own guidance
             (analytics is a listed good candidate), so it never delays hydration. */}
         <Script

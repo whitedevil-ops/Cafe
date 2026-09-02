@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -149,8 +150,13 @@ export default function SettingsClient({
   async function copyInviteMessage(iv: StaffInvite) {
     const signupUrl = `${window.location.origin}/signup`
     const message = `You've been invited to join ${form.name || 'our café'} on KhaoPiyo as a ${iv.role}. Sign up here using this exact email address (${iv.email}): ${signupUrl}`
-    await navigator.clipboard.writeText(message)
-    toast('Invite message copied — paste it into WhatsApp, SMS, or email.')
+    const ok = await copyText(message)
+    toast(
+      ok
+        ? 'Invite message copied — paste it into WhatsApp, SMS, or email.'
+        : 'Could not copy the invite message. Send them the signup link yourself instead.',
+      ok ? 'success' : 'error',
+    )
   }
 
   async function removeMember(m: StaffMember) {

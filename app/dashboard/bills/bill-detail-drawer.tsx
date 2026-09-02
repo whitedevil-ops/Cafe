@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { copyText } from '@/lib/desktop-open'
 import { X, ExternalLink, Copy, Printer } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -189,7 +190,7 @@ export function BillDetailDrawer({
                 <Printer size={14} /> Print bill
               </a>
               <button
-                onClick={() => { void navigator.clipboard.writeText(billLink); toast('Bill link copied.') }}
+                onClick={() => { void copyText(billLink).then((ok) => toast(ok ? 'Bill link copied.' : 'Could not copy — select the link and copy it manually.', ok ? 'success' : 'error')) }}
                 className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-4 text-[13px] font-medium text-foreground hover:bg-surface-subtle">
                 <Copy size={14} /> Copy link
               </button>
