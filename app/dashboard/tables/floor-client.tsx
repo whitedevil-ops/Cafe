@@ -254,6 +254,28 @@ export default function FloorClient({
   useRealtimeRefresh(supabase, 'payments', cafeId, poll)
   useRealtimeRefresh(supabase, 'payment_attempts', cafeId, poll)
 
+  // Clear tables that are occupied by a session with nothing live on them,
+  // once, when this screen opens.
+  //
+  // Migration 0202 wrote the sweep and nothing ever called it, so the grey ₹0
+  // cards came straight back and needed 0208 to clear them again. Running it
+  // here means it heals at the moment someone is actually looking at the floor
+  // — which is both when it matters and when it gets reported — instead of
+  // needing a cron slot the Vercel plan does not have.
+  //
+  // Deliberately fire-and-forget: it is idempotent, scoped to this café by the
+  // RPC's own membership check, and cannot touch a table that owes money (see
+  // 0208). If it fails, the poll below still renders the floor correctly and
+  // staff can close the table by hand — this is a convenience, not a
+  // dependency.
+  useEffect(() => {
+    void supabase.rpc('close_abandoned_sessions_for_cafe', { p_cafe_id: cafeId }).then(({ data }) => {
+      if (data) void poll()
+    })
+    // Once per mount, not on every poll() identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, cafeId])
+
   useEffect(() => {
     // poll() is async and only calls setState after its own network
     // round-trip completes — not a synchronous render-phase update.
@@ -654,7 +676,20 @@ export default function FloorClient({
   // show more paid than the bill.
   const selPaid = selSession ? Math.min(selTotal, paidBySession.get(selSession.id) ?? 0) : 0
   const selRemaining = Math.max(0, selTotal - selPaid)
-  const allCompleted = selOrders.length > 0 && selOrders.every((o) => o.status === 'completed')
+  // An empty session is trivially closeable: nothing to complete, nothing
+  // owed, and close_session accepts it (its two guards count open orders and
+  // outstanding money, both zero here).
+  //
+  // FOUND LIVE 2026-09-02, twice: this used to require selOrders.length > 0,
+  // so a table holding a session with no orders on it failed the guard, the
+  // Close button was disabled, and it read "Complete all orders to close
+  // table" — about orders that do not exist. There was then NO way to clear
+  // the table from this screen; the only other affordance offered was
+  // "Table abandoned — write off instead", which is a financial write-off for
+  // a table that owes nothing, and owner/manager only. Migration 0202 swept
+  // the backlog server-side but staff still could not clear a fresh one, which
+  // is why it came straight back.
+  const allCompleted = selOrders.every((o) => o.status === 'completed')
   const canClose = allCompleted && selRemaining === 0
 
   return (
@@ -1025,7 +1060,9 @@ export default function FloorClient({
                   ? 'Complete all orders to close table'
                   : selRemaining > 0
                     ? `₹${selRemaining} due — record payment to close table`
-                    : 'Close table'}
+                    : selOrders.length === 0
+                      ? 'Nothing ordered — close table'
+                      : 'Close table'}
               </button>
             )}
 
