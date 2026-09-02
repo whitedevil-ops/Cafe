@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { CancelOrderDialog } from '@/components/orders/cancel-order-dialog'
@@ -69,13 +69,49 @@ function saveAutoPrinted(ids: Set<string>): void {
   }
 }
 
-function useDing() {
+// Whether this screen makes a noise. Per-device for the same reason as the
+// auto-print switch above: the tablet on the pass wants the alarm, the
+// manager's laptop open in the office does not — that is a property of the
+// machine, not of the café.
+const SOUND_KEY = 'kp:kitchen:sound'
+
+function useDing(enabled: RefObject<boolean>) {
   const ctx = useRef<AudioContext | null>(null)
-  return useCallback(() => {
+  // Whether the browser will actually let us make a noise. A page nobody has
+  // touched yet is not allowed to play audio at all, so this starts false on
+  // every fresh load — including one where the toggle was restored as on. It
+  // is only ever set from the context's own state, never assumed: a cook
+  // trusting a board that claims "sound on" while the browser silently
+  // refuses is the one failure this screen cannot afford.
+  const [ready, setReady] = useState(false)
+
+  // Creating or resuming the context is only guaranteed to work inside a user
+  // gesture. Called anywhere else this is a cheap, honest attempt — it
+  // succeeds when the tab is already allowed (arriving here from the
+  // dashboard usually is) and otherwise leaves `ready` false until a real tap.
+  const unlock = useCallback(async () => {
     try {
       ctx.current ??= new AudioContext()
       const ac = ctx.current
-      if (ac.state === 'suspended') void ac.resume()
+      // Without a gesture this promise simply never settles until one
+      // arrives, which is exactly the wait we want.
+      if (ac.state === 'suspended') await ac.resume()
+      const ok = ac.state === 'running'
+      setReady(ok)
+      return ok
+    } catch {
+      // No Web Audio in this browser at all.
+      return false
+    }
+  }, [])
+
+  const ding = useCallback(() => {
+    // Switched off, or not unlocked yet — the tones would be swallowed
+    // anyway, and the header is already saying the board is silent.
+    if (!enabled.current) return
+    const ac = ctx.current
+    if (!ac || ac.state !== 'running') return
+    try {
       // An alternating two-tone alarm, not a soft notification chime — this
       // has to cut through a loud, busy kitchen and read as "act now", not
       // "FYI". Square wave for a harsher, more piercing edge than a sine.
@@ -94,7 +130,9 @@ function useDing() {
         osc.stop(ac.currentTime + o + 0.12)
       })
     } catch {}
-  }, [])
+  }, [enabled])
+
+  return { ding, unlock, ready }
 }
 
 export default function KitchenClient({
@@ -116,10 +154,14 @@ export default function KitchenClient({
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [items, setItems] = useState<Item[]>([])
-  const [armed, setArmed] = useState(false)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
-  const ding = useDing()
+  // On by default: an alarm nobody has asked to silence is the safe side of
+  // this switch. The ref is what ding() reads, so flipping it doesn't rebuild
+  // poll and restart its interval — same reason as autoPrintOn below.
+  const [soundOn, setSoundOn] = useState(true)
+  const soundOnRef = useRef(true)
+  const { ding, unlock, ready: audioReady } = useDing(soundOnRef)
   const [cancelling, setCancelling] = useState<Order | null>(null)
   const [cancelSubmitting, setCancelSubmitting] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -168,6 +210,52 @@ export default function KitchenClient({
         ? 'New orders will print from this tab. Turn it off once the bridge is printing again, or every order prints twice.'
         : 'Auto-printing from this tab is off.',
     )
+  }
+
+  useEffect(() => {
+    let on = true
+    try {
+      on = localStorage.getItem(SOUND_KEY) !== '0'
+    } catch {
+      // Storage unavailable — it stays on, which is the default anyway.
+    }
+    soundOnRef.current = on
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSoundOn(on)
+    if (!on) return
+    // Remembered as on, but nothing on this page has been touched yet. Try
+    // once — walking in from the dashboard carries an earlier gesture and
+    // usually just works — and otherwise wait for the first real one, which
+    // any tap on the board provides. Until one lands the header offers the
+    // Allow-sound button instead of claiming a silent screen is audible.
+    void unlock()
+    const onGesture = () => void unlock()
+    window.addEventListener('pointerdown', onGesture, { once: true })
+    window.addEventListener('keydown', onGesture, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', onGesture)
+      window.removeEventListener('keydown', onGesture)
+    }
+  }, [unlock])
+
+  // The click that runs this is itself the gesture the browser is waiting
+  // for, so it's the one moment audio is guaranteed to be allowed — and the
+  // ding is the proof, so staff hear the alarm they're about to rely on.
+  const allowSound = useCallback(() => {
+    void unlock().then((ok) => {
+      if (ok) ding()
+    })
+  }, [unlock, ding])
+
+  function toggleSound(next: boolean) {
+    soundOnRef.current = next
+    setSoundOn(next)
+    try {
+      localStorage.setItem(SOUND_KEY, next ? '1' : '0')
+    } catch {
+      // Storage unavailable — the switch works, it just won't be remembered.
+    }
+    if (next) allowSound()
   }
 
   // Printer status is polled separately and slowly: it must never share a
@@ -415,9 +503,21 @@ export default function KitchenClient({
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Kitchen</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {!armed && (
-            <button onClick={() => { ding(); setArmed(true) }} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
-              Tap to enable sound
+          <button
+            onClick={() => toggleSound(!soundOn)}
+            aria-pressed={soundOn}
+            className={`min-h-11 rounded-[var(--radius)] px-5 font-medium shadow-[var(--shadow-sm)] ${
+              soundOn ? 'bg-primary text-primary-foreground' : 'border border-border-strong bg-surface text-muted-foreground'
+            }`}
+          >
+            {soundOn ? 'Sound on' : 'Sound off'}
+          </button>
+          {/* Shown only while the browser is genuinely refusing to play. One
+              tap here is the gesture it wants; so is any other tap on the
+              board, so this clears itself the moment the shift starts. */}
+          {soundOn && !audioReady && (
+            <button onClick={allowSound} className="min-h-11 rounded-[var(--radius)] bg-warning px-5 font-medium text-white shadow-[var(--shadow-sm)]">
+              Tap to allow sound
             </button>
           )}
         </div>
