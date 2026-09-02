@@ -1,4 +1,4 @@
-import { formatTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
+import { formatDate, formatTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { isDesktopApp } from '@/lib/is-desktop'
 import type { KotTicket } from '@/lib/kot-print'
 
@@ -62,6 +62,17 @@ export async function listSerialPorts(): Promise<string[]> {
   }
 }
 
+/**
+ * The one canonical ticket timestamp, matching lib/kot-print.ts's metaLine()
+ * and desktop/src-tauri/src/bridge.rs's format_time_label(). All three print
+ * paths must render an order's time identically — a café should not be able
+ * to tell which one produced the paper in their hand.
+ */
+function nativeTimeLabel(t: KotTicket): string {
+  const tz = t.timezone || DEFAULT_TIMEZONE
+  return `${formatDate(t.placedAt, tz).toUpperCase()} - ${formatTime(t.placedAt, tz)}`
+}
+
 /** Shape the Rust side expects — snake_case, and the time already formatted. */
 function toNativeTicket(t: KotTicket) {
   return {
@@ -69,8 +80,12 @@ function toNativeTicket(t: KotTicket) {
     table_label: t.tableLabel ?? null,
     order_type: t.orderType ?? null,
     // The printer has no idea what zone the café is in and Rust must not
-    // guess, so the string is finished here.
-    time_label: formatTime(t.placedAt, t.timezone || DEFAULT_TIMEZONE),
+    // guess, so the string is finished here. Date included, and in the same
+    // shape as lib/kot-print.ts's metaLine() ("01 SEP 2026 - 10:32 PM"): this
+    // used to send the time alone, so a natively-printed ticket carried no
+    // date at all while the browser-printed one did — the same order, printed
+    // two ways, disagreeing about what a cook was looking at.
+    time_label: nativeTimeLabel(t),
     station: t.station ?? null,
     source: t.source ?? null,
     cafe_name: t.cafeName ?? null,

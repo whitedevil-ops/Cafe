@@ -197,9 +197,15 @@ fn map_paper_mm(paper_width: Option<&str>) -> Option<u32> {
 /// fallback, and either way the job still prints rather than getting dropped.
 fn format_time_label(placed_at: &str, timezone: &str) -> Option<String> {
     let dt = chrono::DateTime::parse_from_rfc3339(placed_at).ok()?;
+    // Must match lib/kot-print.ts's metaLine() exactly — "01 SEP 2026 - 10:32
+    // PM". The whole point of the shared ticket layout is that a café cannot
+    // tell whether a ticket came off the bridge, a Bluetooth printer, or the
+    // browser's print dialog, and a different date format on one of the three
+    // gives that away immediately. `%-I` (not `%I`) because the web side uses
+    // Intl's hour: 'numeric', which does not zero-pad.
     let formatted = match timezone.parse::<chrono_tz::Tz>() {
-        Ok(tz) => dt.with_timezone(&tz).format("%d %b, %H:%M").to_string(),
-        Err(_) => dt.with_timezone(&chrono::Utc).format("%d %b, %H:%M").to_string(),
+        Ok(tz) => dt.with_timezone(&tz).format("%d %b %Y - %-I:%M %p").to_string(),
+        Err(_) => dt.with_timezone(&chrono::Utc).format("%d %b %Y - %-I:%M %p").to_string(),
     };
     Some(formatted.to_uppercase())
 }
@@ -458,14 +464,14 @@ mod tests {
     fn formats_a_utc_timestamp_in_the_cafes_timezone() {
         // 2026-08-20T14:12:00Z is 19:42 IST (UTC+5:30).
         let label = format_time_label("2026-08-20T14:12:00Z", "Asia/Kolkata").unwrap();
-        assert!(label.contains("19:42"), "expected 19:42 IST, got {label:?}");
-        assert!(label.contains("20 AUG"), "expected 20 AUG, got {label:?}");
+        // Same shape as the web renderers' metaLine(): "20 AUG 2026 - 7:42 PM".
+        assert_eq!(label, "20 AUG 2026 - 7:42 PM", "must match lib/kot-print.ts metaLine()");
     }
 
     #[test]
     fn falls_back_to_utc_rather_than_failing_on_an_unknown_timezone() {
         let label = format_time_label("2026-08-20T14:12:00Z", "Not/AZone").unwrap();
-        assert!(label.contains("14:12"), "expected UTC fallback 14:12, got {label:?}");
+        assert_eq!(label, "20 AUG 2026 - 2:12 PM", "expected the UTC fallback, got {label:?}");
     }
 
     #[test]
