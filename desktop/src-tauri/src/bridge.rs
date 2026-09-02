@@ -348,7 +348,20 @@ async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
 async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, String> {
     let resp = client
         .post(POLL_URL)
-        .json(&serde_json::json!({ "token": token, "limit": 10 }))
+        // The app's own version rides along with the poll the bridge is
+        // already making every 4 seconds, so support can see which build a
+        // café is running without asking anyone to go and look. Three
+        // different things can silently strand a machine on an old version (a
+        // release left as a draft, an install predating the updater's
+        // signing-key rotation, and Windows Smart App Control refusing the
+        // install) and all three look identical from outside: nothing happens.
+        // env! reads it from Cargo.toml at compile time, so it cannot drift
+        // from the binary that is actually running.
+        .json(&serde_json::json!({
+            "token": token,
+            "limit": 10,
+            "app_version": env!("CARGO_PKG_VERSION"),
+        }))
         .send()
         .await
         .map_err(|e| e.to_string())?;

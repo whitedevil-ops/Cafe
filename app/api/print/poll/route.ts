@@ -10,7 +10,15 @@ import { createAdminClient, adminConfigured } from '@/utils/supabase/admin'
 // it — so a leaked bridge token exposes one café's kitchen tickets and cannot
 // reach another café's data at all.
 export async function POST(req: NextRequest) {
-  const { token, limit } = (await req.json().catch(() => ({}))) as { token?: string; limit?: number }
+  const { token, limit, app_version } = (await req.json().catch(() => ({}))) as {
+    token?: string
+    limit?: number
+    /** The desktop app's own version, so support can see which build a café is
+     *  actually running. Optional: a bridge older than this field simply omits
+     *  it and keeps polling normally — which matters, because out-of-date
+     *  bridges are exactly the ones this is meant to reveal. */
+    app_version?: string
+  }
   if (!token) return NextResponse.json({ error: 'token required' }, { status: 400 })
 
   if (!adminConfigured()) {
@@ -21,6 +29,9 @@ export async function POST(req: NextRequest) {
   const { data, error } = await admin.rpc('bridge_claim_jobs', {
     p_token: token,
     p_limit: Math.min(Math.max(limit ?? 10, 1), 50),
+    // Length-capped rather than trusted: this is client-supplied and lands in
+    // a text column the admin panel renders.
+    p_app_version: typeof app_version === 'string' ? app_version.trim().slice(0, 32) : null,
   })
 
   // Deliberately vague: a bad token should not reveal whether it once existed.

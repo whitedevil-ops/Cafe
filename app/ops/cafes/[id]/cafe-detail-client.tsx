@@ -24,6 +24,11 @@ export type HealthRow = {
   onboarding_percent: number
   failed_sms_count: number
   days_until_expiry: number | null
+  /** Desktop app version last reported by this café's print bridge, and when.
+   *  Both null when no bridge has ever connected — which is itself the useful
+   *  signal, since a café can be paired and still never have checked in. */
+  app_version: string | null
+  bridge_last_seen_at: string | null
 }
 
 export type StaffRow = {
@@ -932,6 +937,31 @@ export default function CafeDetailClient({
                   <Metric label="Onboarding" value={`${health.onboarding_percent}%`} />
                   <Metric label="Failed SMS" value={health.failed_sms_count} />
                   <Metric label="Subscription" value={health.days_until_expiry === null ? '—' : health.days_until_expiry < 0 ? 'Expired' : `${health.days_until_expiry}d left`} />
+                </div>
+                {/* Which desktop build this café is actually running, reported
+                    by its own print bridge. Worth its own row rather than a
+                    fifth metric: "never connected" is a different kind of fact
+                    from the counters above — it means auto-printing has never
+                    once worked here, which stayed invisible for a full day in
+                    the 2026-09-01 incident and was true of two cafés for far
+                    longer than that. */}
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-border px-3 py-2.5">
+                  <span className="text-[11.5px] uppercase tracking-wide text-muted-foreground">Desktop app</span>
+                  {health.app_version ? (
+                    <>
+                      <Badge tone="success">v{health.app_version}</Badge>
+                      <span className="text-[12.5px] text-muted-foreground">
+                        print bridge last seen {health.bridge_last_seen_at ? fmtDateTime(health.bridge_last_seen_at) : '—'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Badge tone="warning">Never connected</Badge>
+                      <span className="text-[12.5px] text-muted-foreground">
+                        No print bridge has ever checked in — automatic KOT printing has never worked for this café.
+                      </span>
+                    </>
+                  )}
                 </div>
               </>
             ) : (
