@@ -70,6 +70,22 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-4 py-8 sm:px-5 print:min-h-0 print:max-w-full print:px-0 print:py-0">
+      {/* Thermal rolls are 58mm and 80mm wide, and a browser's DEFAULT page
+          margin is about 12.7mm per side. On a 58mm roll that leaves roughly
+          32mm — about 120 CSS pixels — for the whole bill, which is why the
+          item rows collapsed into each other and names broke mid-word. No
+          @page rule existed anywhere in the app, so every bill printed at
+          whatever the browser felt like.
+
+          4mm is about as tight as a thermal head prints reliably, and it
+          leaves 50mm of content on a 58mm roll and 72mm on an 80mm one. On A4
+          it simply reads as a narrow-margin document, which is fine for a
+          receipt. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `@media print { @page { margin: 4mm; } }`,
+        }}
+      />
       <AutoPrint />
       <div className="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm print:rounded-none print:border-0 print:bg-transparent print:shadow-none">
         {/* ── Payment status stamp — rotated, translucent, behind the
@@ -89,19 +105,19 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         </div>
 
         <div className="relative z-10 p-6 print:p-0">
-          <header className="border-b border-border pb-4 text-center">
+          <header className="border-b border-border pb-4 text-center print:pb-2.5">
             {r.cafe.logo_url && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={r.cafe.logo_url} alt="" className="mx-auto mb-2.5 h-14 w-14 rounded-xl object-cover shadow-sm" />
             )}
-            <h1 className="text-xl font-bold tracking-tight text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            <h1 className="text-xl font-bold tracking-tight text-foreground print:text-[15px]" style={{ fontFamily: 'var(--font-display)' }}>
               {r.cafe.name}
             </h1>
             {r.cafe.gst_registered && r.cafe.legal_name && r.cafe.legal_name !== r.cafe.name && (
               <p className="mt-0.5 text-[12px] text-muted-foreground">{r.cafe.legal_name}</p>
             )}
             {(r.cafe.address || r.cafe.city) && (
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground print:text-[10px]">
                 {[r.cafe.address, r.cafe.city, r.cafe.state, r.cafe.pincode].filter(Boolean).join(', ')}
               </p>
             )}
@@ -115,11 +131,11 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </p>
           </header>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-3 text-[12.5px] text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-3 text-[12.5px] text-muted-foreground print:py-2 print:text-[10.5px]">
             <span>Bill No. <span className="font-medium text-foreground">{billNumber}</span></span>
             <span>{when}</span>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-3 text-[12.5px]">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-3 text-[12.5px] print:py-2 print:text-[10.5px]">
             <span className="rounded-full border border-border-strong px-2.5 py-1 font-medium uppercase tracking-wide text-foreground">
               {r.order.order_type === 'takeaway' ? 'Takeaway' : r.order.table_label ? `Table ${r.order.table_label}` : 'Dine-in'}
             </span>
@@ -142,7 +158,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
           {/* ── Items ─────────────────────────────────────────────────── */}
           <div className="pt-1">
-            <div className="flex justify-between gap-3 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {/* Column headings are meaningless once the rows stack for paper,
+                so they only exist on screen. */}
+            <div className="flex justify-between gap-3 py-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground print:hidden">
               <span>Item</span>
               <span className="flex gap-4">
                 <span className="w-8 text-right">Qty</span>
@@ -151,8 +169,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </div>
             <ul className="divide-y divide-border">
               {r.items.map((it, i) => (
-                <li key={i} className="flex justify-between gap-3 py-2.5 text-[13.5px]">
-                  <div className="min-w-0">
+                <li key={i} className="flex justify-between gap-3 py-2.5 text-[13.5px] print:block print:py-1.5 print:text-[11.5px]">
+                  <div className="min-w-0 print:w-full">
                     {/* First component of a combo carries the bundle heading, so
                         the guest reads "Meal for Two" rather than a loose list of
                         items they didn't order individually. Components keep
@@ -178,8 +196,18 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
                         ].filter(Boolean).join(' · ')}
                       </p>
                     )}
+                    {/* Paper only. Two fixed columns (w-8 + w-16 + gaps) reserve
+                        about 124px on the right of every row — more than half a
+                        58mm roll — so the name was left a sliver and broke
+                        mid-word. Stacked, the name gets the full width and the
+                        figures read the way a till receipt normally does:
+                        "4 × ₹129" on the left, the line total on the right. */}
+                    <p className={`hidden tabular-nums print:mt-0.5 print:flex print:justify-between print:gap-2 ${it.combo_group ? 'print:pl-2.5' : ''}`}>
+                      <span className="text-muted-foreground">{it.qty} × ₹{it.price}</span>
+                      <span className="font-medium text-foreground">₹{it.price * it.qty}</span>
+                    </p>
                   </div>
-                  <span className="flex shrink-0 gap-4 tabular-nums">
+                  <span className="flex shrink-0 gap-4 tabular-nums print:hidden">
                     <span className="w-8 text-right text-muted-foreground">{it.qty}</span>
                     <span className="w-16 text-right font-medium text-foreground">₹{it.price * it.qty}</span>
                   </span>
@@ -189,7 +217,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           </div>
 
           {/* ── Summary ───────────────────────────────────────────────── */}
-          <div className="space-y-1.5 border-t border-border pt-3 text-[13.5px]">
+          <div className="space-y-1.5 border-t border-border pt-3 text-[13.5px] print:text-[11.5px]">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span><span className="tabular-nums">₹{r.order.subtotal}</span>
             </div>

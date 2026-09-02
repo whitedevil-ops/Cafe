@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { copyText } from '@/lib/desktop-open'
+import { savedFileHint } from '@/lib/is-desktop'
 import QRCode from 'qrcode'
 import { createClient } from '@/utils/supabase/client'
 import { byTableLabel } from '@/lib/table-sort'
@@ -123,13 +124,42 @@ export default function TablesClient({
     toast(`Table ${t.label} deleted.`)
   }
 
+  // Two things were wrong here, and together they read as "downloading a QR
+  // does nothing in the app":
+  //
+  //  1. No feedback at all — no toast on success, none on failure. Every other
+  //     export in the dashboard goes through useFileExport and confirms the
+  //     save, precisely because the desktop webview draws no download bar of
+  //     its own (see lib/is-desktop.ts). This one never did.
+  //  2. It downloaded straight from a data: URL. Chromium restricts what it
+  //     will save from one, and the webview is stricter than the browser —
+  //     which is why this could work on the website and quietly not in the
+  //     .exe. A blob: object URL from a real anchor in the document is the
+  //     path that works in both.
   function download(t: TableRow) {
     const data = qr[t.token]
-    if (!data) return
-    const a = document.createElement('a')
-    a.href = data
-    a.download = `${slug}-table-${t.label}.png`
-    a.click()
+    if (!data) return toast('That QR code has not finished generating yet.', 'error')
+    const filename = `${slug}-table-${t.label}.png`
+    try {
+      // data:image/png;base64,xxxx -> bytes
+      const base64 = data.slice(data.indexOf(',') + 1)
+      const bin = atob(base64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      // In the document, not detached: a click on an unattached anchor is not
+      // guaranteed to start a download in every engine.
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast(savedFileHint(filename))
+    } catch {
+      toast('Could not save the QR code. Right-click the image above and save it instead.', 'error')
+    }
   }
 
   async function copyLink(t: TableRow) {
