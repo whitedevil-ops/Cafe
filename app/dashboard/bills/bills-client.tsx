@@ -215,12 +215,27 @@ export default function BillsClient({
       </p>
 
       {s && (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Metric label="Bills" value={String(s.count)} />
           <Metric label="Billed sales" value={money(s.billed)} />
           <Metric label="Collected" value={money(s.paid)} />
           <Metric label="Pending" value={money(s.pending)} tone={s.pending > 0 ? 'warning' : undefined} />
           <Metric label="Refunded" value={money(s.refunded)} tone={s.refunded > 0 ? 'destructive' : undefined} />
+          {/* What the café actually kept. Collected and Refunded sitting side
+              by side is genuinely misleading at a glance — "Collected ₹640"
+              next to "Refunded ₹540" reads as a ₹640 day when ₹100 is what
+              stayed. Derived here rather than added to the RPC: it is exactly
+              paid minus refunded, and a second server-side definition of
+              "earned" is a number that can drift from the two it is made of.
+              Clamped at zero because refunds settled from an earlier day's
+              takings can legitimately exceed today's collection, and a
+              negative "Earned" reads as a bug rather than as the accounting
+              artefact it is — the Refunded card is where that story is told. */}
+          <Metric
+            label="Earned"
+            value={money(Math.max(0, s.paid - s.refunded))}
+            tone={s.refunded > 0 ? 'warning' : undefined}
+          />
         </div>
       )}
 
