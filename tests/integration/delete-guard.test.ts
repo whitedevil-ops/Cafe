@@ -152,6 +152,40 @@ describe.skipIf(!hasAdmin)('financial rows cannot be deleted (live)', () => {
     await admin.auth.admin.deleteUser(uid)
   })
 
+  it('still lets an owner delete a table that has been used', { timeout: 40000 }, async () => {
+    // The regression 0211 shipped and 0212 fixed, kept as a test because it is
+    // the exact shape of mistake this guard invites: enumerate a table's
+    // cascading parents, miss one, and break an ordinary feature.
+    //
+    // Chain: cafe_tables -> table_sessions (0012:21, cascade) -> payments
+    // (0012:59, cascade). staff_place_order stamps session_id on the payment
+    // of every settled dine-in order, so this is not an edge case — it is
+    // every table that has ever been used.
+    const { data: tbl } = await admin
+      .from('cafe_tables')
+      .insert({ cafe_id: cafeId, label: `D${Date.now() % 1000}`, token: `delguard-${Date.now()}` })
+      .select('id').single()
+
+    const { error: sellErr } = await owner.rpc('staff_place_order', {
+      p_cafe_id: cafeId,
+      p_order_type: 'dine_in',
+      p_table_id: tbl!.id,
+      p_items: [{ item_id: itemId, qty: 1 }],
+      p_payment_method: 'cash',
+      p_settle: true,
+    })
+    expect(sellErr, sellErr?.message).toBeNull()
+
+    const { data: pays } = await admin.from('payments').select('id, session_id').eq('cafe_id', cafeId)
+    expect(
+      (pays ?? []).some((p) => p.session_id),
+      'a settled dine-in order must produce a payment carrying a session_id, or this test proves nothing',
+    ).toBe(true)
+
+    const { error } = await admin.from('cafe_tables').delete().eq('id', tbl!.id)
+    expect(error, 'deleting a used table must still work').toBeNull()
+  })
+
   it('the escape hatch is not reachable through the API', { timeout: 40000 }, async () => {
     // `set local app.allow_financial_delete` needs a real SQL session. PostgREST
     // gives no way to set it, which is the point: a deliberate deletion has to
