@@ -15,7 +15,16 @@ export default async function LoyaltyPage() {
 
   const supabase = await createClient()
 
-  if (!(await hasFeature(cafe.cafeId, 'loyalty'))) {
+  // Spin & Win is its own sellable feature now (see migration 0204), so this
+  // page can no longer be gated on `loyalty` alone: a café that bought Spin
+  // without Loyalty would be sold a wheel it could never configure, since the
+  // editor lives here. Each half is gated on its own key below, and the page
+  // only refuses outright when neither is on.
+  const [loyaltyOn, spinOn] = await Promise.all([
+    hasFeature(cafe.cafeId, 'loyalty'),
+    hasFeature(cafe.cafeId, 'spin'),
+  ])
+  if (!loyaltyOn && !spinOn) {
     const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
     return <UpgradeRequired feature="Loyalty & rewards" plan={planRow?.plan ?? 'current'} />
   }
@@ -49,6 +58,7 @@ export default async function LoyaltyPage() {
 
   return (
     <>
+    {loyaltyOn && (
     <LoyaltyClient
       cafeId={cafe.cafeId}
       role={cafe.role}
@@ -58,6 +68,8 @@ export default async function LoyaltyPage() {
       menuItems={menuItems ?? []}
       menuItemVariants={menuItemVariants ?? []}
     />
+    )}
+    {spinOn && (
     <SpinWheelPanel
       cafeId={cafe.cafeId}
       canManage={cafe.role === 'owner' || cafe.role === 'manager'}
@@ -67,6 +79,7 @@ export default async function LoyaltyPage() {
       initialSegments={(wheelSegments ?? []) as SpinSegment[]}
       initialAnalytics={spinAnalytics as SpinAnalytics | null}
     />
+    )}
     </>
   )
 }

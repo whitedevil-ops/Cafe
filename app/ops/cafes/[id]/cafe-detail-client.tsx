@@ -84,19 +84,22 @@ export type CafeDetail = {
 // (kds, multi_staff — see ALWAYS_INCLUDED/max_staff instead), and excludes
 // 'referral' — the Refer & Earn UI was removed from every customer/owner
 // surface (loyalty settings, customer wallet, login gate), so a toggle here
-// would control a feature nobody can see or use. Spin & Win, Recipes,
-// Purchases, Suppliers, Profitability, and Recommendations are NOT listed
-// separately either — each is real, but none has its own entitlement key
-// (Spin & Win rides on 'loyalty', the other three ride on 'inventory' or
-// 'advanced_reports', Recommendations has no plan gate at all, only a role
-// check) — see each feature's own description below for exactly what it
-// bundles, rather than inventing a toggle that would silently do nothing.
+// would control a feature nobody can see or use. Recipes, Purchases,
+// Suppliers, Profitability, and Recommendations are NOT listed separately —
+// each is real, but none has its own entitlement key (the first four ride on
+// 'inventory' or 'advanced_reports', Recommendations has no plan gate at
+// all, only a role check) — see each feature's own description below for
+// exactly what it bundles, rather than inventing a toggle that would
+// silently do nothing. Spin & Win used to be in that list; migration 0204
+// gave it a real 'spin' key of its own, enforced end to end (save_spin_wheel,
+// get_spin_wheel, spin_the_wheel), so its toggle below genuinely works.
 const FEATURES: { key: string; label: string; description: string }[] = [
   { key: 'qr_ordering', label: 'QR Ordering', description: 'Kill switch for the customer-facing QR menu & ordering flow.' },
   { key: 'crm', label: 'Customer Directory (CRM)', description: 'Saved customer profiles and order history.' },
   { key: 'feedback', label: 'Customer Feedback', description: 'Post-order rating & feedback collection.' },
   { key: 'coupons', label: 'Coupons', description: 'Discount codes at checkout.' },
-  { key: 'loyalty', label: 'Loyalty & Rewards', description: 'Points on payment, redeemable rewards, and Spin & Win.' },
+  { key: 'loyalty', label: 'Loyalty & Rewards', description: 'Points on payment and redeemable rewards. Spin & Win is separate — see below.' },
+  { key: 'spin', label: 'Spin & Win', description: 'The prize wheel guests spin on their receipt after paying. Off-plan, guests simply see no wheel; prize codes already issued stay redeemable.' },
   { key: 'wallet', label: 'Customer Wallet', description: 'Stored-value wallet with online top-ups.' },
   { key: 'reservations', label: 'Table Reservations', description: 'Guest-facing table booking.' },
   { key: 'sms_bills', label: 'SMS Bill Receipts', description: 'Text the digital bill link after payment.' },
@@ -110,7 +113,7 @@ const FEATURES: { key: string; label: string; description: string }[] = [
 
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
   { heading: 'Operations', keys: ['qr_ordering'] },
-  { heading: 'Customer & Growth', keys: ['crm', 'feedback', 'coupons', 'loyalty', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills'] },
+  { heading: 'Customer & Growth', keys: ['crm', 'feedback', 'coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills'] },
   { heading: 'Inventory & Operations', keys: ['inventory', 'expenses'] },
   { heading: 'Analytics & Reporting', keys: ['advanced_analytics', 'advanced_reports'] },
   { heading: 'Business', keys: ['online_payments'] },
