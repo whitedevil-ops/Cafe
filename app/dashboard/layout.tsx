@@ -57,7 +57,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
   const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
   const navFeatures: Record<string, boolean> = {}
-  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
+  // 'spin' is resolved even though no nav item is keyed on it alone: since
+  // 0204 it is its own sellable feature, and the Loyalty & rewards link has
+  // to appear for a café that bought Spin without Loyalty — the wheel editor
+  // lives on that page, so hiding the link would sell them something they
+  // could never reach.
+  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'spin', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
     navFeatures[key] = overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false)
   }
 

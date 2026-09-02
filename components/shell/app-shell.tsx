@@ -15,7 +15,11 @@ import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
 import { PrintBridgeStatus } from '@/components/shell/print-bridge-status'
 
-type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string; screenKey: string }
+/** `featureKey` may name more than one entitlement, in which case ANY of them
+ *  being on shows the link. Loyalty & rewards needs this: since 0204 Spin &
+ *  Win is its own sellable feature but its editor still lives on the loyalty
+ *  page, so a café that bought only Spin must still be able to get there. */
+type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string | string[]; screenKey: string }
 type NavGroup = { heading: string; items: NavItem[] }
 
 const ICON = 17
@@ -28,6 +32,13 @@ const ALL_SCREEN_KEYS = new Set([
   'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
   'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
 ])
+
+/** No key means always shown; several keys mean ANY of them is enough. Only
+ *  decides whether a LINK appears — every gated page re-checks server-side. */
+function featureAllows(key: NavItem['featureKey'], features: Record<string, boolean>): boolean {
+  if (!key) return true
+  return Array.isArray(key) ? key.some((k) => features[k]) : Boolean(features[key])
+}
 
 // Reports keeps no featureKey on purpose — its index and most sub-pages
 // (sales, items, payments, recommendations) are baseline for every plan;
@@ -59,7 +70,7 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
         { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} />, featureKey: 'inventory', screenKey: 'purchases' },
         { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} />, featureKey: 'inventory', screenKey: 'recipes' },
         { label: 'Coupons & offers', href: '/dashboard/coupons', icon: <Tag size={ICON} />, featureKey: 'coupons', screenKey: 'coupons' },
-        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: 'loyalty', screenKey: 'loyalty' },
+        { label: 'Loyalty & rewards', href: '/dashboard/loyalty', icon: <Gift size={ICON} />, featureKey: ['loyalty', 'spin'], screenKey: 'loyalty' },
         { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet', screenKey: 'wallet' },
         { label: 'Reservations', href: '/dashboard/reservations', icon: <CalendarClock size={ICON} />, featureKey: 'reservations', screenKey: 'reservations' },
         { label: 'Analytics', href: '/dashboard/analytics', icon: <TrendingUp size={ICON} />, featureKey: 'advanced_analytics', screenKey: 'analytics' },
@@ -80,7 +91,7 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
   return groups
     .map((g) => ({
       ...g,
-      items: g.items.filter((i) => (!i.featureKey || features[i.featureKey]) && screenAccess.has(i.screenKey)),
+      items: g.items.filter((i) => featureAllows(i.featureKey, features) && screenAccess.has(i.screenKey)),
     }))
     .filter((g) => g.items.length > 0)
 }
