@@ -77,9 +77,18 @@ export default async function PosPage() {
   // override-beats-plan-default precedence the rest of the app uses, so a
   // café granted loyalty by an operator override is treated as entitled even
   // if its plan would not normally include it.
-  const [loyaltyAllowed, couponsAllowed] = await Promise.all([
+  const [loyaltyAllowed, couponsAllowed, spinAllowed, { data: activeWheel }] = await Promise.all([
     hasFeature(cafe.cafeId, 'loyalty'),
     hasFeature(cafe.cafeId, 'coupons'),
+    // Spin has been its own entitlement since 0204, and this is where the
+    // guest's won code is actually spent. Asking about 'loyalty' here meant a
+    // café that bought Spin without Loyalty handed out codes it had no field
+    // to type back in — see the note on spinEnabled below.
+    hasFeature(cafe.cafeId, 'spin'),
+    // The wheel row IS the on/off switch — there is no cafes.spin_enabled
+    // column. A café with no wheel, or an archived one, should not show a
+    // spin-code box that can only ever say "no such code".
+    supabase.from('spin_wheels').select('id').eq('cafe_id', cafe.cafeId).eq('active', true).maybeSingle(),
   ])
 
   const posItems: (PosItem & { category_id: string | null })[] = (items ?? []).map((i) => ({
@@ -148,7 +157,14 @@ export default async function PosPage() {
       // UI from showing in the first place). spinEnabled right below already
       // had the correct fix; this line was the one spot it never reached.
       loyaltyEnabled={loyaltyAllowed && (cafeRow?.loyalty_enabled ?? false)}
-      spinEnabled={loyaltyAllowed && (cafeRow?.loyalty_enabled ?? false)}
+      // FOUND LIVE 2026-09-02: this was a copy of the line above, so the
+      // "Spin code" box at the till appeared only when LOYALTY was on. After
+      // 0204 split Spin out as its own feature, both cafés running a wheel had
+      // loyalty off — so guests were winning codes the counter had no way to
+      // accept. One had already handed out a 15%-off code with nowhere to
+      // redeem it. Gated on the spin entitlement and a live wheel now, which
+      // is the same pair the guest's own wheel is gated on.
+      spinEnabled={spinAllowed && Boolean(activeWheel)}
       couponsEnabled={couponsAllowed}
       rewards={rewards ?? []}
       combos={(combos ?? []) as Combo[]}

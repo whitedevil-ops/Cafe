@@ -31,6 +31,20 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 }
 const ORDER_STATUS_DONE = ['served', 'completed', 'cancelled']
 
+/**
+ * Shape of a Spin & Win prize code: 'W' plus five characters from the wheel's
+ * deliberately unambiguous alphabet — no 0/O/1/I — per spin_the_wheel in
+ * migration 0204.
+ *
+ * Matching the shape is enough, because this only changes the wording of an
+ * error that has already happened. Nothing is looked up, so a false positive
+ * costs a slightly-off sentence and leaks nothing about which codes exist.
+ */
+const SPIN_CODE = /^W[2-9A-HJ-NP-Z]{5}$/
+function looksLikeSpinCode(code: string): boolean {
+  return SPIN_CODE.test(code.trim().toUpperCase())
+}
+
 const COMBOS = '__combos'
 
 type Line = {
@@ -425,7 +439,20 @@ export default function MenuClient({
       p_category_ids: categoryIds,
     })
     setCouponChecking(false)
-    if (err) return setCouponError(err.message)
+    if (err) {
+      // A Spin & Win prize code is not a coupon — the two live in different
+      // tables, and only staff can spend a spin code (redeem_spin_prize is
+      // revoked from anon by design, so the prize is honoured against a real
+      // bill rather than self-applied). But the wheel tells the guest to
+      // "show this code at the counter", and the only code box they can see
+      // is this one, so they type it here and read `coupon "W7K2QX" was not
+      // found` — which sounds like their prize was fake.
+      return setCouponError(
+        looksLikeSpinCode(code)
+          ? 'That looks like a Spin & Win prize code. Those are applied by staff at the counter — show it to them and they’ll take it off your bill.'
+          : err.message,
+      )
+    }
     const r = data as { code: string; discount: number; name: string | null }
     setAppliedCoupon({ code: r.code, discount: r.discount, name: r.name })
     setCouponCode('')
