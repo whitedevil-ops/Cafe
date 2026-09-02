@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-bridge-token"
+description = "Enables the save_bridge_token command without any pre-configured scope."
+commands.allow = ["save_bridge_token"]
+
+[[permission]]
+identifier = "deny-save-bridge-token"
+description = "Denies the save_bridge_token command without any pre-configured scope."
+commands.deny = ["save_bridge_token"]

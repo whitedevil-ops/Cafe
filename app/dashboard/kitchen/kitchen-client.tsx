@@ -28,6 +28,47 @@ const NEXT: Record<Order['status'], { label: string; to: string }> = {
   ready: { label: 'Done', to: 'completed' },
 }
 
+// Auto-print from this screen: the second path to paper.
+//
+// The bridge is the primary one and needs no tab open, but when it stops the
+// café drops from fully automatic to one click per order — which is how a
+// whole day went by with nothing printing and nobody noticing. With this on,
+// an open Kitchen tab keeps printing on its own.
+//
+// Per-device, exactly like the desktop printer choice in desktop-print.ts:
+// which screen is left open at the counter is a property of the machine, not
+// of the café, so it does not belong in the database.
+const AUTO_PRINT_KEY = 'kp:kitchen:auto-print'
+// The orders this tab has already sent. sessionStorage, not localStorage: it
+// belongs to this tab's run of the screen — a refresh mid-service must not
+// re-print the board, but tomorrow's shift should start clean.
+const AUTO_PRINTED_KEY = 'kp:kitchen:auto-printed'
+
+function loadAutoPrinted(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(AUTO_PRINTED_KEY)
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+/** Writes the ledger back, trimming it in place. */
+function saveAutoPrinted(ids: Set<string>): void {
+  // A tab left open for days would grow this without limit. An order old
+  // enough to fall off the front is long gone from the board, so it can never
+  // arrive "fresh" again and be printed twice.
+  if (ids.size > 600) {
+    for (const id of [...ids].slice(0, ids.size - 300)) ids.delete(id)
+  }
+  try {
+    sessionStorage.setItem(AUTO_PRINTED_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Storage unavailable — the in-memory set still blocks a double print for
+    // as long as this tab stays open; only a refresh loses the record.
+  }
+}
+
 function useDing() {
   const ctx = useRef<AudioContext | null>(null)
   return useCallback(() => {
@@ -87,6 +128,47 @@ export default function KitchenClient({
   // now (see reprintQueued below), so this is the only way staff can tell
   // whether a ticket actually went out without walking to the printer.
   const [printJobs, setPrintJobs] = useState<Record<string, { kind: string; status: string; created_at: string }>>({})
+  // Off by default — see AUTO_PRINT_KEY. The ref is what poll() reads, so
+  // flipping the switch doesn't rebuild poll and restart its interval.
+  const [autoPrint, setAutoPrint] = useState(false)
+  const autoPrintOn = useRef(false)
+  const autoPrinted = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    // After mount, never during render: neither storage exists on the server,
+    // so reading them inline would render one thing there and another here.
+    autoPrinted.current = loadAutoPrinted()
+    try {
+      const on = localStorage.getItem(AUTO_PRINT_KEY) === '1'
+      autoPrintOn.current = on
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAutoPrint(on)
+    } catch {
+      // Storage unavailable — it stays off, which is the default anyway.
+    }
+  }, [])
+
+  function toggleAutoPrint(next: boolean) {
+    // Everything already on the board counts as handled, so switching this on
+    // mid-service never dumps the backlog onto the printer — only orders
+    // arriving from this moment print.
+    if (next) {
+      orders.forEach((o) => autoPrinted.current.add(o.id))
+      saveAutoPrinted(autoPrinted.current)
+    }
+    autoPrintOn.current = next
+    setAutoPrint(next)
+    try {
+      localStorage.setItem(AUTO_PRINT_KEY, next ? '1' : '0')
+    } catch {
+      // Storage unavailable — the switch works, it just won't be remembered.
+    }
+    toast(
+      next
+        ? 'New orders will print from this tab. Turn it off once the bridge is printing again, or every order prints twice.'
+        : 'Auto-printing from this tab is off.',
+    )
+  }
 
   // Printer status is polled separately and slowly: it must never share a
   // failure path with the order poll, because the tickets have to keep
@@ -114,23 +196,32 @@ export default function KitchenClient({
   // order flow because a printer is offline). It is NOT the primary path
   // anymore; that's reprintQueued below, which goes through the same
   // automatic bridge every order already uses.
+  // The one place a ticket is built for this browser's print path, so the
+  // button below and the auto-print in poll() can never produce different
+  // paper for the same order.
+  const printOne = useCallback(
+    (o: Order, its: Item[]) =>
+      printKot({
+        kotNumber: o.short_code,
+        cafeName,
+        tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
+        orderType: o.type,
+        placedAt: o.created_at,
+        timezone,
+        paperWidth,
+        items: its.map((i) => ({
+          qty: i.qty,
+          name: i.name,
+          modifiers: (i.modifiers ?? []).map((m) => m.name),
+        })),
+      }),
+    [cafeName, tableLabels, timezone, paperWidth],
+  )
+
   async function printNow(o: Order) {
     const its = items.filter((i) => i.order_id === o.id)
     if (its.length === 0) return toast('Nothing to print on this order.', 'error')
-    await printKot({
-      kotNumber: o.short_code,
-      cafeName,
-      tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
-      orderType: o.type,
-      placedAt: o.created_at,
-      timezone,
-      paperWidth,
-      items: its.map((i) => ({
-        qty: i.qty,
-        name: i.name,
-        modifiers: (i.modifiers ?? []).map((m) => m.name),
-      })),
-    })
+    await printOne(o, its)
   }
 
   // Queues a real print_jobs row (kind='reprint') the same way an automatic
@@ -146,6 +237,31 @@ export default function KitchenClient({
     toast(count > 0 ? `Reprint queued for ${o.short_code}.` : 'No enabled printer to reprint to — check Settings.', count > 0 ? undefined : 'error')
     void poll()
   }
+
+  // Prints the orders that just arrived, one at a time — printKot hands each
+  // ticket to a printer or a dialog, and two of those in flight together
+  // interleave. Failures are surfaced rather than swallowed: a fallback that
+  // quietly stops printing is precisely the failure it exists to prevent.
+  const autoPrintNew = useCallback(
+    async (fresh: Order[], all: Item[]) => {
+      for (const o of fresh) {
+        if (autoPrinted.current.has(o.id)) continue
+        const its = all.filter((i) => i.order_id === o.id)
+        if (its.length === 0) continue
+        // Recorded BEFORE the print, not after: the await below lets another
+        // poll run, and one ticket sent twice is worse than one that failed
+        // loudly.
+        autoPrinted.current.add(o.id)
+        saveAutoPrinted(autoPrinted.current)
+        try {
+          await printOne(o, its)
+        } catch (e) {
+          toast(`${o.short_code} did not auto-print: ${e instanceof Error ? e.message : 'printer error'}`, 'error')
+        }
+      }
+    },
+    [printOne, toast],
+  )
 
   const poll = useCallback(async () => {
     const { data: ords } = await supabase
@@ -171,6 +287,14 @@ export default function KitchenClient({
         .in('order_id', ords.map((o) => o.id))
       if (its) setItems(its as Item[])
 
+      // The fallback path. Three guards, because a double print is the one
+      // thing this must never do: `fresh` skips anything this tab has seen
+      // before, `firstLoad` skips the whole board on a refresh, and the
+      // ledger inside autoPrintNew skips anything already sent.
+      if (printingEnabled && autoPrintOn.current && !firstLoad && fresh.length && its) {
+        void autoPrintNew(fresh as Order[], its as Item[])
+      }
+
       // Printing itself now happens automatically server-side (the print
       // bridge, independent of this page — see reprintQueued's comment).
       // This is read-only: the latest job per order, purely to show staff
@@ -193,7 +317,7 @@ export default function KitchenClient({
       setItems([])
       setPrintJobs({})
     }
-  }, [supabase, cafeId, ding, printingEnabled])
+  }, [supabase, cafeId, ding, printingEnabled, autoPrintNew])
 
   // Realtime is a supplement, not a replacement: it makes a new order or a
   // status change from another device appear instantly instead of waiting
@@ -300,6 +424,33 @@ export default function KitchenClient({
       </header>
 
       <PrinterBanner health={printerHealth} />
+
+      {printingEnabled && (
+        <div className={`mb-5 rounded-[var(--radius)] border bg-surface px-3 py-2.5 ${autoPrint ? 'border-warning' : 'border-border'}`}>
+          <label className="flex items-start gap-2.5 text-[13px] text-foreground">
+            <input
+              type="checkbox"
+              checked={autoPrint}
+              onChange={(e) => toggleAutoPrint(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary"
+            />
+            <span>
+              <span className="font-medium">Auto-print new orders from this screen</span>
+              <span className="block text-muted-foreground">
+                A fallback for when the print bridge is down. While this tab stays open, every new order
+                prints itself from this computer.{' '}
+                <strong className="text-warning">Leave this on with a working bridge and each order prints
+                twice — one ticket from each.</strong>{' '}
+                Remembered on this device only, and orders already on the board are never reprinted.
+              </span>
+              <span className="block text-muted-foreground">
+                Each ticket opens the print dialog unless this browser was started with kiosk printing — see
+                Settings → KOT printing.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <p className="py-32 text-center text-2xl text-muted-foreground">No open orders</p>

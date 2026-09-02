@@ -289,11 +289,15 @@ export default function KotPrintingPanel({
     // pairing.
     if (desktop) {
       const saved = await saveBridgeToken(token)
-      setPairedHere(saved)
-      if (saved) {
+      setPairedHere(saved.ok)
+      if (saved.ok) {
         toast('Paired — close and reopen the app once for it to start printing automatically.')
       } else {
-        toast('Paired on the server, but this device could not save it locally — try clicking Pair this device again, or restart the app first and retry.', 'error')
+        // The reason is carried through verbatim rather than smoothed over:
+        // it is the difference between "this build of the app can't save at
+        // all, update it" and "this one PC can't write the file", and nobody
+        // standing at the counter can tell those apart otherwise.
+        toast(`Paired on the server, but this device could not save it locally (${saved.error}) — try clicking Pair this device again, or restart the app first and retry.`, 'error')
       }
     }
     void refresh()

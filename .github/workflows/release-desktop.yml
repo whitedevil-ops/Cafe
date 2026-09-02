@@ -17,6 +17,11 @@ name: Release desktop app
 # changes reach every café instantly and need no release at all. Only changes
 # under desktop/src-tauri are worth shipping this way.
 #
+# Releases publish themselves — there is no draft and no button to press. The
+# old manual publish step stranded v1.1.8 for hours while every café went
+# without a print-bridge fix. What gates a build now is the shape of the tag,
+# not somebody remembering: see the channel step below.
+#
 # Before the first run, two repository secrets must exist:
 #   TAURI_SIGNING_PRIVATE_KEY           — from `cargo tauri signer generate`
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  — the passphrase for that key ('' if none)
@@ -49,7 +54,31 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
-      # Builds, signs the updater artifacts, and creates/updates one draft
+      # Decides whether this build reaches cafés, so that nobody has to.
+      #
+      # The updater polls releases/latest/download/latest.json, and GitHub
+      # resolves "latest" to the newest release that is neither a draft nor a
+      # pre-release. So marking a build as a pre-release gates it exactly the
+      # way a draft did — except the installer is still downloadable for
+      # testing, and nothing sits waiting on a human.
+      #
+      # A plain `desktop-v1.2.3` tag ships to every café. Anything else — an
+      # `-rc1` suffix, or a manual workflow_dispatch run with no tag behind
+      # it — is published as a pre-release and no café picks it up.
+      - name: Decide whether this build ships to cafés
+        id: channel
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_TYPE" == "tag" && "$REF_NAME" =~ ^desktop-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Builds, signs the updater artifacts, and creates/updates one published
       # release with the Windows installer and latest.json.
       - name: Build and publish
         uses: tauri-apps/tauri-action@v0
@@ -66,6 +95,6 @@ jobs:
 
             Existing installs update themselves the next time they are opened —
             no need to download anything.
-          releaseDraft: true
-          prerelease: false
+          releaseDraft: false
+          prerelease: ${{ steps.channel.outputs.prerelease }}
           includeUpdaterJson: true

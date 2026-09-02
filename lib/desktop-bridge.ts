@@ -15,6 +15,8 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
   return fn(cmd, args)
 }
 
+export type LocalSaveResult = { ok: true } | { ok: false; error: string }
+
 /** No-op outside the desktop app — a browser tab was never going to run the
  * bridge loop anyway, so there is nothing local to pair.
  *
@@ -24,14 +26,23 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
  * wasn't picking up the change) and staff had no way to know pairing hadn't
  * really taken effect until a print never showed up. Pairing still succeeds
  * server-side either way (the token exists in print_bridge_tokens); only the
- * local auto-fill can fail, and now the caller finds out. */
-export async function saveBridgeToken(token: string): Promise<boolean> {
-  if (!isDesktopApp()) return false
+ * local auto-fill can fail, and now the caller finds out.
+ *
+ * It reports *why* as well, because knowing only that it failed cost three
+ * cafés a manual file write each on 2026-09-02 before anyone could say what
+ * was wrong. The reason was a one-line ACL rejection the catch below was
+ * throwing away (see desktop/src-tauri/build.rs, where it is now fixed) — but
+ * that fix only reaches a café once it has taken the update, so a PC still on
+ * an older build now says so out loud rather than failing mutely, and so will
+ * the next unrelated cause: a read-only profile directory, a full disk. */
+export async function saveBridgeToken(token: string): Promise<LocalSaveResult> {
+  if (!isDesktopApp()) return { ok: false, error: 'not running in the desktop app' }
   try {
     await invoke('save_bridge_token', { token })
-    return true
-  } catch {
-    return false
+    return { ok: true }
+  } catch (e) {
+    // Tauri rejects with a plain string, not an Error.
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }
 

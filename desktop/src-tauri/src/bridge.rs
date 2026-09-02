@@ -333,6 +333,29 @@ async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
     }
 }
 
+/// The "was this poll actually a success?" decision, lifted out of
+/// `poll_once` into a plain function over a status code and a body string.
+///
+/// It lives on its own so it can be tested. `poll_once` itself does real
+/// network I/O against the live API, so covering it directly would need
+/// either a network or an HTTP-mock dev-dependency — and this crate has to
+/// build on machines that cannot run cargo at all, which makes a new crate a
+/// real cost to buy something this small. The part the 2026-09-01 outage
+/// actually turned on is pure data in, data out, so all of it fits here and
+/// `mod tests` guards it directly.
+fn interpret_poll_response(status: u16, body: &str) -> Result<Vec<Job>, String> {
+    // Status first, before the body is looked at at all. `PollResponse.jobs`
+    // is `#[serde(default)]`, so the 401 error body deserializes perfectly
+    // happily into `jobs: []` — see `poll_once` below. Parsing first and
+    // trusting whatever comes out is precisely the bug.
+    if !(200..300).contains(&status) {
+        return Err(format!("HTTP {status}: {body}"));
+    }
+    serde_json::from_str::<PollResponse>(body)
+        .map(|parsed| parsed.jobs)
+        .map_err(|e| e.to_string())
+}
+
 /// The actual bug behind a day's worth of "the bridge silently isn't
 /// working": this used to deserialize the response body straight into
 /// `PollResponse` with no status check at all. `PollResponse.jobs` is
@@ -345,6 +368,8 @@ async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
 /// added for the runtime-hang investigation actually caught: successful-
 /// looking polls with a token the server had already revoked. Checking the
 /// status first is the one-line fix that whole investigation was missing.
+/// That check now sits in `interpret_poll_response` above, where a test can
+/// reach it without a network.
 async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, String> {
     let resp = client
         .post(POLL_URL)
@@ -365,13 +390,15 @@ async fn poll_once(client: &reqwest::Client, token: &str) -> Result<Vec<Job>, St
         .send()
         .await
         .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("HTTP {status}: {body}"));
-    }
-    let body: PollResponse = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(body.jobs)
+    let status = resp.status().as_u16();
+    // Read the body once, whatever the status — the error text a rejected
+    // poll comes back with is the single most useful thing in the log, and
+    // the status rides along even if the body itself can't be read.
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("HTTP {status}: could not read body: {e}"))?;
+    interpret_poll_response(status, &body)
 }
 
 /// Runs for the life of the process, started once from `main.rs`'s `.setup()`
@@ -411,6 +438,20 @@ pub async fn run(app: tauri::AppHandle) {
     let mut polled_yet = false;
     let mut tick: u32 = 0;
 
+    // An unpaired bridge used to log nothing whatsoever once the first few
+    // verbose ticks were past, which reads exactly like a loop that has died —
+    // it sent the 2026-09-02 investigation down the wrong path twice before
+    // anyone thought to check whether those two cafés had ever been paired at
+    // all. So say so, but on a timer: 75 ticks × 4s ≈ 5 minutes, often enough
+    // to prove the loop is alive, rare enough that applog.rs's 64 KiB cap
+    // still holds days of history. Once per tick would wipe that file inside
+    // an hour and take the startup trace with it.
+    const IDLE_LOG_EVERY: u32 = 75;
+    let mut unpaired_ticks: u32 = 0;
+    // `None` until the first tick has actually looked, so the very first
+    // observation isn't reported as a transition into a state it started in.
+    let mut was_paired: Option<bool> = None;
+
     loop {
         tick += 1;
         let verbose = tick <= 5;
@@ -432,25 +473,46 @@ pub async fn run(app: tauri::AppHandle) {
             log_line(&app, &format!("tick {tick}: token present = {}", token.is_some()));
         }
 
-        if let Some(token) = token {
-            if verbose {
-                log_line(&app, &format!("tick {tick}: calling poll_once"));
+        match token {
+            Some(token) => {
+                // A token turning up after there wasn't one is somebody
+                // finishing pairing on the settings page — the one moment
+                // that explains everything logged after it.
+                if was_paired == Some(false) {
+                    log_line(&app, "bridge token saved — paired, polling from now on");
+                }
+                was_paired = Some(true);
+                unpaired_ticks = 0;
+
+                if verbose {
+                    log_line(&app, &format!("tick {tick}: calling poll_once"));
+                }
+                match poll_once(&client, &token).await {
+                    Ok(jobs) => {
+                        if !polled_yet {
+                            polled_yet = true;
+                            log_line(&app, &format!("first poll succeeded ({} jobs)", jobs.len()));
+                        } else if verbose {
+                            log_line(&app, &format!("tick {tick}: poll succeeded ({} jobs)", jobs.len()));
+                        }
+                        for job in jobs {
+                            process_job(&client, &token, job).await;
+                        }
+                    }
+                    Err(e) => {
+                        log_line(&app, &format!("tick {tick}: poll failed: {e}"));
+                    }
+                }
             }
-            match poll_once(&client, &token).await {
-                Ok(jobs) => {
-                    if !polled_yet {
-                        polled_yet = true;
-                        log_line(&app, &format!("first poll succeeded ({} jobs)", jobs.len()));
-                    } else if verbose {
-                        log_line(&app, &format!("tick {tick}: poll succeeded ({} jobs)", jobs.len()));
-                    }
-                    for job in jobs {
-                        process_job(&client, &token, job).await;
-                    }
+            None => {
+                // The first unpaired tick reports straight away — including
+                // the tick right after a token is cleared — and then only
+                // every IDLE_LOG_EVERY-th one after that.
+                if unpaired_ticks % IDLE_LOG_EVERY == 0 {
+                    log_line(&app, "waiting to be paired — no token saved yet");
                 }
-                Err(e) => {
-                    log_line(&app, &format!("tick {tick}: poll failed: {e}"));
-                }
+                unpaired_ticks += 1;
+                was_paired = Some(false);
             }
         }
 
@@ -563,5 +625,70 @@ mod tests {
             port: None,
         };
         assert!(target_for(&bt).is_none());
+    }
+
+    // ── The silent-401 regression guard ─────────────────────────────────────
+    //
+    // On 2026-09-01 a café printed nothing for an entire day and nobody
+    // noticed: every poll came back 401 "invalid bridge token", and because
+    // `PollResponse.jobs` is `#[serde(default)]` that error body deserialized
+    // cleanly into an empty — and apparently *successful* — job list. Nothing
+    // was ever logged. Delete the status check in `interpret_poll_response`
+    // and go back to parsing the body regardless, and these fail.
+    //
+    // `Vec<Job>` isn't `Debug`, so the failing cases destructure with let-else
+    // instead of `unwrap_err()`, which would need it.
+
+    #[test]
+    fn treats_a_401_as_an_error_rather_than_an_empty_job_list() {
+        let Err(err) = interpret_poll_response(401, r#"{"error":"invalid bridge token"}"#) else {
+            panic!("a rejected poll must never look like \"connected fine, nothing to print\"");
+        };
+        assert!(err.contains("401"), "the status has to reach the log: {err}");
+        assert!(err.contains("invalid bridge token"), "and the server's reason: {err}");
+    }
+
+    #[test]
+    fn the_401_body_would_otherwise_parse_as_a_successful_empty_batch() {
+        // Why the test above can never be relaxed: this is the trap itself.
+        // The error body is perfectly valid `PollResponse`, so the status
+        // check is the only thing standing between a revoked token and a
+        // kitchen that looks merely quiet.
+        let parsed: PollResponse = serde_json::from_str(r#"{"error":"invalid bridge token"}"#)
+            .expect("the 401 error body really does deserialize — that is the whole bug");
+        assert!(parsed.jobs.is_empty());
+    }
+
+    #[test]
+    fn reports_a_server_error_instead_of_swallowing_it() {
+        let Err(err) = interpret_poll_response(500, "upstream timeout") else {
+            panic!("a 5xx must surface, not read as an empty batch");
+        };
+        assert!(err.contains("500"), "{err}");
+    }
+
+    #[test]
+    fn returns_the_jobs_from_a_successful_poll() {
+        let jobs = interpret_poll_response(
+            200,
+            r#"{"jobs":[{"job_id":"j1","kind":"kot","printer":{"connection_type":"lan"},"document":{}}]}"#,
+        )
+        .expect("a 200 carrying a batch must still parse");
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].job_id, "j1");
+    }
+
+    #[test]
+    fn accepts_a_successful_poll_with_nothing_to_print() {
+        // The legitimate case `#[serde(default)]` exists for — a quiet kitchen
+        // is a 200 with no `jobs` key, and has to stay silent rather than
+        // become an error every 4 seconds.
+        let jobs = interpret_poll_response(200, "{}").expect("an empty 200 is not a failure");
+        assert!(jobs.is_empty());
+    }
+
+    #[test]
+    fn surfaces_a_malformed_body_on_a_200_rather_than_printing_nothing() {
+        assert!(interpret_poll_response(200, "not json at all").is_err());
     }
 }

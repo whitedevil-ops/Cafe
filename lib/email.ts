@@ -98,6 +98,45 @@ export function leadNotificationEmail(lead: {
   }
 }
 
+// Operator-facing only — this is never sent to a café owner. See
+// app/api/ops/bridge-health/route.ts for what decides who lands in each list.
+//
+// The two groups are kept apart and worded differently on purpose. "Never
+// connected" is not a milder "stopped": it means that café has not printed a
+// single ticket since printing was switched on, which is exactly the state two
+// cafés sat in unnoticed for weeks. Flattened into one list it reads as
+// routine, and routine is how it stayed invisible the first time.
+export function bridgeSilentAlertEmail(
+  neverConnected: { name: string; detail: string }[],
+  wentQuiet: { name: string; detail: string }[],
+) {
+  const total = neverConnected.length + wentQuiet.length
+  const plural = total === 1 ? '' : 's'
+  const section = (title: string, colour: string, rows: { name: string; detail: string }[]) =>
+    rows.length === 0
+      ? ''
+      : `<p style="font-size:13px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:${colour};margin:20px 0 8px">${title}</p>
+         ${rows.map((c) => `<p style="font-size:14px;margin:0 0 6px"><strong>${c.name}</strong> — ${c.detail}</p>`).join('')}`
+  const lines = (title: string, rows: { name: string; detail: string }[]) =>
+    rows.length === 0 ? [] : [``, title, ...rows.map((c) => `  ${c.name} — ${c.detail}`)]
+  return {
+    subject: `Print bridge silent at ${total} café${plural}${neverConnected.length > 0 ? ` — ${neverConnected.length} never connected` : ''}`,
+    text: [
+      `KOT printing is switched on at ${total} café${plural}, but no print bridge is checking in. Tickets are not printing there.`,
+      ...lines('NEVER CONNECTED — has never printed a single ticket:', neverConnected),
+      ...lines('STOPPED CHECKING IN — was printing, then went quiet:', wentQuiet),
+      ``,
+      `Times are IST. Orders still reach the Kitchen screen at these cafés — only the printer is silent.`,
+    ].join('\n'),
+    html: wrapper(`
+      <p style="font-size:15px;margin:0">KOT printing is switched on at <strong>${total} café${plural}</strong>, but no print bridge is checking in. Tickets are not printing there.</p>
+      ${section('Never connected — has never printed a single ticket', '#B91C1C', neverConnected)}
+      ${section('Stopped checking in — was printing, then went quiet', '#C2410C', wentQuiet)}
+      <p style="font-size:13px;color:#888;margin:20px 0 0">Times are IST. Orders still reach the Kitchen screen at these cafés — only the printer is silent.</p>
+    `),
+  }
+}
+
 export function planExpiryReminderEmail(cafeName: string, planName: string, expiresOn: string, daysLeft: number) {
   return {
     subject: `${cafeName}'s KhaoPiyo plan expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
