@@ -6,6 +6,7 @@ import { X, ExternalLink, Copy, Printer } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
 import { formatDateTime } from '@/lib/datetime'
+import { describeDiscount } from '@/lib/discount-label'
 
 type Detail = {
   order: {
@@ -25,6 +26,9 @@ type Detail = {
     staff_name: string | null
     subtotal: number
     discount: number
+    coupon_code: string | null
+    /** The spin prize behind (some of) `discount`, if any — migration 0213. */
+    spin_prize: { label: string; code: string; kind: string; value: number } | null
     tax: number
     service_charge: number
     total: number
@@ -75,6 +79,9 @@ export function BillDetailDrawer({
 
   const o = detail?.order
   const billLink = o ? `${window.location.origin}/r/${o.receipt_token}` : ''
+  // "Discount" alone doesn't say what it was to staff either — the same gap
+  // reported on the customer's own receipt. See migration 0213.
+  const discountSource = o ? describeDiscount(o.coupon_code, o.spin_prize?.label) : null
   const refunded = (detail?.refunds ?? []).filter((r) => r.status === 'completed').reduce((s, r) => s + r.amount, 0)
 
   return (
@@ -140,7 +147,12 @@ export function BillDetailDrawer({
 
             <dl className="mt-3 space-y-1 text-[13px]">
               <Line k="Subtotal" v={money(o.subtotal)} />
-              {o.discount > 0 && <Line k="Discount" v={`−${money(o.discount)}`} />}
+              {o.discount > 0 && (
+                <Line
+                  k={`Discount${discountSource ? ` (${discountSource})` : ''}`}
+                  v={`−${money(o.discount)}`}
+                />
+              )}
               {o.tax > 0 && <><Line k="CGST" v={money(Math.floor(o.tax / 2))} /><Line k="SGST" v={money(o.tax - Math.floor(o.tax / 2))} /></>}
               {o.service_charge > 0 && <Line k="Service charge" v={money(o.service_charge)} />}
               <div className="flex justify-between border-t border-border pt-1.5 text-[15px] font-semibold text-foreground">

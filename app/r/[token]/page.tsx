@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { resolvePaymentState, RECEIPT_STATE_LABEL, methodLabel } from '@/lib/receipt-status'
+import { describeDiscount } from '@/lib/discount-label'
 import { BillLinkCta } from '@/components/receipt/bill-link-cta'
 import { ReceiptDownloadButton } from '@/components/receipt/download-button'
 import { AutoPrint } from '@/components/receipt/auto-print'
@@ -71,6 +72,11 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
   // this café (migration 0209). A guest, and anyone they forward the link to,
   // gets the mask — the same string this page has always shown.
   const phoneShown = r.order.phone_full ?? r.order.phone_masked
+  // "Discount" alone doesn't say what it was — a manual staff discount, a
+  // coupon and a spin prize all land in the one o.discount figure (0154).
+  // Reported live: a spin-prize bill just read "Discount −₹8" with nothing to
+  // say the ₹8 was the guest's own 10%-off prize. See migration 0213.
+  const discountSource = describeDiscount(r.order.coupon_code, r.order.spin_prize?.label)
 
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-background px-4 py-8 sm:px-5 print:min-h-0 print:max-w-full print:px-0 print:py-0">
@@ -231,7 +237,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </div>
             {r.order.discount > 0 && (
               <div className="flex justify-between text-muted-foreground">
-                <span>Discount{r.order.coupon_code ? ` (${r.order.coupon_code})` : ''}</span>
+                <span>Discount{discountSource ? ` (${discountSource})` : ''}</span>
                 <span className="tabular-nums text-success">−₹{r.order.discount}</span>
               </div>
             )}

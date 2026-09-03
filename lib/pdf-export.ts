@@ -11,6 +11,7 @@
 import jsPDF from 'jspdf'
 import { formatDateTime, DEFAULT_TIMEZONE } from '@/lib/datetime'
 import { resolvePaymentState, RECEIPT_STATE_LABEL, methodLabel } from '@/lib/receipt-status'
+import { describeDiscount } from '@/lib/discount-label'
 
 export type ReceiptData = {
   cafe: {
@@ -37,6 +38,8 @@ export type ReceiptData = {
      */
     phone_full?: string | null
     notes?: string | null
+    /** The spin prize behind (some of) `discount`, if any — migration 0213. */
+    spin_prize?: { label: string; code: string; kind: string; value: number } | null
   }
   /** Every payments row for this order, oldest first — a paid order can have
    * more than one (a split payment across methods). */
@@ -231,7 +234,8 @@ function drawReceipt(doc: jsPDF, r: ReceiptData): void {
 
   row('Subtotal', money(r.order.subtotal))
   if (r.order.discount > 0) {
-    row(`Discount${r.order.coupon_code ? ` (${r.order.coupon_code})` : ''}`, `-${money(r.order.discount)}`)
+    const discountSource = describeDiscount(r.order.coupon_code, r.order.spin_prize?.label)
+    row(`Discount${discountSource ? ` (${discountSource})` : ''}`, `-${money(r.order.discount)}`)
   }
   if (r.gst_invoice) {
     row('Taxable amount', money(r.gst_invoice.taxable_amount))
