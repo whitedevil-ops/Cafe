@@ -189,6 +189,17 @@ grant execute on function public_cafe_spin_enabled(text) to anon, authenticated;
 -- goes through, and one audit row matching staff_place_order's
 -- 'spin.prize_claimed' shape with actor_id null (a guest, exactly like this
 -- function's own existing 'order.created' row already does).
+-- Adding a parameter creates a second overload, and PostgREST cannot pick
+-- between them — CREATE OR REPLACE only replaces a function whose argument
+-- TYPE LIST is unchanged; a 9-type signature and a 10-type signature are two
+-- different functions as far as Postgres is concerned, no matter how similar
+-- their bodies are. This exact fact is already documented in 0126's own
+-- comment for staff_place_order's identical situation — missed here on the
+-- first pass, caught by this migration's own self-check (below) refusing to
+-- proceed rather than leaving two ambiguous overloads live. Drop the
+-- 9-argument signature before defining the 10th.
+drop function if exists place_order(text, jsonb, text, text, uuid, boolean, uuid, text, text);
+
 create or replace function place_order(
   p_token             text,
   p_items             jsonb,
