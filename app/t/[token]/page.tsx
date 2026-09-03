@@ -25,7 +25,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   // only need the raw token (they resolve cafe_id internally) — none of the
   // three depend on each other, so run them concurrently instead of behind
   // one another.
-  const [menu, couponsResult, orderingResult] = await Promise.all([
+  const [menu, couponsResult, spinResult, orderingResult] = await Promise.all([
     getCachedCafeMenu(table.cafe_id),
     // cafe_has_feature() itself is revoked from anon (a real security
     // boundary) — this narrow, anon-safe RPC is the only way this page can
@@ -33,6 +33,10 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
     // rendering it and letting resolve_coupon_discount's raw rejection
     // message be the first thing a real customer sees.
     supabase.rpc('public_cafe_coupons_enabled', { p_table_token: token }),
+    // Same reasoning, same shape, for the "Have a reward code?" box
+    // (migration 0214) — cafe_has_feature() can't answer this for an
+    // unauthenticated guest either.
+    supabase.rpc('public_cafe_spin_enabled', { p_table_token: token }),
     // Operator-facing kill switch (operator console Feature control), separate
     // from account Suspend/Disable — this pauses only customer ordering while
     // staff keep dashboard access. Any RPC error (including this function not
@@ -44,6 +48,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   if (!cafe) notFound()
 
   const { data: couponsEnabled } = couponsResult
+  const { data: spinEnabled } = spinResult
   const { data: orderingEnabled, error: orderingErr } = orderingResult
   if (orderingEnabled === false && !orderingErr) {
     return (
@@ -73,6 +78,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       onlinePaymentsEnabled={(cafe.online_payments_enabled ?? false) && cafe.razorpay_status === 'connected'}
       acceptPayCounter={cafe.accept_pay_counter ?? true}
       couponsEnabled={couponsEnabled ?? false}
+      spinEnabled={spinEnabled ?? false}
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}

@@ -73,6 +73,7 @@ export default function MenuClient({
   onlinePaymentsEnabled,
   acceptPayCounter,
   couponsEnabled,
+  spinEnabled,
   upsellThreshold,
   categories,
   items,
@@ -91,6 +92,11 @@ export default function MenuClient({
   onlinePaymentsEnabled: boolean
   acceptPayCounter: boolean
   couponsEnabled: boolean
+  /** Whether the ordering page should show a "Have a reward code?" box —
+   *  the 'spin' entitlement, resolved anon-safe via public_cafe_spin_enabled
+   *  (migration 0214). Not "is a wheel configured" — same precision level as
+   *  couponsEnabled, which also only checks the entitlement, not live stock. */
+  spinEnabled: boolean
   upsellThreshold: number
   categories: { id: string; name: string }[]
   items: PublicItem[]
@@ -116,6 +122,17 @@ export default function MenuClient({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; name: string | null } | null>(null)
   const [couponChecking, setCouponChecking] = useState(false)
   const [couponError, setCouponError] = useState<string | null>(null)
+  // Self-serve Spin & Win redemption — mirrors the coupon box above exactly
+  // (preview via a read-only RPC, hold the code, send it with the order).
+  // Previously a guest's only path was "show staff at the counter"; this is
+  // the fix for "no reliable customer-facing place to redeem a reward code".
+  const [spinCode, setSpinCode] = useState('')
+  const [appliedSpin, setAppliedSpin] = useState<{
+    code: string; label: string; kind: string; value: number
+    menu_item_id: string | null; variant_id: string | null
+  } | null>(null)
+  const [spinChecking, setSpinChecking] = useState(false)
+  const [spinError, setSpinError] = useState<string | null>(null)
   const [assist, setAssist] = useState<'waiter' | null>(null)
   const [assistBusy, setAssistBusy] = useState(false)
   const [detail, setDetail] = useState<PublicItem | null>(null)
@@ -304,7 +321,28 @@ export default function MenuClient({
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.qty, 0)
   const count = cart.reduce((s, l) => s + l.qty, 0)
   const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discount, subtotal) : 0
-  const payable = subtotal - couponDiscount
+  // Preview only, same precision the coupon preview above already has (based
+  // on `subtotal`, not net of combo savings — place_order recomputes for
+  // real, so this can never let a guest claim more than the prize is worth).
+  const spinDiscount = (() => {
+    if (!appliedSpin) return 0
+    if (appliedSpin.kind === 'flat') return appliedSpin.value
+    if (appliedSpin.kind === 'percent') return Math.round((subtotal * appliedSpin.value) / 100)
+    if (appliedSpin.kind === 'item') {
+      const won = cart.filter(
+        (l) => l.itemId === appliedSpin.menu_item_id &&
+          (!appliedSpin.variant_id || l.variantId === appliedSpin.variant_id),
+      )
+      return won.length ? Math.max(...won.map((l) => l.unitPrice)) : 0
+    }
+    return 0
+  })()
+  // A free-item prize applied to a cart that doesn't (yet) hold that item.
+  // place_order raises on exactly this — inside the order transaction, which
+  // would abort the WHOLE order after the guest already committed. Caught
+  // here first, same lesson already applied to the POS SpinClaim box.
+  const spinItemMissing = Boolean(appliedSpin && appliedSpin.kind === 'item' && spinDiscount === 0)
+  const payable = subtotal - couponDiscount - spinDiscount
 
   // Plain (no variant/add-on/note) quantity for a given item, which is what the
   // card's inline stepper controls.
@@ -441,15 +479,12 @@ export default function MenuClient({
     setCouponChecking(false)
     if (err) {
       // A Spin & Win prize code is not a coupon — the two live in different
-      // tables, and only staff can spend a spin code (redeem_spin_prize is
-      // revoked from anon by design, so the prize is honoured against a real
-      // bill rather than self-applied). But the wheel tells the guest to
-      // "show this code at the counter", and the only code box they can see
-      // is this one, so they type it here and read `coupon "W7K2QX" was not
-      // found` — which sounds like their prize was fake.
+      // tables. They now have their own boxes right next to each other (see
+      // applySpin below), so a code typed into the wrong one just needs
+      // redirecting, not "go find a staff member".
       return setCouponError(
         looksLikeSpinCode(code)
-          ? 'That looks like a Spin & Win prize code. Those are applied by staff at the counter — show it to them and they’ll take it off your bill.'
+          ? 'That looks like a Spin & Win prize code — enter it in "Have a reward code?" below instead.'
           : err.message,
       )
     }
@@ -463,6 +498,38 @@ export default function MenuClient({
     setCouponError(null)
   }
 
+  // Preview a Spin & Win code — read-only, does not consume it. Mirrors
+  // applyCoupon exactly; the authoritative, one-time consumption happens
+  // server-side inside place_order (migration 0214), so this can never let a
+  // guest claim a prize twice or claim more than it is worth.
+  async function applySpin() {
+    const code = spinCode.trim()
+    if (!code) return
+    setSpinChecking(true)
+    setSpinError(null)
+    const { data, error: err } = await supabase.rpc('preview_spin_prize_for_guest', {
+      p_cafe_id: cafeId,
+      p_code: code,
+    })
+    setSpinChecking(false)
+    if (err) return setSpinError(err.message)
+    const r = data as {
+      label: string; kind: string; value: number
+      menu_item_id: string | null; variant_id: string | null
+      redeemed: boolean; expired: boolean
+    }
+    if (r.redeemed) return setSpinError('That code has already been claimed.')
+    if (r.expired) return setSpinError('That code has expired.')
+    if (r.kind === 'none') return setSpinError('That spin didn’t win a prize.')
+    setAppliedSpin({ code: code.toUpperCase(), label: r.label, kind: r.kind, value: r.value, menu_item_id: r.menu_item_id, variant_id: r.variant_id })
+    setSpinCode('')
+  }
+
+  function removeSpin() {
+    setAppliedSpin(null)
+    setSpinError(null)
+  }
+
   // Places the order (always UNPAID) then routes to payment. 'online' hands
   // off to the verified online-payment provider; 'wallet' deducts from the
   // customer's own balance right after creation; 'counter' means the
@@ -471,6 +538,12 @@ export default function MenuClient({
   async function place(mode: 'online' | 'counter' | 'wallet') {
     if (!PHONE_RE.test(phone)) {
       setError('Enter a valid 10-digit mobile number — we send your bill there.')
+      return
+    }
+    // Caught here, before the RPC: place_order raises on exactly this case,
+    // which would abort the whole order rather than just drop the discount.
+    if (spinItemMissing) {
+      setError(`Add "${appliedSpin?.label}" to your order to use that prize, or remove it first.`)
       return
     }
     setPlacing(true)
@@ -500,6 +573,7 @@ export default function MenuClient({
       p_client_request_id: requestId.current,
       p_coupon_code: appliedCoupon?.code ?? null,
       p_device_id: getOrCreateDeviceId(),
+      p_spin_code: appliedSpin?.code ?? null,
     })
     if (error) { setPlacing(false); return setError(error.message) }
     requestId.current = null
@@ -520,6 +594,9 @@ export default function MenuClient({
     setCouponCode('')
     setAppliedCoupon(null)
     setCouponError(null)
+    setSpinCode('')
+    setAppliedSpin(null)
+    setSpinError(null)
 
     if (mode === 'online' && r.receipt_token) {
       await startOnlinePayment(r.receipt_token)
@@ -813,10 +890,51 @@ export default function MenuClient({
           </div>
         )}
 
+        {/* Self-serve Spin & Win redemption. Previously the ONLY guidance a
+            guest ever got was "show this code to staff at the counter" — this
+            is a real, working entry point instead, right where a guest is
+            already typing a code for the coupon box above. */}
+        {spinEnabled && (
+          <div className="mt-4">
+            {appliedSpin ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-primary bg-primary-subtle px-4 py-2.5">
+                <span className="text-[13.5px] font-medium text-primary">
+                  🎁 {appliedSpin.code} — {appliedSpin.label}
+                  {spinItemMissing ? '' : ` · saves ₹${spinDiscount}`}
+                </span>
+                <button onClick={removeSpin} className="text-[13px] font-medium text-primary hover:underline">Remove</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={spinCode}
+                  onChange={(e) => setSpinCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && spinCode.trim()) applySpin() }}
+                  placeholder="Have a reward code?"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-4 uppercase text-foreground placeholder:normal-case placeholder:text-muted-foreground outline-none"
+                />
+                <button
+                  onClick={applySpin}
+                  disabled={!spinCode.trim() || spinChecking}
+                  className="rounded-[var(--radius)] border border-border-strong px-4 text-[13.5px] font-medium text-foreground disabled:opacity-40"
+                >
+                  {spinChecking ? 'Checking…' : 'Redeem'}
+                </button>
+              </div>
+            )}
+            {spinError && <p className="mt-2 text-[13px] text-destructive">{spinError}</p>}
+            {spinItemMissing && (
+              <p className="mt-2 text-[13px] text-warning">
+                Add &quot;{appliedSpin?.label}&quot; to your order to use this prize.
+              </p>
+            )}
+          </div>
+        )}
+
         {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle p-3 text-sm text-destructive">{error}</p>}
 
         <div className="mt-6 border-t border-border pt-4">
-          {appliedCoupon && (
+          {(appliedCoupon || appliedSpin) && (
             <div className="flex items-baseline justify-between text-[13.5px] text-muted-foreground">
               <span>Subtotal</span>
               <span>₹{subtotal}</span>
@@ -826,6 +944,12 @@ export default function MenuClient({
             <div className="mt-1 flex items-baseline justify-between text-[13.5px] text-primary">
               <span>Coupon ({appliedCoupon.code})</span>
               <span>−₹{couponDiscount}</span>
+            </div>
+          )}
+          {appliedSpin && spinDiscount > 0 && (
+            <div className="mt-1 flex items-baseline justify-between text-[13.5px] text-primary">
+              <span>Reward ({appliedSpin.code})</span>
+              <span>−₹{spinDiscount}</span>
             </div>
           )}
           <div className="mt-1 flex items-baseline justify-between">
@@ -839,22 +963,22 @@ export default function MenuClient({
               payment provider connected. Otherwise the customer pays at the
               counter — always a first-class option. */}
           {walletBalance !== null && walletBalance >= payable && payable > 0 && (
-            <button disabled={placing || count === 0} onClick={() => place('wallet')} className="w-full rounded-[var(--radius)] border border-primary bg-primary-subtle py-4 font-medium text-primary disabled:opacity-40">
+            <button disabled={placing || count === 0 || spinItemMissing} onClick={() => place('wallet')} className="w-full rounded-[var(--radius)] border border-primary bg-primary-subtle py-4 font-medium text-primary disabled:opacity-40">
               {placing ? 'Placing…' : `Pay from wallet · ₹${payable} (balance ₹${walletBalance})`}
             </button>
           )}
           {onlinePaymentsEnabled && (
-            <button disabled={placing || count === 0} onClick={() => place('online')} className="w-full rounded-[var(--radius)] bg-primary py-4 font-medium text-primary-foreground disabled:opacity-40">
+            <button disabled={placing || count === 0 || spinItemMissing} onClick={() => place('online')} className="w-full rounded-[var(--radius)] bg-primary py-4 font-medium text-primary-foreground disabled:opacity-40">
               {placing ? 'Placing…' : `Pay online · ₹${payable}`}
             </button>
           )}
           {acceptPayCounter && (
-            <button disabled={placing || count === 0} onClick={() => place('counter')} className={`w-full rounded-[var(--radius)] py-4 font-medium disabled:opacity-40 ${onlinePaymentsEnabled ? 'border border-border-strong bg-surface text-foreground' : 'bg-foreground text-background'}`}>
+            <button disabled={placing || count === 0 || spinItemMissing} onClick={() => place('counter')} className={`w-full rounded-[var(--radius)] py-4 font-medium disabled:opacity-40 ${onlinePaymentsEnabled ? 'border border-border-strong bg-surface text-foreground' : 'bg-foreground text-background'}`}>
               {placing ? 'Placing…' : 'Place order — pay at the counter'}
             </button>
           )}
           {!acceptPayCounter && !onlinePaymentsEnabled && (
-            <button disabled={placing || count === 0} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
+            <button disabled={placing || count === 0 || spinItemMissing} onClick={() => place('counter')} className="w-full rounded-[var(--radius)] bg-foreground py-4 font-medium text-background disabled:opacity-40">
               {placing ? 'Placing…' : 'Place order'}
             </button>
           )}
