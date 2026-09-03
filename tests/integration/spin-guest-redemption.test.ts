@@ -208,31 +208,27 @@ describe.skipIf(!hasAdmin)('guest self-serve spin redemption (live)', () => {
   })
 
   it('an item-kind prize requires the item on the bill, or the whole order is refused', { timeout: 40000 }, async () => {
-    // Add an item-kind slice for this check.
+    // A single item-kind slice — deterministic, same pattern
+    // tests/integration/spin-prize.test.ts already uses for exactly this
+    // reason. (The first version of this test gave the item slice weight: 0,
+    // which is mathematically undrawable — the weighted draw can never select
+    // a zero-weight segment — so it never won and the fixture itself failed.
+    // Replacing the wheel outright here removes the earlier percent slice
+    // too, so there is nothing else it could possibly draw.)
     await owner.rpc('save_spin_wheel', {
       p_cafe_id: cafeId, p_title: 'Spin & win', p_subtitle: null, p_active: true,
       p_expiry_days: 7, p_min_order_amount: 0, p_enable_confetti: true, p_enable_sound: true,
-      p_segments: [
-        { label: '10% off next visit', kind: 'percent', value: 10, weight: 1 },
-        { label: 'Free Chai', kind: 'item', menu_item_id: chaiId, value: 0, weight: 0 },
-      ],
+      p_segments: [{ label: 'Free Chai', kind: 'item', menu_item_id: chaiId, value: 0, weight: 1 }],
     })
-    // Force the free-item slice by drawing until it lands (weight 0 on the
-    // percent one after a re-save would be cleaner, but save_spin_wheel's
-    // upsert-by-id semantics make a targeted re-weight fiddly here — instead,
-    // just draw a few times and use whichever code turns out to be the item
-    // prize; if none land in a reasonable number of tries the test fixture
-    // itself is wrong, not the feature).
-    let itemCode: string | null = null
-    for (let i = 0; i < 20 && !itemCode; i++) {
-      const { data: res } = await owner.rpc('staff_place_order', {
-        p_cafe_id: cafeId, p_order_type: 'takeaway',
-        p_items: [{ item_id: chaiId, qty: 1 }], p_payment_method: 'cash', p_settle: true,
-      })
-      const { data: prize } = await anon.rpc('spin_the_wheel', { p_receipt_token: res.receipt_token })
-      if (prize.kind === 'item') itemCode = prize.code
-    }
-    expect(itemCode, 'fixture could not draw the item prize in 20 tries').not.toBeNull()
+
+    const { data: res } = await owner.rpc('staff_place_order', {
+      p_cafe_id: cafeId, p_order_type: 'takeaway',
+      p_items: [{ item_id: chaiId, qty: 1 }], p_payment_method: 'cash', p_settle: true,
+    })
+    const { data: prize, error: spinErr } = await anon.rpc('spin_the_wheel', { p_receipt_token: res.receipt_token })
+    expect(spinErr, spinErr?.message).toBeNull()
+    expect(prize.kind, 'the only slice on this wheel is the item prize').toBe('item')
+    const itemCode = prize.code as string
 
     // Order WITHOUT the won item — must be refused, whole order aborted.
     const { error } = await anon.rpc('place_order', {
@@ -250,6 +246,16 @@ describe.skipIf(!hasAdmin)('guest self-serve spin redemption (live)', () => {
     })
     expect(err2, err2?.message).toBeNull()
     expect((data as { discount: number }).discount).toBe(CHAI)
+
+    // save_spin_wheel replaces the whole segment set, so the call above
+    // deleted the percent slice every other test in this file (including the
+    // ones still to come) relies on. Restore it so this test's fixture
+    // mutation stays local to itself.
+    await owner.rpc('save_spin_wheel', {
+      p_cafe_id: cafeId, p_title: 'Spin & win', p_subtitle: null, p_active: true,
+      p_expiry_days: 7, p_min_order_amount: 0, p_enable_confetti: true, p_enable_sound: true,
+      p_segments: [{ label: '10% off next visit', kind: 'percent', value: 10, weight: 1 }],
+    })
   })
 
   it('a code from one café cannot be redeemed through another café\'s ordering page', { timeout: 40000 }, async () => {
