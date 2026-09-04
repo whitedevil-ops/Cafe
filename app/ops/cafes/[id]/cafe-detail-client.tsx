@@ -117,12 +117,21 @@ const FEATURES: { key: string; label: string; description: string }[] = [
   { key: 'online_payments', label: 'Online Payments (Razorpay)', description: 'Customer UPI/card payment at checkout, via this café\'s own Razorpay account.' },
 ]
 
+// Grouped by which paid plan first unlocks each feature (live platform_plans
+// rows: starter/pro/business, shown here by their real product names —
+// Starter/Growth/Scale), not by product category — this is what an operator
+// actually needs while deciding "does this café need to move up a tier for
+// X," which a category grouping doesn't answer. Trial isn't its own group:
+// every key below is already false on Trial, same as an empty plan, so it
+// has nothing to contribute that Starter doesn't already show. Order within
+// each group otherwise matches FEATURES above. Derived from the live
+// platform_plans.features composition — if a feature's plan floor is ever
+// repackaged, this hardcoded mapping needs updating to match, same as any
+// other snapshot of pricing/packaging decisions in this file.
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
-  { heading: 'Operations', keys: ['qr_ordering'] },
-  { heading: 'Customer & Growth', keys: ['crm', 'coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills'] },
-  { heading: 'Inventory & Operations', keys: ['inventory', 'expenses'] },
-  { heading: 'Analytics & Reporting', keys: ['advanced_analytics', 'advanced_reports'] },
-  { heading: 'Business', keys: ['online_payments'] },
+  { heading: 'Starter', keys: ['qr_ordering', 'crm'] },
+  { heading: 'Growth', keys: ['coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills', 'expenses', 'advanced_analytics', 'online_payments'] },
+  { heading: 'Scale', keys: ['inventory', 'advanced_reports'] },
 ]
 
 // Not gated on anything — every café gets these regardless of plan, so
