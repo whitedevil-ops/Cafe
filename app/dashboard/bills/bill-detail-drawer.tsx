@@ -29,6 +29,9 @@ type Detail = {
     coupon_code: string | null
     /** The spin prize behind (some of) `discount`, if any — migration 0213. */
     spin_prize: { label: string; code: string; kind: string; value: number } | null
+    /** Whether this café is GST-registered right now — migration 0216. Gates
+     *  whether the per-item HSN/GST line means anything to show. */
+    gst_registered: boolean
     tax: number
     service_charge: number
     total: number
@@ -133,13 +136,21 @@ export function BillDetailDrawer({
                     <span className="min-w-0 text-foreground">{it.qty} × {it.name}</span>
                     <span className="shrink-0 text-foreground">{money(it.price * it.qty)}</span>
                   </div>
-                  <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                    {[
-                      it.hsn_sac ? `HSN/SAC ${it.hsn_sac}` : null,
-                      it.tax_percent != null ? `GST ${it.tax_percent}%` : null,
-                      it.taxable_value != null ? `taxable ${money(it.taxable_value)}` : null,
-                    ].filter(Boolean).join(' · ')}
-                  </p>
+                  {/* GST-gated, same as the customer's own receipt
+                      (app/r/[token]/page.tsx's `{r.gst_invoice && ...}`).
+                      hsn_sac/tax_percent/taxable_value stay on order_items
+                      regardless — real stored snapshot data — but a café
+                      that has told KhaoPiyo it isn't GST-registered should
+                      never see its own bill labelled with a GST rate. */}
+                  {o.gst_registered && (
+                    <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                      {[
+                        it.hsn_sac ? `HSN/SAC ${it.hsn_sac}` : null,
+                        it.tax_percent != null ? `GST ${it.tax_percent}%` : null,
+                        it.taxable_value != null ? `taxable ${money(it.taxable_value)}` : null,
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                   {it.instructions && <p className="text-[11.5px] text-muted-foreground">“{it.instructions}”</p>}
                 </li>
               ))}
