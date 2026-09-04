@@ -386,7 +386,7 @@ export function OrderConfirmModal({
               onChange={(e) => onCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
               placeholder="Phone number (optional)"
               inputMode="numeric"
-              className={`h-10 rounded-[var(--radius)] border bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground ${
+              className={`h-10 rounded-[var(--radius)] border bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground ${
                 customerPhone && !phoneValid ? 'border-destructive' : 'border-border-strong'
               }`}
             />

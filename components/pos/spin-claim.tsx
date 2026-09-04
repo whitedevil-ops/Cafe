@@ -103,7 +103,7 @@ export function SpinClaim({
           }}
           placeholder="Spin code"
           aria-label="Spin prize code"
-          className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 font-mono text-[12.5px] uppercase tracking-widest text-foreground"
+          className="h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 font-mono text-[16px] uppercase tracking-widest text-foreground"
         />
         <button
           onClick={look}
