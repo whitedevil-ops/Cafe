@@ -135,6 +135,14 @@ export default function FloorClient({
   // twice — see migration 0056. Reset whenever a fresh quick-add sheet opens.
   const quickAddRequestId = useRef<string | null>(null)
   const [quickAddError, setQuickAddError] = useState<string | null>(null)
+  // Resolved just before the sheet opens (order_appendable, migration 0218):
+  // the one existing order this table's items should be appended to, or null
+  // to fall back to today's behaviour — a brand new order via staff_place_order.
+  // Only ever set when the table has exactly one active order and it passes
+  // every eligibility check server-side (unpaid, no GST invoice yet, no
+  // discount/coupon/spin prize already applied) — see 0218's own header for
+  // why those are refused rather than half-supported.
+  const [appendTarget, setAppendTarget] = useState<SessionOrder | null>(null)
 
   const poll = useCallback(async () => {
     const [{ data: tbls, error: tblErr }, { data: sess, error: sessErr }] = await Promise.all([
@@ -558,22 +566,51 @@ export default function FloorClient({
     setQuickAddSubmitting(true)
     setQuickAddError(null)
     if (!quickAddRequestId.current) quickAddRequestId.current = crypto.randomUUID()
-    // Same canonical write path as the POS and the customer QR menu — a
-    // waiter adding items tableside is not a separate order engine, just a
-    // third caller of the one that already exists.
-    const { error } = await supabase.rpc('staff_place_order', {
-      p_cafe_id: cafeId,
-      p_items: lines,
-      p_order_type: 'dine_in',
-      p_table_id: tableId,
-      p_client_request_id: quickAddRequestId.current,
-    })
+    // appendTarget was resolved (order_appendable, migration 0218) right
+    // before the sheet opened — if set, this table has exactly one open bill
+    // and it's still eligible to grow, so these items join it instead of
+    // starting a second bill for the same round. Otherwise, same canonical
+    // write path as the POS and the customer QR menu — a waiter adding items
+    // tableside is not a separate order engine, just a third caller of the
+    // one that already exists.
+    const { error } = appendTarget
+      ? await supabase.rpc('append_order_items', {
+          p_order_id: appendTarget.id,
+          p_items: lines,
+          p_client_request_id: quickAddRequestId.current,
+        })
+      : await supabase.rpc('staff_place_order', {
+          p_cafe_id: cafeId,
+          p_items: lines,
+          p_order_type: 'dine_in',
+          p_table_id: tableId,
+          p_client_request_id: quickAddRequestId.current,
+        })
     setQuickAddSubmitting(false)
     if (error) return setQuickAddError(error.message)
     quickAddRequestId.current = null
     setQuickAdding(false)
-    toast('Added to the kitchen.')
+    toast(appendTarget ? `Added to bill #${appendTarget.short_code}.` : 'Added to the kitchen.')
+    setAppendTarget(null)
     void poll()
+  }
+
+  // Runs right before the quick-add sheet opens for a table that already has
+  // an order — decides append-to-existing-bill vs. today's new-order path.
+  // Deliberately conservative: with 2+ open orders on the table there's no
+  // single obvious bill to grow, so this always falls back rather than
+  // guessing which one the waiter means.
+  async function openQuickAdd() {
+    setQuickAddError(null)
+    quickAddRequestId.current = null
+    const candidate = selOrders.length === 1 ? selOrders[0] : null
+    if (candidate) {
+      const { data } = await supabase.rpc('order_appendable', { p_order_id: candidate.id })
+      setAppendTarget(data === true ? candidate : null)
+    } else {
+      setAppendTarget(null)
+    }
+    setQuickAdding(true)
   }
 
   async function acknowledgeAttention(tableId: string) {
@@ -857,7 +894,7 @@ export default function FloorClient({
 
       {/* Table drawer */}
       {selTable && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-stretch sm:justify-end" onClick={() => { setSelected(null); setMoving(false); setSplitting(false); setActionError(null) }}>
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-stretch sm:justify-end" onClick={() => { setSelected(null); setMoving(false); setSplitting(false); setActionError(null); setAppendTarget(null) }}>
           <div className="max-h-[88dvh] w-full overflow-y-auto rounded-t-2xl bg-surface p-5 sm:max-h-none sm:w-[440px] sm:rounded-none" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between">
               <div>
@@ -895,7 +932,7 @@ export default function FloorClient({
 
             {selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => { setQuickAddError(null); quickAddRequestId.current = null; setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+                <button onClick={() => { void openQuickAdd() }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
                   Add items
                 </button>
                 <button onClick={() => setMoving((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">
@@ -1169,13 +1206,14 @@ export default function FloorClient({
       {quickAdding && selTable && (
         <QuickAddSheet
           tableLabel={selTable.label}
+          subtitle={appendTarget ? `Adding to bill #${appendTarget.short_code}` : selSession ? 'Starting a new bill for this table' : undefined}
           categories={menu.categories}
           items={menu.items}
           variants={menu.variants}
           addons={menu.addons}
           submitting={quickAddSubmitting}
           error={quickAddError}
-          onClose={() => setQuickAdding(false)}
+          onClose={() => { setQuickAdding(false); setAppendTarget(null) }}
           onSubmit={(lines) => submitQuickAdd(selTable.id, lines)}
         />
       )}

@@ -20,6 +20,7 @@ type Line = { itemId: string; variantId: string | null; addonIds: string[]; qty:
 
 export function QuickAddSheet({
   tableLabel,
+  subtitle,
   categories,
   items,
   variants,
@@ -30,6 +31,10 @@ export function QuickAddSheet({
   onSubmit,
 }: {
   tableLabel: string
+  /** Whether this round is joining the table's existing bill or starting a
+   *  new one (migration 0218) — the exact distinction staff had no way to
+   *  see before, which is what prompted this feature. */
+  subtitle?: string
   categories: MenuCategory[]
   items: MenuItem[]
   variants: MenuVariant[]
@@ -98,8 +103,11 @@ export function QuickAddSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h3 className="text-base font-semibold text-foreground">Add to Table {tableLabel}</h3>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center text-muted-foreground hover:text-foreground"><X size={18} /></button>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-foreground">Add to Table {tableLabel}</h3>
+            {subtitle && <p className="text-[12.5px] text-muted-foreground">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center text-muted-foreground hover:text-foreground"><X size={18} /></button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto border-b border-border px-5 py-3">
