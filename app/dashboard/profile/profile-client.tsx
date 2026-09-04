@@ -250,7 +250,13 @@ export default function ProfileClient({
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[224px_minmax(0,1fr)]">
-        <div className="lg:sticky lg:top-20 lg:self-start">
+        {/* min-w-0: without it, this grid item's default min-width is its
+            content's max-content size — SectionNav's own overflow-x-auto
+            mobile scroller never gets to activate, since its box is never
+            actually constrained narrower than all its chips laid out in a
+            row, so the whole page overflows horizontally instead of just
+            this strip scrolling. */}
+        <div className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <SectionNav items={SECTIONS} active={section} onChange={setSection} />
           <div className="mt-4 hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 lg:block">
             <p className="text-[13px] font-medium text-foreground">Need help?</p>
