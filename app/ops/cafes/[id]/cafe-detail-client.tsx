@@ -14,7 +14,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
 import { DeleteCafeDialog } from '@/components/ops/delete-cafe-dialog'
 import { OpenCafeDashboard } from '@/components/ops/open-cafe-dashboard'
-import { Badge, type StripTone } from '@/components/ops/ui'
+import { Badge, Panel, type StripTone } from '@/components/ops/ui'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 
 export type HealthRow = {
@@ -740,14 +740,17 @@ export default function CafeDetailClient({
               </div>
             )}
 
-            <div className="mt-4 space-y-5">
+            {/* One bordered Panel per plan tier — was a plain uppercase label
+                above a divider, which read as one continuous list once you'd
+                scrolled a screen or two; a real card boundary per tier makes
+                "where does Growth end and Scale begin" obvious at a glance. */}
+            <div className="mt-4 space-y-4">
               {FEATURE_GROUPS.map((g) => {
                 const keys = g.keys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
                 if (keys.length === 0) return null
                 return (
-                  <div key={g.heading}>
-                    <p className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.heading}</p>
-                    <ul className="mt-2 divide-y divide-border">
+                  <Panel key={g.heading} title={g.heading} count={keys.length} tone="neutral">
+                    <ul className="divide-y divide-border">
                       {keys.map((key) => {
                         const f = FEATURES.find((x) => x.key === key)!
                         const included = data.features.plan_defaults[key] ?? false
@@ -799,7 +802,7 @@ export default function CafeDetailClient({
                         )
                       })}
                     </ul>
-                  </div>
+                  </Panel>
                 )
               })}
             </div>
