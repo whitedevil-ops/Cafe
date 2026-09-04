@@ -196,7 +196,7 @@ export default function RecipesClient({
                         <select
                           value={pickItem}
                           onChange={(e) => setPickItem(e.target.value)}
-                          className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                          className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                         >
                           <option value="">Choose…</option>
                           {inventory.map((i) => (
@@ -212,7 +212,7 @@ export default function RecipesClient({
                           step="0.001"
                           value={pickQty}
                           onChange={(e) => setPickQty(e.target.value)}
-                          className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                          className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                         />
                       </label>
                       <Button onClick={() => addIngredient(c.menu_item_id)} loading={busy} size="sm">Add</Button>

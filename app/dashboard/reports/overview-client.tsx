@@ -224,12 +224,12 @@ export default function OverviewClient({
           <label className="space-y-1 text-[13px] text-foreground">
             <span className="block text-muted-foreground">From</span>
             <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-              className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
+              className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
           </label>
           <label className="space-y-1 text-[13px] text-foreground">
             <span className="block text-muted-foreground">To</span>
             <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-              className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
+              className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
           </label>
           <button onClick={applyCustom} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover">
             Apply

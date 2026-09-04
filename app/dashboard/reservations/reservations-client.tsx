@@ -166,7 +166,7 @@ export default function ReservationsClient({
               <select
                 value={tableId}
                 onChange={(e) => setTableId(e.target.value)}
-                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[14px] text-foreground"
+                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
               >
                 <option value="">No table picked yet</option>
                 {tables.map((t) => (
@@ -266,7 +266,7 @@ export default function ReservationsClient({
               autoFocus
               rows={2}
               placeholder="e.g. Customer called to cancel"
-              className="mt-3 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+              className="mt-3 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground"
             />
             <div className="mt-4 flex gap-2">
               <button

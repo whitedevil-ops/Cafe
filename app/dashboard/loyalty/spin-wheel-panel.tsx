@@ -240,12 +240,15 @@ export default function SpinWheelPanel({
               <div key={idx} className={`rounded-[var(--radius)] border p-3 ${status === 'sold_out' ? 'border-destructive/30 bg-destructive-subtle/20' : 'border-border-strong'}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   {canManage && (
-                    <div className="flex shrink-0 flex-col">
-                      <button onClick={() => move(idx, -1)} disabled={idx === 0} aria-label="Move up" className="grid h-4 w-6 place-items-center text-muted-foreground hover:text-foreground disabled:opacity-30">
-                        <ChevronUp size={12} />
+                    // Stacked up/down at h-4 with no gap between them meant two
+                    // 16px targets touching edge to edge — a mis-tap moved the
+                    // wrong prize. Sized up and given real space between them.
+                    <div className="flex shrink-0 flex-col gap-1">
+                      <button onClick={() => move(idx, -1)} disabled={idx === 0} aria-label="Move up" className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground disabled:opacity-30">
+                        <ChevronUp size={14} />
                       </button>
-                      <button onClick={() => move(idx, 1)} disabled={idx === segments.length - 1} aria-label="Move down" className="grid h-4 w-6 place-items-center text-muted-foreground hover:text-foreground disabled:opacity-30">
-                        <ChevronDown size={12} />
+                      <button onClick={() => move(idx, 1)} disabled={idx === segments.length - 1} aria-label="Move down" className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground disabled:opacity-30">
+                        <ChevronDown size={14} />
                       </button>
                     </div>
                   )}
@@ -253,7 +256,7 @@ export default function SpinWheelPanel({
                     value={s.label}
                     onChange={(e) => patch(idx, { label: e.target.value })}
                     placeholder="What the guest sees — e.g. Free Cold Coffee"
-                    className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+                    className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                     disabled={!canManage}
                   />
                   <select
@@ -343,7 +346,7 @@ export default function SpinWheelPanel({
                       value={s.weight}
                       onChange={(e) => patch(idx, { weight: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
                       aria-label={`Chance for ${s.label || 'this slice'}`}
-                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground"
+                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                       disabled={!canManage}
                     />
                   </span>

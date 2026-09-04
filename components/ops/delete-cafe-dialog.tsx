@@ -65,7 +65,7 @@ export function DeleteCafeDialog({
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             autoFocus
-            className="mt-1.5 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+            className="mt-1.5 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
           />
         </label>
 

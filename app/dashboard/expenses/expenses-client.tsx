@@ -131,7 +131,7 @@ export default function ExpensesClient({
             <select
               value={method ?? ''}
               onChange={(e) => setMethod((e.target.value || null) as Expense['method'])}
-              className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+              className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
             >
               {METHODS.map((m) => (
                 <option key={m.label} value={m.value ?? ''}>{m.label}</option>

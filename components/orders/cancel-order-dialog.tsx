@@ -57,7 +57,7 @@ export function CancelOrderDialog({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Describe the reason…"
               autoFocus
-              className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+              className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
             />
           )}
         </div>

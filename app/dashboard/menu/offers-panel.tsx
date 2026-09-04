@@ -199,7 +199,7 @@ export default function OffersPanel({
                       onChange={(e) => setItemSearch(e.target.value)}
                       placeholder="Search items…"
                       autoFocus
-                      className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[13px] text-foreground placeholder:text-muted-foreground"
+                      className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[16px] text-foreground placeholder:text-muted-foreground"
                     />
                     {itemSearch.trim() && (
                       <ul className="mt-1.5 max-h-48 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface">

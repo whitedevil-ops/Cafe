@@ -270,14 +270,14 @@ export default function PurchasesClient({
 
           {creating && (
             <Card className="mt-4">
-              <CardHeader title="New purchase order" action={<button onClick={() => setCreating(false)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>} />
+              <CardHeader title="New purchase order" action={<button onClick={() => setCreating(false)} aria-label="Cancel" className="grid h-10 w-10 place-items-center text-muted-foreground hover:text-foreground"><X size={16} /></button>} />
               <div className="mt-4 space-y-4">
                 <div className="space-y-1.5">
                   <label className="block text-[13px] font-medium text-foreground">Supplier</label>
                   <select
                     value={poSupplierId}
                     onChange={(e) => setPoSupplierId(e.target.value)}
-                    className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                    className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                   >
                     <option value="">Choose a supplier…</option>
                     {suppliers.filter((s) => s.active).map((s) => (
@@ -293,7 +293,7 @@ export default function PurchasesClient({
                       <select
                         value={line.inventoryItemId}
                         onChange={(e) => updateLine(i, { inventoryItemId: e.target.value })}
-                        className="h-10 min-w-[160px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                        className="h-10 min-w-[160px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                       >
                         <option value="">Item…</option>
                         {inventoryItems.map((it) => (
@@ -302,11 +302,11 @@ export default function PurchasesClient({
                       </select>
                       <input
                         value={line.qty} onChange={(e) => updateLine(i, { qty: e.target.value.replace(/[^0-9.]/g, '') })}
-                        placeholder="Qty" className="h-10 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                        placeholder="Qty" className="h-10 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                       />
                       <input
                         value={line.unitCost} onChange={(e) => updateLine(i, { unitCost: e.target.value.replace(/[^0-9.]/g, '') })}
-                        placeholder="₹/unit" className="h-10 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                        placeholder="₹/unit" className="h-10 w-24 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                       />
                       <button onClick={() => removeLine(i)} className="grid h-10 w-10 place-items-center text-muted-foreground hover:text-destructive"><X size={15} /></button>
                     </div>
@@ -356,7 +356,8 @@ export default function PurchasesClient({
 
                   {isOpen && (
                     <div className="mt-3 border-t border-border pt-3">
-                      <table className="w-full text-[13px]">
+                      <div className="overflow-x-auto">
+                      <table className="w-full min-w-[420px] text-[13px]">
                         <thead>
                           <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                             <th className="pb-1.5 font-medium">Item</th>
@@ -383,7 +384,7 @@ export default function PurchasesClient({
                                         value={receiveQty[it.id] ?? ''}
                                         onChange={(e) => setReceiveQty((m) => ({ ...m, [it.id]: e.target.value.replace(/[^0-9.]/g, '') }))}
                                         placeholder="0"
-                                        className="h-8 w-20 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-right text-[12.5px] text-foreground"
+                                        className="h-8 w-20 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-right text-[16px] text-foreground"
                                       />
                                     ) : (
                                       <span className="text-[12px] text-success">Complete</span>
@@ -395,6 +396,7 @@ export default function PurchasesClient({
                           })}
                         </tbody>
                       </table>
+                      </div>
 
                       {po.notes && <p className="mt-2 text-[12px] text-muted-foreground">Note: {po.notes}</p>}
                       {po.cancel_reason && <p className="mt-2 text-[12px] text-destructive">Cancelled: {po.cancel_reason}</p>}
@@ -461,7 +463,7 @@ export default function PurchasesClient({
                   {isAdmin && (
                     <button
                       onClick={() => toggleSupplier(s)}
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                      className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium ${
                         s.active ? 'border-success bg-success-subtle text-success' : 'border-border-strong bg-surface-subtle text-muted-foreground'
                       }`}
                     >

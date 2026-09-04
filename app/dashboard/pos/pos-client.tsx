@@ -1181,7 +1181,7 @@ export default function PosClient({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search items, categories or scan barcode…"
-                  className="h-[52px] w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-[52px] w-full rounded-[var(--radius)] border border-border-strong bg-surface-subtle pl-9 pr-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border-strong bg-surface px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground sm:inline-block">
                   /
@@ -1230,7 +1230,7 @@ export default function PosClient({
                     value={sortMode}
                     onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
                     aria-label="Sort items"
-                    className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[12px] font-medium text-foreground"
+                    className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface px-2 text-[16px] font-medium text-foreground"
                   >
                     <option value="popular">Sort: Popular</option>
                     <option value="price_low">Sort: Price (low first)</option>
@@ -1346,7 +1346,14 @@ export default function PosClient({
       )}
 
       {success && (
-        <div className={`fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-[var(--radius)] border px-4 py-3 shadow-[var(--shadow-lg)] ${success.paid ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle'}`}>
+        // left-1/2 + -translate-x-1/2 centers the box, but with no max-width
+        // and no wrap the three inline items (order line, View bill, Print
+        // bill) could only ever grow the box — on a phone that meant
+        // overflowing BOTH edges equally, since centering a too-wide box
+        // pushes it off-screen left and right at once. max-w caps it to the
+        // viewport with a margin either side; flex-wrap lets the two links
+        // drop to their own line instead of forcing single-line overflow.
+        <div className={`fixed left-1/2 top-4 z-50 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-[var(--radius)] border px-4 py-3 shadow-[var(--shadow-lg)] ${success.paid ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle'}`}>
           <span className="text-[13px] font-medium text-foreground">
             {success.appended ? `Added to bill #${success.code}` : `Order #${success.code}`} · ₹{success.total} · {success.paid ? 'Paid' : 'Payment due'}
           </span>

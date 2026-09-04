@@ -189,7 +189,7 @@ export function ItemSheet({
                 onChange={(e) => setNote(e.target.value.slice(0, 140))}
                 rows={2}
                 placeholder="e.g. less spicy, no onions"
-                className="mt-2 w-full resize-none rounded-[var(--radius)] border border-border-strong bg-surface px-3.5 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground"
+                className="mt-2 w-full resize-none rounded-[var(--radius)] border border-border-strong bg-surface px-3.5 py-2.5 text-[16px] text-foreground placeholder:text-muted-foreground"
               />
               <p className="mt-1 text-right text-[11px] text-muted-foreground">{note.length}/140</p>
             </section>

@@ -306,7 +306,7 @@ export default function ProfileClient({
                     rows={2}
                     disabled={dis}
                     placeholder="A cozy café serving the best coffee and snacks."
-                    className="w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground disabled:opacity-60"
+                    className="w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground disabled:opacity-60"
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -472,11 +472,11 @@ export default function ProfileClient({
                           <>
                             <input type="time" value={d.open} disabled={dis}
                               onChange={(e) => setHours((h) => ({ ...h, [key]: { ...d, open: e.target.value } }))}
-                              className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
+                              className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground" />
                             <span className="text-muted-foreground">–</span>
                             <input type="time" value={d.close} disabled={dis}
                               onChange={(e) => setHours((h) => ({ ...h, [key]: { ...d, close: e.target.value } }))}
-                              className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground" />
+                              className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground" />
                           </>
                         ) : (
                           <span className="text-[13px] text-muted-foreground">Closed</span>

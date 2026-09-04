@@ -651,7 +651,7 @@ export default function MenuManager({
               onChange={(e) => setNewCat(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addCategory()}
               placeholder="New category name"
-              className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+              className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
             />
             <Button size="sm" onClick={addCategory} loading={busy}>
               Add
@@ -724,12 +724,12 @@ export default function MenuManager({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search items"
-          className="h-9 w-full max-w-xs rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+          className="h-9 w-full max-w-xs rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
         />
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm text-foreground"
+          className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
         >
           <option value="all">All categories</option>
           {categories.map((c) => (
@@ -741,7 +741,7 @@ export default function MenuManager({
         <select
           value={availabilityFilter}
           onChange={(e) => setAvailabilityFilter(e.target.value as typeof availabilityFilter)}
-          className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm text-foreground"
+          className="h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
         >
           <option value="all">All</option>
           <option value="available">Available</option>
@@ -1033,7 +1033,7 @@ export default function MenuManager({
                     </div>
                   )}
                   <input value={pairSearch} onChange={(e) => setPairSearch(e.target.value)} placeholder="Search items to suggest…"
-                    className="mt-2 h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-sm text-foreground" />
+                    className="mt-2 h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[16px] text-foreground" />
                   {pairSearch.trim() && (
                     <ul className="mt-1.5 max-h-40 overflow-y-auto rounded-[var(--radius)] border border-border bg-surface">
                       {items
@@ -1057,7 +1057,7 @@ export default function MenuManager({
                 <select
                   value={draft.category_id ?? ''}
                   onChange={(e) => setDraft({ ...draft, category_id: e.target.value || null })}
-                  className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                  className="h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                 >
                   <option value="">Uncategorised</option>
                   {categories.map((c) => (
@@ -1073,7 +1073,7 @@ export default function MenuManager({
                   value={draft.description}
                   onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                   rows={2}
-                  className="w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 
@@ -1102,7 +1102,7 @@ export default function MenuManager({
                       is_veg: e.target.value === '' ? null : e.target.value === 'veg',
                     })
                   }
-                  className="h-8 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                  className="h-8 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                 >
                   <option value="">Diet: n/a</option>
                   <option value="veg">Veg</option>
@@ -1145,7 +1145,7 @@ export default function MenuManager({
                       value={v.name}
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
                       placeholder="e.g. Large"
-                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                     />
                     <input
                       value={v.price}
@@ -1154,7 +1154,7 @@ export default function MenuManager({
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="149"
                       title="What a guest pays for this one"
-                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-[16px] tabular-nums text-foreground"
                     />
                     {canSeeCost && (
                       <input
@@ -1164,7 +1164,7 @@ export default function MenuManager({
                         onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, margin: e.target.value } : x)) })}
                         placeholder="optional"
                         title="What you keep on this one. Only you see it."
-                        className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                        className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-[16px] tabular-nums text-foreground"
                       />
                     )}
                     <button type="button" onClick={() => setDraft({ ...draft, variants: draft.variants.filter((_, i) => i !== idx) })} aria-label="Remove option" className="w-6 text-muted-foreground hover:text-destructive">×</button>
@@ -1191,7 +1191,7 @@ export default function MenuManager({
                       value={a.name}
                       onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}
                       placeholder="e.g. Extra shot"
-                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                      className="h-9 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                     />
                     <input
                       value={a.price}
@@ -1199,7 +1199,7 @@ export default function MenuManager({
                       min={0}
                       onChange={(e) => setDraft({ ...draft, addons: draft.addons.map((x, i) => (i === idx ? { ...x, price: e.target.value } : x)) })}
                       placeholder="₹"
-                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-sm tabular-nums text-foreground"
+                      className="h-9 w-20 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-right text-[16px] tabular-nums text-foreground"
                     />
                     <button type="button" onClick={() => setDraft({ ...draft, addons: draft.addons.filter((_, i) => i !== idx) })} aria-label="Remove add-on" className="w-6 text-muted-foreground hover:text-destructive">×</button>
                   </div>

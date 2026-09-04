@@ -313,14 +313,14 @@ export default function SettingsClient({
                       value={resetPwValue}
                       onChange={(e) => setResetPwValue(e.target.value)}
                       placeholder="New password (min 8 characters)"
-                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                     />
                     <input
                       type="password"
                       value={resetPwConfirm}
                       onChange={(e) => setResetPwConfirm(e.target.value)}
                       placeholder="Confirm"
-                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                      className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                     />
                     <Button size="sm" onClick={() => submitPasswordReset(m)} loading={resetBusy}>Save</Button>
                   </div>
@@ -371,20 +371,20 @@ export default function SettingsClient({
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="Full name"
-                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <input
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder="staff@email.com"
-                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
                   aria-label="Role"
-                  className="h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm capitalize text-foreground"
+                  className="h-11 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] capitalize text-foreground"
                 >
                   {INVITE_ROLES.map((r) => (
                     <option key={r} value={r}>{r}</option>
@@ -397,14 +397,14 @@ export default function SettingsClient({
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Password (min 8 characters)"
-                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <input
                   type="password"
                   value={newConfirmPassword}
                   onChange={(e) => setNewConfirmPassword(e.target.value)}
                   placeholder="Confirm password"
-                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <Button size="sm" onClick={createStaff} loading={createBusy}>Create login</Button>
               </div>

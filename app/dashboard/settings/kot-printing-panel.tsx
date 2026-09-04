@@ -625,7 +625,7 @@ export default function KotPrintingPanel({
                   value={newStation}
                   onChange={(e) => setNewStation(e.target.value)}
                   placeholder="e.g. Coffee Station"
-                  className="h-10 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+                  className="h-10 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <Button variant="secondary" size="sm" onClick={addStation} disabled={!newStation.trim()}>Add</Button>
               </div>

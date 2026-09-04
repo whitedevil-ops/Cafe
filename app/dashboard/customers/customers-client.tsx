@@ -138,7 +138,7 @@ export default function CustomersClient({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or phone…"
-          className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+          className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface pl-9 pr-3 text-[16px] text-foreground placeholder:text-muted-foreground"
         />
       </div>
 

@@ -195,7 +195,7 @@ export default function ShiftClient({
                 onChange={(e) => setOpeningCash(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="Opening cash, e.g. 5000"
                 inputMode="numeric"
-                className="h-11 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                className="h-11 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
               />
               <Button onClick={openShift} loading={busy}>Open shift</Button>
             </div>
@@ -261,13 +261,13 @@ export default function ShiftClient({
                   onChange={(e) => setMoveAmount(e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="Amount"
                   inputMode="numeric"
-                  className="h-11 w-32 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 w-32 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <input
                   value={moveReason}
                   onChange={(e) => setMoveReason(e.target.value)}
                   placeholder="Reason — required"
-                  className="h-11 min-w-[180px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-[180px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <Button onClick={addMovement} loading={busy} disabled={!moveAmount || !moveReason.trim()}>
                   Record
@@ -290,13 +290,13 @@ export default function ShiftClient({
                   onChange={(e) => setCounted(e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="Counted cash"
                   inputMode="numeric"
-                  className="h-11 w-40 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 w-40 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
                 <input
                   value={closeNotes}
                   onChange={(e) => setCloseNotes(e.target.value)}
                   placeholder="Notes (optional)"
-                  className="h-11 min-w-[180px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                  className="h-11 min-w-[180px] flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 

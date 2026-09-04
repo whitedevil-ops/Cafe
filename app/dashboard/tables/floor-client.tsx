@@ -1034,7 +1034,7 @@ export default function FloorClient({
                           value={amountInput}
                           onChange={(e) => setAmountInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && confirmPayment(o)}
-                          className="h-11 w-24 min-w-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                          className="h-11 w-24 min-w-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                         />
                         <button onClick={() => confirmPayment(o)} disabled={busy} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground disabled:opacity-50">
                           {busy ? 'Saving…' : `Confirm ₹${amountInput || 0}`}

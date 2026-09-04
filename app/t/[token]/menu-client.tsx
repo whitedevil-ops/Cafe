@@ -1167,9 +1167,16 @@ export default function MenuClient({
       </div>
 
       {/* Sticky cart — appears the moment something is added, so nobody has to
-          hunt for a cart icon. */}
+          hunt for a cart icon. Sits above CustomerFooterNav, whose real
+          height is NOT the fixed ~64px this used to assume — it also carries
+          pb-[env(safe-area-inset-bottom)], which is ~34px on any iPhone with
+          a home indicator (12 through 16, i.e. most iPhones in use). At a
+          plain bottom-16 (64px) the nav — one z-index higher — painted over
+          the bottom of the "View cart" button on exactly those phones. The
+          calc adds the same safe-area inset on top of a fixed clearance
+          rather than guessing one static number for every device. */}
       {count > 0 && (
-        <div className="fixed inset-x-0 bottom-16 z-30 px-4 pb-2 pt-2 sm:px-6">
+        <div className="fixed inset-x-0 z-30 px-4 pb-2 pt-2 sm:px-6 bottom-[calc(4.5rem+env(safe-area-inset-bottom))]">
           <button
             onClick={() => setStep('cart')}
             className="mx-auto flex w-full max-w-md items-center justify-between rounded-full bg-primary px-5 py-3.5 text-primary-foreground shadow-[var(--shadow-lg)] transition-transform active:scale-[0.99]"

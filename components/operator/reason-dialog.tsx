@@ -43,7 +43,7 @@ export function ReasonDialog({
           placeholder="Reason — required, recorded in the audit log"
           rows={3}
           autoFocus
-          className="mt-4 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground"
+          className="mt-4 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2.5 text-[16px] text-foreground placeholder:text-muted-foreground"
         />
 
         {error && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>}

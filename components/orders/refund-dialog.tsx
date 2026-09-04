@@ -130,7 +130,7 @@ export function RefundDialog({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ''))}
                 inputMode="numeric"
-                className="mt-1 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[15px] text-foreground"
+                className="mt-1 h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
               />
             </label>
           )}

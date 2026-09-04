@@ -143,8 +143,8 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
       </div>
       {range === 'custom' && (
         <div className="mt-3 flex flex-wrap items-end gap-2">
-          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
-          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
+          <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
+          <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
           <button
             onClick={() => void load('custom', type)}
             disabled={!customFrom || !customTo}

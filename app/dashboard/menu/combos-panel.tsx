@@ -367,13 +367,13 @@ export default function CombosPanel({
                           value={s.label}
                           onChange={(e) => patchSlot(idx, { label: e.target.value })}
                           placeholder="Label — e.g. Any Pizza"
-                          className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+                          className="h-10 min-w-0 flex-1 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
                         />
                         <input
                           type="number" min={1} value={s.qty}
                           onChange={(e) => patchSlot(idx, { qty: e.target.value })}
                           aria-label="Quantity"
-                          className="h-10 w-16 shrink-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[13px] text-foreground"
+                          className="h-10 w-16 shrink-0 rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground"
                         />
                         <button
                           onClick={() => setDraft({ ...draft, slots: draft.slots.filter((_, i) => i !== idx) })}

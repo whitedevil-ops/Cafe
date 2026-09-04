@@ -299,9 +299,9 @@ export default function BillsClient({
       {range === 'custom' && (
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-            className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
+            className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
           <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-            className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground" />
+            className="min-h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground" />
           <button onClick={() => void load('custom', type, search)}
             className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground">Apply</button>
         </div>
@@ -317,7 +317,7 @@ export default function BillsClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Bill no., order no., table, phone or customer"
-            className="min-h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface pl-9 pr-9 text-sm text-foreground"
+            className="min-h-10 w-full rounded-[var(--radius)] border border-border-strong bg-surface pl-9 pr-9 text-[16px] text-foreground"
           />
           {search && (
             <button type="button" onClick={() => { setSearch(''); void load(range, type, '') }}

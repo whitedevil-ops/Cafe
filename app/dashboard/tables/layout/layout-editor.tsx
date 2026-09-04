@@ -126,7 +126,7 @@ export default function FloorLayoutEditor({
             <div key={a.id} className={`flex items-center gap-2 rounded-[var(--radius)] border p-2 ${activeArea === a.id ? 'border-primary bg-primary-subtle' : 'border-border bg-surface'}`}>
               <button onClick={() => setActiveArea(a.id)} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-muted-foreground">{i + 1}</button>
               <input value={a.name} onFocus={() => setActiveArea(a.id)} onChange={(e) => renameArea(a.id, e.target.value)}
-                className="min-w-0 flex-1 bg-transparent px-1 text-[14px] font-medium text-foreground outline-none" />
+                className="min-w-0 flex-1 bg-transparent px-1 text-[16px] font-medium text-foreground outline-none" />
               <span className="shrink-0 text-[12px] text-muted-foreground">{tables.filter((t) => t.area_id === a.id && !t.archived).length} tables</span>
               <button onClick={() => moveArea(a.id, -1)} disabled={i === 0} aria-label="Move up" className="grid h-8 w-8 place-items-center text-muted-foreground disabled:opacity-30"><ChevronUp size={15} /></button>
               <button onClick={() => moveArea(a.id, 1)} disabled={i === visibleAreas.length - 1} aria-label="Move down" className="grid h-8 w-8 place-items-center text-muted-foreground disabled:opacity-30"><ChevronDown size={15} /></button>
@@ -152,16 +152,16 @@ export default function FloorLayoutEditor({
             <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-border bg-surface p-2">
               <div className="min-w-0 flex-1">
                 <label className="block text-[11px] text-muted-foreground">Name</label>
-                <input value={t.label} onChange={(e) => patchTable(t.id, { label: e.target.value })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-sm text-foreground" />
+                <input value={t.label} onChange={(e) => patchTable(t.id, { label: e.target.value })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[16px] text-foreground" />
               </div>
               <div className="w-20">
                 <label className="block text-[11px] text-muted-foreground">Seats</label>
-                <input type="number" min={1} value={t.capacity ?? ''} onChange={(e) => patchTable(t.id, { capacity: e.target.value ? Number(e.target.value) : null })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-sm text-foreground" />
+                <input type="number" min={1} value={t.capacity ?? ''} onChange={(e) => patchTable(t.id, { capacity: e.target.value ? Number(e.target.value) : null })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2.5 text-[16px] text-foreground" />
               </div>
               {visibleAreas.length > 1 && (
                 <div className="w-36">
                   <label className="block text-[11px] text-muted-foreground">Floor</label>
-                  <select value={t.area_id ?? ''} onChange={(e) => patchTable(t.id, { area_id: e.target.value || null })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-sm text-foreground">
+                  <select value={t.area_id ?? ''} onChange={(e) => patchTable(t.id, { area_id: e.target.value || null })} className="h-9 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-2 text-[16px] text-foreground">
                     {visibleAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                   </select>
                 </div>

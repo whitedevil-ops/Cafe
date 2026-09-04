@@ -154,7 +154,7 @@ export default function DayCloseClient({
           value={dayKey}
           max={todayKey}
           onChange={(e) => chooseDay(e.target.value)}
-          className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground"
+          className="min-h-9 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
         />
       </div>
 

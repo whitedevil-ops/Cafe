@@ -213,7 +213,7 @@ export default function LoyaltyClient({
               <select
                 value={rewardItemId}
                 onChange={(e) => { setRewardItemId(e.target.value); setRewardVariantId('') }}
-                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
               >
                 <option value="">No linked item — hand it over yourself</option>
                 {menuItems.map((i) => (
@@ -227,7 +227,7 @@ export default function LoyaltyClient({
                 <select
                   value={rewardVariantId}
                   onChange={(e) => setRewardVariantId(e.target.value)}
-                  className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-sm text-foreground"
+                  className="h-11 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground"
                 >
                   <option value="">Choose a size…</option>
                   {rewardItemVariants.map((v) => (

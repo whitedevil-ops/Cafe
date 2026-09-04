@@ -84,7 +84,7 @@ export default function RoleAccessPanel({
           id="role-access-select"
           value={role}
           onChange={(e) => setRole(e.target.value as (typeof ROLES)[number])}
-          className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] capitalize text-foreground"
+          className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] capitalize text-foreground"
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>{r}</option>
