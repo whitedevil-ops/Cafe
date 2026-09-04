@@ -18,7 +18,6 @@ const SCREENS: { key: string; label: string }[] = [
   { key: 'kitchen', label: 'Kitchen' },
   { key: 'menu', label: 'Menu' },
   { key: 'customers', label: 'Customers' },
-  { key: 'feedback', label: 'Feedback' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'purchases', label: 'Purchases' },
   { key: 'recipes', label: 'Recipes & cost' },

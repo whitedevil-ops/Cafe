@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
-  BookOpenText, Users, ChartBar, Wallet, PiggyBank, Package, Soup, Tag, Gift, Truck, Star,
+  BookOpenText, Users, ChartBar, Wallet, PiggyBank, Package, Soup, Tag, Gift, Truck,
   Store, QrCode, Ticket, Settings as SettingsIcon, CreditCard, CalendarClock, TrendingUp,
   PanelLeftClose, PanelLeft, CircleHelp, ChevronDown, LogOut, Menu as MenuIcon,
 } from 'lucide-react'
@@ -24,7 +24,7 @@ const ICON = 17
 // unfiltered-by-role nav tree so a blocked screen's item can still be found
 // and checked against the real screenAccess set (see `blocked` below).
 const ALL_SCREEN_KEYS = new Set([
-  'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
+  'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers',
   'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
   'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
 ])
@@ -54,7 +54,6 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
       items: [
         { label: 'Menu', href: '/dashboard/menu', icon: <BookOpenText size={ICON} />, screenKey: 'menu' },
         { label: 'Customers', href: '/dashboard/customers', icon: <Users size={ICON} />, featureKey: 'crm', screenKey: 'customers' },
-        { label: 'Feedback', href: '/dashboard/feedback', icon: <Star size={ICON} />, featureKey: 'feedback', screenKey: 'feedback' },
         { label: 'Inventory', href: '/dashboard/inventory', icon: <Package size={ICON} />, featureKey: 'inventory', screenKey: 'inventory' },
         { label: 'Purchases', href: '/dashboard/purchases', icon: <Truck size={ICON} />, featureKey: 'inventory', screenKey: 'purchases' },
         { label: 'Recipes & cost', href: '/dashboard/recipes', icon: <Soup size={ICON} />, featureKey: 'inventory', screenKey: 'recipes' },

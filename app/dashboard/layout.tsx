@@ -65,7 +65,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // and that the wheel editor lived on the Loyalty page. Both stopped being
   // true when Spin moved to /dashboard/spin, and a stale comment on an
   // entitlement list is the kind that gets believed.
-  for (const key of ['crm', 'feedback', 'inventory', 'coupons', 'loyalty', 'spin', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
+  for (const key of ['crm', 'inventory', 'coupons', 'loyalty', 'spin', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
     navFeatures[key] = overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false)
   }
 
@@ -130,7 +130,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // of the whole dashboard because a lookup hiccuped, same posture as the
   // QR ordering kill-switch check.
   const ALL_SCREENS = [
-    'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers', 'feedback',
+    'dashboard', 'pos', 'tables', 'bills', 'shift', 'kitchen', 'menu', 'customers',
     'inventory', 'purchases', 'recipes', 'coupons', 'loyalty', 'wallet', 'reservations', 'reports',
     'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
   ]

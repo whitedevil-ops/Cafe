@@ -103,7 +103,6 @@ export type CafeDetail = {
 const FEATURES: { key: string; label: string; description: string }[] = [
   { key: 'qr_ordering', label: 'QR Ordering', description: 'Kill switch for the customer-facing QR menu & ordering flow.' },
   { key: 'crm', label: 'Customer Directory (CRM)', description: 'Saved customer profiles and order history.' },
-  { key: 'feedback', label: 'Customer Feedback', description: 'Post-order rating & feedback collection.' },
   { key: 'coupons', label: 'Coupons', description: 'Discount codes at checkout.' },
   { key: 'loyalty', label: 'Loyalty & Rewards', description: 'Points on payment and redeemable rewards. Spin & Win is separate — see below.' },
   { key: 'spin', label: 'Spin & Win', description: 'The prize wheel guests spin on their receipt after paying. Off-plan, guests simply see no wheel; prize codes already issued stay redeemable.' },
@@ -120,7 +119,7 @@ const FEATURES: { key: string; label: string; description: string }[] = [
 
 const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
   { heading: 'Operations', keys: ['qr_ordering'] },
-  { heading: 'Customer & Growth', keys: ['crm', 'feedback', 'coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills'] },
+  { heading: 'Customer & Growth', keys: ['crm', 'coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills'] },
   { heading: 'Inventory & Operations', keys: ['inventory', 'expenses'] },
   { heading: 'Analytics & Reporting', keys: ['advanced_analytics', 'advanced_reports'] },
   { heading: 'Business', keys: ['online_payments'] },
