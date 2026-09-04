@@ -620,7 +620,7 @@ export function OrderConfirmModal({
                 <span>−₹{couponDiscount}</span>
               </div>
             )}
-            {taxPercent > 0 && (
+            {tax > 0 && (
               <div className="flex justify-between text-muted-foreground">
                 <span>Tax ({taxPercent}%)</span>
                 <span>₹{tax}</span>
