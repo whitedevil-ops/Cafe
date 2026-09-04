@@ -33,6 +33,7 @@ export function OrderConfirmModal({
   bothEnabled,
   onOpenTableSelector,
   existingSession,
+  willAppend,
   heldCount,
   onOpenHeld,
   lines,
@@ -111,6 +112,7 @@ export function OrderConfirmModal({
   bothEnabled: boolean
   onOpenTableSelector: () => void
   existingSession: { total: number; itemCount: number; due: number; payState: 'paid' | 'partial' | 'unpaid' | null } | null
+  willAppend: boolean
   heldCount: number
   onOpenHeld: () => void
   lines: CartLine[]
@@ -370,9 +372,11 @@ export function OrderConfirmModal({
           )}
 
           {orderType === 'dine_in' && existingSession && (
-            <p className="mt-2 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
-              This table has an active order — ₹{existingSession.total} · {existingSession.itemCount} item
-              {existingSession.itemCount === 1 ? '' : 's'}. New items join the same table session.
+            <p className={`mt-2 rounded-[var(--radius)] px-3 py-2 text-[12px] ${willAppend ? 'bg-info-subtle text-info' : 'bg-warning-subtle text-warning'}`}>
+              This table has an active bill — ₹{existingSession.total} · {existingSession.itemCount} item
+              {existingSession.itemCount === 1 ? '' : 's'}. {willAppend
+                ? 'These items will be added to that bill.'
+                : 'These items will start a separate order at the same table.'}
             </p>
           )}
 
@@ -390,7 +394,7 @@ export function OrderConfirmModal({
               value={customerName}
               onChange={(e) => onCustomerName(e.target.value)}
               placeholder="Customer name (optional)"
-              className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground placeholder:text-muted-foreground"
+              className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[16px] text-foreground placeholder:text-muted-foreground"
             />
           </div>
           {customerPhone && !phoneValid && (

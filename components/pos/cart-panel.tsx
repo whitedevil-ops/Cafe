@@ -53,6 +53,7 @@ export function CartPanel({
   onOpenTableSelector,
   onFocusSearch,
   existingSession,
+  willAppend,
   recommendations,
   onAddRecommendation,
   lines,
@@ -121,6 +122,9 @@ export function CartPanel({
   onOpenTableSelector: () => void
   onFocusSearch: () => void
   existingSession: { total: number; itemCount: number; due: number; payState: 'paid' | 'partial' | 'unpaid' | null } | null
+  /** Whether this submission will join that existing bill (append_order_items,
+   *  migration 0218) instead of starting a new order — resolved in pos-client.tsx. */
+  willAppend: boolean
   recommendations: { id: string; name: string; price: number; reason: string }[]
   onAddRecommendation: (rec: { id: string; name: string; price: number; reason: string }) => void
   lines: CartLine[]
@@ -260,7 +264,9 @@ export function CartPanel({
       ? collecting
         ? `Collect payment · ${tenderLabel[tender as 'cash' | 'upi' | 'card']} ₹${total}`
         : `Place — payment pending`
-      : `Send to kitchen · ₹${total}`
+      : willAppend
+        ? `Add to bill · ₹${total}`
+        : `Send to kitchen · ₹${total}`
 
   return (
     <OrderConfirmModal
@@ -275,6 +281,7 @@ export function CartPanel({
       bothEnabled={bothEnabled}
       onOpenTableSelector={onOpenTableSelector}
       existingSession={existingSession}
+      willAppend={willAppend}
       heldCount={heldCount}
       onOpenHeld={onOpenHeld}
       lines={lines}

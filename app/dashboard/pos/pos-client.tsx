@@ -144,6 +144,12 @@ export default function PosClient({
   const bothEnabled = dineIn && takeaway
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>(takeaway && !dineIn ? 'takeaway' : 'dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
+  // Resolved reactively below (order_appendable, migration 0218) — set only
+  // when the selected table has exactly one open order and it's still
+  // eligible to grow. placeOrder() uses this to route to append_order_items
+  // instead of always opening a second bill on the same table, which is what
+  // this screen did unconditionally until now.
+  const [appendTargetOrderId, setAppendTargetOrderId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [tender, setTender] = useState<Tender>('cash')
   const [pendingReason, setPendingReason] = useState('')
@@ -153,13 +159,14 @@ export default function PosClient({
   // twice — see migration 0056. Cleared once an order actually succeeds.
   const requestId = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ code: string; total: number; token: string; paid: boolean } | null>(null)
+  const [success, setSuccess] = useState<{ code: string; total: number; token: string; paid: boolean; appended: boolean } | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
 
   const [tableSelectorOpen, setTableSelectorOpen] = useState(false)
   // Seed from the canonical layout (area/position/shape); status fills on poll.
   const seedLive = (t: PosTable): LiveTable => ({
     id: t.id, label: t.label, status: t.occupied ? 'occupied' : 'available', sessionId: null,
+    orderId: null, orderCount: 0,
     bill: 0, itemCount: 0, items: [],
     areaId: t.area_id, capacity: t.capacity,
     paid: 0, due: 0, payState: null, billRequested: false, ready: false, waiterCalled: false, mins: null,
@@ -495,6 +502,8 @@ export default function PosClient({
         label: t.label,
         status: t.status as LiveTable['status'],
         sessionId: s?.id ?? null,
+        orderId: ords.length === 1 ? ords[0].id : null,
+        orderCount: ords.length,
         bill,
         itemCount,
         items: its.map((i) => ({ name: i.name, qty: i.qty })),
@@ -566,17 +575,50 @@ export default function PosClient({
   }, [pollStats])
 
   async function pickTable(t: LiveTable) {
+    let targetOrderId: string | null = null
     if (t.status === 'occupied' && t.sessionId) {
-      const ok = await confirm({
-        title: `Add to ${t.label}'s existing order?`,
-        description: `This table has an active order — ₹${t.bill} (${t.itemCount} item${t.itemCount === 1 ? '' : 's'}). Your new items will join the same table session.`,
-        confirmLabel: 'Add to this table',
-      })
+      // Resolved BEFORE the confirm dialog so its copy is actually true —
+      // this used to unconditionally promise "will join the same table
+      // session" and then place a second, fully separate order regardless.
+      if (t.orderCount === 1 && t.orderId) {
+        const { data } = await supabase.rpc('order_appendable', { p_order_id: t.orderId })
+        if (data === true) targetOrderId = t.orderId
+      }
+      const ok = await confirm(
+        targetOrderId
+          ? {
+              title: `Add to ${t.label}'s bill?`,
+              description: `This table has an active bill — ₹${t.bill} (${t.itemCount} item${t.itemCount === 1 ? '' : 's'}). Your new items will be added to the same bill.`,
+              confirmLabel: 'Add to this bill',
+            }
+          : {
+              title: `Start a new order for ${t.label}?`,
+              description: `This table already has ₹${t.bill} due (${t.itemCount} item${t.itemCount === 1 ? '' : 's'}). This will start a separate order at the same table.`,
+              confirmLabel: 'Start a new order',
+            },
+      )
       if (!ok) return
     }
+    setAppendTargetOrderId(targetOrderId)
     setSelectedTableId(t.id)
     setTableSelectorOpen(false)
   }
+
+  // Fallback resolver for the paths that don't go through pickTable's own
+  // interactive check — resuming a held order, and restoring a table
+  // selection from the sessionStorage draft on remount. Harmless to also
+  // re-run after pickTable (liveTables changing on the next poll re-fires
+  // this), since order_appendable is a cheap read-only check.
+  useEffect(() => {
+    if (orderType !== 'dine_in' || !selectedTableId) { setAppendTargetOrderId(null); return }
+    const t = liveTables.find((lt) => lt.id === selectedTableId)
+    if (!t || t.orderCount !== 1 || !t.orderId) { setAppendTargetOrderId(null); return }
+    let cancelled = false
+    supabase.rpc('order_appendable', { p_order_id: t.orderId }).then(({ data }) => {
+      if (!cancelled) setAppendTargetOrderId(data === true ? (t.orderId as string) : null)
+    })
+    return () => { cancelled = true }
+  }, [orderType, selectedTableId, liveTables, supabase])
 
   const existingSession = useMemo(() => {
     const t = liveTables.find((lt) => lt.id === selectedTableId)
@@ -879,6 +921,21 @@ export default function PosClient({
     })
   }
 
+  // append_order_items (0218) has none of these — no reward-redemption path,
+  // no discount/coupon/spin arguments at all (see 0218's own header for why:
+  // resolve_coupon_discount has no idempotency guard, and orders.discount
+  // can't be un-mixed back into "what type was it" after the fact). Rather
+  // than block staff from using any of these on a table that happens to be
+  // appendable, this just quietly falls back to today's new-order path for
+  // that one round — appending is a bonus when it applies cleanly, never a
+  // requirement.
+  const willAppend = Boolean(appendTargetOrderId)
+    && orderType === 'dine_in'
+    && cart.every((l) => !l.rewardId)
+    && !spinPrize
+    && !appliedCoupon
+    && !(discountType && (Number(discountValue) || 0) > 0)
+
   async function placeOrder() {
     if (orderType === 'dine_in' && !selectedTableId) return
     // Takeaway collects now on a real tender (bill → PAID) or is explicitly
@@ -891,47 +948,71 @@ export default function PosClient({
     setPlacing(true)
     setError(null)
     if (!requestId.current) requestId.current = crypto.randomUUID()
-    // p_spin_code is sent only when a prize is actually attached. PostgREST
-    // picks the overload from the keys it receives, so an ordinary bill still
-    // resolves against the pre-0126 signature — the till keeps working if the
-    // code ships ahead of the migration, and only a spin claim would fail.
-    const { data, error: rpcError } = await supabase.rpc('staff_place_order', {
-      p_cafe_id: cafeId,
-      p_items: cart.map((l) =>
-        l.comboId
-          ? { combo_id: l.comboId, qty: l.qty, selections: l.selections ?? [] }
-          : { item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null, reward_id: l.rewardId || null },
-      ),
-      p_order_type: orderType,
-      p_table_id: orderType === 'dine_in' ? selectedTableId : null,
-      p_payment_method: method,
-      p_customer_phone: customerPhone || null,
-      p_customer_name: customerName || null,
-      p_discount_type: discountType,
-      p_discount_value: Number(discountValue) || 0,
-      p_settle: settle,
-      p_pending_reason: reason,
-      p_client_request_id: requestId.current,
-      p_coupon_code: appliedCoupon?.code ?? null,
-      ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
-    })
+    const { data, error: rpcError } = willAppend
+      ? await supabase.rpc('append_order_items', {
+          p_order_id: appendTargetOrderId,
+          p_items: cart.map((l) =>
+            l.comboId
+              ? { combo_id: l.comboId, qty: l.qty, selections: l.selections ?? [] }
+              : { item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null },
+          ),
+          p_client_request_id: requestId.current,
+        })
+      // p_spin_code is sent only when a prize is actually attached. PostgREST
+      // picks the overload from the keys it receives, so an ordinary bill still
+      // resolves against the pre-0126 signature — the till keeps working if the
+      // code ships ahead of the migration, and only a spin claim would fail.
+      : await supabase.rpc('staff_place_order', {
+          p_cafe_id: cafeId,
+          p_items: cart.map((l) =>
+            l.comboId
+              ? { combo_id: l.comboId, qty: l.qty, selections: l.selections ?? [] }
+              : { item_id: l.itemId, qty: l.qty, variant_id: l.variantId, addon_ids: l.addonIds, note: l.note || null, reward_id: l.rewardId || null },
+          ),
+          p_order_type: orderType,
+          p_table_id: orderType === 'dine_in' ? selectedTableId : null,
+          p_payment_method: method,
+          p_customer_phone: customerPhone || null,
+          p_customer_name: customerName || null,
+          p_discount_type: discountType,
+          p_discount_value: Number(discountValue) || 0,
+          p_settle: settle,
+          p_pending_reason: reason,
+          p_client_request_id: requestId.current,
+          p_coupon_code: appliedCoupon?.code ?? null,
+          ...(spinPrize ? { p_spin_code: spinPrize.code } : {}),
+        })
     setPlacing(false)
     if (rpcError) return setError(spinFailureHint(rpcError.message))
     requestId.current = null
-    const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
-    setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })
-    // Fire-and-forget: since 0215, an "order placed" WhatsApp is never
-    // queued — only the "bill" message is, and only once payment is
-    // actually recorded (which record_payment/settle above may have just
-    // done). If this order settled immediately, the DB trigger has queued
-    // that bill log; send whatever's pending now instead of waiting for
-    // staff to notice it in the Tables page. On an unsettled order there is
-    // nothing pending yet, and this call is a harmless no-op.
-    fetch('/api/whatsapp/auto-send', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ receipt_token: r.receipt_token }),
-    }).catch(() => {})
+
+    if (willAppend) {
+      // append_order_items returns order totals, not short_code/receipt_token
+      // (Live Tables, its first caller, never needed a bill link) — one cheap
+      // follow-up read gets what this screen's success toast needs. Appending
+      // can never itself produce a fresh 'paid' bill (order_appendable already
+      // required payment_status not in ('paid','refunded') before this ran),
+      // so there's nothing new for the WhatsApp auto-send fire-and-forget to
+      // pick up — skipped rather than firing a call that's a guaranteed no-op.
+      const r = data as { order_id: string; total: number }
+      const { data: ord } = await supabase.from('orders').select('short_code, receipt_token').eq('id', r.order_id).single()
+      setSuccess({ code: ord?.short_code ?? '', total: r.total, token: ord?.receipt_token ?? '', paid: false, appended: true })
+    } else {
+      const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
+      setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid', appended: false })
+      // Fire-and-forget: since 0215, an "order placed" WhatsApp is never
+      // queued — only the "bill" message is, and only once payment is
+      // actually recorded (which record_payment/settle above may have just
+      // done). If this order settled immediately, the DB trigger has queued
+      // that bill log; send whatever's pending now instead of waiting for
+      // staff to notice it in the Tables page. On an unsettled order there is
+      // nothing pending yet, and this call is a harmless no-op.
+      fetch('/api/whatsapp/auto-send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ receipt_token: r.receipt_token }),
+      }).catch(() => {})
+    }
     setCart([])
     setCartOpen(false)
     setCustomerPhone('')
@@ -1005,6 +1086,7 @@ export default function PosClient({
       searchInputRef.current?.focus()
     },
     existingSession,
+    willAppend,
     recommendations: recs,
     onAddRecommendation: addRecommendation,
     lines: cart,
@@ -1266,7 +1348,7 @@ export default function PosClient({
       {success && (
         <div className={`fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-[var(--radius)] border px-4 py-3 shadow-[var(--shadow-lg)] ${success.paid ? 'border-success bg-success-subtle' : 'border-warning bg-warning-subtle'}`}>
           <span className="text-[13px] font-medium text-foreground">
-            Order #{success.code} · ₹{success.total} · {success.paid ? 'Paid' : 'Payment due'}
+            {success.appended ? `Added to bill #${success.code}` : `Order #${success.code}`} · ₹{success.total} · {success.paid ? 'Paid' : 'Payment due'}
           </span>
           <a href={`/r/${success.token}`} target="_blank" className="text-[13px] font-semibold text-primary hover:underline">
             View bill →

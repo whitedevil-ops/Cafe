@@ -9,6 +9,10 @@ export type LiveTable = {
   label: string
   status: 'available' | 'occupied' | 'reserved' | 'cleaning'
   sessionId: string | null
+  // Exactly one open order on this session's own id, else null — the same
+  // "no ambiguity" rule floor-client.tsx uses before offering to append.
+  orderId: string | null
+  orderCount: number
   bill: number
   itemCount: number
   items: { name: string; qty: number }[]
