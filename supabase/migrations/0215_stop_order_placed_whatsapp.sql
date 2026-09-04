@@ -27,10 +27,28 @@
 -- accumulating mess this schema's own migrations have been written all
 -- along to avoid.
 --
+-- CORRECTION (this file failed and rolled back on its first real run —
+-- fixed in place rather than superseded, since nothing had actually applied
+-- yet; see the self-check below for exactly what was wrong): the original
+-- version of this migration asserted that trigger on_order_completed_whatsapp
+-- must still exist. That assertion was wrong. 0156 created it (fired on
+-- orders.status changing); 0157 — the very next migration — deliberately
+-- DROPPED it and replaced it with on_order_paid_whatsapp (fired on
+-- payment_status changing instead), because "status='completed'" is the
+-- wrong signal for "send the bill" — an order can be completed by the
+-- kitchen without being paid yet. That consolidation has been the live,
+-- correct state ever since 0157. This file read 0156 without checking
+-- whether a later migration superseded it, and demanded a trigger that was
+-- SUPPOSED to be gone — so the whole script rolled back and the
+-- "order placed" message kept sending. Confirmed live: whatsapp_logs had
+-- order_placed rows 'sent' minutes after this migration had supposedly run.
+--
 -- WHAT THIS DELIBERATELY LEAVES ALONE:
---   - enqueue_bill_whatsapp and its two triggers (on 'completed' status and
---     on payment_status='paid') — unchanged. The bill message still fires
---     exactly as it does today.
+--   - enqueue_bill_whatsapp and its one live trigger, on_order_paid_whatsapp
+--     (payment_status='paid', since 0157) — unchanged. The bill message
+--     still fires exactly as it does today. on_order_completed_whatsapp is
+--     NOT expected to exist — 0157 removed it on purpose, and it must stay
+--     gone; that is exactly the assertion this correction fixes.
 --   - The enqueue_order_placed_whatsapp() FUNCTION itself — left in place,
 --     just detached. Re-enabling later (if the café ever wants the early
 --     ping back, e.g. once "add to current bill" ships and this stops being
@@ -60,11 +78,15 @@ begin
     raise exception 'enqueue_order_placed_whatsapp function was removed — it was only meant to be detached';
   end if;
 
-  -- The bill message's two triggers must be completely untouched by this.
-  if not exists (select 1 from pg_trigger where tgname = 'on_order_completed_whatsapp') then
-    raise exception 'on_order_completed_whatsapp (bill trigger) is missing — this migration must not have touched it';
-  end if;
+  -- The ONE correct bill trigger, live since 0157, must be completely
+  -- untouched by this.
   if not exists (select 1 from pg_trigger where tgname = 'on_order_paid_whatsapp') then
-    raise exception 'on_order_paid_whatsapp (bill trigger) is missing — this migration must not have touched it';
+    raise exception 'on_order_paid_whatsapp (the one bill trigger, since 0157) is missing — this migration must not have touched it';
+  end if;
+  -- And it must NOT be back — 0157 removed it deliberately; its reappearance
+  -- would mean the bill message fires twice on an order whose status and
+  -- payment_status both change in the same UPDATE.
+  if exists (select 1 from pg_trigger where tgname = 'on_order_completed_whatsapp') then
+    raise exception 'on_order_completed_whatsapp exists — 0157 deliberately removed this trigger and it should not be back';
   end if;
 end $$;
