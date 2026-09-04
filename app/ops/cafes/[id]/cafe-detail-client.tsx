@@ -219,6 +219,15 @@ function planPrice(plans: { key: string; price_monthly: number; price_yearly: nu
   return 'Free'
 }
 
+// cafes.plan stores the internal KEY ('pro', 'business') — every display
+// spot below used to show that raw key (CSS-capitalized, so "Pro"/"Business")
+// instead of the real product name ("Growth"/"Scale"), which is a different
+// string entirely, not just a casing difference. platform_plans.name is
+// already correctly cased — no capitalize class needed once this is used.
+function planName(plans: { key: string; name: string }[], planKey: string): string {
+  return plans.find((p) => p.key === planKey)?.name ?? planKey
+}
+
 // Duration math on two absolute timestamptz instants -- no café-local
 // timezone conversion needed (that machinery exists to bucket events into
 // café-local CALENDAR days; a duration between two instants is timezone-
@@ -345,10 +354,10 @@ export default function CafeDetailClient({
   }
 
   async function applyPlan() {
-    const planName = plans.find((p) => p.key === planKey)?.name ?? planKey
+    const newPlanName = plans.find((p) => p.key === planKey)?.name ?? planKey
     const currentName = plans.find((p) => p.key === data.account.plan)?.name ?? data.account.plan
     const ok = await confirm({
-      title: `Change plan: ${currentName} → ${planName}?`,
+      title: `Change plan: ${currentName} → ${newPlanName}?`,
       description: `Effective ${fmt(new Date(effectiveDate).toISOString())}. The new subscription end date is calculated automatically (14 days for Trial, 365 for an annual plan, 30 otherwise), and this reactivates the café if it's currently suspended for expiry.`,
       confirmLabel: 'Change plan',
     })
@@ -359,7 +368,7 @@ export default function CafeDetailClient({
     })
     setApplyingPlan(false)
     if (error) return toast(error.message, 'error')
-    toast(`Plan set to ${planKey} — active until ${fmt(newEndsAt as string)}.`)
+    toast(`Plan set to ${newPlanName} — active until ${fmt(newEndsAt as string)}.`)
     void refresh()
   }
 
@@ -525,7 +534,7 @@ export default function CafeDetailClient({
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[11.5px] font-medium capitalize text-foreground">{data.account.status}</span>
-                <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[11.5px] font-medium capitalize text-foreground">{data.account.plan}</span>
+                <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-[11.5px] font-medium text-foreground">{planName(plans, data.account.plan)}</span>
                 {healthVerdict && <Badge tone={healthVerdict.tone}>{healthVerdict.label}</Badge>}
                 <button onClick={copyId} className="flex items-center gap-1 text-[11.5px] text-muted-foreground hover:text-foreground">
                   <Copy size={11} /> {data.business.id.slice(0, 8)}
@@ -596,7 +605,7 @@ export default function CafeDetailClient({
       <div className="mt-5">
         {tab === 'overview' && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <Metric label="Plan" value={<span className="capitalize">{data.account.plan}</span>} />
+            <Metric label="Plan" value={planName(plans, data.account.plan)} />
             <Metric label="Subscription" value={(() => { const t = trialStatus(data.account.plan, data.account.subscription_ends_at); return <Badge tone={t.tone}>{t.label}</Badge> })()} />
             <Metric label="Subscription ends" value={fmt(data.account.subscription_ends_at)} sub={daysRemainingLabel(data.account.subscription_ends_at)} />
             <Metric label="Verification" value={data.account.verified ? <Badge tone="success">Verified</Badge> : <Badge tone="neutral">Not verified</Badge>} />
@@ -649,7 +658,7 @@ export default function CafeDetailClient({
             <section className="rounded-xl border border-border bg-surface p-5">
               <p className="text-sm font-medium text-foreground">Account &amp; subscription</p>
               <div className="mt-3 grid grid-cols-2 gap-3 text-[13.5px] sm:grid-cols-3">
-                <Field label="Plan" value={data.account.plan} capitalize />
+                <Field label="Plan" value={planName(plans, data.account.plan)} />
                 <Field label="Plan price" value={planPrice(plans, data.account.plan)} />
                 <Field label="Billing period" value="Monthly (via Razorpay)" hint="price_yearly is a reference figure only — subscriptions bill monthly." />
                 <Field
@@ -671,9 +680,9 @@ export default function CafeDetailClient({
                     <div>
                       <p className="text-[13px] font-medium text-foreground">Change / renew plan</p>
                       <p className="mt-1 flex items-center gap-2 text-[13px] text-muted-foreground">
-                        <span className="capitalize">{data.account.plan}</span>
+                        <span>{planName(plans, data.account.plan)}</span>
                         <span aria-hidden>→</span>
-                        <span className="font-medium capitalize text-foreground">{planKey}</span>
+                        <span className="font-medium text-foreground">{planName(plans, planKey)}</span>
                         {planKey !== data.account.plan && <span className="text-[11.5px]">(changing)</span>}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -718,7 +727,7 @@ export default function CafeDetailClient({
               <div>
                 <p className="text-sm font-medium text-foreground">Feature control</p>
                 <p className="mt-1 text-[12.5px] text-muted-foreground">
-                  Follows the <span className="capitalize">{data.account.plan}</span> plan by default. Toggle anything below to
+                  Follows the {planName(plans, data.account.plan)} plan by default. Toggle anything below to
                   override it for this café only — everything else keeps working as normal.
                 </p>
               </div>
@@ -886,7 +895,7 @@ export default function CafeDetailClient({
           <section className="rounded-xl border border-border bg-surface p-5">
             <p className="text-sm font-medium text-foreground">Payments &amp; billing</p>
             <div className="mt-3 grid grid-cols-2 gap-3 text-[13.5px] sm:grid-cols-3">
-              <Field label="Plan" value={data.account.plan} capitalize />
+              <Field label="Plan" value={planName(plans, data.account.plan)} />
               <Field label="Plan price" value={planPrice(plans, data.account.plan)} />
               <Field label="Subscription start" value={fmt(data.business.created_at)} hint="No separate billing-start date is stored — the café's own created_at is the closest real signal." />
               <Field label="Subscription ends" value={fmt(data.account.subscription_ends_at)} />

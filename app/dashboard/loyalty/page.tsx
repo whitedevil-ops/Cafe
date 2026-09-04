@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import LoyaltyClient, { type Reward } from './loyalty-client'
 
@@ -18,8 +18,7 @@ export default async function LoyaltyPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'loyalty'))) {
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Loyalty & rewards" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Loyalty & rewards" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   const [{ data: settings }, { data: rewards }, { data: menuItems }] = await Promise.all([

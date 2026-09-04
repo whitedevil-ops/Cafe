@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
-import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import ProfitabilityClient from './profitability-client'
 
@@ -15,9 +14,7 @@ export default async function ProfitabilityPage() {
   if (cafe.role !== 'owner' && cafe.role !== 'manager') redirect('/dashboard/reports')
 
   if (!(await hasFeature(cafe.cafeId, 'advanced_reports'))) {
-    const supabase = await createClient()
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Profitability reporting" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Profitability reporting" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   return <ProfitabilityClient cafeId={cafe.cafeId} cafeName={cafe.name} timezone={cafe.timezone} />

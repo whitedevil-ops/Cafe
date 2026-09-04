@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import RecipesClient, { type CostRow, type RecipeRow, type InventoryOption } from './recipes-client'
 
@@ -16,8 +16,7 @@ export default async function RecipesPage() {
   // Recipes/costing are meaningless without inventory, so they share its
   // entitlement rather than introducing a second flag nobody configured.
   if (!(await hasFeature(cafe.cafeId, 'inventory'))) {
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Recipes & food cost" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Recipes & food cost" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   const [{ data: costs }, { data: recipes }, { data: inventory }, { data: cafeRow }] = await Promise.all([

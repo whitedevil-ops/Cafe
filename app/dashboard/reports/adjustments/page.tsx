@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import AdjustmentsClient, { type AdjustmentsReport } from './adjustments-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
@@ -15,8 +15,7 @@ export default async function AdjustmentsReportPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'advanced_reports'))) {
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Adjustments reporting" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Adjustments reporting" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   const from = businessDaysAgoStartISO(6, cafe.timezone)

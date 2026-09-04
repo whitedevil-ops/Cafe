@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import SpinWheelPanel from '../loyalty/spin-wheel-panel'
 import type { SpinSegment, SpinWheel, SpinAnalytics } from '@/lib/spin-wheel'
@@ -21,9 +21,7 @@ export default async function SpinPage() {
   if (!cafe) redirect('/onboarding')
 
   if (!(await hasFeature(cafe.cafeId, 'spin'))) {
-    const supabase = await createClient()
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Spin & Win" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Spin & Win" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   const supabase = await createClient()

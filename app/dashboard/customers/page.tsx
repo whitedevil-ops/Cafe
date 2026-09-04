@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature } from '@/lib/entitlements'
+import { hasFeature, getCafePlanName } from '@/lib/entitlements'
 import { UpgradeRequired } from '@/components/upgrade-required'
 import CustomersClient from './customers-client'
 
@@ -37,8 +37,7 @@ export default async function CustomersPage({
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'crm'))) {
-    const { data: planRow } = await supabase.from('cafes').select('plan').eq('id', cafe.cafeId).maybeSingle()
-    return <UpgradeRequired feature="Customer Directory" plan={planRow?.plan ?? 'current'} />
+    return <UpgradeRequired feature="Customer Directory" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
   const { data, count } = await supabase
