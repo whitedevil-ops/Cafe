@@ -580,16 +580,16 @@ export default function MenuClient({
     const r = data as { short_code: string; total: number; receipt_token?: string; discount?: number }
     setPlaced({ code: r.short_code, total: r.total, method: mode, receiptToken: r.receipt_token ?? null })
     setOrderStatus(null)
-    // Fire-and-forget: the DB trigger (0157) just queued an order-placed
-    // WhatsApp log for this order — send it now instead of waiting for
-    // staff to notice it in the Tables page.
-    if (r.receipt_token) {
-      fetch('/api/whatsapp/auto-send', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ receipt_token: r.receipt_token }),
-      }).catch(() => {})
-    }
+    // Since 0215, place_order never has anything for /api/whatsapp/auto-send
+    // to find here — the "order placed" message it used to catch is gone,
+    // and place_order always inserts payment_status = 'unpaid', so the "bill"
+    // message can't be pending yet either; that only queues once payment is
+    // actually recorded, which for this screen happens later in
+    // payFromWallet/confirmOnlinePayment (online/wallet) or on staff's own
+    // action from Live Tables (counter — see floor-client.tsx's own
+    // auto-send call, right after it records the payment). A call here would
+    // always find nothing pending, so it's removed rather than kept as a
+    // network request that provably never does anything.
     setStep('done')
     setCouponCode('')
     setAppliedCoupon(null)

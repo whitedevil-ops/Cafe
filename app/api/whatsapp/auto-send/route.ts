@@ -5,18 +5,27 @@ import { sendWhatsAppBill, sendWhatsAppOrderPlaced } from '@/lib/whatsapp'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Fired immediately (fire-and-forget) right after an order is placed or its
-// payment is recorded — from BOTH the customer-facing QR flow (no session at
-// all) and the staff dashboard. Auth is the order's own receipt_token, an
-// unguessable uuid — the same trust boundary the public /r/[token] bill page
-// and the Razorpay webhook route already use, since there's no user session
-// to check on the QR side. Sends whatever whatsapp_logs rows the enqueue
-// triggers (0156/0157) have queued as 'pending' for this order — at most two,
-// order_placed right after creation and bill right after payment — so this
-// same endpoint covers both call sites without the caller needing to know
-// which type is waiting. The staff Retry button (app/api/whatsapp/retry)
-// stays as the manual fallback for whatever this misses (closed tab,
-// network drop, feature added after the trigger already fired).
+// Fired immediately (fire-and-forget) right after an order's payment is
+// recorded — from the staff dashboard (POS, Live Tables) and, once the QR
+// flow's own payment paths complete, the customer side too. Auth is the
+// order's own receipt_token, an unguessable uuid — the same trust boundary
+// the public /r/[token] bill page and the Razorpay webhook route already
+// use, since there's no user session to check on the QR side.
+//
+// Sends whatever whatsapp_logs rows are 'pending' for this order — as of
+// 0215, that is at most ONE: the "bill" message, queued only once
+// payment_status actually transitions to 'paid'. There used to also be an
+// "order placed" message queued the instant an order was created; it's
+// gone, on purpose — see 0215's header. It baked the order's total into
+// fixed template text at creation time, which had no way to stay correct
+// once "add items to an existing bill" was ever built, and it was a second
+// paid WhatsApp Cloud API template send per order for a confirmation most
+// cafés only wanted once, at the moment that matters to the customer: when
+// they've actually paid.
+//
+// The staff Retry button (app/api/whatsapp/retry) stays as the manual
+// fallback for whatever this misses (closed tab, network drop, feature
+// added after the trigger already fired).
 export async function POST(req: NextRequest) {
   const { receipt_token } = (await req.json().catch(() => ({}))) as { receipt_token?: string }
   if (!receipt_token) return NextResponse.json({ error: 'receipt_token required' }, { status: 400 })

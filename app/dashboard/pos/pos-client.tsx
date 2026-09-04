@@ -920,10 +920,13 @@ export default function PosClient({
     requestId.current = null
     const r = data as { short_code: string; total: number; receipt_token: string; payment_status: string }
     setSuccess({ code: r.short_code, total: r.total, token: r.receipt_token, paid: r.payment_status === 'paid' })
-    // Fire-and-forget: the DB triggers (0156/0157) just queued an
-    // order-placed log, and a bill log too if this order settled
-    // immediately — send whatever's pending now instead of waiting for
-    // staff to notice it in the Tables page.
+    // Fire-and-forget: since 0215, an "order placed" WhatsApp is never
+    // queued — only the "bill" message is, and only once payment is
+    // actually recorded (which record_payment/settle above may have just
+    // done). If this order settled immediately, the DB trigger has queued
+    // that bill log; send whatever's pending now instead of waiting for
+    // staff to notice it in the Tables page. On an unsettled order there is
+    // nothing pending yet, and this call is a harmless no-op.
     fetch('/api/whatsapp/auto-send', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
