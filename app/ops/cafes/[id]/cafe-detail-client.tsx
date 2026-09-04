@@ -292,7 +292,6 @@ export default function CafeDetailClient({
   const [applyingPlan, setApplyingPlan] = useState(false)
   const [resettingPw, setResettingPw] = useState<string | null>(null)
   const [bulkSetting, setBulkSetting] = useState(false)
-  const [featureTab, setFeatureTab] = useState<'plan' | 'manual'>('plan')
   const [featureSearch, setFeatureSearch] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
@@ -706,19 +705,13 @@ export default function CafeDetailClient({
 
         {tab === 'features' && (
           <section className="rounded-xl border border-border bg-surface p-5">
-            <p className="text-sm font-medium text-foreground">Feature control</p>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              <b>Plan</b> shows what the café&apos;s <span className="capitalize">{data.account.plan}</span> plan includes by default, read-only.{' '}
-              <b>Manual</b> lets you override any of it for this café only, regardless of plan.
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-1 border-b border-border">
-                {(['plan', 'manual'] as const).map((t) => (
-                  <button key={t} onClick={() => setFeatureTab(t)} className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-medium capitalize ${featureTab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                    {t}
-                  </button>
-                ))}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Feature control</p>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
+                  Follows the <span className="capitalize">{data.account.plan}</span> plan by default. Toggle anything below to
+                  override it for this café only — everything else keeps working as normal.
+                </p>
               </div>
               <div className="relative">
                 <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -731,110 +724,76 @@ export default function CafeDetailClient({
               </div>
             </div>
 
-            {featureTab === 'plan' ? (
-              <div className="mt-4 space-y-5">
-                {FEATURE_GROUPS.map((g) => {
-                  const keys = g.keys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
-                  if (keys.length === 0) return null
-                  return (
-                    <div key={g.heading}>
-                      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.heading}</p>
-                      <ul className="mt-2 divide-y divide-border">
-                        {keys.map((key) => {
-                          const f = FEATURES.find((x) => x.key === key)!
-                          const included = data.features.plan_defaults[key] ?? false
-                          const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
-                          const effective = override ?? included
-                          return (
-                            <li key={key} className="flex items-center justify-between gap-3 py-2.5 text-[13.5px]">
-                              <div className="min-w-0">
-                                <p className="text-foreground">{f.label}</p>
-                                <p className="truncate text-[11.5px] text-muted-foreground">{f.description}</p>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-1.5">
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${included ? 'bg-success-subtle text-success' : 'bg-surface-subtle text-muted-foreground'}`}>
-                                  Plan: {included ? 'Included' : 'Not included'}
-                                </span>
-                                {/* This café has a manual override on this feature — the plan
-                                    badge above is what the PLAN provides, not what the café can
-                                    actually use right now. Without this, an admin skimming only
-                                    the Plan tab could see "Included" for a feature an override
-                                    has actually turned off (or the reverse), with no indication
-                                    a second, decisive setting exists on the Manual tab. */}
-                                {override !== null && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setFeatureTab('manual')}
-                                    title="A manual override changes this café's actual access — see the Manual tab"
-                                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium underline decoration-dotted underline-offset-2 ${effective ? 'bg-primary-subtle text-primary' : 'bg-warning-subtle text-warning'}`}
-                                  >
-                                    Overridden — Effective {effective ? 'ON' : 'OFF'}
-                                  </button>
-                                )}
-                              </div>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="mt-4">
-                {permissions['cafes.edit'] && (
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => void setAllFeatures(true)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all on</button>
-                    <button onClick={() => void setAllFeatures(false)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all off</button>
-                  </div>
-                )}
-                <div className="mt-3 space-y-5">
-                  {FEATURE_GROUPS.map((g) => {
-                    const keys = g.keys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
-                    if (keys.length === 0) return null
-                    return (
-                      <div key={g.heading}>
-                        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.heading}</p>
-                        <ul className="mt-2 divide-y divide-border">
-                          {keys.map((key) => {
-                            const f = FEATURES.find((x) => x.key === key)!
-                            const included = data.features.plan_defaults[key] ?? false
-                            const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
-                            const effective = override ?? included
-                            return (
-                              <li key={key} className="flex items-center justify-between gap-3 py-2.5 text-[13.5px]">
-                                <div className="min-w-0">
-                                  <p className="text-foreground">{f.label}</p>
-                                  <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                                    <span className={`rounded-full px-1.5 py-0.5 font-medium ${included ? 'bg-success-subtle text-success' : 'bg-surface-subtle text-muted-foreground'}`}>Plan: {included ? 'Included' : 'Not included'}</span>
-                                    {override !== null && (
-                                      <span className={`rounded-full px-1.5 py-0.5 font-medium ${override ? 'bg-primary-subtle text-primary' : 'bg-warning-subtle text-warning'}`}>Override {override ? 'ON' : 'OFF'}</span>
-                                    )}
-                                    <span className={`rounded-full px-1.5 py-0.5 font-medium ${effective ? 'bg-success-subtle text-success' : 'bg-surface-subtle text-muted-foreground'}`}>Effective: {effective ? 'ON' : 'OFF'}</span>
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  {override !== null && permissions['cafes.edit'] && (
-                                    <button onClick={() => clearOverride(key)} disabled={bulkSetting} className="text-[11.5px] text-muted-foreground hover:underline disabled:opacity-40">Reset</button>
-                                  )}
-                                  <button
-                                    onClick={() => toggleFeature(key, override)}
-                                    disabled={!permissions['cafes.edit'] || bulkSetting}
-                                    className={`h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
-                                  >
-                                    <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                                  </button>
-                                </div>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    )
-                  })}
-                </div>
+            {permissions['cafes.edit'] && (
+              <div className="mt-3 flex justify-end gap-2">
+                <button onClick={() => void setAllFeatures(true)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all on</button>
+                <button onClick={() => void setAllFeatures(false)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all off</button>
               </div>
             )}
+
+            <div className="mt-4 space-y-5">
+              {FEATURE_GROUPS.map((g) => {
+                const keys = g.keys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
+                if (keys.length === 0) return null
+                return (
+                  <div key={g.heading}>
+                    <p className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">{g.heading}</p>
+                    <ul className="mt-2 divide-y divide-border">
+                      {keys.map((key) => {
+                        const f = FEATURES.find((x) => x.key === key)!
+                        const included = data.features.plan_defaults[key] ?? false
+                        const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
+                        const effective = override ?? included
+                        return (
+                          <li key={key} className="flex items-center justify-between gap-4 py-3 text-[13.5px]">
+                            <div className="min-w-0">
+                              <p className="text-foreground">{f.label}</p>
+                              <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
+                              {/* One line of provenance instead of a second badge — most rows
+                                  match the plan and say nothing more; only a café with a real
+                                  override (the exception, not the rule) gets the extra clause
+                                  and the one action that actually matters: undo it. */}
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Plan default: {included ? 'included' : 'not included'}
+                                {override !== null && (
+                                  <>
+                                    {' · overridden for this café'}
+                                    {permissions['cafes.edit'] && (
+                                      <>
+                                        {' — '}
+                                        <button
+                                          type="button"
+                                          onClick={() => clearOverride(key)}
+                                          disabled={bulkSetting}
+                                          className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
+                                        >
+                                          reset to plan default
+                                        </button>
+                                      </>
+                                    )}
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2.5">
+                              <span className={`text-[12px] font-medium ${effective ? 'text-success' : 'text-muted-foreground'}`}>{effective ? 'On' : 'Off'}</span>
+                              <button
+                                onClick={() => toggleFeature(key, override)}
+                                disabled={!permissions['cafes.edit'] || bulkSetting}
+                                aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
+                                className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                              >
+                                <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                              </button>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
 
             <div className="mt-6 border-t border-border pt-4">
               <p className="text-[13px] font-medium text-foreground">Always included</p>
