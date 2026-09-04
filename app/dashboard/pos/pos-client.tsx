@@ -144,12 +144,11 @@ export default function PosClient({
   const bothEnabled = dineIn && takeaway
   const [orderType, setOrderType] = useState<'dine_in' | 'takeaway'>(takeaway && !dineIn ? 'takeaway' : 'dine_in')
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
-  // Resolved reactively below (order_appendable, migration 0218) — set only
-  // when the selected table has exactly one open order and it's still
-  // eligible to grow. placeOrder() uses this to route to append_order_items
-  // instead of always opening a second bill on the same table, which is what
-  // this screen did unconditionally until now.
-  const [appendTargetOrderId, setAppendTargetOrderId] = useState<string | null>(null)
+  // Resolved reactively below (order_appendable, migration 0218) — only ever
+  // written from inside that RPC's .then(). The derived appendTargetOrderId
+  // further down is what actually reflects "is appendable right now"; this
+  // just remembers the last order_appendable verdict.
+  const [verifiedAppendOrderId, setVerifiedAppendOrderId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [tender, setTender] = useState<Tender>('cash')
   const [pendingReason, setPendingReason] = useState('')
@@ -599,7 +598,7 @@ export default function PosClient({
       )
       if (!ok) return
     }
-    setAppendTargetOrderId(targetOrderId)
+    setVerifiedAppendOrderId(targetOrderId)
     setSelectedTableId(t.id)
     setTableSelectorOpen(false)
   }
@@ -609,16 +608,30 @@ export default function PosClient({
   // selection from the sessionStorage draft on remount. Harmless to also
   // re-run after pickTable (liveTables changing on the next poll re-fires
   // this), since order_appendable is a cheap read-only check.
-  useEffect(() => {
-    if (orderType !== 'dine_in' || !selectedTableId) { setAppendTargetOrderId(null); return }
+  //
+  // Split into a synchronous candidate (no RPC needed) and an RPC-verified
+  // id so the effect only ever calls setVerifiedAppendOrderId from inside
+  // the RPC's .then() — never synchronously in the effect body itself.
+  // appendTargetOrderId below goes null on its own once the candidate no
+  // longer matches what was last verified, so nothing needs to reset it.
+  const appendCandidateOrderId = useMemo(() => {
+    if (orderType !== 'dine_in' || !selectedTableId) return null
     const t = liveTables.find((lt) => lt.id === selectedTableId)
-    if (!t || t.orderCount !== 1 || !t.orderId) { setAppendTargetOrderId(null); return }
+    if (!t || t.orderCount !== 1 || !t.orderId) return null
+    return t.orderId
+  }, [orderType, selectedTableId, liveTables])
+
+  useEffect(() => {
+    if (!appendCandidateOrderId) return
     let cancelled = false
-    supabase.rpc('order_appendable', { p_order_id: t.orderId }).then(({ data }) => {
-      if (!cancelled) setAppendTargetOrderId(data === true ? (t.orderId as string) : null)
+    supabase.rpc('order_appendable', { p_order_id: appendCandidateOrderId }).then(({ data }) => {
+      if (!cancelled) setVerifiedAppendOrderId(data === true ? appendCandidateOrderId : null)
     })
     return () => { cancelled = true }
-  }, [orderType, selectedTableId, liveTables, supabase])
+  }, [appendCandidateOrderId, supabase])
+
+  const appendTargetOrderId =
+    appendCandidateOrderId && verifiedAppendOrderId === appendCandidateOrderId ? verifiedAppendOrderId : null
 
   const existingSession = useMemo(() => {
     const t = liveTables.find((lt) => lt.id === selectedTableId)
