@@ -13,7 +13,6 @@
     "notification:default",
     "allow-list-serial-ports",
     "allow-print-ticket",
-    "allow-get-default-windows-printer",
     "allow-save-session",
     "allow-load-session",
     "allow-clear-session",

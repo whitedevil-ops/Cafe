@@ -55,5 +55,3 @@ export type OrderItem = {
   price: number
   qty: number
 }
-
-export type CartLine = { item: MenuItem; qty: number }

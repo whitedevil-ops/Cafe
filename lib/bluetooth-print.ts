@@ -1,5 +1,5 @@
-import { kotEscPos, kotUpdateEscPos } from '@/lib/kot-escpos'
-import type { KotTicket, KotUpdateTicket } from '@/lib/kot-print'
+import { kotEscPos } from '@/lib/kot-escpos'
+import type { KotTicket } from '@/lib/kot-print'
 
 // Printing straight to a Bluetooth thermal printer, from the browser itself —
 // no desktop app, no OS-level pairing, no driver. Uses the Web Bluetooth API,
@@ -144,16 +144,6 @@ export async function printKotBluetooth(ticket: KotTicket): Promise<boolean> {
   const server = await reconnectSilently(saved)
   const char = await findWritableCharacteristic(server)
   await writeInChunks(char, kotEscPos(ticket))
-  return true
-}
-
-export async function printKotUpdateBluetooth(ticket: KotUpdateTicket): Promise<boolean> {
-  if (!isBluetoothSupported()) return false
-  const saved = getBluetoothPrinter()
-  if (!saved) return false
-  const server = await reconnectSilently(saved)
-  const char = await findWritableCharacteristic(server)
-  await writeInChunks(char, kotUpdateEscPos(ticket))
   return true
 }
 

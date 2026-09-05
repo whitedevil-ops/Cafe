@@ -120,15 +120,6 @@ fn write_bytes(target: Target, bytes: &[u8]) -> Result<(), String> {
     }
 }
 
-/// So the settings page can show staff which printer this is actually
-/// going to, e.g. "Using: POS58 Printer (Windows default)" — the whole
-/// point of this path is nothing to configure, but "nothing configured"
-/// should never mean "no visibility into what's about to happen" either.
-#[tauri::command]
-pub fn get_default_windows_printer() -> Result<String, String> {
-    winspool::default_printer_name()
-}
-
 /// Render a full ticket and send it. Plain function (not a Tauri command) so
 /// it can be called both from the `print_ticket` IPC command below and from
 /// the bridge's polling loop, which has no webview call to make it from.

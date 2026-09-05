@@ -27,7 +27,6 @@ fn main() {
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "list_serial_ports",
             "print_ticket",
-            "get_default_windows_printer",
             "save_session",
             "load_session",
             "clear_session",

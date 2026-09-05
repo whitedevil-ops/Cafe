@@ -100,7 +100,7 @@ with expected(kind, name, fix) as (values
   ('table',    'customer_otp_challenges', '0023'),
   ('table',    'customer_sessions',       '0023'),
   ('function', 'customer_issue_otp',      '0023'),
-  ('function', 'customer_verify_otp',     '0023'),
+  -- customer_verify_otp: dropped by 0220 (dead — OTP login reverted same-day by 0089)
   ('function', 'customer_session_identity', '0023'),
   ('function', 'customer_order_history',  '0023'),
   ('function', 'customer_reorder_payload', '0023'),
@@ -165,7 +165,7 @@ with expected(kind, name, fix) as (values
   ('column',   'order_items.taxable_value',     '0037'),
   ('column',   'order_items.tax_amount',        '0037'),
   ('column',   'order_items.hsn_sac',           '0037'),
-  ('function', 'is_valid_gstin',                '0037'),
+  -- is_valid_gstin: dropped by 0220 (dead — no caller, GSTIN validation is client-side)
   ('function', 'apply_order_taxes',             '0037'),
   ('function', 'snapshot_order_item_tax',       '0037'),
   -- central bills module (0039)
@@ -183,9 +183,8 @@ with expected(kind, name, fix) as (values
   ('function', 'order_outstanding',             '0041'),
   ('function', 'recompute_order_payment_status','0041'),
   ('function', 'record_payment',                '0041'),
-  ('function', 'qr_start_upi_payment',          '0041'),
-  ('function', 'qr_claim_payment',              '0041'),
-  ('function', 'pending_payment_claims',        '0041'),
+  -- qr_start_upi_payment, qr_claim_payment, pending_payment_claims: dropped by
+  -- 0220 (dead — manual-UPI flow superseded by Razorpay in 0045)
   ('function', 'outstanding_summary',           '0042'),
   -- payment methods + Razorpay abstraction (0045)
   ('column',   'cafes.accept_pay_counter',      '0045'),
@@ -285,17 +284,14 @@ with expected(kind, name, fix) as (values
   ('function', 'create_purchase_order',          '0067'),
   ('function', 'receive_purchase_order_items',    '0067'),
   ('function', 'cancel_purchase_order',          '0067'),
-  -- feedback app (0068)
-  ('table',    'feedback',                       '0068'),
-  ('function', 'submit_feedback',                '0068'),
-  ('function', 'feedback_summary',               '0068'),
+  -- feedback app (0068) — feature deleted entirely by 0219, entries removed
   -- P0 hardening: customers/cafe_settings lockdown, loyalty+coupon race
   -- fixes, inventory reversal ledger (0071)
   ('function', 'update_cafe_settings',           '0071'),
   ('column',   'inventory_transactions.order_item_id', '0071'),
   -- entitlement gating: seat caps (0073)
   ('column',   'platform_plans.max_staff',       '0073'),
-  ('function', 'create_staff_invite',            '0073'),
+  -- create_staff_invite: dropped by 0220 (dead — superseded by direct staff-account creation, 0085)
   -- platform billing via Razorpay Subscriptions (0074)
   ('column',   'platform_plans.razorpay_plan_id', '0074'),
   ('column',   'cafes.razorpay_subscription_id', '0074'),
@@ -354,7 +350,7 @@ with expected(kind, name, fix) as (values
   ('function', 'wallet_start_topup',                   '0091'),
   ('function', 'wallet_confirm_topup',                 '0091'),
   ('function', 'wallet_pay_order',                     '0091'),
-  ('function', 'wallet_pay_for_order',                 '0091'),
+  -- wallet_pay_for_order: dropped by 0220 (dead — superseded by wallet_pay_order)
   ('function', 'create_wallet_tier',                   '0091'),
   ('function', 'wallet_overview',                      '0091'),
   -- wallet cash top-ups (0093)
