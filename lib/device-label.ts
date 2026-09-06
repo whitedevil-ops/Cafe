@@ -10,7 +10,7 @@
 // Safari, and iPadOS claims Macintosh. Every check below is placed so the more
 // specific match wins.
 
-function osOf(ua: string): string {
+export function osOf(ua: string): string {
   // iPadOS reports as Macintosh but has touch points, which we cannot see from
   // the UA alone — so an iPad on desktop Safari does read as "Mac". Accepted:
   // the alternative is guessing.

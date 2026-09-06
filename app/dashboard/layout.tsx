@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
@@ -6,6 +7,7 @@ import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
 import { SwitchAwayHint } from '@/components/billing/switch-away-hint'
 import { UserActivityTracker } from '@/components/user-activity-tracker'
 import { OperatorSessionBanner } from '@/components/shell/operator-session-banner'
+import { isAndroidUA } from '@/lib/platform-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     supabase.rpc('owned_cafe_capacity'),
     supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),
     supabase.rpc('my_screen_access', { p_cafe_id: cafe.cafeId }),
-    supabase.from('platform_plans').select('key, name, max_owned_cafes').eq('active', true),
+    supabase.from('platform_plans').select('key, name, max_owned_cafes').eq('active', true).eq('internal_only', false),
   ])
   const canAddCafe = Boolean((capacity as { can_add?: boolean } | null)?.can_add)
   // Only relevant when the owner is AT their cap — the cheapest active plan
@@ -53,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // resolved once here for every nav-relevant key instead of one RPC round
   // trip per key — this only decides whether to SHOW a nav link (a courtesy),
   // every gated page still independently re-checks via hasFeature() server-side.
-  const { data: planRow } = await supabase.from('platform_plans').select('name, features').eq('key', cafeRow?.plan ?? '').maybeSingle()
+  const { data: planRow } = await supabase.from('platform_plans').select('name, features, android_only').eq('key', cafeRow?.plan ?? '').maybeSingle()
   const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
   const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
   const navFeatures: Record<string, boolean> = {}
@@ -123,6 +125,44 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
       </>
     )
+  }
+
+  // Android-only plans (Ops-assigned, internal — see 0222) can only be used
+  // from an Android device. A plain platform_plans column, not a
+  // hasFeature()/features-jsonb key on purpose: hasFeature() fails OPEN on
+  // RPC error (a billing hiccup must never take a kitchen offline), which
+  // would be exactly backwards here — a transient error would make every
+  // café on every plan appear Android-restricted at once. Reading it here,
+  // alongside the plan row already fetched above, has no such failure mode.
+  // Same block-scope as the suspended/disabled screens above: the whole
+  // dashboard, no per-route carve-out, no bypass for an operator session —
+  // an Ops admin opening this café's dashboard from a desktop sees the same
+  // screen a real owner would. Guest/customer QR ordering (/t, /r, /kds) and
+  // /ops are untouched — this layout only wraps /dashboard.
+  if (planRow?.android_only) {
+    const ua = (await headers()).get('user-agent')
+    if (!isAndroidUA(ua)) {
+      return (
+        <>
+        {banner}
+        <div className="grid w-full min-h-dvh place-items-center bg-background px-6 py-12 text-center">
+          <div className="w-full max-w-lg">
+            <p className="text-sm font-medium text-destructive">Android only</p>
+            <h1 className="mt-2 text-xl font-semibold text-foreground">
+              Your KhaoPiyo plan is available for Android devices only.
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Please open KhaoPiyo on an Android phone or tablet.
+            </p>
+            <SwitchAwayHint cafes={myCafes} currentCafeId={cafe.cafeId} />
+            <form action="/auth/signout" method="post" className="mt-6">
+              <button className="text-sm font-medium text-primary hover:underline">Sign out</button>
+            </form>
+          </div>
+        </div>
+        </>
+      )
+    }
   }
 
   // Fail OPEN (full access) if the RPC errors — e.g. mid-deploy before its

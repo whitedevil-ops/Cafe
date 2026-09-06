@@ -396,4 +396,25 @@ describe.skipIf(!hasAdmin)('entitlement & role-escalation regression guard (live
     })
     expect(res.status, `a manager was able to self-promote to owner (status ${res.status})`).toBeGreaterThanOrEqual(400)
   })
+
+  // 0222: the internal Android plan tier — a plain café owner has none of
+  // the platform_admins/has_platform_permission('plans.change') standing
+  // op_change_plan requires, so this should already be true without any new
+  // grant; this is a regression guard, not new behavior being introduced.
+  it("a plain owner cannot call op_change_plan to self-assign the internal 'android' plan", async () => {
+    const res = await fetch(`${URL}/rest/v1/rpc/op_change_plan`, {
+      method: 'POST',
+      headers: { ...ownerAuth, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_cafe_id: cafeId, p_plan_key: 'android' }),
+    })
+    expect(res.status, `a plain owner was able to call op_change_plan (status ${res.status})`).toBeGreaterThanOrEqual(400)
+  })
+
+  it("a plain authenticated user never sees the internal 'android' plan row via platform_plans", async () => {
+    const res = await fetch(`${URL}/rest/v1/platform_plans?select=key&key=eq.android`, {
+      headers: { ...ownerAuth },
+    })
+    const rows = (await res.json().catch(() => [])) as unknown[]
+    expect(Array.isArray(rows) ? rows.length : -1, `android plan row was visible to a plain authenticated user (status ${res.status})`).toBe(0)
+  })
 })
