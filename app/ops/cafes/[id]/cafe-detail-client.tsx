@@ -360,9 +360,15 @@ export default function CafeDetailClient({
   async function applyPlan() {
     const newPlanName = plans.find((p) => p.key === planKey)?.name ?? planKey
     const currentName = plans.find((p) => p.key === data.account.plan)?.name ?? data.account.plan
+    const isActualSwitch = planKey !== data.account.plan
+    const overrideCount = data.features.overrides.length
     const ok = await confirm({
       title: `Change plan: ${currentName} → ${newPlanName}?`,
-      description: `Effective ${fmt(new Date(effectiveDate).toISOString())}. The new subscription end date is calculated automatically (14 days for Trial, 365 for an annual plan, 30 otherwise), and this reactivates the café if it's currently suspended for expiry.`,
+      description: `Effective ${fmt(new Date(effectiveDate).toISOString())}. The new subscription end date is calculated automatically (14 days for Trial, 365 for an annual plan, 30 otherwise), and this reactivates the café if it's currently suspended for expiry.${
+        isActualSwitch && overrideCount > 0
+          ? ` This café has ${overrideCount} manual feature override${overrideCount === 1 ? '' : 's'} — switching plans clears ${overrideCount === 1 ? 'it' : 'them'} so every feature starts clean on ${newPlanName}'s defaults.`
+          : ''
+      }`,
       confirmLabel: 'Change plan',
     })
     if (!ok) return
