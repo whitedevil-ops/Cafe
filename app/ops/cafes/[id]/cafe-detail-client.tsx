@@ -310,6 +310,10 @@ export default function CafeDetailClient({
   const [applyingPlan, setApplyingPlan] = useState(false)
   const [resettingPw, setResettingPw] = useState<string | null>(null)
   const [bulkSetting, setBulkSetting] = useState(false)
+  // Per-key in-flight guard for individual feature toggles — bulkSetting only
+  // covers "turn all on/off"; without this, a fast double-click on one
+  // switch fires two overlapping op_set_feature_override calls.
+  const [togglingKeys, setTogglingKeys] = useState<Set<string>>(new Set())
   const [featureSearch, setFeatureSearch] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
@@ -389,17 +393,37 @@ export default function CafeDetailClient({
   }
 
   async function toggleFeature(key: string, current: boolean | null) {
-    const next = current === null ? !data.features.plan_defaults[key] : !current
-    const { error } = await supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: key, p_enabled: next })
-    if (error) return toast(error.message, 'error')
-    void refresh()
+    if (togglingKeys.has(key)) return
+    setTogglingKeys((s) => new Set(s).add(key))
+    try {
+      const next = current === null ? !data.features.plan_defaults[key] : !current
+      const { error } = await supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: key, p_enabled: next })
+      if (error) return toast(error.message, 'error')
+      void refresh()
+    } finally {
+      setTogglingKeys((s) => {
+        const next = new Set(s)
+        next.delete(key)
+        return next
+      })
+    }
   }
 
   async function clearOverride(key: string) {
-    const { error } = await supabase.rpc('op_clear_feature_override', { p_cafe_id: cafeId, p_feature_key: key })
-    if (error) return toast(error.message, 'error')
-    toast('Reverted to plan default.')
-    void refresh()
+    if (togglingKeys.has(key)) return
+    setTogglingKeys((s) => new Set(s).add(key))
+    try {
+      const { error } = await supabase.rpc('op_clear_feature_override', { p_cafe_id: cafeId, p_feature_key: key })
+      if (error) return toast(error.message, 'error')
+      toast('Reverted to plan default.')
+      void refresh()
+    } finally {
+      setTogglingKeys((s) => {
+        const next = new Set(s)
+        next.delete(key)
+        return next
+      })
+    }
   }
 
   async function setAllFeatures(enabled: boolean) {
@@ -785,7 +809,7 @@ export default function CafeDetailClient({
                                         <button
                                           type="button"
                                           onClick={() => clearOverride(key)}
-                                          disabled={bulkSetting}
+                                          disabled={bulkSetting || togglingKeys.has(key)}
                                           className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
                                         >
                                           reset to plan default
@@ -800,7 +824,7 @@ export default function CafeDetailClient({
                               <span className={`text-[12px] font-medium ${effective ? 'text-success' : 'text-muted-foreground'}`}>{effective ? 'On' : 'Off'}</span>
                               <button
                                 onClick={() => toggleFeature(key, override)}
-                                disabled={!permissions['cafes.edit'] || bulkSetting}
+                                disabled={!permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
                                 aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
                                 className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
                               >

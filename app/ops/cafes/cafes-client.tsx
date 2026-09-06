@@ -269,8 +269,9 @@ export default function CafesClient({
           <option value="">All plans</option>
           <option value="trial">Trial</option>
           <option value="starter">Starter</option>
-          <option value="pro">Pro</option>
-          <option value="business">Business</option>
+          <option value="pro">Growth</option>
+          <option value="business">Scale</option>
+          <option value="android">Android</option>
         </select>
         <select value={expiring} onChange={(e) => setExpiring(e.target.value)} className="h-10 rounded-[var(--radius)] border border-border-strong bg-surface px-3 text-[13px] text-foreground">
           <option value="">Any expiry</option>
