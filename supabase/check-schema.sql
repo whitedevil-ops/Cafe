@@ -893,12 +893,15 @@ with expected(kind, name, fix) as (values
   ('function', 'revoke_signup_invite', '0197'),
   ('function', 'op_list_signup_invites', '0197'),
   ('function', 'resolve_signup_invite', '0197'),
-  ('function', 'consume_signup_invite', '0197')
+  ('function', 'consume_signup_invite', '0197'),
   -- 0198: fixes a real bug 0197 shipped — issue/resolve/consume_signup_
   -- invite used `search_path = public` but gen_random_bytes/digest
   -- (pgcrypto) live in `extensions` in this project, so every call failed
   -- at runtime. Pure re-bodies of the three rows already tracked above, no
   -- new rows for it.
+  -- internal Android plan tier (0222)
+  ('column', 'platform_plans.internal_only', '0222'),
+  ('column', 'platform_plans.android_only', '0222')
 )
 select
   e.kind,
