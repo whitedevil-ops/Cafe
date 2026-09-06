@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { DesktopSessionBridge } from "@/components/desktop-session-bridge";
 import { DesktopExternalLinks } from "@/components/desktop-external-links";
+import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -72,6 +73,15 @@ export const metadata: Metadata = {
       ? { other: { "msvalidate.01": process.env.NEXT_PUBLIC_BING_VERIFICATION } }
       : {}),
   },
+};
+
+// Matches manifest.ts's theme_color/background_color (brand tokens from
+// globals.css :root) — tints the browser/PWA chrome instead of leaving it
+// default black or white.
+export const viewport: Viewport = {
+  themeColor: "#C2410C",
+  width: "device-width",
+  initialScale: 1,
 };
 
 // Deliberately Organization and not LocalBusiness. KhaoPiyo is software sold
@@ -179,6 +189,7 @@ export default function RootLayout({
             tables, POS and the guest's own order page alike, and every one of
             them is inert in the webview without this. */}
         <DesktopExternalLinks />
+        <PwaRegister />
         {/* Cloudflare Web Analytics — afterInteractive per Next's own guidance
             (analytics is a listed good candidate), so it never delays hydration. */}
         <Script
