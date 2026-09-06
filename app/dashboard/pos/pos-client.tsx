@@ -1168,7 +1168,13 @@ export default function PosClient({
             scrolls internally (overflow-y-auto inside CategoryTabs) if a
             café has enough categories to overflow; the rail's width itself
             never changes. */}
-        <div className="h-full w-[110px] shrink-0 overflow-hidden border-r border-border bg-surface sm:w-[150px] lg:w-[192px] xl:w-[200px]">
+        {/* 132px, not the original 110px: the icon (24px) + padding (16px) +
+            gaps (12px) + a 2-3 digit count already consume ~70px of that,
+            leaving only ~4-5 characters of label before truncating — several
+            categories ("Sandwiches"/"Snacks", "Hot"/"Cold" Beverages) become
+            indistinguishable at that width. 132px gives real label room
+            without meaningfully shrinking the product grid next to it. */}
+        <div className="h-full w-[132px] shrink-0 overflow-hidden border-r border-border bg-surface sm:w-[150px] lg:w-[192px] xl:w-[200px]">
           <CategoryTabs
             categories={categoryList}
             bestsellerCount={bestsellerCount}

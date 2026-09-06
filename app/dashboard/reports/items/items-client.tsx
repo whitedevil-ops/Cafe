@@ -111,24 +111,28 @@ export default function ItemsClient({
               <p className="text-sm text-muted-foreground">Nothing sold in this range.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                {/* min-w + px-3 on every cell, matching profitability-client.tsx's
+                    table exactly — without them, adjacent right-aligned headers
+                    (Qty/Orders) had no gap and ran together as "QTYORDERS" on a
+                    narrow viewport instead of scrolling. */}
+                <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
-                      <th className="pb-2 font-medium">Item</th>
-                      <th className="pb-2 text-right font-medium">Qty</th>
-                      <th className="pb-2 text-right font-medium">Orders</th>
-                      <th className="pb-2 text-right font-medium">Avg price</th>
-                      <th className="pb-2 text-right font-medium">Gross sales</th>
+                      <th className="px-3 pb-2 font-medium">Item</th>
+                      <th className="px-3 pb-2 text-right font-medium">Qty</th>
+                      <th className="px-3 pb-2 text-right font-medium">Orders</th>
+                      <th className="px-3 pb-2 text-right font-medium">Avg price</th>
+                      <th className="px-3 pb-2 text-right font-medium">Gross sales</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {report.items.map((i) => (
                       <tr key={i.menu_item_id ?? i.name}>
-                        <td className="py-1.5 text-foreground">{i.name}</td>
-                        <td className="py-1.5 text-right text-foreground">{i.qty}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">{i.orders}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{i.avg_price.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right font-medium text-foreground">₹{i.gross_sales.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-foreground">{i.name}</td>
+                        <td className="px-3 py-1.5 text-right text-foreground">{i.qty}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">{i.orders}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">₹{i.avg_price.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-foreground">₹{i.gross_sales.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>

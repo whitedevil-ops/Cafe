@@ -181,24 +181,24 @@ export default function GstClient({
               {report.by_rate.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No invoices in this range.</p>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
-                      <th className="pb-2 font-medium">HSN/SAC</th>
-                      <th className="pb-2 text-right font-medium">Rate</th>
-                      <th className="pb-2 text-right font-medium">Taxable value</th>
-                      <th className="pb-2 text-right font-medium">CGST</th>
-                      <th className="pb-2 text-right font-medium">SGST</th>
+                      <th className="px-3 pb-2 font-medium">HSN/SAC</th>
+                      <th className="px-3 pb-2 text-right font-medium">Rate</th>
+                      <th className="px-3 pb-2 text-right font-medium">Taxable value</th>
+                      <th className="px-3 pb-2 text-right font-medium">CGST</th>
+                      <th className="px-3 pb-2 text-right font-medium">SGST</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {report.by_rate.map((r, i) => (
                       <tr key={i}>
-                        <td className="py-1.5 text-foreground">{r.hsn_sac || '—'}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">{r.tax_percent}%</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{r.taxable_value.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right text-foreground">₹{r.cgst.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right text-foreground">₹{r.sgst.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-foreground">{r.hsn_sac || '—'}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">{r.tax_percent}%</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">₹{r.taxable_value.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right text-foreground">₹{r.cgst.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right text-foreground">₹{r.sgst.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -218,24 +218,24 @@ export default function GstClient({
               {report.invoices.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No invoices in this range.</p>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
-                      <th className="pb-2 font-medium">Invoice #</th>
-                      <th className="pb-2 font-medium">Date</th>
-                      <th className="pb-2 font-medium">Order</th>
-                      <th className="pb-2 text-right font-medium">Taxable value</th>
-                      <th className="pb-2 text-right font-medium">Total</th>
+                      <th className="px-3 pb-2 font-medium">Invoice #</th>
+                      <th className="px-3 pb-2 font-medium">Date</th>
+                      <th className="px-3 pb-2 font-medium">Order</th>
+                      <th className="px-3 pb-2 text-right font-medium">Taxable value</th>
+                      <th className="px-3 pb-2 text-right font-medium">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {report.invoices.map((i) => (
                       <tr key={i.invoice_number}>
-                        <td className="py-1.5 font-mono text-[12.5px] text-foreground">{i.invoice_number}</td>
-                        <td className="py-1.5 text-muted-foreground">{formatDate(i.issued_at, timezone)}</td>
-                        <td className="py-1.5 text-muted-foreground">#{i.short_code}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{i.taxable_value.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right font-medium text-foreground">₹{i.total.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 font-mono text-[12.5px] text-foreground">{i.invoice_number}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{formatDate(i.issued_at, timezone)}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">#{i.short_code}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">₹{i.taxable_value.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-foreground">₹{i.total.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -255,24 +255,24 @@ export default function GstClient({
               {report.credit_notes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No credit notes in this range.</p>
               ) : (
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
-                      <th className="pb-2 font-medium">Credit note #</th>
-                      <th className="pb-2 font-medium">Date</th>
-                      <th className="pb-2 font-medium">Reason</th>
-                      <th className="pb-2 text-right font-medium">Taxable value</th>
-                      <th className="pb-2 text-right font-medium">Amount</th>
+                      <th className="px-3 pb-2 font-medium">Credit note #</th>
+                      <th className="px-3 pb-2 font-medium">Date</th>
+                      <th className="px-3 pb-2 font-medium">Reason</th>
+                      <th className="px-3 pb-2 text-right font-medium">Taxable value</th>
+                      <th className="px-3 pb-2 text-right font-medium">Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {report.credit_notes.map((c) => (
                       <tr key={c.credit_note_number}>
-                        <td className="py-1.5 font-mono text-[12.5px] text-foreground">{c.credit_note_number}</td>
-                        <td className="py-1.5 text-muted-foreground">{formatDate(c.issued_at, timezone)}</td>
-                        <td className="py-1.5 text-muted-foreground">{c.reason}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{c.taxable_value.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right font-medium text-destructive">−₹{c.amount.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 font-mono text-[12.5px] text-foreground">{c.credit_note_number}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{formatDate(c.issued_at, timezone)}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{c.reason}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">₹{c.taxable_value.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-destructive">−₹{c.amount.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>

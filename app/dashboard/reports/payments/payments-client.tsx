@@ -164,24 +164,28 @@ export default function PaymentsClient({
               <p className="text-sm text-muted-foreground">Nothing outstanding in this range.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                {/* min-w + px-3 on every cell, matching profitability-client.tsx's
+                    table — without them, adjacent headers (Total/Due) had no
+                    gap and ran together on a narrow viewport instead of the
+                    table scrolling. */}
+                <table className="w-full min-w-[520px] text-sm">
                   <thead>
                     <tr className="text-left text-[12px] uppercase tracking-wide text-muted-foreground">
-                      <th className="pb-2 font-medium">Order</th>
-                      <th className="pb-2 font-medium">Type</th>
-                      <th className="pb-2 font-medium">Placed</th>
-                      <th className="pb-2 text-right font-medium">Total</th>
-                      <th className="pb-2 text-right font-medium">Due</th>
+                      <th className="px-3 pb-2 font-medium">Order</th>
+                      <th className="px-3 pb-2 font-medium">Type</th>
+                      <th className="px-3 pb-2 font-medium">Placed</th>
+                      <th className="px-3 pb-2 text-right font-medium">Total</th>
+                      <th className="px-3 pb-2 text-right font-medium">Due</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {report.outstanding_bills.map((b) => (
                       <tr key={b.order_id}>
-                        <td className="py-1.5 text-foreground">#{b.short_code}</td>
-                        <td className="py-1.5 text-muted-foreground">{TYPE_LABEL[b.type] ?? b.type}</td>
-                        <td className="py-1.5 text-muted-foreground">{formatDate(b.created_at, timezone)}</td>
-                        <td className="py-1.5 text-right text-muted-foreground">₹{b.total.toLocaleString('en-IN')}</td>
-                        <td className="py-1.5 text-right font-medium text-destructive">₹{b.due.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-foreground">#{b.short_code}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{TYPE_LABEL[b.type] ?? b.type}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{formatDate(b.created_at, timezone)}</td>
+                        <td className="px-3 py-1.5 text-right text-muted-foreground">₹{b.total.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-destructive">₹{b.due.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>
