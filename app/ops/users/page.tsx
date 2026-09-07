@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
 import { NotAuthorized } from '@/components/ops/not-authorized'
 import { Page, PageHeader } from '@/components/ops/ui'
-import UsersClient, { type UserRow } from './users-client'
+import UsersClient, { type UserMembershipRow } from './users-client'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Users' }
@@ -30,7 +30,7 @@ export default async function PlatformUsers() {
           Could not load users: {error.message}
           <br />
           <span className="text-[13px]">
-            If this is new, run <code className="font-mono">0128_user_activity_and_detail.sql</code> in
+            If this is new, run <code className="font-mono">0225_op_list_users_per_cafe_rows.sql</code> in
             the Supabase SQL editor, then reload.
           </span>
         </p>
@@ -38,5 +38,5 @@ export default async function PlatformUsers() {
     )
   }
 
-  return <UsersClient initialUsers={(data ?? []) as UserRow[]} />
+  return <UsersClient initialRows={(data ?? []) as UserMembershipRow[]} />
 }

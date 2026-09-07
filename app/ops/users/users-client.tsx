@@ -6,31 +6,19 @@ import { Search } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 import { relativeTime } from '@/lib/audit-actions'
+import { groupByCafe, type UserMembershipRow } from '@/lib/group-users-by-cafe'
 import {
   Badge,
   EmptyPanel,
   Page,
   PageHeader,
-  TableWrap,
   Td,
   Th,
   Thead,
   Tr,
 } from '@/components/ops/ui'
 
-export type UserRow = {
-  id: string
-  full_name: string | null
-  email: string | null
-  phone: string | null
-  created_at: string
-  last_sign_in_at: string | null
-  last_seen_at: string | null
-  last_device: string | null
-  cafe_count: number
-  cafe_names: string | null
-  orders_count: number
-}
+export type { UserMembershipRow }
 
 /**
  * "3h ago" for anything recent, an absolute date beyond a week, and an honest
@@ -44,9 +32,9 @@ function when(iso: string | null, neverLabel = 'Never') {
   )
 }
 
-export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
+export default function UsersClient({ initialRows }: { initialRows: UserMembershipRow[] }) {
   const supabase = useMemo(() => createClient(), [])
-  const [users, setUsers] = useState(initialUsers)
+  const [rows, setRows] = useState(initialRows)
   const [search, setSearch] = useState('')
   const [hasCafe, setHasCafe] = useState<string>('')
   const [loading, setLoading] = useState(false)
@@ -58,7 +46,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
       p_limit: 200,
       p_has_cafe: hasCafe === '' ? null : hasCafe === 'true',
     })
-    setUsers((data ?? []) as UserRow[])
+    setRows((data ?? []) as UserMembershipRow[])
     setLoading(false)
   }, [supabase, search, hasCafe])
 
@@ -69,6 +57,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
   }, [search, hasCafe])
 
   const filtersOn = Boolean(search || hasCafe)
+  const userCount = useMemo(() => new Set(rows.map((r) => r.id)).size, [rows])
+  const groups = useMemo(() => groupByCafe(rows), [rows])
 
   return (
     <Page width="full">
@@ -76,8 +66,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
         title="Users"
         subtitle={
           filtersOn
-            ? `${users.length} user${users.length === 1 ? '' : 's'} matching, most recently active first.`
-            : `${users.length} café owner${users.length === 1 ? '' : 's'} and staff, most recently active first.`
+            ? `${userCount} user${userCount === 1 ? '' : 's'} matching, grouped by café.`
+            : `${userCount} café owner${userCount === 1 ? '' : 's'} and staff, grouped by café — most active café first.`
         }
       />
 
@@ -102,70 +92,74 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
         </select>
       </div>
 
-      <div className={`mt-5 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-        {users.length === 0 ? (
+      <div className={`mt-5 space-y-5 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        {rows.length === 0 ? (
           <EmptyPanel message={loading ? 'Searching…' : filtersOn ? 'No users match these filters.' : 'No users yet.'} />
         ) : (
-          <TableWrap minWidth={1040}>
-            <Thead>
-              <Th>User</Th>
-              <Th>Cafés</Th>
-              <Th>Last active</Th>
-              <Th>Device</Th>
-              <Th>Last sign-in</Th>
-              <Th align="right">Orders</Th>
-              <Th align="right">Joined</Th>
-            </Thead>
-            <tbody>
-              {users.map((u) => (
-                <Tr key={u.id}>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/ops/users/${u.id}`}
-                      className="font-medium text-foreground hover:text-primary"
-                    >
-                      {u.full_name?.trim() || 'Unnamed'}
-                    </Link>
-                    <p className="text-[11.5px] text-muted-foreground">
-                      {u.email ?? '—'}
-                      {u.phone && <span className="tabular-nums"> · {u.phone}</span>}
-                    </p>
-                  </td>
-                  <Td muted>
-                    {u.cafe_count === 0 ? (
-                      <span className="text-muted-foreground/60">None</span>
-                    ) : (
-                      <span title={u.cafe_names ?? undefined}>
-                        {u.cafe_count === 1 ? u.cafe_names : `${u.cafe_count} cafés`}
-                      </span>
-                    )}
-                  </Td>
-                  <Td muted numeric>
-                    {when(u.last_seen_at, 'Not recorded')}
-                  </Td>
-                  <Td muted>
-                    {u.last_device ? <Badge>{u.last_device}</Badge> : <span className="text-muted-foreground/60">—</span>}
-                  </Td>
-                  <Td muted numeric>
-                    {when(u.last_sign_in_at)}
-                  </Td>
-                  <Td align="right" muted numeric>
-                    {u.orders_count.toLocaleString('en-IN')}
-                  </Td>
-                  <Td align="right" muted numeric>
-                    {formatDate(u.created_at)}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </TableWrap>
+          groups.map((g) => (
+            <div key={g.cafeId ?? '__none__'} className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+                {g.cafeId ? (
+                  <Link href={`/ops/cafes/${g.cafeId}`} className="text-[13.5px] font-semibold text-foreground hover:text-primary">
+                    {g.cafeName}
+                  </Link>
+                ) : (
+                  <span className="text-[13.5px] font-semibold text-muted-foreground">{g.cafeName}</span>
+                )}
+                <span className="text-[12px] text-muted-foreground">{g.users.length} user{g.users.length === 1 ? '' : 's'}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: 880 }}>
+                  <Thead>
+                    <Th>User</Th>
+                    <Th>Last active</Th>
+                    <Th>Device</Th>
+                    <Th>Last sign-in</Th>
+                    <Th align="right">Orders</Th>
+                    <Th align="right">Joined</Th>
+                  </Thead>
+                  <tbody>
+                    {g.users.map((u) => (
+                      <Tr key={u.id}>
+                        <td className="px-4 py-3">
+                          <Link href={`/ops/users/${u.id}`} className="font-medium text-foreground hover:text-primary">
+                            {u.full_name?.trim() || 'Unnamed'}
+                          </Link>
+                          <p className="text-[11.5px] text-muted-foreground">
+                            {u.email ?? '—'}
+                            {u.phone && <span className="tabular-nums"> · {u.phone}</span>}
+                          </p>
+                        </td>
+                        <Td muted numeric>
+                          {when(u.last_seen_at, 'Not recorded')}
+                        </Td>
+                        <Td muted>
+                          {u.last_device ? <Badge>{u.last_device}</Badge> : <span className="text-muted-foreground/60">—</span>}
+                        </Td>
+                        <Td muted numeric>
+                          {when(u.last_sign_in_at)}
+                        </Td>
+                        <Td align="right" muted numeric>
+                          {u.orders_count.toLocaleString('en-IN')}
+                        </Td>
+                        <Td align="right" muted numeric>
+                          {formatDate(u.created_at)}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
       <p className="mt-3 text-[12px] text-muted-foreground">
         &ldquo;Last active&rdquo; has only been recorded since this feature shipped, so it reads
         &ldquo;Not recorded&rdquo; until a user next opens the dashboard. &ldquo;Last sign-in&rdquo;
-        comes from the auth provider and is accurate historically.
+        comes from the auth provider and is accurate historically. A user on more than one café
+        appears once under each.
       </p>
     </Page>
   )
