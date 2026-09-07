@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 import { relativeTime } from '@/lib/audit-actions'
@@ -38,6 +38,16 @@ export default function UsersClient({ initialRows }: { initialRows: UserMembersh
   const [search, setSearch] = useState('')
   const [hasCafe, setHasCafe] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggleGroup(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const run = useCallback(async () => {
     setLoading(true)
@@ -67,7 +77,7 @@ export default function UsersClient({ initialRows }: { initialRows: UserMembersh
         subtitle={
           filtersOn
             ? `${userCount} user${userCount === 1 ? '' : 's'} matching, grouped by café.`
-            : `${userCount} café owner${userCount === 1 ? '' : 's'} and staff, grouped by café — most active café first.`
+            : `${userCount} café owner${userCount === 1 ? '' : 's'} and staff, grouped by café — tap a café to see its users.`
         }
       />
 
@@ -96,62 +106,75 @@ export default function UsersClient({ initialRows }: { initialRows: UserMembersh
         {rows.length === 0 ? (
           <EmptyPanel message={loading ? 'Searching…' : filtersOn ? 'No users match these filters.' : 'No users yet.'} />
         ) : (
-          groups.map((g) => (
-            <div key={g.cafeId ?? '__none__'} className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-                {g.cafeId ? (
-                  <Link href={`/ops/cafes/${g.cafeId}`} className="text-[13.5px] font-semibold text-foreground hover:text-primary">
-                    {g.cafeName}
-                  </Link>
-                ) : (
-                  <span className="text-[13.5px] font-semibold text-muted-foreground">{g.cafeName}</span>
+          groups.map((g) => {
+            const key = g.cafeId ?? '__none__'
+            const isOpen = filtersOn || expanded.has(key)
+            return (
+              <div key={key} className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
+                <button
+                  onClick={() => toggleGroup(key)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-surface-subtle"
+                  aria-expanded={isOpen}
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {isOpen ? (
+                      <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight size={15} className="shrink-0 text-muted-foreground" />
+                    )}
+                    <span className={`truncate text-[13.5px] font-semibold ${g.cafeId ? 'text-foreground' : 'text-muted-foreground'}`}>
+                      {g.cafeName}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[12px] text-muted-foreground">{g.users.length} user{g.users.length === 1 ? '' : 's'}</span>
+                </button>
+                {isOpen && (
+                  <div className="overflow-x-auto border-t border-border">
+                    <table className="w-full text-sm" style={{ minWidth: 880 }}>
+                      <Thead>
+                        <Th>User</Th>
+                        <Th>Last active</Th>
+                        <Th>Device</Th>
+                        <Th>Last sign-in</Th>
+                        <Th align="right">Orders</Th>
+                        <Th align="right">Joined</Th>
+                      </Thead>
+                      <tbody>
+                        {g.users.map((u) => (
+                          <Tr key={u.id}>
+                            <td className="px-4 py-3">
+                              <Link href={`/ops/users/${u.id}`} className="font-medium text-foreground hover:text-primary">
+                                {u.full_name?.trim() || 'Unnamed'}
+                              </Link>
+                              <p className="text-[11.5px] text-muted-foreground">
+                                {u.email ?? '—'}
+                                {u.phone && <span className="tabular-nums"> · {u.phone}</span>}
+                              </p>
+                            </td>
+                            <Td muted numeric>
+                              {when(u.last_seen_at, 'Not recorded')}
+                            </Td>
+                            <Td muted>
+                              {u.last_device ? <Badge>{u.last_device}</Badge> : <span className="text-muted-foreground/60">—</span>}
+                            </Td>
+                            <Td muted numeric>
+                              {when(u.last_sign_in_at)}
+                            </Td>
+                            <Td align="right" muted numeric>
+                              {u.orders_count.toLocaleString('en-IN')}
+                            </Td>
+                            <Td align="right" muted numeric>
+                              {formatDate(u.created_at)}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-                <span className="text-[12px] text-muted-foreground">{g.users.length} user{g.users.length === 1 ? '' : 's'}</span>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ minWidth: 880 }}>
-                  <Thead>
-                    <Th>User</Th>
-                    <Th>Last active</Th>
-                    <Th>Device</Th>
-                    <Th>Last sign-in</Th>
-                    <Th align="right">Orders</Th>
-                    <Th align="right">Joined</Th>
-                  </Thead>
-                  <tbody>
-                    {g.users.map((u) => (
-                      <Tr key={u.id}>
-                        <td className="px-4 py-3">
-                          <Link href={`/ops/users/${u.id}`} className="font-medium text-foreground hover:text-primary">
-                            {u.full_name?.trim() || 'Unnamed'}
-                          </Link>
-                          <p className="text-[11.5px] text-muted-foreground">
-                            {u.email ?? '—'}
-                            {u.phone && <span className="tabular-nums"> · {u.phone}</span>}
-                          </p>
-                        </td>
-                        <Td muted numeric>
-                          {when(u.last_seen_at, 'Not recorded')}
-                        </Td>
-                        <Td muted>
-                          {u.last_device ? <Badge>{u.last_device}</Badge> : <span className="text-muted-foreground/60">—</span>}
-                        </Td>
-                        <Td muted numeric>
-                          {when(u.last_sign_in_at)}
-                        </Td>
-                        <Td align="right" muted numeric>
-                          {u.orders_count.toLocaleString('en-IN')}
-                        </Td>
-                        <Td align="right" muted numeric>
-                          {formatDate(u.created_at)}
-                        </Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
