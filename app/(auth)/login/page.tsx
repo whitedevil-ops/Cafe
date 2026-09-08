@@ -21,6 +21,12 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
+  // The only signal available to tell this apart from a café owner's visit
+  // — a session's real permissions are decided server-side by /ops itself
+  // regardless of which login page created it (see the redirect-logic
+  // comment below), so this is purely a UI cue for whoever lands here via
+  // /ops's own unauthenticated redirect, not a security boundary.
+  const isOps = params.get('next') === '/ops'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -109,8 +115,18 @@ function LoginForm() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome back</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Sign in to your café dashboard.</p>
+      {isOps ? (
+        <>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Operator console</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">Ops sign in</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in with your operator console credentials.</p>
+        </>
+      ) : (
+        <>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome back</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in to your café dashboard.</p>
+        </>
+      )}
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <Input
@@ -164,12 +180,14 @@ function LoginForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        New here?{' '}
-        <Link href="/get-started" className="font-medium text-primary hover:underline">
-          Register your café
-        </Link>
-      </p>
+      {!isOps && (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          New here?{' '}
+          <Link href="/get-started" className="font-medium text-primary hover:underline">
+            Register your café
+          </Link>
+        </p>
+      )}
     </div>
   )
 }
