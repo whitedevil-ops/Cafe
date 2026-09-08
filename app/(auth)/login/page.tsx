@@ -75,34 +75,19 @@ function LoginForm() {
     // message) or different casing makes GoTrue treat this as a different
     // account than the one on file — trim/lowercase so it can't silently
     // fail to match a login typed slightly differently than it was created.
-    const { data: signedIn, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
     if (error) {
       setError(error.message)
       setLoading(false)
       return
     }
-
-    let next = params.get('next')
-    if (!next) {
-      next = '/dashboard'
-      // FOUND LIVE: a pure Ops/platform-admin account with no café of its
-      // own defaulted here too, and /dashboard's own `if (!cafe) redirect
-      // ('/onboarding')` then walked them straight into "create a new
-      // café" — confusing, and easy to do by accident on an account that
-      // was never meant to have one. Only resolved when there's no
-      // explicit destination already (an operator-session `next` etc. is
-      // untouched), and never blocks login on it — any failure here just
-      // keeps the existing /dashboard default.
-      try {
-        const { data: membership } = await supabase.from('cafe_members').select('cafe_id').eq('user_id', signedIn.user.id).limit(1)
-        if (!membership || membership.length === 0) {
-          const { data: adminContext } = await supabase.rpc('platform_admin_context')
-          if (adminContext) next = '/ops'
-        }
-      } catch {
-        // Keep the /dashboard default.
-      }
-    }
+    // Reverted the brief auto-detect-and-send-café-less-admins-to-/ops
+    // behavior this had — /ops is reachable only by deliberately navigating
+    // there (which still correctly bounces an unauthenticated visit through
+    // /login?next=/ops and back). A plain visit here always lands on
+    // /dashboard, same as a café owner; /dashboard's own `if (!cafe)
+    // redirect('/onboarding')` is unchanged for a café-less account.
+    const next = params.get('next') || '/dashboard'
     if (isDesktopApp()) {
       // The desktop webview's cookie store commits writes on a background
       // task rather than synchronously (same root cause DesktopSessionBridge
