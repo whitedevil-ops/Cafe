@@ -189,6 +189,7 @@ export default function AdminsClient({
   const [permEditing, setPermEditing] = useState<AdminRow | null>(null)
   const [viewing, setViewing] = useState<AdminRow | null>(null)
   const [resettingId, setResettingId] = useState<string | null>(null)
+  const [settingPassword, setSettingPassword] = useState<AdminRow | null>(null)
 
   async function refresh() {
     const { data } = await supabase.rpc('op_list_admins')
@@ -295,6 +296,9 @@ export default function AdminsClient({
                         {resettingId === a.admin_id ? 'Sending…' : 'Reset password'}
                       </MenuItem>
                     )}
+                    {selfRole === 'super_admin' && (
+                      <MenuItem onClick={() => { setOpenMenuId(null); setSettingPassword(a) }}>Set password directly</MenuItem>
+                    )}
                     {permissions['admins.disable'] && a.admin_id !== selfAdminId && (
                       <MenuItem destructive={a.status === 'active'} onClick={() => { setOpenMenuId(null); void toggleStatus(a) }}>
                         {a.status === 'active' ? 'Deactivate' : 'Activate'}
@@ -337,6 +341,14 @@ export default function AdminsClient({
 
       {viewing && (
         <ActivityDialog admin={viewing} supabase={supabase} onClose={() => setViewing(null)} />
+      )}
+
+      {settingPassword && (
+        <SetPasswordDialog
+          admin={settingPassword}
+          onClose={() => setSettingPassword(null)}
+          onSet={() => { setSettingPassword(null); toast('Password set.'); void refresh() }}
+        />
       )}
     </div>
   )
@@ -435,6 +447,50 @@ function AddAdminDialog({ selfRole, onClose, onCreated }: { selfRole: string; on
           <button onClick={onClose} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground">Cancel</button>
           <button onClick={submit} disabled={submitting} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[14px] font-medium text-primary-foreground disabled:opacity-40">
             {submitting ? 'Creating…' : 'Create admin'}
+          </button>
+        </div>
+      </div>
+    </DialogShell>
+  )
+}
+
+function SetPasswordDialog({ admin, onClose, onSet }: { admin: AdminRow; onClose: () => void; onSet: () => void }) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit() {
+    setError(null)
+    if (password.length < 8) return setError('Password must be at least 8 characters.')
+    if (password !== confirmPassword) return setError('Passwords do not match.')
+
+    setSubmitting(true)
+    const res = await fetch('/api/ops/admins/set-password', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ admin_id: admin.admin_id, new_password: password }),
+    })
+    setSubmitting(false)
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return setError(body.error ?? 'Could not set password.')
+    onSet()
+  }
+
+  return (
+    <DialogShell
+      title={`Set password for ${admin.full_name}`}
+      description="Takes effect immediately, no email involved — you'll need to share it with them yourself. Prefer “Reset password” unless you specifically need to bypass the email link."
+      onClose={onClose}
+    >
+      <div className="mt-4 space-y-3">
+        <Field label="New password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} /></Field>
+        <Field label="Confirm password"><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={inputCls} /></Field>
+        {error && <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground">Cancel</button>
+          <button onClick={submit} disabled={submitting} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[14px] font-medium text-primary-foreground disabled:opacity-40">
+            {submitting ? 'Setting…' : 'Set password'}
           </button>
         </div>
       </div>
