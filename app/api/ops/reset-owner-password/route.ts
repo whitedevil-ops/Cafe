@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (!target?.email) return NextResponse.json({ error: 'no email on file for this person' }, { status: 400 })
 
   const base = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
-  const { error } = await supabase.auth.resetPasswordForEmail(target.email, { redirectTo: `${base}/login` })
+  const { error } = await supabase.auth.resetPasswordForEmail(target.email, { redirectTo: `${base}/reset-password` })
 
   const { error: logError } = await supabase.rpc('op_log_password_reset', {
     p_cafe_id: cafe_id,
