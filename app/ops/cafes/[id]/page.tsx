@@ -9,7 +9,8 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
   const { id } = await params
   const supabase = await createClient()
   const { data: context } = await supabase.rpc('platform_admin_context')
-  const permissions = (context as { permissions: Record<string, boolean> } | null)?.permissions ?? {}
+  const ctx = context as { role: string; permissions: Record<string, boolean> } | null
+  const permissions = ctx?.permissions ?? {}
   if (!permissions['cafes.view']) return <NotAuthorized section="café detail" />
 
   const { data, error } = await supabase.rpc('op_get_cafe_detail', { p_cafe_id: id })
@@ -35,6 +36,7 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
       detail={data as CafeDetail}
       plans={plans ?? []}
       permissions={permissions}
+      selfRole={ctx?.role ?? ''}
       health={health}
       initialStaff={(staff ?? []) as StaffRow[]}
       initialSessions={(sessions ?? []) as SessionRow[]}

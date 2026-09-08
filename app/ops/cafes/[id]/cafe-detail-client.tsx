@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ShieldCheck, ShieldOff, ArrowLeft, Key, StickyNote, Search, Users, CreditCard,
-  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2,
+  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2, Mail,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -276,6 +276,7 @@ export default function CafeDetailClient({
   detail,
   plans,
   permissions,
+  selfRole,
   health,
   initialStaff,
   initialSessions,
@@ -284,6 +285,7 @@ export default function CafeDetailClient({
   detail: CafeDetail
   plans: { key: string; name: string; price_monthly: number; price_yearly: number | null; max_staff: number | null }[]
   permissions: Record<string, boolean>
+  selfRole: string
   health: HealthRow | null
   initialStaff: StaffRow[]
   initialSessions: SessionRow[]
@@ -321,6 +323,7 @@ export default function CafeDetailClient({
   const [staff, setStaff] = useState(initialStaff)
   const [sessions] = useState(initialSessions)
   const [staffBusy, setStaffBusy] = useState<string | null>(null)
+  const [changingEmail, setChangingEmail] = useState<{ userId: string | null; name: string; email: string | null } | null>(null)
 
   async function refresh() {
     const { data: fresh } = await supabase.rpc('op_get_cafe_detail', { p_cafe_id: cafeId })
@@ -594,6 +597,11 @@ export default function CafeDetailClient({
           {permissions['cafes.reset_password'] && (
             <button onClick={() => resetPassword(null, data.business.owner_email)} disabled={resettingPw !== null || !data.business.owner_email} className="flex min-h-9 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">
               <Key size={13} /> {resettingPw === 'owner' ? 'Sending…' : 'Reset owner password'}
+            </button>
+          )}
+          {selfRole === 'super_admin' && (
+            <button onClick={() => setChangingEmail({ userId: null, name: data.business.owner_name ?? 'the owner', email: data.business.owner_email })} className="flex min-h-9 items-center gap-1.5 rounded-[var(--radius)] border border-border-strong px-3 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle">
+              <Mail size={13} /> Change owner email
             </button>
           )}
           {permissions['plans.change'] && (
@@ -887,6 +895,11 @@ export default function CafeDetailClient({
                           <Key size={12} /> {resettingPw === s.user_id ? 'Sending…' : 'Reset password'}
                         </button>
                       )}
+                      {selfRole === 'super_admin' && (
+                        <button onClick={() => setChangingEmail({ userId: s.user_id, name: s.full_name ?? 'this person', email: s.email })} className="flex h-8 items-center gap-1 rounded-[var(--radius-sm)] border border-border-strong px-2.5 text-[12px] font-medium text-foreground hover:bg-surface-subtle">
+                          <Mail size={12} /> Change email
+                        </button>
+                      )}
                       {permissions['cafes.edit'] && s.status !== 'invited' && (
                         <button
                           onClick={() => toggleStaffStatus(s)}
@@ -1158,6 +1171,94 @@ export default function CafeDetailClient({
           onConfirm={confirmDelete}
         />
       )}
+
+      {changingEmail && (
+        <ChangeEmailDialog
+          name={changingEmail.name}
+          currentEmail={changingEmail.email}
+          onClose={() => setChangingEmail(null)}
+          onSubmit={async (newEmail) => {
+            const res = await fetch('/api/ops/change-member-email', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                cafe_id: cafeId,
+                target_user_id: changingEmail.userId ?? undefined,
+                new_email: newEmail,
+                old_email: changingEmail.email,
+              }),
+            })
+            const body = await res.json().catch(() => ({}))
+            if (!res.ok) return { ok: false as const, error: body.error ?? 'Could not change email.' }
+            setChangingEmail(null)
+            toast(`Email changed to ${body.email}.`)
+            void refresh()
+            void refreshStaff()
+            return { ok: true as const }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ChangeEmailDialog({
+  name,
+  currentEmail,
+  onClose,
+  onSubmit,
+}: {
+  name: string
+  currentEmail: string | null
+  onClose: () => void
+  onSubmit: (newEmail: string) => Promise<{ ok: true } | { ok: false; error: string }>
+}) {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function submit() {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed || !trimmed.includes('@')) return setError('Enter a valid email address.')
+    setSubmitting(true)
+    setError(null)
+    const result = await onSubmit(trimmed)
+    setSubmitting(false)
+    if (!result.ok) setError(result.error)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/40 sm:items-center sm:p-6" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-t-2xl bg-surface p-6 shadow-[var(--shadow-lg)] sm:rounded-[var(--radius-lg)]" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-[15px] font-semibold text-foreground">Change email for {name}</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {currentEmail ? `Currently ${currentEmail}. ` : ''}Takes effect immediately, no confirmation email — this bypasses the usual proof they own the new address.
+        </p>
+
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="new@email.com"
+          autoFocus
+          className="mt-4 w-full rounded-[var(--radius)] border border-border-strong bg-surface px-3 py-2.5 text-[16px] text-foreground placeholder:text-muted-foreground"
+        />
+
+        {error && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[12.5px] text-destructive">{error}</p>}
+
+        <div className="mt-4 flex gap-2">
+          <button onClick={onClose} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[14px] font-medium text-foreground">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting || email.trim().length === 0}
+            className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[14px] font-medium text-white disabled:opacity-40"
+          >
+            {submitting ? 'Working…' : 'Change email'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
