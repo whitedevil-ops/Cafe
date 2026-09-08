@@ -29,6 +29,7 @@ export const ProductCard = memo(function ProductCard({
   item,
   qty,
   isOfferActiveToday,
+  minVariantDelta,
   onAdd,
 }: {
   item: PosItem
@@ -36,10 +37,21 @@ export const ProductCard = memo(function ProductCard({
   /** Precomputed by the caller (which owns the café's timezone) — see
    *  lib/offers.ts. */
   isOfferActiveToday: boolean
+  /**
+   * Lowest price_delta among this item's Sizes/Choices, or 0 when it has
+   * none. An item priced entirely through its sizes typically has
+   * item.price left at 0 — showing that raw 0 with a "+" read as a real
+   * (broken) ₹0 starting price. Adding the cheapest size's delta gives the
+   * actual lowest price a guest could pay, the number "+" is supposed to
+   * anchor.
+   */
+  minVariantDelta: number
   /** Stable across renders (see pos-client.tsx) so memo() actually skips
    *  re-rendering cards whose own props haven't changed. */
   onAdd: (itemId: string) => void
 }) {
+  const fromPrice = item.price + minVariantDelta
+  const fromOfferPrice = (item.offer_price ?? 0) + minVariantDelta
   return (
     <button
       type="button"
@@ -80,13 +92,13 @@ export const ProductCard = memo(function ProductCard({
         <div className="mt-auto flex items-center justify-between pt-0.5">
           {isOfferActiveToday ? (
             <span className="flex items-baseline gap-1 text-[14px] font-semibold text-special">
-              ₹{item.offer_price}
+              ₹{fromOfferPrice}
               {item.hasOptions && <span className="text-muted-foreground">+</span>}
-              <span className="text-[11px] font-normal text-muted-foreground line-through">₹{item.price}</span>
+              <span className="text-[11px] font-normal text-muted-foreground line-through">₹{fromPrice}</span>
             </span>
           ) : (
             <span className="text-[14px] font-semibold text-foreground">
-              ₹{item.price}
+              ₹{fromPrice}
               {item.hasOptions && <span className="text-muted-foreground">+</span>}
             </span>
           )}

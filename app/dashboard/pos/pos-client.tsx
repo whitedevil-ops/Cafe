@@ -274,6 +274,15 @@ export default function PosClient({
     addons.forEach((a) => m.set(a.menu_item_id, [...(m.get(a.menu_item_id) ?? []), a]))
     return m
   }, [addons])
+  // The cheapest Size/Choice's delta, per item — an item with no variants
+  // (add-ons only, or no options at all) has no entry, so callers fall back
+  // to 0. This is what makes the grid's "from" price honest for an item
+  // priced entirely through its sizes (base item.price left at 0).
+  const minVariantDeltaByItem = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const [itemId, vs] of variantsByItem) m.set(itemId, Math.min(...vs.map((v) => v.price_delta)))
+    return m
+  }, [variantsByItem])
 
   // "New Arrivals" — same freshness heuristic as the customer QR menu (real
   // created_at data, not fabricated). Suppressed if it would cover most of an
@@ -308,12 +317,16 @@ export default function PosClient({
     // is a stable sort (bestsellers first, otherwise the café's own menu
     // order), so it's the same ordering as before this control existed.
     const sorted = [...filtered]
-    if (sortMode === 'price_low') sorted.sort((a, b) => a.price - b.price)
-    else if (sortMode === 'price_high') sorted.sort((a, b) => b.price - a.price)
+    // fromPrice, not the raw base price — otherwise every item priced
+    // entirely through its sizes (base price left at 0) would clump at the
+    // top of "Price: low to high" regardless of what it actually costs.
+    const fromPrice = (i: FullItem) => i.price + (minVariantDeltaByItem.get(i.id) ?? 0)
+    if (sortMode === 'price_low') sorted.sort((a, b) => fromPrice(a) - fromPrice(b))
+    else if (sortMode === 'price_high') sorted.sort((a, b) => fromPrice(b) - fromPrice(a))
     else if (sortMode === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
     else sorted.sort((a, b) => Number(b.is_bestseller) - Number(a.is_bestseller))
     return sorted
-  }, [items, activeCategory, search, newItemIds, sortMode])
+  }, [items, activeCategory, search, newItemIds, sortMode, minVariantDeltaByItem])
 
   const qtyByItem = useMemo(() => {
     const m = new Map<string, number>()
@@ -1289,6 +1302,7 @@ export default function PosClient({
                     item={item}
                     qty={qtyByItem.get(item.id) ?? 0}
                     isOfferActiveToday={offerActiveIds.has(item.id)}
+                    minVariantDelta={minVariantDeltaByItem.get(item.id) ?? 0}
                     onAdd={handleAddItem}
                   />
                 ))}
