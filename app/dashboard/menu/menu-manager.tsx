@@ -405,9 +405,17 @@ export default function MenuManager({
   }
 
   async function syncModifiers(itemId: string, d: ItemDraft): Promise<string | null> {
-    await supabase.from('menu_item_variants').delete().eq('menu_item_id', itemId)
-    await supabase.from('menu_item_addons').delete().eq('menu_item_id', itemId)
-
+    // Upsert by id instead of the old delete-all-then-reinsert: order_items,
+    // rewards, spin prizes, and combo_slots all reference a specific
+    // variant id (combo_slots even CASCADE-deletes its own row if that
+    // variant disappears) — recreating every variant with a fresh id on
+    // every save silently orphaned/corrupted all of those the moment an
+    // owner made an unrelated edit (fixing a typo, toggling Available) to
+    // an item that happened to have sizes. FOUND LIVE: it's also what
+    // produced "invalid variant" at a customer's checkout — their
+    // already-open QR menu page held a variant id that had just been
+    // swapped out from under them mid-session by an unrelated edit.
+    //
     // Absolute price/margin back to the deltas the database stores. Mirrors the
     // bulk importer exactly: an option with no margin of its own costs the same
     // as the base item (delta 0), and a blank base cost counts as 0 so an
@@ -422,9 +430,11 @@ export default function MenuManager({
         : d.margin.trim() === ''
           ? 0
           : Math.max(0, basePrice - Math.round(Number(d.margin) || 0))
+
     const variants = d.variants
       .filter((v) => v.name.trim())
       .map((v, i) => ({
+        id: v.id,
         menu_item_id: itemId,
         name: v.name.trim(),
         ...optionToDeltas(basePrice, baseCost, {
@@ -433,16 +443,44 @@ export default function MenuManager({
         }),
         sort: i,
       }))
-    const addons = d.addons
-      .filter((a) => a.name.trim())
-      .map((a, i) => ({ menu_item_id: itemId, name: a.name.trim(), price: Math.max(0, Math.round(Number(a.price) || 0)), sort: i }))
+    const variantsToUpdate = variants.filter((v): v is typeof v & { id: string } => Boolean(v.id))
+    const variantsToInsert = variants.filter((v) => !v.id).map((v) => ({ ...v, id: undefined }))
+    const keptVariantIds = variantsToUpdate.map((v) => v.id)
 
-    if (variants.length) {
-      const { error } = await supabase.from('menu_item_variants').insert(variants)
+    const deleteVariants = supabase.from('menu_item_variants').delete().eq('menu_item_id', itemId)
+    const { error: deleteVariantsError } = keptVariantIds.length
+      ? await deleteVariants.not('id', 'in', `(${keptVariantIds.join(',')})`)
+      : await deleteVariants
+    if (deleteVariantsError) return deleteVariantsError.message
+
+    if (variantsToUpdate.length) {
+      const { error } = await supabase.from('menu_item_variants').upsert(variantsToUpdate)
       if (error) return error.message
     }
-    if (addons.length) {
-      const { error } = await supabase.from('menu_item_addons').insert(addons)
+    if (variantsToInsert.length) {
+      const { error } = await supabase.from('menu_item_variants').insert(variantsToInsert)
+      if (error) return error.message
+    }
+
+    const addons = d.addons
+      .filter((a) => a.name.trim())
+      .map((a, i) => ({ id: a.id, menu_item_id: itemId, name: a.name.trim(), price: Math.max(0, Math.round(Number(a.price) || 0)), sort: i }))
+    const addonsToUpdate = addons.filter((a): a is typeof a & { id: string } => Boolean(a.id))
+    const addonsToInsert = addons.filter((a) => !a.id).map((a) => ({ ...a, id: undefined }))
+    const keptAddonIds = addonsToUpdate.map((a) => a.id)
+
+    const deleteAddons = supabase.from('menu_item_addons').delete().eq('menu_item_id', itemId)
+    const { error: deleteAddonsError } = keptAddonIds.length
+      ? await deleteAddons.not('id', 'in', `(${keptAddonIds.join(',')})`)
+      : await deleteAddons
+    if (deleteAddonsError) return deleteAddonsError.message
+
+    if (addonsToUpdate.length) {
+      const { error } = await supabase.from('menu_item_addons').upsert(addonsToUpdate)
+      if (error) return error.message
+    }
+    if (addonsToInsert.length) {
+      const { error } = await supabase.from('menu_item_addons').insert(addonsToInsert)
       if (error) return error.message
     }
     return null
