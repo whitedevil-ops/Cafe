@@ -43,6 +43,15 @@ export default function FloorLayoutEditor({
   )
   const [activeArea, setActiveArea] = useState<string>(firstAreaId)
   const [saving, setSaving] = useState(false)
+  // FOUND LIVE: the line above defaults any never-assigned table into the
+  // first floor for display only — real, unsaved tables looked identical to
+  // saved ones (especially with one floor, where the per-table floor picker
+  // below is hidden entirely), so an owner had no way to tell they still
+  // needed to hit Save. POS and every other page read the real area_id and
+  // correctly showed those same tables as unassigned. `dirty` starts true
+  // exactly when that silent default actually changed something, so this
+  // page can say so instead of looking falsely already-correct.
+  const [dirty, setDirty] = useState(initialTables.some((t) => !t.area_id))
 
   const visibleAreas = areas.filter((a) => !a.archived).sort((a, b) => a.sort - b.sort)
   const areaTables = tables.filter((t) => !t.archived && t.area_id === activeArea)
@@ -52,9 +61,11 @@ export default function FloorLayoutEditor({
     const a: Area = { id: tmp(), name: `Floor ${visibleAreas.length + 1}`, sort: visibleAreas.length, archived: false }
     setAreas((list) => [...list, a])
     setActiveArea(a.id)
+    setDirty(true)
   }
   function renameArea(id: string, name: string) {
     setAreas((list) => list.map((a) => (a.id === id ? { ...a, name } : a)))
+    setDirty(true)
   }
   function moveArea(id: string, dir: -1 | 1) {
     const ordered = [...visibleAreas]
@@ -64,12 +75,14 @@ export default function FloorLayoutEditor({
     ;[ordered[i], ordered[j]] = [ordered[j], ordered[i]]
     const sortById = new Map(ordered.map((a, idx) => [a.id, idx]))
     setAreas((list) => list.map((a) => (sortById.has(a.id) ? { ...a, sort: sortById.get(a.id)! } : a)))
+    setDirty(true)
   }
   function archiveArea(id: string) {
     if (tables.some((t) => t.area_id === id && !t.archived)) return toast('Move or remove this floor’s tables first.', 'error')
     setAreas((list) => list.map((a) => (a.id === id ? { ...a, archived: true } : a)))
     const next = visibleAreas.find((a) => a.id !== id)
     if (next) setActiveArea(next.id)
+    setDirty(true)
   }
 
   // ── Tables ──────────────────────────────────────────────────────────────
@@ -77,12 +90,15 @@ export default function FloorLayoutEditor({
     if (!activeArea) return
     const label = String(tables.filter((t) => !t.archived).length + 1).padStart(2, '0')
     setTables((list) => [...list, { id: tmp(), label: `T${label}`, capacity: 4, area_id: activeArea, archived: false }])
+    setDirty(true)
   }
   function patchTable(id: string, patch: Partial<LayoutTable>) {
     setTables((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+    setDirty(true)
   }
   function archiveTable(id: string) {
     setTables((list) => list.map((t) => (t.id === id ? { ...t, archived: true } : t)))
+    setDirty(true)
   }
 
   async function save() {
@@ -100,6 +116,7 @@ export default function FloorLayoutEditor({
     const { error } = await supabase.rpc('save_floor_layout', { p_cafe_id: cafeId, p_areas: payloadAreas, p_tables: payloadTables })
     setSaving(false)
     if (error) return toast(error.message, 'error')
+    setDirty(false)
     toast('Floors & tables saved.')
     router.refresh()
   }
@@ -113,9 +130,14 @@ export default function FloorLayoutEditor({
             Group your tables by floor or area. This is the single source of truth — the same floors and tables appear in POS, Live Tables and QR management.
           </p>
         </div>
-        <button onClick={save} disabled={saving} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <button onClick={save} disabled={saving} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+          {dirty && !saving && (
+            <p className="text-[12px] font-medium text-warning">Unsaved changes — POS and QR ordering still show the old layout.</p>
+          )}
+        </div>
       </div>
 
       {/* Floors */}
