@@ -1022,16 +1022,20 @@ export default function MenuClient({
             <p className="text-[13px] text-muted-foreground">Table {tableLabel}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {/* FOUND LIVE: was an icon-only circle with just a hover title —
+                a title tooltip never shows on a touch device, so a customer
+                had no way to actually learn what the bell meant. A visible
+                label works regardless of device. */}
             <button
               onClick={callWaiter}
               disabled={assistBusy}
-              aria-label="Call waiter"
-              title="Call waiter"
-              className={`grid h-10 w-10 place-items-center rounded-full border text-foreground transition-colors disabled:opacity-50 ${
-                assist === 'waiter' ? 'border-success bg-success-subtle text-success' : 'border-border-strong'
+              aria-label={assist === 'waiter' ? 'Waiter called' : 'Call waiter to your table'}
+              className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
+                assist === 'waiter' ? 'border-success bg-success-subtle text-success' : 'border-border-strong text-foreground'
               }`}
             >
-              {assist === 'waiter' ? <Check size={16} /> : <BellRing size={16} />}
+              {assist === 'waiter' ? <Check size={15} /> : <BellRing size={15} />}
+              {assist === 'waiter' ? 'Called' : 'Waiter'}
             </button>
           </div>
         </div>
