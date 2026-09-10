@@ -14,6 +14,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ReasonDialog } from '@/components/operator/reason-dialog'
 import { DeleteCafeDialog } from '@/components/ops/delete-cafe-dialog'
 import { OpenCafeDashboard } from '@/components/ops/open-cafe-dashboard'
+import { InvoiceGenerateModal } from '@/components/ops/invoice-generate-modal'
 import { Badge, Panel, type StripTone } from '@/components/ops/ui'
 import { formatDate, formatDateTime } from '@/lib/datetime'
 
@@ -317,6 +318,7 @@ export default function CafeDetailClient({
   // switch fires two overlapping op_set_feature_override calls.
   const [togglingKeys, setTogglingKeys] = useState<Set<string>>(new Set())
   const [featureSearch, setFeatureSearch] = useState('')
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -936,7 +938,23 @@ export default function CafeDetailClient({
 
         {tab === 'payments' && (
           <section className="rounded-xl border border-border bg-surface p-5">
-            <p className="text-sm font-medium text-foreground">Payments &amp; billing</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="text-sm font-medium text-foreground">Payments &amp; billing</p>
+              {/* Only shown while the plan is actually active — matches the
+                  same restriction stated in the task this shipped for: an
+                  invoice for a lapsed/cancelled subscription isn't what
+                  "Generate Invoice" is for. Ops still reaches the underlying
+                  RPC for any café via the Invoices list if a backdated
+                  invoice is genuinely needed later. */}
+              {permissions['subscriptions.manage'] && data.account.billing_status === 'active' && (
+                <button
+                  onClick={() => setInvoiceModalOpen(true)}
+                  className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground hover:bg-primary-hover"
+                >
+                  <CreditCard size={13} /> Generate invoice
+                </button>
+              )}
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-[13.5px] sm:grid-cols-3">
               <Field label="Plan" value={planName(plans, data.account.plan)} />
               <Field label="Plan price" value={planPrice(plans, data.account.plan)} />
@@ -953,7 +971,20 @@ export default function CafeDetailClient({
               not directly editable here. No secrets or card/UPI details are ever stored or shown; this console only
               ever sees the subscription lifecycle state.
             </p>
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              KhaoPiyo subscriptions are currently paid by personal UPI, outside this webhook entirely — &ldquo;Generate
+              invoice&rdquo; is the paper trail for that, kept separately under Ops Admin → Billing → Invoices.
+            </p>
           </section>
+        )}
+
+        {invoiceModalOpen && (
+          <InvoiceGenerateModal
+            cafeId={cafeId}
+            cafeName={data.business.name}
+            onClose={() => setInvoiceModalOpen(false)}
+            onGenerated={() => router.refresh()}
+          />
         )}
 
         {tab === 'health' && permissions['health.view'] && (

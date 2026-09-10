@@ -9,6 +9,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Lock,
+  Receipt,
   ScrollText,
   ShieldCheck,
   Store,
@@ -32,6 +33,7 @@ export type NavKey =
   | 'audit'
   | 'security'
   | 'analytics'
+  | 'invoices'
 
 type Item = { key: NavKey; label: string; href: string; icon: LucideIcon }
 
@@ -59,6 +61,7 @@ const GROUPS: { heading: string | null; items: Item[] }[] = [
     heading: 'Revenue',
     items: [
       { key: 'analytics', label: 'Analytics', href: '/ops/analytics', icon: BarChart3 },
+      { key: 'invoices', label: 'Invoices', href: '/ops/billing/invoices', icon: Receipt },
     ],
   },
   {

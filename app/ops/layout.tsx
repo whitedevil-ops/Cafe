@@ -74,6 +74,7 @@ export default async function PlatformAdminLayout({
     ['health', ctx.permissions['health.view']],
     ['alerts', ctx.permissions['alerts.view']],
     ['analytics', ctx.permissions['subscriptions.view']],
+    ['invoices', ctx.permissions['subscriptions.view']],
     ['audit', ctx.permissions['audit.view']],
     ['security', ctx.permissions['audit.view']],
     ['admins', ctx.permissions['admins.view']],

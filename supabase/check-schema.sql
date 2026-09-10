@@ -905,7 +905,14 @@ with expected(kind, name, fix) as (values
   -- T&C consent-flow audit (0231)
   ('table', 'legal_acceptances', '0231'),
   ('function', 'record_legal_acceptance', '0231'),
-  ('function', 'has_accepted_legal_doc', '0231')
+  ('function', 'has_accepted_legal_doc', '0231'),
+  -- Manual invoice generation, Ops Admin only (0232)
+  ('table', 'platform_invoices', '0232'),
+  ('table', 'platform_invoice_counters', '0232'),
+  ('function', 'op_get_invoice_prefill', '0232'),
+  ('function', 'op_generate_invoice', '0232'),
+  ('function', 'op_list_invoices', '0232'),
+  ('function', 'op_get_invoice', '0232')
 )
 select
   e.kind,
