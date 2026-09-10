@@ -32,6 +32,9 @@ export type PrintingState = {
   printers: KotPrinter[]
   stations: KitchenStation[]
   tokens: BridgeToken[]
+  /** Plan entitlement — see page.tsx. No RPC choke point exists for station
+   *  creation (plain table writes under RLS), so this gates the Add-station UI. */
+  kitchenStationsAllowed: boolean
 }
 
 const INVITE_ROLES = ['manager', 'cashier', 'kitchen', 'waiter', 'accountant'] as const
@@ -441,6 +444,7 @@ export default function SettingsClient({
         initialPrinters={printing.printers}
         initialStations={printing.stations}
         initialTokens={printing.tokens}
+        kitchenStationsAllowed={printing.kitchenStationsAllowed}
       />
     </div>
   )

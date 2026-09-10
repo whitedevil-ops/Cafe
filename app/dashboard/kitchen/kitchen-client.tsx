@@ -142,6 +142,8 @@ export default function KitchenClient({
   printingEnabled,
   paperWidth,
   timezone,
+  desktopPrintingEnabled,
+  bluetoothPrinterEnabled,
 }: {
   cafeId: string
   cafeName: string
@@ -149,6 +151,8 @@ export default function KitchenClient({
   printingEnabled: boolean
   paperWidth: '58mm' | '80mm'
   timezone: string
+  desktopPrintingEnabled: boolean
+  bluetoothPrinterEnabled: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -289,21 +293,24 @@ export default function KitchenClient({
   // paper for the same order.
   const printOne = useCallback(
     (o: Order, its: Item[]) =>
-      printKot({
-        kotNumber: o.short_code,
-        cafeName,
-        tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
-        orderType: o.type,
-        placedAt: o.created_at,
-        timezone,
-        paperWidth,
-        items: its.map((i) => ({
-          qty: i.qty,
-          name: i.name,
-          modifiers: (i.modifiers ?? []).map((m) => m.name),
-        })),
-      }),
-    [cafeName, tableLabels, timezone, paperWidth],
+      printKot(
+        {
+          kotNumber: o.short_code,
+          cafeName,
+          tableLabel: o.table_id ? tableLabels[o.table_id] ?? null : null,
+          orderType: o.type,
+          placedAt: o.created_at,
+          timezone,
+          paperWidth,
+          items: its.map((i) => ({
+            qty: i.qty,
+            name: i.name,
+            modifiers: (i.modifiers ?? []).map((m) => m.name),
+          })),
+        },
+        { desktopPrintingEnabled, bluetoothPrinterEnabled },
+      ),
+    [cafeName, tableLabels, timezone, paperWidth, desktopPrintingEnabled, bluetoothPrinterEnabled],
   )
 
   async function printNow(o: Order) {

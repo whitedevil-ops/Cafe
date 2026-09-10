@@ -16,6 +16,7 @@ export default async function SettingsPage() {
   // Entitlement first: everything the Payments card says depends on whether
   // online payments are on this cafe's plan at all.
   const onlinePaymentsAllowed = await hasFeature(cafe.cafeId, 'online_payments')
+  const kitchenStationsAllowed = await hasFeature(cafe.cafeId, 'kitchen_stations')
   const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }] =
     await Promise.all([
       supabase
@@ -76,6 +77,7 @@ export default async function SettingsPage() {
         printers: (printers ?? []) as KotPrinter[],
         stations: (stations ?? []) as KitchenStation[],
         tokens: (tokens ?? []) as BridgeToken[],
+        kitchenStationsAllowed,
       }}
       roleOverview={(roleOverview ?? {}) as RoleScreenOverview}
     />

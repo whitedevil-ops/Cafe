@@ -14,16 +14,22 @@ import { printKotBluetooth } from '@/lib/bluetooth-print'
  * actually came out — the browser is not told — so callers must not claim a
  * ticket printed, only that it was sent.
  */
-export async function printKot(ticket: KotTicket): Promise<void> {
+export async function printKot(
+  ticket: KotTicket,
+  opts?: { desktopPrintingEnabled?: boolean; bluetoothPrinterEnabled?: boolean },
+): Promise<void> {
   // The desktop app can write to the printer directly, with no dialog and no
   // driver. It returns false when this is a browser, or when nobody has picked
   // a printer on this machine yet, and only then do we fall back to the print
   // dialog below. A configured-but-failing printer throws instead, because
-  // "your printer is unplugged" must not turn into an unexpected dialog.
-  if (await printKotNative(ticket)) return
+  // "your printer is unplugged" must not turn into an unexpected dialog. A
+  // café whose plan doesn't include desktop_printing/bluetooth_printer skips
+  // straight to the print dialog instead — that path stays permanently
+  // ungated, it's the separate "Print now on this device" fallback.
+  if (opts?.desktopPrintingEnabled !== false && (await printKotNative(ticket))) return
   // Same contract, for a Bluetooth printer connected straight from this
   // browser (no desktop app needed) — see lib/bluetooth-print.ts.
-  if (await printKotBluetooth(ticket)) return
+  if (opts?.bluetoothPrinterEnabled !== false && (await printKotBluetooth(ticket))) return
   return printViaDialog(ticket)
 }
 

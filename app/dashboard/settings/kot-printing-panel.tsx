@@ -62,6 +62,7 @@ export default function KotPrintingPanel({
   initialPrinters,
   initialStations,
   initialTokens,
+  kitchenStationsAllowed,
 }: {
   cafeId: string
   timezone: string
@@ -71,6 +72,7 @@ export default function KotPrintingPanel({
   initialPrinters: KotPrinter[]
   initialStations: KitchenStation[]
   initialTokens: BridgeToken[]
+  kitchenStationsAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -284,7 +286,7 @@ export default function KotPrintingPanel({
   }
 
   async function addStation() {
-    if (!newStation.trim()) return
+    if (!newStation.trim() || !kitchenStationsAllowed) return
     const { error } = await supabase
       .from('kitchen_stations')
       .insert({ cafe_id: cafeId, name: newStation.trim(), sort: stations.length })
@@ -619,7 +621,7 @@ export default function KotPrintingPanel({
                 ))}
               </div>
             )}
-            {canManage && (
+            {canManage && kitchenStationsAllowed && (
               <div className="mt-2 flex gap-2">
                 <input
                   value={newStation}
@@ -629,6 +631,11 @@ export default function KotPrintingPanel({
                 />
                 <Button variant="secondary" size="sm" onClick={addStation} disabled={!newStation.trim()}>Add</Button>
               </div>
+            )}
+            {canManage && !kitchenStationsAllowed && (
+              <p className="mt-2 text-[12px] text-muted-foreground">
+                Adding new kitchen stations isn&apos;t available on this plan.
+              </p>
             )}
           </div>
 

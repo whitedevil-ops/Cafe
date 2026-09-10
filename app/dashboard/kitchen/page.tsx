@@ -20,7 +20,7 @@ export default async function KitchenPage() {
   }
 
   const supabase = await createClient()
-  const [{ data: tables }, { data: cafeRow }, { data: printer }] = await Promise.all([
+  const [{ data: tables }, { data: cafeRow }, { data: printer }, desktopPrintingAllowed, bluetoothPrinterAllowed] = await Promise.all([
     supabase.from('cafe_tables').select('id, label').eq('cafe_id', cafe.cafeId),
     supabase.from('cafes').select('kot_printing_enabled, timezone').eq('id', cafe.cafeId).maybeSingle(),
     // Browser printing has no printer to talk to, but the café's configured
@@ -34,6 +34,8 @@ export default async function KitchenPage() {
       .order('created_at')
       .limit(1)
       .maybeSingle(),
+    hasFeature(cafe.cafeId, 'desktop_printing'),
+    hasFeature(cafe.cafeId, 'bluetooth_printer'),
   ])
 
   const tableLabels: Record<string, string> = {}
@@ -48,6 +50,8 @@ export default async function KitchenPage() {
       printingEnabled={printingEnabled}
       paperWidth={printer?.paper_width === '80mm' ? '80mm' : '58mm'}
       timezone={cafeRow?.timezone ?? DEFAULT_TIMEZONE}
+      desktopPrintingEnabled={desktopPrintingAllowed}
+      bluetoothPrinterEnabled={bluetoothPrinterAllowed}
     />
   )
 }

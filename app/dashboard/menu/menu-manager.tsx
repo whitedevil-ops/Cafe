@@ -98,6 +98,7 @@ export default function MenuManager({
   variants,
   stations,
   inventoryAllowed,
+  kitchenStationsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -111,6 +112,9 @@ export default function MenuManager({
   /** Plan entitlement — see page.tsx. Recipe-costed margin (menu_item_effective_cost)
    *  is inventory-tier data, same as the Recipes page it's computed from. */
   inventoryAllowed: boolean
+  /** Plan entitlement — see page.tsx. No RPC choke point exists for station
+   *  routing (plain table writes under RLS), so this gates the picker itself. */
+  kitchenStationsAllowed: boolean
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
@@ -651,7 +655,7 @@ export default function MenuManager({
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-subtle px-3 py-1 text-[13px] text-foreground"
               >
                 {c.name}
-                {stations.length > 0 && (
+                {kitchenStationsAllowed && stations.length > 0 && (
                   <select
                     value={c.station_id ?? ''}
                     onChange={(e) => updateCategoryStation(c.id, e.target.value || null)}
@@ -677,7 +681,7 @@ export default function MenuManager({
               <span className="text-[13px] text-muted-foreground">No categories yet.</span>
             )}
           </div>
-          {stations.length > 0 && (
+          {kitchenStationsAllowed && stations.length > 0 && (
             <p className="mt-2 text-[11.5px] text-muted-foreground">
               A category&apos;s station routes its items to a kitchen printer bound to that station (set up
               under Settings → KOT printing). Manage the stations themselves there too.
