@@ -292,36 +292,83 @@ async fn report(client: &reqwest::Client, token: &str, job_id: &str, ok: bool, e
         "error": error,
     });
     // Best-effort: if this itself fails to reach the server, the job stays
-    // claimed as "printing" and the server's own retry/backoff (migration
-    // 0150) eventually reclaims it. Nothing here should escalate that into a
-    // crashed loop.
+    // claimed as "printing" until the server's own staleness reclaim
+    // (migration 0228 widened bridge_claim_jobs to also reclaim a "printing"
+    // row past a short staleness window — a plain "pending"/"failed" backoff
+    // never covered this state, contrary to what this comment used to claim;
+    // see 0228 for the full history). Nothing here should escalate a failed
+    // report into a crashed loop.
     if let Err(e) = client.post(REPORT_URL).json(&body).send().await {
         eprintln!("[bridge] could not report job {job_id}: {e}");
     }
 }
 
+/// How long a job's actual print I/O is allowed to run before this task gives
+/// up on it. The Windows-spooler path (winspool.rs) has no timeout of its
+/// own on the underlying Win32 calls, so this is the only backstop it has —
+/// generous enough that a real, slow printer still finishes normally, short
+/// enough that a genuinely stuck one doesn't hold up the bridge for long.
+const JOB_TIMEOUT: Duration = Duration::from_secs(15);
+
 async fn process_job(client: &reqwest::Client, token: &str, job: Job) {
     let target = match target_for(&job.printer) {
         Some(t) => t,
         None => {
-            eprintln!(
-                "[bridge] skipping job {} — printer \"{}\" is {} (bridge only handles lan)",
-                job.job_id, job.printer.name, job.printer.connection_type
+            // FOUND LIVE (full-product audit, 2026-09-10): a bluetooth
+            // printer left at its default "Auto print: On" got a print_jobs
+            // row enqueued and claimed ('printing') exactly like a lan/usb
+            // one, but this branch used to just log and return here with no
+            // report() call at all — leaving that row stuck at 'printing'
+            // forever, on every single order, with nothing (the backoff
+            // retry, the manual Retry button — both gated on status =
+            // 'failed') ever able to touch it again. Reporting it failed
+            // puts it on the same already-well-built "failed" path every
+            // other unprintable job has: the order's "Print failed" badge,
+            // the printer banner's count, and a working manual Retry.
+            let msg = format!(
+                "not served by the bridge ({}) — this printer needs the browser/Kitchen-page printing path instead",
+                job.printer.connection_type
             );
+            eprintln!("[bridge] job {} — printer \"{}\" is {}: {msg}", job.job_id, job.printer.name, job.printer.connection_type);
+            report(client, token, &job.job_id, false, Some(&msg)).await;
             return;
         }
     };
 
-    let result = match job.kind.as_str() {
-        "kot_update" => match serde_json::from_value::<RawTicketUpdate>(job.document) {
-            Ok(raw) => printing::dispatch_update(target, &build_ticket_update(raw)),
-            Err(e) => Err(format!("malformed kot_update payload: {e}")),
-        },
-        // kot | reprint | test all share the same document shape.
-        kind => match serde_json::from_value::<RawTicket>(job.document) {
-            Ok(raw) => printing::dispatch(target, &build_ticket(raw, kind)),
-            Err(e) => Err(format!("malformed {kind} payload: {e}")),
-        },
+    // FOUND LIVE (full-product audit, 2026-09-10): dispatch/dispatch_update
+    // do blocking network/serial/Win32 I/O. Calling them inline on this async
+    // task used to occupy whatever tokio worker thread was running this loop
+    // for the whole duration of that I/O — and since jobs in one poll batch
+    // were processed sequentially (see run() below), one hung USB/Windows
+    // printer could stall delivery to every other job, LAN printers included,
+    // in the same tick. spawn_blocking moves the actual I/O onto tokio's
+    // separate blocking-thread pool, and the timeout below gives up waiting
+    // on it — the stuck OS thread itself may still be alive on that pool,
+    // but it can no longer hold up polling or any other printer's tickets.
+    let kind = job.kind.clone();
+    let document = job.document;
+    let dispatch_result = tokio::time::timeout(
+        JOB_TIMEOUT,
+        tokio::task::spawn_blocking(move || -> Result<(), String> {
+            match kind.as_str() {
+                "kot_update" => match serde_json::from_value::<RawTicketUpdate>(document) {
+                    Ok(raw) => printing::dispatch_update(target, &build_ticket_update(raw)),
+                    Err(e) => Err(format!("malformed kot_update payload: {e}")),
+                },
+                // kot | reprint | test all share the same document shape.
+                kind => match serde_json::from_value::<RawTicket>(document) {
+                    Ok(raw) => printing::dispatch(target, &build_ticket(raw, kind)),
+                    Err(e) => Err(format!("malformed {kind} payload: {e}")),
+                },
+            }
+        }),
+    )
+    .await;
+
+    let result: Result<(), String> = match dispatch_result {
+        Ok(Ok(inner)) => inner,
+        Ok(Err(join_err)) => Err(format!("print task panicked: {join_err}")),
+        Err(_elapsed) => Err(format!("timed out after {JOB_TIMEOUT:?} waiting on the printer")),
     };
 
     match result {
@@ -495,8 +542,22 @@ pub async fn run(app: tauri::AppHandle) {
                         } else if verbose {
                             log_line(&app, &format!("tick {tick}: poll succeeded ({} jobs)", jobs.len()));
                         }
+                        // Concurrently, not sequentially — see process_job's
+                        // own comment. A batch is capped at 10 (the `limit`
+                        // in poll_once's request body), so this never spawns
+                        // an unbounded number of tasks.
+                        let mut handles = Vec::with_capacity(jobs.len());
                         for job in jobs {
-                            process_job(&client, &token, job).await;
+                            let client = client.clone();
+                            let token = token.clone();
+                            handles.push(tokio::spawn(async move {
+                                process_job(&client, &token, job).await;
+                            }));
+                        }
+                        for handle in handles {
+                            if let Err(e) = handle.await {
+                                eprintln!("[bridge] a print job task panicked: {e}");
+                            }
                         }
                     }
                     Err(e) => {
@@ -566,7 +627,13 @@ mod tests {
         };
         let ticket = build_ticket(raw, "kot");
         assert_eq!(ticket.paper_mm, Some(80));
-        assert!(ticket.time_label.unwrap().contains("19:42"));
+        // FOUND (full-product audit, 2026-09-10): this checked for "19:42", a
+        // 24-hour-clock string, but format_time_label's own documented format
+        // is 12-hour ("%-I:%M %p", matching lib/kot-print.ts's metaLine() —
+        // see formats_a_utc_timestamp_in_the_cafes_timezone right above,
+        // which correctly expects "7:42 PM"). The real ticket output has
+        // always been correct; only this assertion was wrong.
+        assert!(ticket.time_label.unwrap().contains("7:42 PM"));
         assert_eq!(ticket.items.len(), 1);
         assert_eq!(ticket.status.as_deref(), Some("NEW ORDER"));
     }

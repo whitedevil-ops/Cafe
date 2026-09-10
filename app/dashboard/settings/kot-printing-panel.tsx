@@ -777,12 +777,17 @@ export default function KotPrintingPanel({
                             >
                               {p.enabled ? 'Disable' : 'Enable'}
                             </button>
-                            <button
-                              onClick={() => updatePrinter(p.id, { auto_print: !p.auto_print })}
-                              className="text-[12px] text-muted-foreground hover:text-foreground"
-                            >
-                              {p.auto_print ? 'Disable auto' : 'Enable auto'}
-                            </button>
+                            {/* Bluetooth can't be auto-printed by the bridge at all (see the
+                                Connection field's own note below) — only offer a way to turn an
+                                already-misconfigured one off, never a way to turn one on. */}
+                            {(p.connection_type !== 'bluetooth' || p.auto_print) && (
+                              <button
+                                onClick={() => updatePrinter(p.id, { auto_print: !p.auto_print })}
+                                className="text-[12px] text-muted-foreground hover:text-foreground"
+                              >
+                                {p.auto_print ? 'Disable auto' : 'Enable auto'}
+                              </button>
+                            )}
                             <button onClick={() => removePrinter(p)} aria-label={`Remove ${p.name}`} className="text-muted-foreground hover:text-destructive">
                               <Trash2 size={14} />
                             </button>
@@ -804,7 +809,18 @@ export default function KotPrintingPanel({
                   </Field>
                   <Field label="Connection">
                     <select value={draft.connection_type}
-                      onChange={(e) => setDraft({ ...draft, connection_type: e.target.value as KotPrinter['connection_type'] })}
+                      onChange={(e) => {
+                        const connection_type = e.target.value as KotPrinter['connection_type']
+                        // FOUND LIVE (full-product audit, 2026-09-10): the
+                        // bridge cannot reach a bluetooth printer at all (see
+                        // the note below), so an "Auto print: On" bluetooth
+                        // printer got every order's print job silently
+                        // stuck — nothing ever told anyone. The Rust side now
+                        // reports those as failed instead of vanishing them,
+                        // but the real fix is not creating this combination
+                        // in the first place.
+                        setDraft({ ...draft, connection_type, auto_print: connection_type === 'bluetooth' ? false : draft.auto_print })
+                      }}
                       className={inputCls}>
                       {/* Not cosmetic: the bridge reads this to decide how to
                           reach the printer — a raw TCP socket for lan, the

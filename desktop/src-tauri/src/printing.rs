@@ -134,7 +134,22 @@ pub fn dispatch_update(target: Target, ticket: &TicketUpdate) -> Result<(), Stri
 
 /// Render and send. Errors come back as plain strings for the page to show —
 /// a cook needs "could not open COM3", not a stack trace.
+///
+/// FOUND LIVE (full-product audit, 2026-09-10): this used to be a plain
+/// (non-async) fn. Tauri only offloads a command's body to a background
+/// thread when it's declared `async` — a plain fn's IPC callback runs
+/// straight on WebView2's own callback thread, which on Windows is the same
+/// thread pumping the window's own messages. dispatch() does blocking
+/// network/serial/Win32 I/O with no timeout at all on the Windows-spooler
+/// path (winspool.rs) — an offline or misconfigured printer on this command
+/// (the live "Print now on this device" path, not just a diagnostic button)
+/// could freeze the whole KhaoPiyo window for the duration of that call.
+/// spawn_blocking moves the actual write onto tokio's blocking-thread pool
+/// instead, the same fix applied to the background bridge's own per-job
+/// dispatch in bridge.rs.
 #[tauri::command]
-pub fn print_ticket(target: Target, ticket: Ticket) -> Result<(), String> {
-    dispatch(target, &ticket)
+pub async fn print_ticket(target: Target, ticket: Ticket) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || dispatch(target, &ticket))
+        .await
+        .map_err(|e| format!("print task panicked: {e}"))?
 }

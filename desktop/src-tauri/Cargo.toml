@@ -50,9 +50,14 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 chrono-tz = "0.10"
 # Tauri already runs on tokio (tauri::async_runtime::spawn is built on it),
 # but that doesn't make the `tokio` crate name usable here — Cargo only
-# exposes crates listed as direct dependencies. Only the `time` feature is
-# needed: the bridge loop's poll interval.
-tokio = { version = "1", features = ["time"] }
+# exposes crates listed as direct dependencies. "time" is the bridge loop's
+# poll interval; "rt" is spawn/spawn_blocking, used to run a job's blocking
+# printer I/O on tokio's own blocking-thread pool with a timeout, so one
+# stuck printer can no longer stall every other job in the same poll batch
+# (see bridge.rs's process_job). Tauri's own runtime is already
+# multi-threaded (confirmed in a full-product audit, 2026-09-10), so "rt"
+# alone is enough — this crate never builds its own runtime.
+tokio = { version = "1", features = ["time", "rt"] }
 # Raw print-spooler access (winspool.rs) — sends ESC/POS bytes straight to a
 # named Windows printer queue, RAW datatype, no dialog. Pinned to the same
 # 0.61 line already resolved transitively by wry/webview2-com so this adds
