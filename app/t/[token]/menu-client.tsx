@@ -74,6 +74,7 @@ export default function MenuClient({
   acceptPayCounter,
   couponsEnabled,
   spinEnabled,
+  upsellEnabled,
   upsellThreshold,
   categories,
   items,
@@ -97,6 +98,10 @@ export default function MenuClient({
    *  (migration 0214). Not "is a wheel configured" — same precision level as
    *  couponsEnabled, which also only checks the entitlement, not live stock. */
   spinEnabled: boolean
+  /** The 'upsell_prompt' entitlement, resolved anon-safe via
+   *  public_cafe_upsell_enabled (migration 0237) — same shape as
+   *  couponsEnabled/spinEnabled above. */
+  upsellEnabled: boolean
   upsellThreshold: number
   categories: { id: string; name: string }[]
   items: PublicItem[]
@@ -349,11 +354,11 @@ export default function MenuClient({
   const plainQty = useCallback((id: string) => cart.find((l) => l.key === `${id}|||`)?.qty ?? 0, [cart])
 
   const upsell = useMemo(() => {
-    if (count === 0 || subtotal < upsellThreshold) return null
+    if (!upsellEnabled || count === 0 || subtotal < upsellThreshold) return null
     if (cart.some((l) => byId.get(l.itemId)?.is_upsell)) return null
     const cand = items.filter((i) => i.is_upsell && i.available && !hasOptions(i.id))
     return cand.length ? cand.reduce((a, b) => (a.price <= b.price ? a : b)) : null
-  }, [count, subtotal, upsellThreshold, cart, items, byId, hasOptions])
+  }, [upsellEnabled, count, subtotal, upsellThreshold, cart, items, byId, hasOptions])
   if (upsell && step === 'cart') upsellShown.current = true
 
   function addLine(line: Line) {

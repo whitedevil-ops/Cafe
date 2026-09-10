@@ -25,7 +25,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
   // only need the raw token (they resolve cafe_id internally) — none of the
   // three depend on each other, so run them concurrently instead of behind
   // one another.
-  const [menu, couponsResult, spinResult, orderingResult] = await Promise.all([
+  const [menu, couponsResult, spinResult, orderingResult, upsellResult] = await Promise.all([
     getCachedCafeMenu(table.cafe_id),
     // cafe_has_feature() itself is revoked from anon (a real security
     // boundary) — this narrow, anon-safe RPC is the only way this page can
@@ -43,12 +43,17 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
     // existing yet, mid-deploy) is treated as enabled: never let a lookup
     // hiccup take a working café's ordering offline.
     supabase.rpc('public_cafe_ordering_enabled', { p_table_token: token }),
+    // Same reasoning, same shape, for the upsell prompt shown in the cart
+    // (migration 0237) — cafe_has_feature() can't answer this for an
+    // unauthenticated guest either.
+    supabase.rpc('public_cafe_upsell_enabled', { p_table_token: token }),
   ])
   const { cafe, categories, items, variants, addons, combos, comboSlots, popularIds } = menu
   if (!cafe) notFound()
 
   const { data: couponsEnabled } = couponsResult
   const { data: spinEnabled } = spinResult
+  const { data: upsellEnabled } = upsellResult
   const { data: orderingEnabled, error: orderingErr } = orderingResult
   if (orderingEnabled === false && !orderingErr) {
     return (
@@ -79,6 +84,7 @@ export default async function TablePage({ params }: { params: Promise<{ token: s
       acceptPayCounter={cafe.accept_pay_counter ?? true}
       couponsEnabled={couponsEnabled ?? false}
       spinEnabled={spinEnabled ?? false}
+      upsellEnabled={upsellEnabled ?? false}
       upsellThreshold={cafe.upsell_threshold ?? 150}
       categories={(categories ?? []) as { id: string; name: string }[]}
       items={(items ?? []) as PublicItem[]}

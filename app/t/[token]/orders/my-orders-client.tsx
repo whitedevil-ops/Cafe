@@ -28,7 +28,7 @@ type HistoryOrder = {
   table_label: string | null
   items: HistoryItem[]
 }
-type History = { total: number; limit: number; offset: number; cafe_name: string; orders: HistoryOrder[] }
+type History = { available: boolean; total: number; limit: number; offset: number; cafe_name: string; orders: HistoryOrder[] }
 
 const PAGE_SIZE = 10
 const ACTIVE = ['placed', 'accepted', 'preparing', 'ready', 'served']
@@ -164,7 +164,22 @@ export default function MyOrdersClient({
       <main className="mx-auto w-full max-w-lg px-5 py-6 pb-24">
         {loading && !history && <p className="py-16 text-center text-sm text-muted-foreground">Loading your orders…</p>}
 
-        {history && orders.length === 0 && (
+        {history && history.available === false && (
+          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-8 text-center">
+            <h2 className="text-[16px] font-semibold text-foreground">Order history isn&apos;t available here</h2>
+            <p className="mx-auto mt-1 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
+              {cafeName} doesn&apos;t offer order history through this page. Ask staff if you need a copy of a past bill.
+            </p>
+            <Link
+              href={`/t/${token}`}
+              className="mt-5 inline-block min-h-11 rounded-[var(--radius)] bg-primary px-5 py-3 text-[14px] font-semibold text-primary-foreground"
+            >
+              Browse the menu
+            </Link>
+          </div>
+        )}
+
+        {history && history.available !== false && orders.length === 0 && (
           <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-8 text-center">
             <h2 className="text-[16px] font-semibold text-foreground">No orders yet</h2>
             <p className="mx-auto mt-1 max-w-xs text-[13.5px] leading-relaxed text-muted-foreground">
