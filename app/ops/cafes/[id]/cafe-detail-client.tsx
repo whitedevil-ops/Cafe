@@ -86,6 +86,9 @@ export type CafeDetail = {
   recent_audit: { action: string; previous_value: unknown; new_value: unknown; created_at: string; actor_name: string | null }[]
 }
 
+// An unsaved, staged feature-override edit — see pendingChanges below.
+type PendingChange = { kind: 'set'; value: boolean } | { kind: 'clear' }
+
 // Every key here is actually checked by app code (see lib/entitlements.ts
 // callers, plus public_cafe_ordering_enabled for qr_ordering) — excludes
 // 'referral', since the Refer & Earn UI was removed from every
@@ -420,10 +423,12 @@ export default function CafeDetailClient({
   const [applyingPlan, setApplyingPlan] = useState(false)
   const [resettingPw, setResettingPw] = useState<string | null>(null)
   const [bulkSetting, setBulkSetting] = useState(false)
-  // Per-key in-flight guard for individual feature toggles — bulkSetting only
-  // covers "turn all on/off"; without this, a fast double-click on one
-  // switch fires two overlapping op_set_feature_override calls.
-  const [togglingKeys, setTogglingKeys] = useState<Set<string>>(new Set())
+  // Individual feature switches stage a local change here instead of
+  // writing immediately — Save (with its own confirmation) is what actually
+  // calls op_set_feature_override/op_clear_feature_override. Keyed by
+  // feature key so re-toggling the same row just replaces its pending entry.
+  const [pendingChanges, setPendingChanges] = useState<Map<string, PendingChange>>(new Map())
+  const [savingChanges, setSavingChanges] = useState(false)
   const [featureSearch, setFeatureSearch] = useState('')
   // Which half of Feature control is showing — independent of the page's
   // outer `tab` state. 'plans' is the existing plan-tiered toggle set;
@@ -523,37 +528,72 @@ export default function CafeDetailClient({
     void refresh()
   }
 
-  async function toggleFeature(key: string, current: boolean | null) {
-    if (togglingKeys.has(key)) return
-    setTogglingKeys((s) => new Set(s).add(key))
-    try {
-      const next = current === null ? !data.features.plan_defaults[key] : !current
-      const { error } = await supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: key, p_enabled: next })
-      if (error) return toast(error.message, 'error')
-      void refresh()
-    } finally {
-      setTogglingKeys((s) => {
-        const next = new Set(s)
-        next.delete(key)
-        return next
-      })
-    }
+  // Clicking a switch or "reset to plan default" no longer writes
+  // anything — it only stages a local, unsaved change. Nothing reaches
+  // op_set_feature_override/op_clear_feature_override until the operator
+  // reviews the pending list and explicitly clicks Save (with its own
+  // confirmation) — found live: a stray click on this page previously
+  // flipped a feature off for a real café with zero confirmation.
+  //
+  // 'set' stages a specific on/off value; 'clear' stages reverting to plan
+  // default. Keyed by feature key, so staging a second change to the same
+  // key simply replaces the first.
+  function stageToggle(key: string, displayOverride: boolean | null, included: boolean) {
+    const next = !(displayOverride ?? included)
+    setPendingChanges((m) => {
+      const copy = new Map(m)
+      copy.set(key, { kind: 'set', value: next })
+      return copy
+    })
   }
 
-  async function clearOverride(key: string) {
-    if (togglingKeys.has(key)) return
-    setTogglingKeys((s) => new Set(s).add(key))
-    try {
-      const { error } = await supabase.rpc('op_clear_feature_override', { p_cafe_id: cafeId, p_feature_key: key })
-      if (error) return toast(error.message, 'error')
-      toast('Reverted to plan default.')
-      void refresh()
-    } finally {
-      setTogglingKeys((s) => {
-        const next = new Set(s)
-        next.delete(key)
-        return next
-      })
+  // "Reset to plan default" on a key with a real, already-saved override
+  // stages a clear (applied on Save). On a key whose only override exists
+  // as a pending, unsaved stage, there's nothing saved to clear — this just
+  // un-stages it, with no RPC involved at all.
+  function stageClear(key: string, hasRealOverride: boolean) {
+    setPendingChanges((m) => {
+      const copy = new Map(m)
+      if (hasRealOverride) copy.set(key, { kind: 'clear' })
+      else copy.delete(key)
+      return copy
+    })
+  }
+
+  function discardChanges() {
+    setPendingChanges(new Map())
+  }
+
+  async function saveChanges() {
+    const entries = [...pendingChanges.entries()]
+    if (entries.length === 0) return
+    const ok = await confirm({
+      title: `Save ${entries.length} feature change${entries.length === 1 ? '' : 's'}?`,
+      description: 'Applies these overrides for this café only, immediately — its subscription plan is unaffected.',
+      confirmLabel: 'Save changes',
+    })
+    if (!ok) return
+    setSavingChanges(true)
+    const results = await Promise.all(
+      entries.map(([key, change]) =>
+        change.kind === 'clear'
+          ? supabase.rpc('op_clear_feature_override', { p_cafe_id: cafeId, p_feature_key: key })
+          : supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: key, p_enabled: change.value }),
+      ),
+    )
+    setSavingChanges(false)
+    // refresh() re-reads real server state regardless of outcome below, so a
+    // failed change simply snaps its row back to whatever it actually is —
+    // same "never show a wrong toggle" guarantee setAllFeatures already had.
+    const failures = entries.map(([key], i) => ({ key, error: results[i].error })).filter((r) => r.error)
+    setPendingChanges(new Map())
+    void refresh()
+    if (failures.length === 0) {
+      toast(`${entries.length} feature change${entries.length === 1 ? '' : 's'} saved.`)
+    } else if (failures.length === entries.length) {
+      toast(failures[0].error!.message, 'error')
+    } else {
+      toast(`${entries.length - failures.length}/${entries.length} saved — failed: ${failures.map((f) => f.key).join(', ')}`, 'error')
     }
   }
 
@@ -1027,6 +1067,34 @@ export default function CafeDetailClient({
               )}
             </div>
 
+            {/* Nothing below is written anywhere until this bar's Save is
+                clicked and confirmed — every switch above only stages a
+                local change. Appears only once something is actually
+                staged, so it never clutters the page with an empty bar. */}
+            {pendingChanges.size > 0 && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-warning bg-warning-subtle px-3.5 py-2.5">
+                <p className="text-[12.5px] font-medium text-warning">
+                  {pendingChanges.size} unsaved change{pendingChanges.size === 1 ? '' : 's'} — nothing has been applied yet.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={discardChanges}
+                    disabled={savingChanges}
+                    className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={() => void saveChanges()}
+                    disabled={savingChanges}
+                    className="rounded-full bg-primary px-4 py-1.5 text-[12.5px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-40"
+                  >
+                    {savingChanges ? 'Saving…' : `Save ${pendingChanges.size} change${pendingChanges.size === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* One collapsible Panel per functional category — covers every
                 real capability KhaoPiyo has, not just the plan-gated subset:
                 a toggle row where a real entitlement exists, a locked row
@@ -1069,7 +1137,38 @@ export default function CafeDetailClient({
                         const f = FEATURES.find((x) => x.key === key)!
                         const included = data.features.plan_defaults[key] ?? false
                         const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
-                        const effective = override ?? included
+                        // The real, saved state (what a page reload would
+                        // show) vs. what's staged-but-unsaved right now —
+                        // the switch and every caption below react to the
+                        // pending value the instant it's clicked, but
+                        // nothing is written until Save.
+                        const pending = pendingChanges.get(key)
+                        const displayOverride = pending ? (pending.kind === 'clear' ? null : pending.value) : override
+                        const effective = displayOverride ?? included
+                        const isPending = pending !== undefined
+
+                        const overrideNote = displayOverride !== null && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {isPending ? (
+                              <span className="font-medium text-warning">Unsaved change — not applied yet</span>
+                            ) : (
+                              'Manual override for this café'
+                            )}
+                            {permissions['cafes.edit'] && (
+                              <>
+                                {' — '}
+                                <button
+                                  type="button"
+                                  onClick={() => stageClear(key, override !== null)}
+                                  disabled={savingChanges}
+                                  className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
+                                >
+                                  {isPending ? 'undo' : 'reset to plan default'}
+                                </button>
+                              </>
+                            )}
+                          </p>
+                        )
 
                         // ── Plans sub-tab: the 3-field status layout. Every
                         // row is always live and editable no matter which
@@ -1078,7 +1177,8 @@ export default function CafeDetailClient({
                         // default when the selected plan doesn't carry the
                         // key at all, e.g. an unlisted trial/android plan).
                         // Effective and Manual override are never
-                        // tab-relative — they're this café's real state. ──
+                        // tab-relative — they're this café's real (or
+                        // staged-to-become-real) state. ──
                         if (featureSubTab === 'plans') {
                           const planDefaultIncluded = previewPlan?.features?.[key] ?? included
                           return (
@@ -1086,24 +1186,7 @@ export default function CafeDetailClient({
                               <div className="min-w-0 sm:max-w-[38%]">
                                 <p className="text-foreground">{f.label}</p>
                                 <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
-                                {override !== null && (
-                                  <p className="mt-1 text-[11px] text-muted-foreground">
-                                    Manual override for this café
-                                    {permissions['cafes.edit'] && (
-                                      <>
-                                        {' — '}
-                                        <button
-                                          type="button"
-                                          onClick={() => clearOverride(key)}
-                                          disabled={bulkSetting || togglingKeys.has(key)}
-                                          className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
-                                        >
-                                          reset to plan default
-                                        </button>
-                                      </>
-                                    )}
-                                  </p>
-                                )}
+                                {overrideNote}
                               </div>
                               <div className="flex flex-wrap items-start gap-x-6 gap-y-2.5">
                                 <StatusField label="Plan default">
@@ -1115,10 +1198,10 @@ export default function CafeDetailClient({
                                 </StatusField>
                                 <StatusField label="Manual override">
                                   <button
-                                    onClick={() => toggleFeature(key, override)}
-                                    disabled={!permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
+                                    onClick={() => stageToggle(key, displayOverride, included)}
+                                    disabled={!permissions['cafes.edit'] || savingChanges}
                                     aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
-                                    className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                                    className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'} ${isPending ? 'ring-2 ring-warning ring-offset-2 ring-offset-surface' : ''}`}
                                   >
                                     <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                   </button>
@@ -1136,35 +1219,20 @@ export default function CafeDetailClient({
                             <div className="min-w-0">
                               <p className="text-foreground">{f.label}</p>
                               <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                Included on every plan by default{included ? '' : ' (not currently included here)'}
-                                {override !== null && (
-                                  <>
-                                    {' · overridden for this café'}
-                                    {permissions['cafes.edit'] && (
-                                      <>
-                                        {' — '}
-                                        <button
-                                          type="button"
-                                          onClick={() => clearOverride(key)}
-                                          disabled={bulkSetting || togglingKeys.has(key)}
-                                          className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
-                                        >
-                                          reset to plan default
-                                        </button>
-                                      </>
-                                    )}
-                                  </>
-                                )}
-                              </p>
+                              {displayOverride === null && (
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  Included on every plan by default{included ? '' : ' (not currently included here)'}
+                                </p>
+                              )}
+                              {overrideNote}
                             </div>
                             <div className="flex shrink-0 items-center gap-2.5">
                               <span className={`text-[12px] font-medium ${effective ? 'text-success' : 'text-muted-foreground'}`}>{effective ? 'On' : 'Off'}</span>
                               <button
-                                onClick={() => toggleFeature(key, override)}
-                                disabled={!permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
+                                onClick={() => stageToggle(key, displayOverride, included)}
+                                disabled={!permissions['cafes.edit'] || savingChanges}
                                 aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
-                                className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                                className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'} ${isPending ? 'ring-2 ring-warning ring-offset-2 ring-offset-surface' : ''}`}
                               >
                                 <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
                               </button>
