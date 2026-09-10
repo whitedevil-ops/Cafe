@@ -31,10 +31,7 @@ export default async function SettingsPage() {
       .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status')
       .eq('id', cafe.cafeId)
       .single(),
-    supabase
-      .from('cafe_members')
-      .select('user_id, role, status, profiles(full_name, email)')
-      .eq('cafe_id', cafe.cafeId),
+    supabase.rpc('list_cafe_staff_profiles', { p_cafe_id: cafe.cafeId }),
     supabase.from('cafe_invites').select('id, email, role').eq('cafe_id', cafe.cafeId),
     supabase.from('kot_printers').select('*').eq('cafe_id', cafe.cafeId).order('name'),
     supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
@@ -50,16 +47,14 @@ export default async function SettingsPage() {
     hasFeature(cafe.cafeId, 'kitchen_stations'),
   ])
 
-  const staff: StaffMember[] = (members ?? []).map((m) => {
-    const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
-    return {
-      userId: m.user_id,
-      role: m.role,
-      status: m.status,
-      name: p?.full_name ?? null,
-      email: p?.email ?? null,
-    }
-  })
+  type StaffProfileRow = { user_id: string; role: string; status: string; full_name: string | null; email: string | null }
+  const staff: StaffMember[] = ((members ?? []) as StaffProfileRow[]).map((m) => ({
+    userId: m.user_id,
+    role: m.role,
+    status: m.status,
+    name: m.full_name ?? null,
+    email: m.email ?? null,
+  }))
 
   return (
     <SettingsClient
