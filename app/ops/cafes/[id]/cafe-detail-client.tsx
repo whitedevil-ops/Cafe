@@ -1001,8 +1001,21 @@ export default function CafeDetailClient({
                   })}
                 </div>
                 {!isOwnPlan && (
-                  <p className="mt-2.5 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
-                    Previewing {previewPlan?.name} — this café is actually on {planName(plans, data.account.plan)}. This is read-only; select the {planName(plans, data.account.plan)} card to make live changes again.
+                  <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
+                    <span>
+                      Previewing {previewPlan?.name} — this café is actually on {planName(plans, data.account.plan)}. This is read-only.
+                    </span>
+                    {/* A café on a plan not shown as a card (Trial, or the
+                        internal Android tier) has no card to click back to —
+                        this is the one way back to live editing that always
+                        works, regardless of which plan the café is really on. */}
+                    <button
+                      type="button"
+                      onClick={() => setPreviewPlanKey(null)}
+                      className="font-medium underline decoration-dotted underline-offset-2 hover:no-underline"
+                    >
+                      Back to live view
+                    </button>
                   </p>
                 )}
               </div>
