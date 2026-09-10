@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: "%s · KhaoPiyo",
   },
   description:
-    "Cloud POS billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty. A modern Petpooja alternative built in India.",
+    "Cloud POS billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty. A modern alternative to traditional restaurant POS systems, built in India.",
   keywords: [
     "POS SaaS", "restaurant POS SaaS", "POS billing software", "billing SaaS India",
     "restaurant billing software", "cafe billing software", "cafe POS software",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     "QR code ordering system", "restaurant inventory management software",
     "GST billing software for restaurants", "cloud POS for restaurants",
     "cloud billing software", "restaurant POS Hisar",
-    "cafe software Hisar", "Petpooja alternative", "KhaoPiyo",
+    "cafe software Hisar", "restaurant POS alternative", "KhaoPiyo",
   ],
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },

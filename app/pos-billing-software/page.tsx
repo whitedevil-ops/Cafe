@@ -119,8 +119,8 @@ export default function PosBillingSoftwarePage() {
           <Link href="/get-started">
             <Button size="lg">Start free</Button>
           </Link>
-          <Link href="/petpooja-alternative">
-            <Button variant="secondary" size="lg">Comparing to Petpooja?</Button>
+          <Link href="/pos-software-alternative">
+            <Button variant="secondary" size="lg">Comparing your options?</Button>
           </Link>
         </div>
       </section>

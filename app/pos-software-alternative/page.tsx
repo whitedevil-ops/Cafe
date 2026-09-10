@@ -8,15 +8,15 @@ import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
 export const metadata: Metadata = {
-  title: 'Petpooja Alternative — Simpler POS Billing for Cafés',
+  title: 'POS Software Alternative — Simpler Billing for Cafés',
   description:
-    'Comparing Petpooja alternatives? KhaoPiyo is cloud-first café POS billing — flat monthly pricing, no bundled hardware, GST invoicing and QR ordering built in.',
-  alternates: { canonical: '/petpooja-alternative' },
+    'Looking for an alternative to traditional restaurant POS systems? KhaoPiyo is cloud-first café POS billing — flat monthly pricing, no bundled hardware, GST invoicing and QR ordering built in.',
+  alternates: { canonical: '/pos-software-alternative' },
   openGraph: {
-    title: 'Petpooja Alternative — Simpler POS Billing for Cafés · KhaoPiyo',
+    title: 'POS Software Alternative — Simpler Billing for Cafés · KhaoPiyo',
     description:
-      'Cloud-first café POS billing with flat monthly pricing, GST invoicing and QR ordering — an alternative to Petpooja and other legacy restaurant POS platforms.',
-    url: `${siteUrl}/petpooja-alternative`,
+      'Cloud-first café POS billing with flat monthly pricing, GST invoicing and QR ordering — an alternative to traditional restaurant POS platforms.',
+    url: `${siteUrl}/pos-software-alternative`,
     type: 'website',
   },
 }
@@ -32,20 +32,20 @@ const rows: [string, string, string][] = [
 
 const faqs = [
   {
-    q: 'What is a good Petpooja alternative for a small café?',
+    q: 'What is a good alternative to traditional restaurant POS systems for a small café?',
     a: 'If you run one or two outlets and want to start billing the same day without a hardware setup or onboarding process, KhaoPiyo is built for exactly that — cloud-based POS billing, QR ordering and GST invoicing from a flat monthly plan.',
   },
   {
-    q: 'Is KhaoPiyo cheaper than Petpooja?',
-    a: 'KhaoPiyo\'s plans are ₹999, ₹2,499 and ₹4,999 per month, shown in full with no separate setup or hardware charges. Petpooja and similar established platforms are widely reported in the ₹3,000–₹12,000/month range once GST, setup and hardware are added — but confirm current pricing directly with any vendor before deciding.',
+    q: 'Is KhaoPiyo cheaper than other restaurant POS systems?',
+    a: 'KhaoPiyo\'s plans are ₹999, ₹2,499 and ₹4,999 per month, shown in full with no separate setup or hardware charges. Many established platforms are widely reported in the ₹3,000–₹12,000/month range once GST, setup and hardware are added — but confirm current pricing directly with any vendor before deciding.',
   },
   {
-    q: 'Does switching from Petpooja to KhaoPiyo require new hardware?',
+    q: 'Does switching from another POS system to KhaoPiyo require new hardware?',
     a: 'No. KhaoPiyo runs in a browser on whatever device you already have. A receipt printer is optional, not required.',
   },
   {
     q: 'Is KhaoPiyo suitable for a large multi-outlet restaurant chain?',
-    a: 'KhaoPiyo is built primarily for independent cafés and small chains. Very large multi-outlet operations that depend heavily on food-aggregator integrations may still be better served by an established platform like Petpooja — we\'d rather say that plainly than oversell.',
+    a: 'KhaoPiyo is built primarily for independent cafés and small chains. Very large multi-outlet operations that depend heavily on food-aggregator integrations may still be better served by an established enterprise platform — we\'d rather say that plainly than oversell.',
   },
 ]
 
@@ -59,7 +59,7 @@ const faqJsonLd = {
   })),
 }
 
-export default function PetpoojaAlternativePage() {
+export default function PosSoftwareAlternativePage() {
   return (
     <div className="flex w-full min-h-dvh flex-col bg-background">
       <script
@@ -67,7 +67,7 @@ export default function PetpoojaAlternativePage() {
         dangerouslySetInnerHTML={{
           __html: jsonLdGraph(
             faqJsonLd,
-            breadcrumbJsonLd([{ name: "Petpooja alternative", path: '/petpooja-alternative' }]),
+            breadcrumbJsonLd([{ name: 'POS software alternative', path: '/pos-software-alternative' }]),
           ),
         }}
       />
@@ -75,16 +75,17 @@ export default function PetpoojaAlternativePage() {
 
       <section className="mx-auto w-full max-w-4xl px-6 py-16 md:py-24">
         <span className="inline-flex items-center rounded-full border border-border bg-surface px-3 py-1 text-[12px] font-medium text-muted-foreground">
-          Petpooja alternative
+          POS software alternative
         </span>
         <h1 className="mt-5 max-w-2xl text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.08] tracking-tight text-foreground">
-          Looking for a Petpooja alternative?
+          Looking for an alternative to traditional restaurant POS systems?
         </h1>
         <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
-          Petpooja is a well-established restaurant POS platform used by a large number of outlets
-          across India, built around counter billing, hardware, and food-aggregator integrations.
-          If you run an independent café or a small chain and want something you can set up in an
-          afternoon — cloud-first, flat pricing, no bundled hardware — that&apos;s where KhaoPiyo fits.
+          Most established restaurant POS platforms in India are built around counter billing,
+          dedicated hardware, and food-aggregator integrations — a good fit for large, multi-outlet
+          chains. If you run an independent café or a small chain and want something you can set up
+          in an afternoon — cloud-first, flat pricing, no bundled hardware — that&apos;s where
+          KhaoPiyo fits.
         </p>
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link href="/get-started">
@@ -107,7 +108,7 @@ export default function PetpoojaAlternativePage() {
                 <tr>
                   <th className="px-4 py-3 font-medium"></th>
                   <th className="px-4 py-3 font-medium text-primary">KhaoPiyo</th>
-                  <th className="px-4 py-3 font-medium">Traditional POS platforms (e.g. Petpooja)</th>
+                  <th className="px-4 py-3 font-medium">Traditional restaurant POS platforms</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border bg-background">
@@ -123,8 +124,7 @@ export default function PetpoojaAlternativePage() {
           </div>
           <p className="mt-4 text-[12px] text-muted-foreground">
             Comparison based on publicly available pricing and feature information as of 2026 and may not
-            reflect current plans — confirm directly with any vendor before switching. &ldquo;Petpooja&rdquo;
-            is a trademark of its respective owner; KhaoPiyo is not affiliated with or endorsed by Petpooja.
+            reflect current plans — confirm directly with any vendor before switching.
           </p>
         </div>
       </section>

@@ -3,31 +3,45 @@ import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Reveal } from './reveal'
 
-// Real numbers, matching /pos-billing-software and platform_plans exactly —
-// this section is a restyle, not new pricing.
+// Real numbers, matching /pricing, platform_plans and its feature defaults
+// exactly (verified directly against the plan-feature migrations, most
+// recently 0094 for yearly/renewal pricing and 0019 onward for feature
+// flags — 'starter' has always shipped with crm:true, so Customer Directory
+// belongs on this tier, not gated behind Growth) — this section is a
+// restyle, not new pricing.
 const PLANS = [
   {
     name: 'Starter',
     monthly: 999,
     yearly: 10000,
+    renewal: 5000,
     blurb: 'Billing and QR ordering for a single counter.',
-    features: ['POS billing & KOT', 'QR ordering', 'Up to 3 staff', 'GST invoicing', '1 café'],
+    features: ['POS billing & KOT', 'QR ordering', 'Customer Directory / CRM', 'Up to 3 staff', 'GST invoicing', '1 café'],
     recommended: false,
   },
   {
     name: 'Growth',
     monthly: 2499,
     yearly: 18000,
+    renewal: 9000,
     blurb: 'Everything a growing café needs to build repeat business.',
-    features: ['Everything in Starter', 'Loyalty & coupons', 'Online payments (UPI)', 'Up to 8 staff', 'Up to 2 cafés'],
+    features: [
+      'Everything in Starter', 'Coupons & Loyalty', 'Spin & Win', 'Customer Wallet',
+      'Table Reservations', 'SMS + WhatsApp bill receipts', 'Expenses tracking',
+      'Advanced Analytics', 'Online payments (Razorpay)', 'Up to 8 staff', 'Up to 2 cafés',
+    ],
     recommended: true,
   },
   {
     name: 'Scale',
     monthly: 4999,
     yearly: 21000,
+    renewal: 10500,
     blurb: 'Multi-outlet operations with full inventory control.',
-    features: ['Everything in Growth', 'Inventory & recipes', 'No staff cap', 'Advanced analytics', 'Up to 6 cafés'],
+    features: [
+      'Everything in Growth', 'Inventory', 'Recipes & Purchases', 'Advanced Reports',
+      'GST Register', 'Refunds beyond a day', 'No staff cap', 'Up to 6 cafés',
+    ],
     recommended: false,
   },
 ] as const
@@ -64,6 +78,7 @@ export function PricingCards() {
                 <span className="text-[13px] text-muted-foreground">/month</span>
               </div>
               <p className="mt-1 text-[12.5px] text-muted-foreground">or ₹{p.yearly.toLocaleString('en-IN')}/year</p>
+              <p className="text-[11.5px] text-muted-foreground/70">renews at ₹{p.renewal.toLocaleString('en-IN')}/year</p>
               <ul className="mt-6 flex-1 space-y-2.5">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-[13.5px] text-foreground">

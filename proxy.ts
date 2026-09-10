@@ -17,6 +17,6 @@ export const config = {
   // token-based /r, /t, /kds customer/staff routes, and all /api routes)
   // stays covered by updateSession() as before.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|$|about|blog|contact|pricing|legal|cloud-kitchen-pos-software|digital-menu-software|gst-billing-software-for-restaurants|kitchen-display-system|petpooja-alternative|pos-billing-software|qr-code-ordering-system|restaurant-inventory-management-software|restaurant-pos-software|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|$|about|blog|contact|pricing|legal|cloud-kitchen-pos-software|digital-menu-software|gst-billing-software-for-restaurants|kitchen-display-system|pos-software-alternative|pos-billing-software|qr-code-ordering-system|restaurant-inventory-management-software|restaurant-pos-software|faq|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

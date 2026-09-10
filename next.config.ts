@@ -34,6 +34,16 @@ const nextConfig: NextConfig = {
     minimumCacheTTL: 31536000,
   },
 
+  // /petpooja-alternative was renamed to /pos-software-alternative (website
+  // content audit, 2026-09-10) to drop a named-competitor URL from the
+  // public site entirely. Permanent redirect so any existing inbound link or
+  // search-indexed URL still resolves instead of 404ing.
+  async redirects() {
+    return [
+      { source: '/petpooja-alternative', destination: '/pos-software-alternative', permanent: true },
+    ];
+  },
+
   // Security headers (audit F-04). A strict Content-Security-Policy is
   // deliberately NOT set here: it needs a nonce pass over the app's inline
   // styles first, and a broken CSP fails closed on a live café's till. These

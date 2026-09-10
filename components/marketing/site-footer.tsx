@@ -22,7 +22,8 @@ export function SiteFooter() {
               <Link href="/cloud-kitchen-pos-software" className="hover:text-foreground">Cloud kitchen POS</Link>
               <Link href="/restaurant-inventory-management-software" className="hover:text-foreground">Inventory management</Link>
               <Link href="/gst-billing-software-for-restaurants" className="hover:text-foreground">GST billing software</Link>
-              <Link href="/petpooja-alternative" className="hover:text-foreground">Petpooja alternative</Link>
+              <Link href="/pos-software-alternative" className="hover:text-foreground">POS software alternative</Link>
+              <Link href="/faq" className="hover:text-foreground">FAQ</Link>
             </nav>
             <nav className="flex flex-col gap-2">
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">Company</span>

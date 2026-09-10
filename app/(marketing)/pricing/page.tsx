@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 const faqs: Faq[] = [
   {
     q: 'How much does restaurant POS software cost in India?',
-    a: 'It varies widely — from free tools with limited billing to enterprise systems quoted per outlet with setup and hardware charges on top. KhaoPiyo publishes three plans: ₹999, ₹2,499 and ₹4,999 per month, or ₹10,000, ₹18,000 and ₹21,000 paid yearly. The price on the page is the price; there is no separate setup fee.',
+    a: 'It varies widely — from free tools with limited billing to enterprise systems quoted per outlet with setup and hardware charges on top. KhaoPiyo publishes three plans: ₹999, ₹2,499 and ₹4,999 per month, or ₹10,000, ₹18,000 and ₹21,000 paid yearly (renewing at ₹5,000, ₹9,000 and ₹10,500 respectively). The price on the page is the price; there is no separate setup fee.',
   },
   {
     q: 'Is there a free trial?',
@@ -123,21 +123,25 @@ export default function PricingPage() {
             <p className="text-[15px] font-medium text-foreground">Starter — a single counter</p>
             <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
               One café or small restaurant moving off a paper bill book or a calculator. You get
-              billing, QR ordering and GST invoices with up to three staff accounts.
+              billing, QR ordering, GST invoices and a customer directory to track who&apos;s
+              ordering, with up to three staff accounts.
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-5">
             <p className="text-[15px] font-medium text-foreground">Growth — a café with regulars</p>
             <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
-              Adds loyalty, coupons and online UPI payments — the tools for getting the same guest
-              back rather than only serving the one in front of you. Up to eight staff.
+              Adds coupons, loyalty, Spin & Win, a customer wallet, table reservations, SMS and
+              WhatsApp bill receipts, expenses tracking, advanced analytics and online payments via
+              Razorpay — the tools for getting the same guest back rather than only serving the one
+              in front of you. Up to eight staff, up to two cafés.
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-5">
             <p className="text-[15px] font-medium text-foreground">Scale — when stock is the problem</p>
             <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
-              Adds inventory, recipes and food costing, plus advanced analytics and no cap on staff
-              accounts. The plan for an operation where wastage and margin matter as much as sales.
+              Adds inventory, recipes and purchases, advanced reports, a GST register, refunds
+              beyond a day, and no cap on staff accounts or cafés up to six. The plan for an
+              operation where wastage and margin matter as much as sales.
             </p>
           </div>
         </div>
@@ -170,8 +174,8 @@ export default function PricingPage() {
           </Link>
           <p className="mt-8 text-[13.5px] text-muted-foreground">
             Comparing options?{' '}
-            <Link href="/petpooja-alternative" className="font-medium text-primary hover:underline">
-              How KhaoPiyo compares to Petpooja
+            <Link href="/pos-software-alternative" className="font-medium text-primary hover:underline">
+              How KhaoPiyo compares to other POS systems
             </Link>
           </p>
         </div>

@@ -37,7 +37,8 @@ KhaoPiyo is built and operated by [Ventron](https://ventron.in), a technology co
 - [Cloud kitchen POS software](https://khaopiyo.ventron.in/cloud-kitchen-pos-software): takeaway/delivery-only kitchen setup
 - [Restaurant inventory management software](https://khaopiyo.ventron.in/restaurant-inventory-management-software): recipes, stock, food costing
 - [GST billing software for restaurants](https://khaopiyo.ventron.in/gst-billing-software-for-restaurants): tax-invoice compliance details
-- [Petpooja alternative](https://khaopiyo.ventron.in/petpooja-alternative): comparison for café owners evaluating alternatives
+- [POS software alternative](https://khaopiyo.ventron.in/pos-software-alternative): comparison for café owners evaluating alternatives
+- [FAQ](https://khaopiyo.ventron.in/faq): frequently asked questions about KhaoPiyo, restaurant POS and café operations
 - [About](https://khaopiyo.ventron.in/about): who builds KhaoPiyo, and what it deliberately does not do
 - [Contact](https://khaopiyo.ventron.in/contact): how to reach the team
 - [Blog](https://khaopiyo.ventron.in/blog): guides on choosing a POS, GST billing, food cost control, QR ordering and kitchen workflow

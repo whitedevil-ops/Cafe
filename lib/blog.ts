@@ -820,7 +820,996 @@ export const ARTICLES: Article[] = [
       { label: 'POS and billing software', href: '/pos-billing-software' },
     ],
   },
-]
+  {
+  "slug": "qr-ordering-reduce-table-service-time",
+  "title": "How QR Ordering Cuts Table Service Time in Cafés",
+  "h1": "Where QR Ordering Actually Saves Time in Table Service",
+  "description": "A minute-by-minute look at where QR ordering shortens a café's service timeline — and the parts of service it doesn't touch at all.",
+  "keywords": [
+    "QR ordering table service time",
+    "reduce table turnover cafe",
+    "QR code ordering speed restaurant",
+    "faster table service POS",
+    "QR menu ordering system cafe India"
+  ],
+  "published": "2026-09-10",
+  "readingMinutes": 8,
+  "excerpt": "QR ordering doesn't make food cook faster — it removes three specific waits from the service timeline. Here's exactly which ones, with a before-and-after walkthrough.",
+  "body": [
+    {
+      "t": "p",
+      "text": "Most articles about QR ordering answer one question: does it work, and should a café bother with it. That ground is already covered on this site — see [does QR ordering actually work for restaurants](/blog/does-qr-ordering-work-for-restaurants) if that's what you're deciding. This piece assumes you've already decided it's worth trying, and answers a narrower, more useful question: where in the actual service timeline does it save time, and where does it not?"
+    },
+    {
+      "t": "p",
+      "text": "That distinction matters because \"QR ordering saves time\" is a claim owners hear a lot and rarely see broken down. Some of it is true, some of it is overstated, and a chunk of the real saving depends on whether the order actually reaches the kitchen instantly or just moves the same delay from a waiter's notepad to a phone screen."
+    },
+    {
+      "t": "h2",
+      "text": "What \"table service\" actually breaks into"
+    },
+    {
+      "t": "p",
+      "text": "Table service isn't one block of time — it's a chain of small handoffs, and each handoff has its own wait built in. A guest gets seated, gets a menu, decides what to order, gets that order captured by someone, has that order physically or digitally reach the kitchen, waits for it to be cooked, gets it served, orders again if they want more, asks for the bill, and pays. QR ordering only touches some of those links."
+    },
+    {
+      "t": "table",
+      "head": [
+        "Step in the timeline",
+        "Typical wait, paper + waiter",
+        "Typical wait, QR ordering at table"
+      ],
+      "rows": [
+        [
+          "Guest seated to menu in hand",
+          "2–4 min (waiting for a free waiter)",
+          "0 min — menu is already at the table"
+        ],
+        [
+          "Deciding what to order",
+          "2–4 min",
+          "2–4 min — unchanged, this is a human decision"
+        ],
+        [
+          "Order captured",
+          "2–5 min (waiter has to be free and reach the table)",
+          "Under 1 min — order is placed the moment the guest is ready"
+        ],
+        [
+          "Order reaches the kitchen",
+          "1–3 min (waiter walks it to the counter or writes a KOT)",
+          "Instant, if the system pushes straight to a kitchen display"
+        ],
+        [
+          "Adding a second round or a side dish",
+          "3–6 min (wait for the waiter again)",
+          "Under 1 min — added to the same running order"
+        ],
+        [
+          "Bill requested to payment closed",
+          "3–8 min (ask for the bill, wait, pay, wait for change)",
+          "1–3 min if paying by UPI at the table or counter"
+        ]
+      ]
+    },
+    {
+      "t": "p",
+      "text": "Add that up and the honest picture is: cooking time never changes, but somewhere between 8 and 15 minutes of waiting-on-a-person time can come out of a typical two-course table visit, concentrated in three specific spots."
+    },
+    {
+      "t": "h2",
+      "text": "The three places QR ordering actually removes time"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Order capture — the guest doesn't wait for a waiter to be free, walk over, and write the order down. They order the moment they're ready, even if every waiter on the floor is busy with another table.",
+        "Order transmission — a QR order that's properly integrated goes straight to the kitchen the second it's placed. No one has to carry a slip, key it into a POS, or shout it across a pass.",
+        "Repeat and add-on orders — this is the one owners underestimate. A table that orders a starter, then decides on a second cold coffee ten minutes later, doesn't need to flag anyone down. That second order is often the slowest one in a paper-based system because the waiter is now busy elsewhere."
+      ]
+    },
+    {
+      "t": "h3",
+      "text": "Order transmission is where most of the theoretical saving gets lost"
+    },
+    {
+      "t": "p",
+      "text": "Here's the part that trips people up: having a QR menu doesn't automatically mean the order reaches the kitchen faster. If the order lands on a tablet at the billing counter and someone still has to manually re-key it or print a slip and walk it over, you've just moved the bottleneck, not removed it. The saving only shows up when the order goes straight to a [kitchen display system](/kitchen-display-system) the kitchen is actually watching. The difference between a screen the kitchen glances at continuously and a printer that spits out slips someone has to physically collect is bigger than it sounds — it's covered in more depth in [KDS vs KOT printer](/blog/kitchen-display-system-vs-kot-printer)."
+    },
+    {
+      "t": "h2",
+      "text": "A before-and-after walkthrough for a 20-table café"
+    },
+    {
+      "t": "p",
+      "text": "Take a Saturday evening rush: 20 tables, three waiters, a kitchen running on a mix of memory and shouted tickets. A table of four gets seated. In a paper-and-waiter setup, they wait a few minutes for a waiter to notice them, place a starter and two drinks, the waiter finishes two other tables before writing the ticket and walking it to the kitchen, and the kitchen starts on it roughly 6–8 minutes after the guests actually decided what they wanted. Twenty minutes later the table wants a second round of drinks — same wait, same walk, another 5–6 minutes before that reaches the kitchen."
+    },
+    {
+      "t": "p",
+      "text": "With QR ordering feeding a kitchen display directly, the first order hits the kitchen within seconds of the guest confirming it, regardless of how busy the waiters are. The second round of drinks is the same: tapped, sent, cooking starts immediately. The waiter's job shifts from being the only channel an order can travel through to handling exceptions — a guest who wants to modify a dish, someone who needs a recommendation, a table that prefers to just tell a person. That's also where [waiter tableside quick-add](/pos-billing-software) matters: staff can still punch in an order directly for tables that don't want to use a phone, without it being a separate, disconnected process from the QR orders hitting the same kitchen screen."
+    },
+    {
+      "t": "h2",
+      "text": "What QR ordering does not speed up"
+    },
+    {
+      "t": "p",
+      "text": "Being fair about the limits matters more than the sales pitch. QR ordering does nothing for:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Actual cook time — a dish that takes 12 minutes on a tawa still takes 12 minutes, no matter how the order arrived.",
+        "Plating and food running to the table — someone still has to carry the plate over, unless the café also runs food runners efficiently.",
+        "A guest who wants to chat, ask for recommendations, or needs help — QR ordering removes a wait, it doesn't remove the value of a person at the table.",
+        "Payment, if the café has no fast payment path — a QR order followed by cash-and-change at the counter saves nothing at the billing stage."
+      ]
+    },
+    {
+      "t": "note",
+      "text": "QR ordering is a genuine speed gain at the order-capture and order-transmission stages, and a real convenience at reorder time. It is not a kitchen speed-up or a magic fix for a short-staffed floor."
+    },
+    {
+      "t": "h2",
+      "text": "Where cafés get less benefit than they expect"
+    },
+    {
+      "t": "p",
+      "text": "Three patterns account for most of the disappointment when a café adopts QR ordering and doesn't see the saving they expected. First, the kitchen is still working off handwritten tickets or a shout, so the order sits in a queue at the same pace as before — the fix is a proper [kitchen display system](/kitchen-display-system), not just a QR code at the table. Second, the digital menu is disorganised or has too many sub-categories, so guests take longer to decide than they would scanning a printed card — a QR menu needs to be laid out for speed, not just digitised. Third, and most common: staff end up re-typing QR orders into a separate billing system because the ordering tool and the POS aren't the same product. If [POS billing](/pos-billing-software) and QR ordering don't share one order queue, you've added a screen without removing a step."
+    },
+    {
+      "t": "h2",
+      "text": "What to check before you pick a QR ordering system"
+    },
+    {
+      "t": "p",
+      "text": "If the goal is genuinely shorter service time, not just a QR code on the table, check for these before signing up:"
+    },
+    {
+      "t": "ol",
+      "items": [
+        "Orders go straight to a kitchen display in real time — not a printed slip someone has to carry, and not a dashboard staff have to refresh.",
+        "The same system handles POS billing, so an order placed by QR and an order punched in by a waiter both land in one queue, not two.",
+        "Waiters can still add or modify items tableside for guests who don't want to use their phone — QR ordering should be an option, not a requirement.",
+        "The system supports held orders and live table status, so a table that pauses mid-order or adds items later doesn't create confusion at the kitchen.",
+        "GST invoicing is generated automatically from the same order, so billing doesn't become a second manual step after a fast QR order."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "This is exactly why QR ordering, POS billing, and kitchen display are bundled together on KhaoPiyo rather than sold as separate add-ons — a fast order that has to be re-entered somewhere else isn't actually fast. QR Ordering and Kitchen Display are included from the [Starter plan](/pricing) onward, along with POS billing and GST invoicing, so a café isn't paying extra just to connect the pieces that make the time-saving real."
+    },
+    {
+      "t": "h2",
+      "text": "The honest summary"
+    },
+    {
+      "t": "p",
+      "text": "QR ordering saves real time in three specific places — capturing the order, getting it to the kitchen, and handling reorders — and does nothing for cook time, food running, or a payment process that's still manual. The size of the saving depends almost entirely on whether the order goes straight from the guest's phone to a kitchen screen without a human re-entering it anywhere in between. Get that connection right and a busy Saturday evening genuinely moves faster. Get it wrong and you've just added a QR code to the same bottlenecks that were already there."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Does QR ordering actually reduce table turnover time, or just order-taking time?",
+      "a": "It primarily reduces order-taking and order-transmission time — the wait for a waiter to be free, and the delay before an order reaches the kitchen. Table turnover overall also improves somewhat because reorders happen faster and bill payment can be quicker with UPI, but cooking time and food-running time are unchanged, so total turnover gains are smaller than order-capture gains alone."
+    },
+    {
+      "q": "Do I still need waiters if I switch to QR ordering?",
+      "a": "Yes. QR ordering removes the wait for a waiter to take an order, but staff are still needed to run food to tables, help guests who prefer not to use their phone, handle exceptions like modified orders, and manage the floor generally. A good setup lets waiters add or edit orders tableside as well, so QR ordering is an additional channel into the kitchen, not a replacement for staff."
+    },
+    {
+      "q": "Will QR ordering slow things down if my kitchen still uses handwritten tickets?",
+      "a": "It can genuinely fall short of expectations, because the order still has to be read off a screen and written or shouted out manually, which reintroduces the delay QR ordering was meant to remove. The time saving from QR ordering depends on the order reaching a kitchen display in real time — pairing it with a proper kitchen display system is what makes the saving actually show up in the kitchen, not just at the table."
+    }
+  ],
+  "related": [
+    {
+      "label": "Does QR Ordering Work for Restaurants?",
+      "href": "/blog/does-qr-ordering-work-for-restaurants"
+    },
+    {
+      "label": "Kitchen Display System vs KOT Printer",
+      "href": "/blog/kitchen-display-system-vs-kot-printer"
+    },
+    {
+      "label": "QR Code Ordering System",
+      "href": "/qr-code-ordering-system"
+    }
+  ]
+},
+
+  {
+  "slug": "cafe-pos-billing-gst-daily-operations",
+  "title": "Café POS: Billing, GST & Daily Operations",
+  "h1": "How a café POS handles billing, GST and daily operations",
+  "description": "A shift-by-shift walkthrough of how a café POS handles till opening, billing, GST invoicing, payments, cash reconciliation and reports.",
+  "keywords": [
+    "cafe POS billing",
+    "restaurant POS daily operations",
+    "cash shift reconciliation POS",
+    "GST invoicing POS software",
+    "POS day close process",
+    "cafe management software India"
+  ],
+  "published": "2026-09-10",
+  "readingMinutes": 8,
+  "excerpt": "From opening the cash float to counting the drawer at close, here's what a café POS actually does during a real shift — billing, discounts, GST invoicing and the reports in between.",
+  "body": [
+    {
+      "t": "p",
+      "text": "An 11am order for two cold coffees and a sandwich should take about fifteen seconds to bill. In a lot of cafés it takes closer to a minute, because the person at the counter is toggling between a paper KOT pad, a calculator for the GST split, and a notebook for the day's cash count. None of those steps are hard on their own. Stacked together across two hundred bills a day, they're where the afternoon goes."
+    },
+    {
+      "t": "p",
+      "text": "A café POS doesn't replace judgment — your staff still decide what to discount and when to comp a table. What it should do is collapse the mechanical parts of a shift — opening the till, billing, sending tickets to the kitchen, invoicing correctly, counting cash at the end — into steps that don't need a second person checking the math. Here's what that looks like across an actual day, from open to close."
+    },
+    {
+      "t": "h2",
+      "text": "Opening the till: starting a shift with a number you trust"
+    },
+    {
+      "t": "p",
+      "text": "Every shift should start with a declared cash float — say ₹2,000 in the drawer before the first bill. In a system with cash shift and drawer reconciliation built in, the person opening the counter logs that starting amount against their own staff login before taking a single order. It sounds like a formality, but it's the only thing that makes the day's closing count meaningful later — without a known starting number, a ₹300 shortfall at 10pm could be a billing error, a missed order, or just an open float nobody logged. With staff accounts and roles, that opening entry is tied to the person who did it, not to \"the counter\" in general, so if two people work the same shift on different logins, each one's cash movements stay separable."
+    },
+    {
+      "t": "h2",
+      "text": "Billing: the four hundred times a day part"
+    },
+    {
+      "t": "p",
+      "text": "This is where most of the shift actually lives. A table orders, a waiter or counter staff rings it up, and the bill needs to reflect exactly what was served — including the stuff that happens after the first tap. A customer adds a second lassi. Someone wants a discount because the espresso machine was slow that day. A table gets held because they're still deciding on dessert. POS billing that's actually built for a café (not adapted from a retail till) treats discounts and held orders as first-class actions, not workarounds — you don't need to void and rebill to fix a running order."
+    },
+    {
+      "t": "p",
+      "text": "Waiter tableside quick-add matters here too. If a waiter can add items to an existing table's order from where they're standing instead of walking back to the counter, that's one less trip per addition, and on a busy Saturday that adds up to real minutes. And because everything writes to the same order in real time, the kitchen display system reflects the addition immediately — the kitchen isn't guessing whether \"one more lassi\" was actually rung in."
+    },
+    {
+      "t": "p",
+      "text": "If an order needs to be cancelled outright — wrong table, duplicate entry, customer left — cancel with a reason keeps a record of why, rather than the order just disappearing. That record is what saves you from a confused conversation with a partner or auditor three weeks later about why Tuesday's sales don't match Tuesday's food cost."
+    },
+    {
+      "t": "h2",
+      "text": "GST invoicing without the mental math"
+    },
+    {
+      "t": "p",
+      "text": "Every bill that goes out to a dine-in or takeaway customer in India generally needs to be a proper tax invoice — GSTIN, tax breakup, sequential invoice number, the works. Doing that by hand on a calculator, per bill, is exactly the kind of task a POS should be doing invisibly in the background: it applies the right GST rate, generates the sequential invoice number, and hands you a digital receipt the customer can actually keep, without anyone at the counter opening a spreadsheet. If GST invoicing mechanics specifically are what you're trying to get right — rates, invoice numbering rules, what a compliant restaurant bill needs to contain — that's covered in more depth in [GST billing for restaurants](/blog/gst-billing-for-restaurants); this piece is about where that invoicing step sits inside the rest of the shift, not the compliance rules themselves."
+    },
+    {
+      "t": "p",
+      "text": "The practical win during a live shift is speed: the invoice is correct the first time, so there's no reprint, no manual tax correction, no customer standing at the counter while someone recalculates a CGST/SGST split by hand."
+    },
+    {
+      "t": "h2",
+      "text": "Payments: cash, UPI, and not making the customer wait"
+    },
+    {
+      "t": "p",
+      "text": "A café's payment mix on a normal day is rarely one method. Customer UPI at the table, pay at counter for takeaway, some cash, and — if the café is on a plan with Razorpay switched on — a card or online payment option too. The bill shouldn't change shape depending on how someone's paying; the total and the GST invoice are the same regardless, and reconciling which payment method covered which bill at the end of the day is what actually varies. A café running its ordering through [QR code ordering](/qr-code-ordering-system) at the table has this partly solved already, since the payment method gets captured at the point the order is placed rather than reconstructed later from memory."
+    },
+    {
+      "t": "h2",
+      "text": "Reports through the day, not just at the end"
+    },
+    {
+      "t": "p",
+      "text": "A manager shouldn't have to wait for closing time to know whether the day is on track. Core reports that update in real time — sales so far, what's selling, what's sitting — let someone glance at a phone at 3pm and notice that the lunch thali sold out an hour early, or that a particular table has been \"held\" for forty minutes with no update. That's the difference between operational software and a system that's just a faster calculator: recommendations and live numbers turn the POS into something you check during the shift, not just something you close out of at night."
+    },
+    {
+      "t": "h2",
+      "text": "Closing the shift: cash reconciliation and the day's actual numbers"
+    },
+    {
+      "t": "p",
+      "text": "At close, the cash drawer should be counted against what the system says it should hold — the opening float, plus every cash bill rung up during the shift, minus any cash refunds. If those two numbers don't match, you want to know it that night, with the specific bills to check, not three days later when it's impossible to reconstruct. This is the other half of cash shift and drawer reconciliation: the opening declaration at the start of the day is what makes the closing count mean something."
+    },
+    {
+      "t": "p",
+      "text": "For a small single-outlet café doing, say, 120 bills a day at an average ticket of ₹220, that's roughly ₹26,000 moving through the till daily across two or three payment methods. A ₹150 mismatch is easy to lose track of by hand and genuinely easy to spot when the system is doing the running total for you."
+    },
+    {
+      "t": "h2",
+      "text": "What this costs to run"
+    },
+    {
+      "t": "p",
+      "text": "None of the operational flow above needs a separate add-on — POS billing, KOT, the kitchen display system, GST invoicing, digital receipts, cash shift reconciliation, and core reports are part of the base experience on every KhaoPiyo plan, starting from the [Starter plan](/pricing) at ₹999/month for one café and up to three staff. There's no hardware to buy — it runs in a browser on whatever device the counter already has, a thermal printer is optional, and KhaoPiyo doesn't take a commission on sales; it's a flat subscription. A café can also sign up and start billing for free before choosing a paid plan, which is a reasonable way to see whether the daily flow actually fits before committing to anything."
+    },
+    {
+      "t": "table",
+      "head": [
+        "Shift stage",
+        "What it needs to do well",
+        "Where it shows up"
+      ],
+      "rows": [
+        [
+          "Opening",
+          "Log a starting cash float against a staff login",
+          "Cash Shift & Drawer Reconciliation"
+        ],
+        [
+          "Billing",
+          "Handle adds, discounts, holds without rebilling",
+          "POS Billing, Held Orders, Discounts"
+        ],
+        [
+          "Kitchen",
+          "Reflect order changes in real time",
+          "Kitchen Display System"
+        ],
+        [
+          "Invoicing",
+          "Correct GST invoice on the first print",
+          "GST Invoicing, Digital Receipts"
+        ],
+        [
+          "Mid-shift",
+          "Show what's selling without waiting for close",
+          "Core Reports, Recommendations"
+        ],
+        [
+          "Closing",
+          "Reconcile counted cash against system total",
+          "Cash Shift & Drawer Reconciliation"
+        ]
+      ]
+    },
+    {
+      "t": "note",
+      "text": "This walkthrough describes a single-outlet café's daily flow. A café running more than one outlet, or one that wants inventory, recipe costing and purchase tracking layered onto the same daily numbers, is a different scope — covered separately for [restaurant inventory management](/restaurant-inventory-management-software)."
+    },
+    {
+      "t": "h2",
+      "text": "If you're comparing this against what you use today"
+    },
+    {
+      "t": "p",
+      "text": "Most other restaurant POS software in India can bill, print a KOT and produce a GST invoice — that part is table stakes. The difference in daily use shows up in whether discounts and held orders need a workaround, whether the cash count at close is a manual tally or a comparison against a system total, and whether a manager can see the day's numbers without waiting for it to end. If you're evaluating options generally rather than looking at KhaoPiyo specifically, [how to choose restaurant POS software](/blog/how-to-choose-restaurant-pos-software) walks through the questions worth asking any vendor, and [restaurant POS software cost in India](/blog/restaurant-pos-software-cost-india) breaks down what these systems actually cost once you look past the headline price."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Does a café POS handle GST invoicing automatically, or does staff still need to calculate tax?",
+      "a": "A proper café POS applies the correct GST rate and generates a sequential tax invoice automatically when a bill is closed — staff don't calculate CGST/SGST splits by hand. The invoice includes the GSTIN, tax breakup and invoice number needed for a compliant restaurant bill, and a digital receipt is generated alongside it for the customer."
+    },
+    {
+      "q": "How does cash shift reconciliation actually work day to day?",
+      "a": "Whoever opens the counter logs a starting cash float against their staff login before taking orders. Through the shift, every cash bill adds to that running total automatically. At close, the drawer is counted physically and compared against the system's expected total (opening float plus cash sales minus cash refunds), so any mismatch is caught the same night with the specific bills to check, rather than discovered days later."
+    },
+    {
+      "q": "Can a café run this without buying separate billing and inventory hardware?",
+      "a": "With a browser-based POS like KhaoPiyo there's no hardware to buy — billing, KOT, kitchen display and GST invoicing all run on whatever device the counter already has, such as a phone, tablet or laptop. A thermal printer is optional for physical KOTs or receipts, not required to operate."
+    }
+  ],
+  "related": [
+    {
+      "label": "How to choose restaurant POS software",
+      "href": "/blog/how-to-choose-restaurant-pos-software"
+    },
+    {
+      "label": "GST billing for restaurants",
+      "href": "/blog/gst-billing-for-restaurants"
+    },
+    {
+      "label": "KhaoPiyo pricing",
+      "href": "/pricing"
+    }
+  ]
+},
+
+  {
+  "slug": "qr-order-to-kitchen-how-it-works",
+  "title": "From QR Scan to Kitchen: The Full Order Flow",
+  "h1": "From QR Scan to Kitchen: How the Order Actually Travels",
+  "description": "How a QR scan becomes a kitchen ticket and a settled bill — the exact steps, systems and screens behind modern café ordering.",
+  "keywords": [
+    "how does QR ordering work",
+    "QR code ordering system for restaurants",
+    "kitchen display system workflow",
+    "KOT printing process",
+    "restaurant order management system"
+  ],
+  "published": "2026-09-10",
+  "readingMinutes": 8,
+  "excerpt": "Scan, order, KOT, cook, bill, paid — five steps that look instant from the table but involve several systems talking to each other in the background. Here's exactly what happens in between.",
+  "body": [
+    {
+      "t": "p",
+      "text": "A guest scans a QR code, taps a few things, and twelve minutes later there's food on the table. From where they're sitting, that's the whole story. Behind it, though, that single scan sets off a small relay race between four or five separate parts of a system — a menu server, an order queue, a kitchen printer or display, a table management layer, and finally a billing engine — and if any one of those handoffs is clumsy, the guest notices, even if they can't say exactly why."
+    },
+    {
+      "t": "p",
+      "text": "This isn't the article that tells you whether to adopt QR ordering — we've already made that case in [does QR ordering actually work for restaurants](/blog/does-qr-ordering-work-for-restaurants). This one opens the hood. If you've ever wondered what really happens between a scan and a ticket landing in the kitchen, or why some systems feel instant while others lag by ten seconds, this is that explanation."
+    },
+    {
+      "t": "h2",
+      "text": "How the Menu Gets to the Guest's Phone"
+    },
+    {
+      "t": "p",
+      "text": "Every table (or every till, for counter service) carries a QR code that isn't a picture of a menu — it's a link to a live page. Scan it and the phone's browser opens a page fetched fresh from the café's server, not a PDF or an image someone uploaded three months ago. That matters more than it sounds: the moment a dish sells out or a price changes, the person doing the updating changes it once, in one place, and every table's code reflects it on the next scan. There's no reprinting, and no laminated menu with a price crossed out in pen."
+    },
+    {
+      "t": "p",
+      "text": "Under the hood, that code usually encodes two pieces of information — which café, and which table. Table 7's code and table 12's code point to the same [digital menu](/digital-menu-software) but tag the order differently once it's placed, which is what lets forty tables share one menu system without forty separate setups. The same structure works for counter-only cafés with no table numbers at all — the table tag is simply left out."
+    },
+    {
+      "t": "h2",
+      "text": "Placing the Order: What Actually Happens on Tap"
+    },
+    {
+      "t": "p",
+      "text": "The guest picks items, adjusts quantity, maybe adds a note (\"less spicy\", \"no onion\"), and hits place order. From that tap, three things need to happen almost at once: the order has to be written down permanently, the kitchen needs to know about it, and the table's status needs to update so staff walking past can see it's now occupied-with-an-order instead of still browsing."
+    },
+    {
+      "t": "ul",
+      "items": [
+        "The order is saved with a timestamp, table number, item list and notes — this becomes the record the bill is built from later.",
+        "A kitchen ticket is generated automatically, without a waiter re-typing anything by hand.",
+        "The table itself flips state on the live floor view, so a manager glancing at a tablet can see which of fifteen tables have an active, unbilled order."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "This is also the point where QR ordering either saves a café real labour or doesn't. In a fully manual setup, a waiter still walks to the table, notes the order, walks to the kitchen, hands it over, and walks back — the QR code is decoration. In a properly wired system, the guest's tap does the writing-down and the handing-over in the same second, and the waiter's actual job shifts to running food and checking on tables instead of taking dictation."
+    },
+    {
+      "t": "h2",
+      "text": "The KOT: From Order to Kitchen Ticket"
+    },
+    {
+      "t": "p",
+      "text": "The kitchen order ticket, or KOT, is the internal document that tells the kitchen what to cook — separate from the bill, which the guest never sees until they ask for it. A KOT for one table might read: 1x Paneer Tikka, 2x Cold Coffee, 1x Veg Biryani (no onion), Table 9, 7:42 PM. No price on it anywhere. The kitchen doesn't need to know what a dish costs; it needs to know what to make and how fast."
+    },
+    {
+      "t": "p",
+      "text": "Where this gets interesting is timing. If a table orders in two rounds — starters first, mains fifteen minutes later — a well-built system treats that as two KOTs against one running order, not one edited ticket that gets confusing to read. That way the kitchen sees \"new items\" clearly instead of hunting through a ticket it's already halfway through cooking from."
+    },
+    {
+      "t": "h2",
+      "text": "Inside the Kitchen: Screen or Paper"
+    },
+    {
+      "t": "p",
+      "text": "From here the ticket goes one of two ways — a thermal printer produces a paper slip, or it lands on a kitchen display screen mounted above the pass. Both get the same information to the same place; the difference is what happens after it arrives."
+    },
+    {
+      "t": "table",
+      "head": [
+        "",
+        "Printed KOT",
+        "Kitchen Display (KDS)"
+      ],
+      "rows": [
+        [
+          "New order arrives",
+          "Printer prints a slip; cook pulls it off the spike",
+          "Ticket appears on screen instantly, usually with a sound"
+        ],
+        [
+          "Marking progress",
+          "Cook crosses it out by hand, or leaves it as-is",
+          "Cook taps to mark in-progress / ready — visible to the counter"
+        ],
+        [
+          "Multiple stations (grill, tandoor, beverage)",
+          "Needs a second printer per station, or one slip passed around",
+          "Same ticket can route to each station's own screen"
+        ],
+        [
+          "Paper and ink cost",
+          "Ongoing — rolls, ribbons, a spike full of old slips",
+          "None — nothing to print"
+        ],
+        [
+          "Finding a lost ticket",
+          "Gone once torn off, unless someone kept it",
+          "Still in the system, searchable by table or time"
+        ]
+      ]
+    },
+    {
+      "t": "p",
+      "text": "Neither is objectively wrong — plenty of small, fast kitchens run perfectly well off a spike of paper tickets, and a thermal printer stays useful even alongside a display, as a backup and for handing a physical slip to a delivery rider. We've gone deeper on choosing between them in [kitchen display system vs KOT printer](/blog/kitchen-display-system-vs-kot-printer)."
+    },
+    {
+      "t": "h2",
+      "text": "Mid-Order Reality: Holds, Add-ons and Cancellations"
+    },
+    {
+      "t": "p",
+      "text": "Orders rarely stay clean once they hit the kitchen. A table wants to hold their order because they're waiting for one more person. A guest wants a plate of fries added after mains are already cooking. A dish gets cancelled because the kitchen ran out of an ingredient. A system built for a real café floor needs to handle all three without the KOT and the eventual bill drifting out of sync with each other."
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Held orders sit in a queue without going to the kitchen until someone releases them — useful for a table that's still deciding, or an order taken before everyone has arrived.",
+        "Adding items later creates a second KOT for just the new items, so the kitchen isn't handed a full reprinted ticket it's already half-cooked.",
+        "Cancelling an item after it's fired needs a reason attached — out of stock, guest changed their mind, kitchen error — because that reason is what shows up in reports later. It's the difference between \"we're losing money on wastage\" and \"we're losing money and nobody knows why.\""
+      ]
+    },
+    {
+      "t": "p",
+      "text": "This is one of the places a notebook-and-memory setup quietly breaks down. Cancelling an item by hand isn't hard — it's that three weeks later, nobody remembers why twenty dishes across the month got voided."
+    },
+    {
+      "t": "h2",
+      "text": "Closing the Loop: Bill, Payment and Receipt"
+    },
+    {
+      "t": "p",
+      "text": "Once a table is done ordering, the running order becomes a bill — same underlying data, different document. This is where discounts get applied, GST is calculated by rate, and the format shifts from \"what to cook\" to \"what was consumed and what it costs.\" A compliant GST invoice needs the café's GSTIN, a proper CGST/SGST breakdown, and a sequential invoice number — not a hand-totalled slip written on the back of an order pad."
+    },
+    {
+      "t": "p",
+      "text": "Payment itself can go a few ways depending on how the café is set up — settled at the counter, a guest paying their own UPI directly, or a card machine brought to the table. Whichever path it takes, once the bill is marked paid, the table flips back to free on the floor view, and a digital receipt can reach the guest instead of a paper slip that ends up in the bin. The guest's own order history — what they had last visit, visible on their own phone — comes from this same billing record, not a separate system someone has to sync by hand."
+    },
+    {
+      "t": "h2",
+      "text": "What Happens When the Wi-Fi Drops"
+    },
+    {
+      "t": "p",
+      "text": "All of this depends on data moving between a phone, a server, a kitchen screen and a billing counter — which raises the obvious question: what happens on the Saturday evening the internet actually goes down? A cloud system genuinely needs a connection to accept a new order or send a fresh KOT; there's no getting around that, and it's worth knowing going in rather than discovering it mid-rush."
+    },
+    {
+      "t": "note",
+      "text": "If connectivity is a real concern at your location, ask directly during any trial: what does an order in progress look like the moment the connection drops, and how does it recover once it's back? The honest answer for most cloud POS systems is that a few seconds of interruption during recovery is normal — the goal is that nothing gets lost or double-charged, not that it never happens."
+    },
+    {
+      "t": "h2",
+      "text": "The Full Flow, Start to Finish"
+    },
+    {
+      "t": "ol",
+      "items": [
+        "Guest scans the table's QR code and the live digital menu loads.",
+        "Guest builds an order and taps place order.",
+        "The order is saved with table, items, timestamp and notes.",
+        "A KOT is generated and sent to a printer or a kitchen display.",
+        "The table's status updates to \"ordered\" on the floor view.",
+        "Kitchen marks items in progress, then ready; a waiter runs the food.",
+        "Guest adds items, holds, or cancels as needed — each change leaves its own trail.",
+        "Table requests the bill; the order becomes a GST invoice with tax and any discounts applied.",
+        "Payment is taken — counter, UPI, or card — and the bill is marked paid.",
+        "Table clears on the floor view and a digital receipt reaches the guest."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "None of these ten steps is complicated on its own. What's genuinely hard is making all ten happen without a human re-typing information that already exists somewhere in the system — that's really the whole pitch behind a connected ordering-to-billing setup instead of a QR code bolted onto an otherwise manual café. If you'd rather see the flow live than read about it, you can [sign up free](/get-started) and place a test order through the full pipeline in a few minutes."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Does the kitchen need a computer to receive orders?",
+      "a": "No. Most kitchens use either a thermal printer that automatically prints a KOT the moment an order is placed, or a tablet or screen running a kitchen display system. Neither requires kitchen staff to touch a keyboard — the ticket appears or prints on its own."
+    },
+    {
+      "q": "What happens to a QR order if the internet goes down mid-service?",
+      "a": "A cloud-based ordering system needs an internet connection to place a new order or send a fresh KOT to the kitchen, since the menu, the order and the kitchen ticket are all synced through the same server. If connectivity drops, new orders can't go through until it's back, though orders already fired to the kitchen and bills already generated aren't lost. It's worth testing this specifically, with a backup data connection for your location, before going fully live on it."
+    },
+    {
+      "q": "Can a waiter still take the order manually instead of the guest scanning the QR code?",
+      "a": "Yes — QR ordering isn't meant to replace a waiter, it's meant to remove the walk back and forth to the kitchen. A waiter can enter an order directly at the table (sometimes called tableside quick-add) and it goes through the exact same KOT and kitchen display flow as a guest's QR order. Cafés commonly run both side by side — regulars order themselves, first-time guests get walked through it by staff."
+    }
+  ],
+  "related": [
+    {
+      "label": "Does QR Ordering Actually Work for Restaurants?",
+      "href": "/blog/does-qr-ordering-work-for-restaurants"
+    },
+    {
+      "label": "Kitchen Display System vs KOT Printer",
+      "href": "/blog/kitchen-display-system-vs-kot-printer"
+    },
+    {
+      "label": "Kitchen Display System",
+      "href": "/kitchen-display-system"
+    }
+  ]
+},
+
+  {
+  "slug": "customer-data-increase-repeat-orders",
+  "title": "Using Customer Data to Bring Café Guests Back",
+  "h1": "Using Customer Data to Bring Café Guests Back",
+  "description": "How a café can use order history, loyalty and wallets to turn one-time guests into regulars — practical CRM tactics, not theory.",
+  "keywords": [
+    "café CRM software",
+    "restaurant customer database",
+    "loyalty program for cafes India",
+    "repeat customers restaurant",
+    "customer wallet cafe app"
+  ],
+  "published": "2026-09-10",
+  "readingMinutes": 8,
+  "excerpt": "Most cafés lose guests without ever knowing they left. Here's what customer data a small café can realistically collect, and the loyalty, coupon and wallet tactics that actually bring people back.",
+  "body": [
+    {
+      "t": "p",
+      "text": "Most cafés know exactly how many orders they did today and almost nothing about who placed them. A guest orders a cold coffee and a sandwich, pays, leaves — and the only trace is a line in the day's sales report. If they never come back, nobody notices, because there was never a record that they'd been a customer in the first place."
+    },
+    {
+      "t": "p",
+      "text": "That's the gap customer data closes. Not big-data dashboards or predictive algorithms — just knowing who your regulars are, what they usually order, how long it's been since their last visit, and having a way to reach them before they forget you exist. A small café doesn't need a marketing department for this. It needs a Customer Directory that fills itself in during normal billing, and two or three retention tactics run consistently. This is what a [restaurant POS software](/restaurant-pos-software) with CRM built in is actually for — not just billing faster, but remembering who walked in."
+    },
+    {
+      "t": "h2",
+      "text": "What \"customer data\" actually means for a café"
+    },
+    {
+      "t": "p",
+      "text": "Forget the enterprise CRM idea of customer data — purchase-intent scores, lifetime-value models, none of that applies to a 20-table café. What's actually useful is much smaller and entirely within reach of day-to-day billing:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Name and phone number — the minimum needed to recognise someone next visit",
+        "Order history — what they usually order, how much they usually spend, how often",
+        "Visit frequency — daily regular, weekly, or a one-time visitor who never returned",
+        "Total spend to date — useful for spotting your highest-value guests, not just your most frequent ones",
+        "Last visit date — the single most useful field for deciding who to re-engage"
+      ]
+    },
+    {
+      "t": "p",
+      "text": "Every one of these can be captured automatically from billing, without a separate form, survey, or app download. If your POS already records a phone number at checkout for the GST invoice or digital receipt, you already have the raw material for a customer directory — you just need it collected in one place instead of scattered across paper bills."
+    },
+    {
+      "t": "h2",
+      "text": "Capturing the data without annoying anyone"
+    },
+    {
+      "t": "p",
+      "text": "The mistake most cafés make when they try to \"do CRM\" is adding friction — a feedback form, a loyalty card guests have to remember to carry, a QR code that opens a signup page nobody fills in. None of that survives contact with a lunch rush."
+    },
+    {
+      "t": "p",
+      "text": "The data collects itself better when it rides on something the guest is already doing. A guest scanning the table QR to place an order through [QR code ordering](/qr-code-ordering-system) naturally enters a phone number to track their order status — that's a directory entry with zero extra steps. A guest paying at the counter gives a phone number anyway if they want a digital receipt or a GST invoice. Neither interaction feels like \"signing up for marketing,\" but both quietly build the same directory. If you're still deciding whether QR ordering is worth setting up at all, [this breakdown of how QR ordering actually performs](/blog/does-qr-ordering-work-for-restaurants) is a reasonable place to start before you optimise for retention on top of it."
+    },
+    {
+      "t": "note",
+      "text": "Don't make phone number entry mandatory to place an order — some guests will always decline, and forcing it creates friction at exactly the moment you're trying to remove it. Let the directory build gradually from the guests who don't mind."
+    },
+    {
+      "t": "h2",
+      "text": "Turning a directory into segments you can act on"
+    },
+    {
+      "t": "p",
+      "text": "A list of 400 phone numbers isn't useful by itself. What makes it useful is splitting it into a handful of groups you can treat differently, because a guest who visits every Tuesday for lunch needs a different nudge than a guest who came in once eight months ago and never returned."
+    },
+    {
+      "t": "table",
+      "head": [
+        "Segment",
+        "How to spot it",
+        "What to do"
+      ],
+      "rows": [
+        [
+          "Regulars",
+          "5+ visits in 30 days",
+          "Recognise them by name, don't discount — they're already coming"
+        ],
+        [
+          "Lapsing",
+          "Visited monthly, gone 3+ weeks",
+          "A small win-back coupon or a WhatsApp nudge"
+        ],
+        [
+          "One-time visitors",
+          "Single order, never returned",
+          "A modest first-return offer, since acquisition cost is already spent"
+        ],
+        [
+          "High spenders",
+          "Top 10% by total spend, any frequency",
+          "Priority for loyalty perks — they're worth more per visit than frequent low-spend guests"
+        ]
+      ]
+    },
+    {
+      "t": "p",
+      "text": "A café doing 60 orders a day across a month will typically find a very unequal split — a small core of regulars generating a disproportionate share of revenue, and a long tail of guests who came in exactly once. The point of segmenting isn't to treat everyone equally well; it's to spend your retention effort — and any discount budget — on the segment where it changes behaviour, rather than handing the same 10% off to a regular who was coming back anyway."
+    },
+    {
+      "t": "h2",
+      "text": "Loyalty, coupons and Spin & Win: mechanics that actually bring people back"
+    },
+    {
+      "t": "p",
+      "text": "These three work differently and are worth understanding separately rather than lumping together as \"discounts.\""
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Loyalty & Rewards gives guests a reason tied to cumulative behaviour — points or a stamp-card style reward that only pays off after repeat visits, which is exactly the behaviour you're trying to build",
+        "Coupons are targeted and time-bound — a specific offer sent to a specific segment, like 15% off for guests who haven't visited in three weeks, rather than a blanket discount that also gets used by guests who would have come anyway",
+        "Spin & Win adds a small, low-cost element of chance at checkout or after an order — guests enjoy the interaction itself, and it works well as a light touch that doesn't require deep discounting to feel rewarding"
+      ]
+    },
+    {
+      "t": "p",
+      "text": "None of these need to be generous to work. A ₹20 off next visit through Spin & Win, or 1 point per ₹100 spent through a loyalty program, costs a café very little against its average order value but gives a guest an actual reason to choose you over walking into a different café on their next craving. These features sit in the [pricing page's](/pricing) Growth plan alongside Customer Wallet and Table Reservations — worth checking against your own order volume before deciding if the upgrade from Starter pays for itself."
+    },
+    {
+      "t": "h2",
+      "text": "Customer wallet: prepaid balance that locks in the next visit"
+    },
+    {
+      "t": "p",
+      "text": "A customer wallet works differently from a coupon or loyalty point — it's money a guest has already committed to your café before they've decided what to order next. A guest topping up ₹500 into a wallet, especially with a small bonus attached, has functionally pre-booked a handful of future visits, because that balance only has value if they come back and spend it with you specifically."
+    },
+    {
+      "t": "p",
+      "text": "For a café with a steady base of office-goers or students nearby, a wallet converts irregular visits into a habit — the balance sitting there is a small, constant nudge to return rather than default to whatever's closest. It also smooths your own cash flow slightly, since the revenue is committed before the order is placed."
+    },
+    {
+      "t": "h2",
+      "text": "A simple weekly retention routine"
+    },
+    {
+      "t": "p",
+      "text": "None of this needs to be a full-time job. A café owner or manager can run the whole loop in under twenty minutes a week:"
+    },
+    {
+      "t": "ol",
+      "items": [
+        "Pull last week's core reports and check total unique guests versus repeat guests",
+        "Filter the customer directory for anyone who hasn't ordered in 18–21 days",
+        "Send that segment a small win-back coupon rather than a generic broadcast to everyone",
+        "Check which regulars crossed a spend threshold and are due a loyalty reward",
+        "Glance at Spin & Win redemption — if nobody's spinning, the prompt isn't visible enough at checkout"
+      ]
+    },
+    {
+      "t": "p",
+      "text": "The habit matters more than the sophistication. A café that does this loosely every week will out-retain one that builds an elaborate segmentation strategy once and never looks at it again."
+    },
+    {
+      "t": "h2",
+      "text": "What to avoid"
+    },
+    {
+      "t": "p",
+      "text": "A few ways retention efforts backfire, worth flagging before you start:"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Discounting your regulars the same as first-timers — it trains loyal guests to expect a lower price and costs you margin on visits that were already happening",
+        "Sending offers too often — a coupon that arrives weekly stops feeling like a reward and starts feeling like spam",
+        "Collecting phone numbers but never acting on the data — a directory that just sits there is no better than the paper bill book it replaced",
+        "Treating every guest identically regardless of spend or frequency — your top 10% of guests deserve different treatment than someone who ordered once and left"
+      ]
+    },
+    {
+      "t": "p",
+      "text": "Customer data doesn't need to be complicated to be useful. A café that reliably knows who its regulars are, notices when they go quiet, and has one or two low-cost ways to bring them back will consistently out-retain a café relying on memory and good luck — regardless of whether the food is better. If you're setting this up for the first time, [getting started](/get-started) with a directory that builds itself from billing is a lower-effort starting point than building a loyalty program before you have the data to target it properly."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Do I need a full loyalty program to keep customers coming back?",
+      "a": "No — a Customer Directory with order history is the actual foundation, and that alone lets you spot regulars and lapsing guests. Loyalty points, coupons, Spin & Win and Customer Wallet are all ways to act on that data once you have it, but even without any of them, simply knowing who your repeat guests are and recognising them changes behaviour. Add the reward mechanics once you've confirmed the directory is filling in reliably."
+    },
+    {
+      "q": "How does a café collect customer phone numbers without making people sign up for an app?",
+      "a": "The two natural collection points are QR ordering, where a guest already enters a phone number to track their order, and counter billing, where a phone number is often given anyway for a digital receipt or GST invoice. Neither requires a separate signup step or app download — the directory builds itself from transactions that were happening regardless."
+    },
+    {
+      "q": "Which plan includes loyalty, coupons and Spin & Win for a café?",
+      "a": "On KhaoPiyo, the Customer Directory and CRM basics are included in every plan starting from Starter (₹999/month). Coupons, Loyalty & Rewards, Spin & Win and Customer Wallet are part of the Growth plan (₹2,499/month), which also adds Table Reservations and SMS/WhatsApp bill receipts. Full details are on the [pricing page](/pricing)."
+    }
+  ],
+  "related": [
+    {
+      "label": "Does QR Ordering Actually Work for Restaurants?",
+      "href": "/blog/does-qr-ordering-work-for-restaurants"
+    },
+    {
+      "label": "KhaoPiyo Pricing & Plans",
+      "href": "/pricing"
+    },
+    {
+      "label": "QR Code Ordering System",
+      "href": "/qr-code-ordering-system"
+    }
+  ]
+},
+
+  {
+  "slug": "switching-restaurant-pos-software-checklist",
+  "title": "Switching Restaurant POS Software Without Losing a Shift",
+  "h1": "How to Switch Restaurant POS Software Without Losing a Shift",
+  "description": "A practical checklist for moving to new POS software: data migration, staff training, picking a go-live day, and what to test before day one.",
+  "keywords": [
+    "switch restaurant pos software",
+    "pos software migration checklist",
+    "how to change pos system",
+    "restaurant pos data migration",
+    "go live new pos system",
+    "cafe pos switch checklist"
+  ],
+  "published": "2026-09-10",
+  "readingMinutes": 8,
+  "excerpt": "You've already picked the new POS. Here's how to move your menu, train your staff and go live without losing a single order in the process.",
+  "body": [
+    {
+      "t": "p",
+      "text": "You've done the comparison, called a couple of vendors, maybe read our [guide on choosing restaurant POS software](/blog/how-to-choose-restaurant-pos-software), and picked one. This article isn't about that decision — it's about the two or three weeks between saying yes to a new POS and actually running your café on it, without a Friday dinner service turning into chaos because nobody can find the parcel button."
+    },
+    {
+      "t": "p",
+      "text": "Switching POS software is a small project, not an event. Cafés that get it wrong usually don't fail because the new software was bad — they fail because they tried to do it on a Saturday night with no data exported from the old system, no rehearsal, and staff who saw the new billing screen for the first time five minutes before the first order came in. None of that is hard to avoid if you treat it like a project with a checklist instead of a flip of a switch."
+    },
+    {
+      "t": "h2",
+      "text": "Pick a Low-Risk Go-Live Day"
+    },
+    {
+      "t": "p",
+      "text": "The single biggest mistake owners make is switching on the busiest day of the week because \"we might as well start fresh.\" Don't. Pick the quietest full business day you have — for most cafés that's a Monday or Tuesday lunch, not a weekend dinner service. You want a day with real orders coming through, so your staff are actually using the new system under normal pressure, but few enough covers that a five-minute hiccup at the counter doesn't turn into a queue out the door."
+    },
+    {
+      "t": "p",
+      "text": "Also avoid the first and last few days of the month if you can. That's when most owners are closing GST returns and reconciling the previous month's numbers on the old system — you don't want to be learning a new invoice sequence at the same time you're filing returns on the old one. Build in a buffer: pick your go-live date, then work backward a full week for training and testing, and don't move the date forward just because setup finished early. Rehearsal time is never wasted."
+    },
+    {
+      "t": "h2",
+      "text": "Get Your Data Out of the Old System"
+    },
+    {
+      "t": "p",
+      "text": "Before you touch the new system, export everything from the old one while you still have full access to it. Most POS vendors make this harder once you've told them you're leaving, and some charge for exports after cancellation, so do it on day one of the switch, not the last day of your notice period."
+    },
+    {
+      "t": "h3",
+      "text": "What actually needs to move"
+    },
+    {
+      "t": "ul",
+      "items": [
+        "Menu items, categories, prices, and variants (size, add-ons) — this is the one thing you cannot skip, since re-typing a 90-item menu by hand on go-live morning is how launches get delayed.",
+        "Customer directory / CRM contacts, if your old system had one — names and phone numbers so repeat customers aren't starting from zero.",
+        "Staff list and roles, so you're not creating logins from memory under time pressure.",
+        "Sales history as a PDF or CSV export, for your own records and for GST reconciliation — most systems won't let you import old sales into a new platform, and you don't need them to. You just need them saved somewhere outside the old system before your account there gets deactivated."
+      ]
+    },
+    {
+      "t": "p",
+      "text": "Sales history is the part owners worry about most and need to worry about least. You are not trying to make ten months of historical bills appear inside the new POS — you're trying to make sure your accountant still has access to last year's numbers after you've stopped paying for the old subscription. A dated folder of exported CSVs and GST invoice PDFs covers that completely."
+    },
+    {
+      "t": "h2",
+      "text": "Parallel Run or Hard Cutover"
+    },
+    {
+      "t": "p",
+      "text": "There are two ways to actually make the switch, and which one fits depends on your café's size and how forgiving your customers are of a slower counter for a day."
+    },
+    {
+      "t": "table",
+      "head": [
+        "Approach",
+        "How it works",
+        "Best for"
+      ],
+      "rows": [
+        [
+          "Hard cutover",
+          "Old system stops, new system starts, on one agreed morning. No orders run through both.",
+          "Single-café operations with one billing counter and a full week of staff training already done."
+        ],
+        [
+          "Parallel run",
+          "Both systems stay live for 2-3 days; new bills go through the new POS, old system stays open only to close out anything already in progress.",
+          "Multi-counter or multi-café setups, or teams still shaky on the new screens after training."
+        ]
+      ]
+    },
+    {
+      "t": "p",
+      "text": "A parallel run feels safer, but it has a real cost: your staff are mentally juggling two systems, which is exactly the kind of split attention that causes double-billing or a KOT sent to the kitchen from the wrong screen. Most single-location cafés are better off with a clean hard cutover on a quiet day than a blurry few days running both. If you do run parallel, set a hard end date in advance — \"we'll decide when it feels ready\" tends to stretch into weeks."
+    },
+    {
+      "t": "h2",
+      "text": "Train Staff Before the Switch, Not During It"
+    },
+    {
+      "t": "p",
+      "text": "Picture a waiter who's used the old system's tableside billing for two years, being handed a new screen at 8pm on a Friday with four tables waiting. That's not a training failure on his part — it's a scheduling failure on yours. Training has to happen before go-live, on the actual new system, ideally with fake orders during a closed hour or a slow afternoon."
+    },
+    {
+      "t": "p",
+      "text": "Break it into roles instead of one general session, since a waiter, a cashier and a kitchen staffer use completely different screens: waiter tableside quick-add, counter billing and KOT/discounts/held orders, and the kitchen display. Run each person through their own real workflow — take an order, send it to the kitchen, hold an order and come back to it, cancel one with a reason, close a shift and reconcile the drawer — at least twice before the day you go live. If your new system has per-role screen access, set that up during training too, so staff only ever see the buttons relevant to their job on day one, not a full admin screen that can distract or confuse them."
+    },
+    {
+      "t": "h2",
+      "text": "The Pre-Launch Checklist: What to Test Before Day One"
+    },
+    {
+      "t": "p",
+      "text": "Run through this on the new system, in your actual café, with your actual printer and internet connection, at least one full day before go-live — not the night before."
+    },
+    {
+      "t": "ol",
+      "items": [
+        "Bill a real test order end to end, including a GST invoice, and check the tax breakdown and invoice number look right.",
+        "Send a KOT to the kitchen display and confirm it shows up correctly and in order.",
+        "Hold an order, serve two other tables, then come back and complete the held one.",
+        "Cancel an order with a reason and confirm it's logged, not just deleted.",
+        "Close a cash shift and reconcile the drawer against what the system says you took in.",
+        "If you use QR ordering, scan the actual table QR codes and place a test order from a phone, not just from the admin screen.",
+        "Print a physical receipt if you use a thermal printer, and confirm your printer talks to the new system without a driver issue you're discovering for the first time.",
+        "Log in as each staff role you've set up and confirm they see only what they're supposed to see."
+      ]
+    },
+    {
+      "t": "note",
+      "text": "If any single item on this list fails, don't go live on schedule. A missed step here is a five-minute fix during testing and a forty-five-minute scramble in front of customers on launch day."
+    },
+    {
+      "t": "h2",
+      "text": "Go-Live Day: Keep It Boring"
+    },
+    {
+      "t": "p",
+      "text": "The best go-live days are uneventful. Open a little earlier than usual so the counter is already running on the new system before the first customer walks in, keep the old system's login handy but untouched, and have whoever set up the new POS actually present at the café for the first service, not reachable by phone. Most of the issues that come up on day one are small — someone forgets which button holds an order, a printer needs re-pairing — and they get solved in seconds if a person who knows the system is standing at the counter, not in minutes if everyone's texting a vendor's support line mid-rush."
+    },
+    {
+      "t": "p",
+      "text": "This is also where the earlier decisions pay off. Because a cloud POS like [KhaoPiyo](/) runs in a browser on whatever device you already have, there's no hardware swap to coordinate on launch morning — your billing counter, kitchen display and waiter's phone just point at a new tab, and a thermal printer that already worked with your old system will generally keep working with the new one."
+    },
+    {
+      "t": "h2",
+      "text": "The First Week After Switching"
+    },
+    {
+      "t": "p",
+      "text": "Keep the old system's login active and read-only for at least a billing cycle, even after go-live — you'll want to check a past bill or a customer's order history more often than you'd expect in the first couple of weeks. Reconcile your cash drawer manually against the new system's numbers every day for the first week rather than trusting it blind; small setup mistakes (a wrong tax rate on one item, a duplicate menu entry) show up fastest in a mismatched drawer count, not in a report nobody reads until month-end."
+    },
+    {
+      "t": "p",
+      "text": "Don't cancel the old subscription the day you go live. Wait until you've closed and reconciled at least one full GST filing cycle on the new system and you're confident your [GST invoicing](/blog/gst-billing-for-restaurants) is generating correctly — invoice numbering issues are the one migration mistake that's genuinely painful to fix after the fact, since you can't retroactively renumber invoices you've already given customers."
+    },
+    {
+      "t": "p",
+      "text": "None of this needs to take longer than two to three weeks from decision to stable operation, and most of that time is training and testing, not the actual switch. If you haven't picked a system yet, sign-up on most cloud POS platforms — [KhaoPiyo included](/get-started) — is free, so you can set up your menu and test the workflow above before you commit to a paid plan, which makes the whole migration checklist something you can run through before go-live rather than after."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How long does switching restaurant POS software actually take?",
+      "a": "For a single café, plan on two to three weeks from the day you commit to a new system to a stable go-live: a few days to export data and set up your menu, a few days for staff training and testing, and one quiet day to actually cut over. Rushing this into a weekend usually costs you more time in mid-service troubleshooting than it saves."
+    },
+    {
+      "q": "Will I lose my sales history when I switch POS software?",
+      "a": "You won't be able to import your old sales history into the new system — most POS platforms don't support that, and you don't actually need them to. Export your sales reports and GST invoices from the old system as PDF or CSV before you cancel it, and keep them filed separately for your accountant. The new system starts a fresh sales record from your go-live date, which is normal and expected."
+    },
+    {
+      "q": "Should I switch POS systems during my slow season?",
+      "a": "A quieter period makes training easier since staff have more time between orders to get comfortable, but you don't need to wait for an entire slow season — a single quiet weekday is usually enough for the cutover itself. What matters more than the season is avoiding month-end (when you're closing GST returns on the old system) and avoiding your single busiest day of the week for the actual go-live."
+    }
+  ],
+  "related": [
+    {
+      "label": "How to Choose Restaurant POS Software",
+      "href": "/blog/how-to-choose-restaurant-pos-software"
+    },
+    {
+      "label": "Restaurant POS Software Cost in India",
+      "href": "/blog/restaurant-pos-software-cost-india"
+    },
+    {
+      "label": "KhaoPiyo Pricing",
+      "href": "/pricing"
+    }
+  ]
+}]
 
 export function getArticle(slug: string): Article | undefined {
   return ARTICLES.find((a) => a.slug === slug)
