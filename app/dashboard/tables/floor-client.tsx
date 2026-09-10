@@ -256,11 +256,28 @@ export default function FloorClient({
   // or a bill request from another device shows up instantly instead of
   // waiting up to 4s. The interval below keeps running underneath it as the
   // backstop that guarantees the floor is never silently stale.
-  useRealtimeRefresh(supabase, 'orders', cafeId, poll)
-  useRealtimeRefresh(supabase, 'table_sessions', cafeId, poll)
-  useRealtimeRefresh(supabase, 'notifications', cafeId, poll)
-  useRealtimeRefresh(supabase, 'payments', cafeId, poll)
-  useRealtimeRefresh(supabase, 'payment_attempts', cafeId, poll)
+  //
+  // poll() re-fetches the whole floor (tables, sessions, orders, items,
+  // payments, notifications), and one staff action routinely touches more
+  // than one of the five tables below in the same moment — placing an order
+  // writes table_sessions, orders and payments together, which used to fire
+  // three independent full polls back to back. pollRef always points at the
+  // latest poll (so a stale timezone/cafeId never gets captured), while
+  // debouncedPoll itself stays referentially stable for the component's
+  // lifetime — useRealtimeRefresh only subscribes once per (supabase, table,
+  // cafeId) and keeps whatever callback it was first given.
+  const pollRef = useRef(poll)
+  useEffect(() => { pollRef.current = poll }, [poll])
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debouncedPoll = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(() => pollRef.current(), 150)
+  }, [])
+  useRealtimeRefresh(supabase, 'orders', cafeId, debouncedPoll)
+  useRealtimeRefresh(supabase, 'table_sessions', cafeId, debouncedPoll)
+  useRealtimeRefresh(supabase, 'notifications', cafeId, debouncedPoll)
+  useRealtimeRefresh(supabase, 'payments', cafeId, debouncedPoll)
+  useRealtimeRefresh(supabase, 'payment_attempts', cafeId, debouncedPoll)
 
   // Clear tables that are occupied by a session with nothing live on them,
   // once, when this screen opens.

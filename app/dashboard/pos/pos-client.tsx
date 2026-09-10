@@ -356,16 +356,23 @@ export default function PosClient({
   // Combo lines carry no single itemId — exclude them rather than sending an
   // empty id into the recommendation lookup.
   const cartItemIds = useMemo(() => [...new Set(cart.map((l) => l.itemId).filter(Boolean))], [cart])
+  // A qty bump on a line already in the cart makes `cart` (and so
+  // cartItemIds, a fresh array every render) change reference without the
+  // actual set of ids changing — this key collapses that down to a value
+  // the effect below can compare by content, so the recommendation RPC
+  // only re-fires when the item set itself changes.
+  const cartItemIdsKey = useMemo(() => cartItemIds.slice().sort().join(','), [cartItemIds])
   useEffect(() => {
+    const ids = cartItemIdsKey ? cartItemIdsKey.split(',') : []
     let cancelled = false
     const t = setTimeout(async () => {
-      const list = cartItemIds.length === 0 ? [] : await fetchRecommendations(supabase, cafeId, cartItemIds, 4)
+      const list = ids.length === 0 ? [] : await fetchRecommendations(supabase, cafeId, ids, 4)
       if (cancelled) return
       setRecs(list)
       for (const r of list) logRecommendationEvent(supabase, cafeId, r.id, 'impression', 'pos')
-    }, cartItemIds.length === 0 ? 0 : 250)
+    }, ids.length === 0 ? 0 : 250)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [cartItemIds, supabase, cafeId])
+  }, [cartItemIdsKey, supabase, cafeId])
 
   function addRecommendation(rec: Recommendation) {
     logRecommendationEvent(supabase, cafeId, rec.id, 'add', 'pos')
