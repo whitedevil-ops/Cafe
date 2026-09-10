@@ -1,42 +1,105 @@
+'use client'
+
 // Every dashboard page is `dynamic = 'force-dynamic'` and fetches its own
-// data server-side on each navigation — without this file, that round trip
-// showed nothing at all: the old screen just sat there, frozen, until the
-// new page was fully ready. This is the Suspense fallback Next.js swaps in
-// the instant a click starts a navigation, so it always feels immediate.
+// data server-side on each navigation — this is the Suspense fallback
+// Next.js swaps in the instant a click starts one. It renders BELOW
+// layout.tsx/AppShell in the component tree (loading.js only wraps page.js,
+// never the layout it sits inside — see Next's own file-convention docs),
+// so the sidebar and header stay mounted and interactive the whole time;
+// this only ever replaces the <main> content area.
 //
-// One generic shape (title + metric row + list) covers most dashboard pages
-// well enough — it's a placeholder felt for a fraction of a second, not a
-// pixel-perfect match for every page.
-function Bar({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-[var(--radius-sm)] bg-surface-subtle ${className}`} />
+// Client component specifically so it can read usePathname() — by the time
+// this fallback is showing, the URL has already committed to the
+// DESTINATION route (that's what triggered this render in the first
+// place), so this can name where it's actually going ("Opening POS…")
+// without any hand-off from whatever was clicked.
+//
+// Deliberately NOT shown for genuinely fast navigations: the outer wrapper
+// starts at opacity 0 and only fades in after a short delay (same
+// technique Next's own useLinkStatus docs recommend for exactly this) — if
+// the destination resolves before that delay elapses, React unmounts this
+// before it was ever visible, so a quick hop never flashes a loading screen.
+import { usePathname } from 'next/navigation'
+import Image from 'next/image'
+
+// Longest-prefix match, same semantics as buildNav's own activeHref() in
+// app-shell.tsx (kept as a small, separate list rather than importing from
+// there — that file's NavItem also carries icons/feature gating this has no
+// use for). '/dashboard' is exact-only for the same reason it is there: a
+// bare prefix match would claim every route under it.
+const ROUTE_LABELS: { href: string; label: string; exact?: boolean }[] = [
+  { href: '/dashboard', label: 'Dashboard', exact: true },
+  { href: '/dashboard/pos', label: 'POS' },
+  { href: '/dashboard/tables/manage', label: 'QR Codes' },
+  { href: '/dashboard/tables', label: 'Live Tables' },
+  { href: '/dashboard/bills', label: 'Bills' },
+  { href: '/dashboard/shift', label: 'Shift & Cash' },
+  { href: '/dashboard/kitchen', label: 'Kitchen' },
+  { href: '/dashboard/menu', label: 'Menu' },
+  { href: '/dashboard/customers', label: 'Customers' },
+  { href: '/dashboard/inventory', label: 'Inventory' },
+  { href: '/dashboard/purchases', label: 'Purchases' },
+  { href: '/dashboard/recipes', label: 'Recipes & Cost' },
+  { href: '/dashboard/coupons', label: 'Coupons & Offers' },
+  { href: '/dashboard/loyalty', label: 'Loyalty & Rewards' },
+  { href: '/dashboard/spin', label: 'Spin & Win' },
+  { href: '/dashboard/wallet', label: 'Wallet' },
+  { href: '/dashboard/reservations', label: 'Reservations' },
+  { href: '/dashboard/analytics', label: 'Analytics' },
+  { href: '/dashboard/reports', label: 'Reports' },
+  { href: '/dashboard/expenses', label: 'Expenses' },
+  { href: '/dashboard/profile', label: 'Café Profile' },
+  { href: '/dashboard/billing', label: 'Billing' },
+  { href: '/dashboard/settings', label: 'Settings' },
+].sort((a, b) => b.href.length - a.href.length)
+
+function labelFor(pathname: string): string {
+  const match = ROUTE_LABELS.find((r) => (r.exact ? pathname === r.href : pathname === r.href || pathname.startsWith(r.href + '/')))
+  return match?.label ?? 'your café'
 }
 
 export default function DashboardLoading() {
+  const pathname = usePathname()
+  const label = labelFor(pathname)
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-      <Bar className="h-7 w-48" />
-      <Bar className="mt-3 h-4 w-72" />
-
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border bg-surface p-3.5">
-            <Bar className="h-3 w-16" />
-            <Bar className="mt-2 h-5 w-20" />
-          </div>
-        ))}
+    <div className="grid min-h-[70dvh] place-items-center px-6">
+      <div className="kp-loading-in flex flex-col items-center gap-5">
+        <div className="relative grid h-16 w-16 place-items-center">
+          <div className="kp-loading-breathe absolute inset-0 rounded-2xl bg-primary/10" />
+          <Image src="/logo-mark.png" alt="" width={40} height={40} className="relative h-10 w-10" priority />
+        </div>
+        <p className="text-[13.5px] font-medium text-foreground">
+          Opening {label}
+          <span className="inline-flex w-[1.5em] justify-start">
+            <span className="kp-loading-dot" style={{ animationDelay: '0ms' }}>.</span>
+            <span className="kp-loading-dot" style={{ animationDelay: '200ms' }}>.</span>
+            <span className="kp-loading-dot" style={{ animationDelay: '400ms' }}>.</span>
+          </span>
+        </p>
       </div>
-
-      <div className="mt-6 flex gap-2">
-        <Bar className="h-9 w-20 rounded-full" />
-        <Bar className="h-9 w-24 rounded-full" />
-        <Bar className="h-9 w-20 rounded-full" />
-      </div>
-
-      <div className="mt-5 space-y-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Bar key={i} className="h-14 w-full" />
-        ))}
-      </div>
+      <style>{`
+        .kp-loading-in {
+          opacity: 0;
+          animation: kp-loading-fade-in 180ms ease-out 160ms forwards;
+        }
+        .kp-loading-breathe {
+          animation: kp-loading-breathe 2s ease-in-out infinite;
+        }
+        .kp-loading-dot {
+          display: inline-block;
+          animation: kp-loading-dot 1.4s ease-in-out infinite;
+        }
+        @keyframes kp-loading-fade-in { to { opacity: 1; } }
+        @keyframes kp-loading-breathe {
+          0%, 100% { transform: scale(1); opacity: 0.7; }
+          50% { transform: scale(1.08); opacity: 1; }
+        }
+        @keyframes kp-loading-dot {
+          0%, 60%, 100% { opacity: 0.25; }
+          30% { opacity: 1; }
+        }
+      `}</style>
     </div>
   )
 }

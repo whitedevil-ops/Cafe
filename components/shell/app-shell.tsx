@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
@@ -102,6 +102,23 @@ function activeHref(pathname: string, groups: NavGroup[]): string {
     (h) => pathname === h || (h !== '/dashboard' && pathname.startsWith(h + '/')),
   )
   return matches.sort((a, b) => b.length - a.length)[0] ?? ''
+}
+
+// Instant "you clicked this" feedback the moment THIS specific link is
+// pending — independent of app/dashboard/loading.tsx's own fallback (which
+// only shows once the URL has actually committed) and independent of
+// whether the destination was prefetched. Must be a descendant of the
+// <Link> it reports on (useLinkStatus's own requirement), hence a separate
+// component rather than a hook call in the row below. A subtle wash, not an
+// obscuring layer — the label/icon paint over it either way.
+function NavPendingGlow() {
+  const { pending } = useLinkStatus()
+  return (
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 rounded-[var(--radius)] bg-white/10 transition-opacity duration-150 ${pending ? 'opacity-100' : 'opacity-0'}`}
+    />
+  )
 }
 
 export function AppShell({
@@ -232,6 +249,7 @@ export function AppShell({
                           : 'text-sidebar-foreground/85 hover:bg-sidebar-hover hover:text-sidebar-foreground'
                       }`}
                     >
+                      <NavPendingGlow />
                       {on && !effectiveCollapsed && (
                         <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
                       )}

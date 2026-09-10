@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Check, CreditCard } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
@@ -38,10 +38,12 @@ export default function BillingClient({
   cafeId,
   role,
   initialState,
+  initialHasAcceptedTerms,
 }: {
   cafeId: string
   role: string
   initialState: BillingState | null
+  initialHasAcceptedTerms: boolean | null
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
@@ -52,21 +54,11 @@ export default function BillingClient({
 
   // null = still checking. Consent is per-account (legal_acceptances is
   // keyed on auth.uid(), not per-café), so this only needs checking once
-  // regardless of which plan the owner ends up switching to.
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean | null>(null)
+  // regardless of which plan the owner ends up switching to. Seeded from the
+  // server so plan buttons aren't stuck loading behind an extra client round-trip.
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean | null>(initialHasAcceptedTerms)
   const [termsModalOpen, setTermsModalOpen] = useState(false)
   const [pendingPlanKey, setPendingPlanKey] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!isOwner) return
-    void (async () => {
-      const { data } = await supabase.rpc('has_accepted_legal_doc', {
-        p_doc_type: 'terms',
-        p_doc_version: TERMS_VERSION,
-      })
-      setHasAcceptedTerms(data === true)
-    })()
-  }, [isOwner, supabase])
 
   async function refresh() {
     const { data } = await supabase.rpc('platform_billing_state', { p_cafe_id: cafeId })

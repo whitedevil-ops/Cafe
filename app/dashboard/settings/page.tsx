@@ -13,33 +13,42 @@ export default async function SettingsPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  // Entitlement first: everything the Payments card says depends on whether
-  // online payments are on this cafe's plan at all.
-  const onlinePaymentsAllowed = await hasFeature(cafe.cafeId, 'online_payments')
-  const kitchenStationsAllowed = await hasFeature(cafe.cafeId, 'kitchen_stations')
-  const [{ data }, { data: members }, { data: invites }, { data: printers }, { data: stations }, { data: tokens }, { data: roleOverview }] =
-    await Promise.all([
-      supabase
-        .from('cafes')
-        .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status')
-        .eq('id', cafe.cafeId)
-        .single(),
-      supabase
-        .from('cafe_members')
-        .select('user_id, role, status, profiles(full_name, email)')
-        .eq('cafe_id', cafe.cafeId),
-      supabase.from('cafe_invites').select('id, email, role').eq('cafe_id', cafe.cafeId),
-      supabase.from('kot_printers').select('*').eq('cafe_id', cafe.cafeId).order('name'),
-      supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
-      supabase
-        .from('print_bridge_tokens')
-        .select('id, name, last_seen_at')
-        .eq('cafe_id', cafe.cafeId)
-        .is('revoked_at', null),
-      (cafe.role === 'owner' || cafe.role === 'manager')
-        ? supabase.rpc('role_screen_overview', { p_cafe_id: cafe.cafeId })
-        : Promise.resolve({ data: null }),
-    ])
+  // Entitlements run inside the batch below alongside the other queries
+  // instead of blocking in front of them.
+  const [
+    { data },
+    { data: members },
+    { data: invites },
+    { data: printers },
+    { data: stations },
+    { data: tokens },
+    { data: roleOverview },
+    onlinePaymentsAllowed,
+    kitchenStationsAllowed,
+  ] = await Promise.all([
+    supabase
+      .from('cafes')
+      .select('name, upsell_threshold, kot_printing_enabled, kot_print_on_update, cash_management_enabled, recommendations_enabled, online_payments_enabled, razorpay_status')
+      .eq('id', cafe.cafeId)
+      .single(),
+    supabase
+      .from('cafe_members')
+      .select('user_id, role, status, profiles(full_name, email)')
+      .eq('cafe_id', cafe.cafeId),
+    supabase.from('cafe_invites').select('id, email, role').eq('cafe_id', cafe.cafeId),
+    supabase.from('kot_printers').select('*').eq('cafe_id', cafe.cafeId).order('name'),
+    supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
+    supabase
+      .from('print_bridge_tokens')
+      .select('id, name, last_seen_at')
+      .eq('cafe_id', cafe.cafeId)
+      .is('revoked_at', null),
+    (cafe.role === 'owner' || cafe.role === 'manager')
+      ? supabase.rpc('role_screen_overview', { p_cafe_id: cafe.cafeId })
+      : Promise.resolve({ data: null }),
+    hasFeature(cafe.cafeId, 'online_payments'),
+    hasFeature(cafe.cafeId, 'kitchen_stations'),
+  ])
 
   const staff: StaffMember[] = (members ?? []).map((m) => {
     const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles

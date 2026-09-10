@@ -46,25 +46,32 @@ export default function TablesClient({
 
   useEffect(() => setOrigin(window.location.origin), [])
 
-  // Generate a QR data URL per table once we know the origin.
+  // Generate a QR data URL per table once we know the origin. Only tables
+  // missing from `qr` are (re)generated, concurrently — so adding/deleting one
+  // table doesn't redo every other table's code (each is deterministic from
+  // its token anyway, but there's no reason to burn the work twice).
   useEffect(() => {
     if (!origin) return
+    const missing = tables.filter((t) => !qr[t.token])
+    if (missing.length === 0) return
     let alive = true
     ;(async () => {
-      const next: Record<string, string> = {}
-      for (const t of tables) {
-        next[t.token] = await QRCode.toDataURL(`${origin}/t/${t.token}`, {
-          margin: 1,
-          width: 320,
-          color: { dark: '#1C1917', light: '#FFFFFF' },
-        })
-      }
-      if (alive) setQr(next)
+      const entries = await Promise.all(
+        missing.map(async (t) => [
+          t.token,
+          await QRCode.toDataURL(`${origin}/t/${t.token}`, {
+            margin: 1,
+            width: 320,
+            color: { dark: '#1C1917', light: '#FFFFFF' },
+          }),
+        ] as const),
+      )
+      if (alive) setQr((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
     })()
     return () => {
       alive = false
     }
-  }, [origin, tables])
+  }, [origin, tables, qr])
 
   const urlFor = (token: string) => `${origin}/t/${token}`
 

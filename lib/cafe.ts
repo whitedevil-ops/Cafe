@@ -221,3 +221,38 @@ export async function getCurrentCafe(): Promise<CurrentCafe | null> {
     timezone: cafe.timezone ?? DEFAULT_TIMEZONE,
   }
 }
+
+export type CafeRow = {
+  plan: string | null
+  cash_management_enabled: boolean | null
+  kot_printing_enabled: boolean | null
+  tax_percent: number | null
+  service_charge: number | null
+  dine_in: boolean | null
+  takeaway: boolean | null
+  loyalty_enabled: boolean | null
+  gst_registered: boolean | null
+  tax_inclusive: boolean | null
+  gstin: string | null
+  upi_id: string | null
+  online_payments_enabled: boolean | null
+}
+
+// The union of every column app/dashboard/layout.tsx, app/dashboard/pos/page.tsx
+// and app/dashboard/page.tsx each independently queried from the SAME `cafes`
+// row (found live, full-product performance audit, 2026-09-10) — three round
+// trips to one row on every navigation into any of those three pages. cache()
+// for the same reason getMemberships/getImpersonation already use it above:
+// whichever of those pages render together in one request (layout + one page)
+// now share a single query instead of one each.
+export const getCafeRow = cache(async (cafeId: string): Promise<CafeRow | null> => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('cafes')
+    .select(
+      'plan, cash_management_enabled, kot_printing_enabled, tax_percent, service_charge, dine_in, takeaway, loyalty_enabled, gst_registered, tax_inclusive, gstin, upi_id, online_payments_enabled',
+    )
+    .eq('id', cafeId)
+    .maybeSingle()
+  return data
+})

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getCurrentCafe, getMyCafes } from '@/lib/cafe'
+import { getCurrentCafe, getMyCafes, getCafeRow } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { AppShell } from '@/components/shell/app-shell'
 import { ExpiryRenewal } from '@/components/billing/expiry-renewal'
@@ -31,8 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ) : null
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }, { data: allPlans }] = await Promise.all([
-    supabase.from('cafes').select('cash_management_enabled, kot_printing_enabled, plan').eq('id', cafe.cafeId).maybeSingle(),
+  const [cafeRow, { data: profile }, { data: capacity }, { data: overrideRows }, { data: screenAccess }, { data: allPlans }] = await Promise.all([
+    getCafeRow(cafe.cafeId),
     supabase.from('profiles').select('full_name').eq('id', cafe.userId).maybeSingle(),
     supabase.rpc('owned_cafe_capacity'),
     supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),

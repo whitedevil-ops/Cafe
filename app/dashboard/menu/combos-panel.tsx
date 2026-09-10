@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Package, Trash2, Download } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -59,28 +59,61 @@ export default function CombosPanel({
   canManage,
   categories,
   items,
-  variants,
-  initialCombos,
-  initialSlots,
 }: {
   cafeId: string
   cafeName: string
   canManage: boolean
   categories: MenuCategory[]
   items: MenuItemRow[]
-  variants: VariantRow[]
-  initialCombos: Combo[]
-  initialSlots: ComboSlot[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const confirm = useConfirm()
 
-  const [combos, setCombos] = useState(initialCombos)
-  const [slots, setSlots] = useState(initialSlots)
+  // This panel only ever mounts while it's actually open (see
+  // menu-manager.tsx), so its own data — combos, their slots, and every
+  // item's variants (a slot with sizes needs the size picker) — is fetched
+  // here instead of being part of every Menu page load. See page.tsx.
+  const [combos, setCombos] = useState<Combo[]>([])
+  const [slots, setSlots] = useState<ComboSlot[]>([])
+  const [variants, setVariants] = useState<VariantRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [draft, setDraft] = useState<ComboDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const { data: comboRows } = await supabase
+        .from('combos')
+        .select('id, name, description, price, margin, image_url, active, sort')
+        .eq('cafe_id', cafeId)
+        .order('sort')
+      const comboIds = (comboRows ?? []).map((c) => c.id)
+      const itemIds = items.map((i) => i.id)
+      const [{ data: slotRows }, { data: variantRows }] = await Promise.all([
+        comboIds.length
+          ? supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
+          : Promise.resolve({ data: [] }),
+        itemIds.length
+          ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
+          : Promise.resolve({ data: [] }),
+      ])
+      if (cancelled) return
+      setCombos((comboRows ?? []) as Combo[])
+      setSlots((slotRows ?? []) as ComboSlot[])
+      setVariants((variantRows ?? []) as VariantRow[])
+      setLoading(false)
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+    // Runs once per mount — this panel is only ever rendered while open, so
+    // there's nothing to react to afterward.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const liveItems = useMemo(() => items.filter((i) => !i.archived), [items])
   const itemById = useMemo(() => new Map(liveItems.map((i) => [i.id, i])), [liveItems])
@@ -283,7 +316,9 @@ export default function CombosPanel({
         </div>
       </div>
 
-      {combos.length === 0 ? (
+      {loading ? (
+        <p className="mt-4 text-[13px] text-muted-foreground">Loading…</p>
+      ) : combos.length === 0 ? (
         <p className="mt-4 text-[13px] text-muted-foreground">No combos yet.</p>
       ) : (
         <ul className="mt-4 space-y-2.5">

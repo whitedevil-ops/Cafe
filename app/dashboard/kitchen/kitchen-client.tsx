@@ -9,7 +9,7 @@ import { useRealtimeRefresh } from '@/lib/use-realtime-refresh'
 import { OfflineBanner } from '@/components/offline-banner'
 import { printKot } from '@/components/kitchen/print-ticket'
 
-type Order = {
+export type Order = {
   id: string
   short_code: string
   table_id: string | null
@@ -20,7 +20,7 @@ type Order = {
   payment_status: 'unpaid' | 'paid' | 'partial' | 'refunded'
   created_at: string
 }
-type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
+export type Item = { id: string; order_id: string; name: string; qty: number; modifiers: { name: string }[] | null }
 
 const NEXT: Record<Order['status'], { label: string; to: string }> = {
   placed: { label: 'Start', to: 'preparing' },
@@ -144,6 +144,8 @@ export default function KitchenClient({
   timezone,
   desktopPrintingEnabled,
   bluetoothPrinterEnabled,
+  initialOrders,
+  initialItems,
 }: {
   cafeId: string
   cafeName: string
@@ -153,11 +155,15 @@ export default function KitchenClient({
   timezone: string
   desktopPrintingEnabled: boolean
   bluetoothPrinterEnabled: boolean
+  // Server-fetched so the board isn't empty for the one round-trip before
+  // poll() first runs — same query shape poll() itself uses below.
+  initialOrders: Order[]
+  initialItems: Item[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
-  const [orders, setOrders] = useState<Order[]>([])
-  const [items, setItems] = useState<Item[]>([])
+  const [orders, setOrders] = useState<Order[]>(initialOrders)
+  const [items, setItems] = useState<Item[]>(initialItems)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
   // On by default: an alarm nobody has asked to silence is the safe side of
@@ -376,10 +382,29 @@ export default function KitchenClient({
     setOrders(ords as Order[])
 
     if (ords.length) {
-      const { data: its } = await supabase
-        .from('order_items')
-        .select('id, order_id, name, qty, modifiers')
-        .in('order_id', ords.map((o) => o.id))
+      const orderIds = ords.map((o) => o.id)
+      // Independent of each other (both keyed only on orderIds), so they run
+      // together instead of the print_jobs round-trip waiting on order_items.
+      const [{ data: its }, jobsRes] = await Promise.all([
+        supabase
+          .from('order_items')
+          .select('id, order_id, name, qty, modifiers')
+          .in('order_id', orderIds),
+        // Printing itself now happens automatically server-side (the print
+        // bridge, independent of this page — see reprintQueued's comment).
+        // This is read-only: the latest job per order, purely to show staff
+        // whether a ticket actually went out.
+        printingEnabled
+          ? supabase
+              .from('print_jobs')
+              .select('order_id, kind, status, created_at')
+              .in('order_id', orderIds)
+              // Newest first: the reduction below keeps the first row it
+              // sees per order_id, which is now the latest one — the only
+              // one printBadge() ever reads.
+              .order('created_at', { ascending: false })
+          : Promise.resolve(null),
+      ])
       if (its) setItems(its as Item[])
 
       // The fallback path. Three guards, because a double print is the one
@@ -390,23 +415,12 @@ export default function KitchenClient({
         void autoPrintNew(fresh as Order[], its as Item[])
       }
 
-      // Printing itself now happens automatically server-side (the print
-      // bridge, independent of this page — see reprintQueued's comment).
-      // This is read-only: the latest job per order, purely to show staff
-      // whether a ticket actually went out.
-      if (printingEnabled) {
-        const { data: jobs } = await supabase
-          .from('print_jobs')
-          .select('order_id, kind, status, created_at')
-          .in('order_id', ords.map((o) => o.id))
-          .order('created_at', { ascending: true })
-        if (jobs) {
-          const latest: Record<string, { kind: string; status: string; created_at: string }> = {}
-          for (const j of jobs as { order_id: string | null; kind: string; status: string; created_at: string }[]) {
-            if (j.order_id) latest[j.order_id] = { kind: j.kind, status: j.status, created_at: j.created_at }
-          }
-          setPrintJobs(latest)
+      if (printingEnabled && jobsRes?.data) {
+        const latest: Record<string, { kind: string; status: string; created_at: string }> = {}
+        for (const j of jobsRes.data as { order_id: string | null; kind: string; status: string; created_at: string }[]) {
+          if (j.order_id && !(j.order_id in latest)) latest[j.order_id] = { kind: j.kind, status: j.status, created_at: j.created_at }
         }
+        setPrintJobs(latest)
       }
     } else {
       setItems([])
@@ -567,6 +581,7 @@ export default function KitchenClient({
             const age = mins(o.created_at)
             const late = age >= 8
             const its = items.filter((i) => i.order_id === o.id)
+            const badge = printingEnabled ? printBadge(printJobs[o.id]) : null
             return (
               <section
                 key={o.id}
@@ -588,10 +603,8 @@ export default function KitchenClient({
                     </span>
                   )}
                   {o.status !== 'placed' && <span className="ml-2 text-muted-foreground">· {o.status}</span>}
-                  {printingEnabled && printBadge(printJobs[o.id]) && (
-                    <span className={`ml-2 font-medium ${printBadge(printJobs[o.id])!.cls}`}>
-                      · {printBadge(printJobs[o.id])!.label}
-                    </span>
+                  {badge && (
+                    <span className={`ml-2 font-medium ${badge.cls}`}>· {badge.label}</span>
                   )}
                 </p>
                 <ul className="my-4 space-y-2 border-y border-border py-4">

@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
-import { getCurrentCafe } from '@/lib/cafe'
-import { hasFeature } from '@/lib/entitlements'
+import { getCurrentCafe, getCafeRow } from '@/lib/cafe'
 import { byTableLabel } from '@/lib/table-sort'
 import { createClient } from '@/utils/supabase/server'
+import { getCachedPosCatalog } from '@/lib/pos-cache'
 import PosClient from './pos-client'
 import type { PosCategory } from '@/components/pos/category-tabs'
 import type { PosItem } from '@/components/pos/product-card'
@@ -20,34 +20,24 @@ export default async function PosPage() {
 
   const supabase = await createClient()
   // Everything below needs only cafe.cafeId, so it all fires in one round
-  // trip — combos and the four entitlement checks used to be split into
-  // their own later Promise.all batches (combos waited on items, the
-  // entitlement checks waited on combos/variants/addons) purely because of
-  // where they were written, not because of any real data dependency.
+  // trip. The menu catalog (categories/items/variants/addons/combos/combo
+  // slots — the bulk of this page's former ~17-query load) is cached
+  // per-café for 30s via getCachedPosCatalog (lib/pos-cache.ts) instead of
+  // re-fetched from scratch on every navigation into POS — it changes far
+  // less often than order activity. cafe_tables/floor_areas stay uncached
+  // (table `status` is live) and rewards/entitlements stay uncached (small,
+  // and entitlements need the override-resolution below regardless).
   const [
-    { data: cafeRow },
-    { data: categories },
-    { data: items },
+    cafeRow,
+    catalog,
     { data: tables },
     { data: areas },
     { data: rewards },
-    { data: combos },
-    loyaltyAllowed,
-    couponsAllowed,
-    spinAllowed,
+    { data: overrideRows },
     { data: activeWheel },
-    dineInAllowed,
-    takeawayAllowed,
-    heldOrdersAllowed,
   ] = await Promise.all([
-    supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled, gst_registered, tax_inclusive').eq('id', cafe.cafeId).single(),
-    supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
-    supabase
-      .from('menu_items')
-      .select('id, name, price, image_url, is_veg, is_bestseller, category_id, available, created_at, tax_percent, offer_price, offer_days')
-      .eq('cafe_id', cafe.cafeId)
-      .eq('archived', false)
-      .order('sort'),
+    getCafeRow(cafe.cafeId),
+    getCachedPosCatalog(cafe.cafeId),
     supabase
       .from('cafe_tables')
       .select('id, label, status, capacity, area_id')
@@ -63,48 +53,44 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('active', true)
       .order('points_cost'),
-    supabase.from('combos').select('id, name, description, price, image_url, active, sort')
-      .eq('cafe_id', cafe.cafeId).eq('active', true).order('sort'),
-    // Plan entitlements, resolved server-side. hasFeature() applies the same
-    // override-beats-plan-default precedence the rest of the app uses, so a
-    // café granted loyalty by an operator override is treated as entitled even
-    // if its plan would not normally include it.
-    hasFeature(cafe.cafeId, 'loyalty'),
-    hasFeature(cafe.cafeId, 'coupons'),
-    // Spin has been its own entitlement since 0204, and this is where the
-    // guest's won code is actually spent. Asking about 'loyalty' here meant a
-    // café that bought Spin without Loyalty handed out codes it had no field
-    // to type back in — see the note on spinEnabled below.
-    hasFeature(cafe.cafeId, 'spin'),
+    supabase.from('cafe_feature_overrides').select('feature_key, enabled').eq('cafe_id', cafe.cafeId),
     // The wheel row IS the on/off switch — there is no cafes.spin_enabled
     // column. A café with no wheel, or an archived one, should not show a
     // spin-code box that can only ever say "no such code".
     supabase.from('spin_wheels').select('id').eq('cafe_id', cafe.cafeId).eq('active', true).maybeSingle(),
-    // AND'd with cafes.dine_in/takeaway below, same shape as loyaltyEnabled
-    // above — the plan decides whether the café MAY have the order type,
-    // the owner's own toggle decides whether they want it on. Both keys
-    // are seeded true on every plan (0233), so this changes nothing for
-    // any café until an Ops admin deliberately overrides one off.
-    hasFeature(cafe.cafeId, 'dine_in_ordering'),
-    hasFeature(cafe.cafeId, 'takeaway_ordering'),
-    hasFeature(cafe.cafeId, 'held_orders'),
   ])
 
-  const itemIds = (items ?? []).map((i) => i.id)
-  const comboIds = (combos ?? []).map((c) => c.id)
-  const [{ data: variants }, { data: addons }, { data: comboSlots }] = await Promise.all([
-    itemIds.length
-      ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
-      : Promise.resolve({ data: [] }),
-    itemIds.length
-      ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
-      : Promise.resolve({ data: [] }),
-    comboIds.length
-      ? supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
-      : Promise.resolve({ data: [] }),
-  ])
+  // Plan entitlements, resolved server-side from the same two inputs
+  // cafe_has_feature() itself resolves from (override, if any, else plan
+  // default) — mirrors the exact precedence app/dashboard/layout.tsx already
+  // uses for its own nav-relevant keys, just resolved again here for the six
+  // keys POS needs. Replaces six separate hasFeature() RPC round trips
+  // (found live, full-product performance audit, 2026-09-10) with the two
+  // queries above (already in the Promise.all) plus this one platform_plans
+  // lookup, which needs cafeRow.plan and so can only run after it resolves.
+  const { data: planRow } = await supabase.from('platform_plans').select('features').eq('key', cafeRow?.plan ?? '').maybeSingle()
+  const planFeatures = (planRow?.features ?? {}) as Record<string, boolean>
+  const overrideMap = new Map((overrideRows ?? []).map((o) => [o.feature_key, o.enabled]))
+  const resolveFeature = (key: string) => (overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false))
 
-  const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
+  // Spin has been its own entitlement since 0204, and this is where the
+  // guest's won code is actually spent. Asking about 'loyalty' here meant a
+  // café that bought Spin without Loyalty handed out codes it had no field
+  // to type back in — see the note on spinEnabled below.
+  const loyaltyAllowed = resolveFeature('loyalty')
+  const couponsAllowed = resolveFeature('coupons')
+  const spinAllowed = resolveFeature('spin')
+  // AND'd with cafes.dine_in/takeaway below, same shape as loyaltyEnabled
+  // above — the plan decides whether the café MAY have the order type,
+  // the owner's own toggle decides whether they want it on. Both keys
+  // are seeded true on every plan (0233), so this changes nothing for
+  // any café until an Ops admin deliberately overrides one off.
+  const dineInAllowed = resolveFeature('dine_in_ordering')
+  const takeawayAllowed = resolveFeature('takeaway_ordering')
+  const heldOrdersAllowed = resolveFeature('held_orders')
+
+  const { categories, items, variants, addons, combos, comboSlots } = catalog
+  const withOptions = new Set([...variants.map((v) => v.menu_item_id), ...addons.map((a) => a.menu_item_id)])
 
   // menu_item_id -> its own GST rate. Mirrors the snapshot trigger in 0106,
   // which stamps each order line with coalesce(menu_items.tax_percent,

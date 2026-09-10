@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { getCurrentCafe } from '@/lib/cafe'
+import { getCurrentCafe, getCafeRow } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
-import DashboardClient, { type CommandCenterData, type DailySummary } from './dashboard-client'
+import DashboardClient, { type CommandCenterData, type DailySummary, type MoneySummary } from './dashboard-client'
 import { businessDayStartISO, businessDaysAgoStartISO, DEFAULT_TIMEZONE } from '@/lib/datetime'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +43,7 @@ export async function loadCommandCenterData(
     { count: everOrderCount },
     crmAllowed,
     inventoryAllowed,
+    outstandingSummary,
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
@@ -60,7 +61,7 @@ export async function loadCommandCenterData(
     ),
     supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
     supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
-    supabase.from('cafes').select('cash_management_enabled, gst_registered, gstin, upi_id, online_payments_enabled').eq('id', cafeId).maybeSingle(),
+    getCafeRow(cafeId),
     supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
     supabase.from('cafe_members').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).limit(1),
@@ -75,6 +76,16 @@ export async function loadCommandCenterData(
     // loyaltyEnabled fix, just found on the home dashboard instead of the POS.
     crmCheck,
     hasFeature(cafeId, 'inventory'),
+    // Money today: collected vs still-outstanding vs refunded (the 4-tile
+    // "money" block). Folded into this same Promise.all so it's ready on
+    // first render instead of a separate post-mount client round trip — but
+    // a payments RPC hiccup must still never take down the rest of the
+    // command centre, so an error (or an outright rejection) here resolves
+    // to null rather than rejecting the whole batch.
+    supabase.rpc('outstanding_summary', { p_cafe_id: cafeId, p_from: dayStart, p_to: new Date().toISOString() }).then(
+      ({ data, error }) => (error ? null : (data as MoneySummary | null)),
+      () => null,
+    ),
   ])
 
   const orders = todayOrders.data ?? []
@@ -103,7 +114,8 @@ export async function loadCommandCenterData(
     collectionsByMethod,
     atRiskCustomers: crmAllowed ? (atRisk.data ?? []).map((c) => ({ name: c.name, total_spend: c.total_spend })) : [],
     newCustomersToday: newCustomers ?? 0,
-    cashEnabled: cafeRow.data?.cash_management_enabled ?? false,
+    cashEnabled: cafeRow?.cash_management_enabled ?? false,
+    money: outstandingSummary,
     // Tolerates the RPC not existing yet (migration 0035 unrun) — the
     // dashboard must not break on a café that hasn't migrated.
     lowStockItems: inventoryAllowed ? (lowStock.data ?? []) as { name: string; current_stock: number; min_stock: number; unit: string }[] : [],
@@ -121,8 +133,8 @@ export async function loadCommandCenterData(
     checklist: {
       menuAdded: (itemCount ?? 0) > 0,
       tablesCreated: (totalTables ?? 0) > 0,
-      gstConfigured: Boolean(cafeRow.data?.gst_registered && cafeRow.data?.gstin),
-      paymentsConfigured: Boolean(cafeRow.data?.upi_id || cafeRow.data?.online_payments_enabled),
+      gstConfigured: Boolean(cafeRow?.gst_registered && cafeRow?.gstin),
+      paymentsConfigured: Boolean(cafeRow?.upi_id || cafeRow?.online_payments_enabled),
       staffAdded: (staffCount ?? 0) > 1,
       qrGenerated: (totalTables ?? 0) > 0,
       testOrderPlaced: (everOrderCount ?? 0) > 0,

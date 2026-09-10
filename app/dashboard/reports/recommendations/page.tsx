@@ -19,7 +19,7 @@ export default async function RecommendationsReportPage() {
     redirect('/dashboard')
   }
 
-  const from = businessDaysAgoStartISO(29, cafe.timezone)
+  const from = businessDaysAgoStartISO(6, cafe.timezone)
   const to = new Date().toISOString()
 
   const { data, error } = await supabase.rpc('recommendation_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to })

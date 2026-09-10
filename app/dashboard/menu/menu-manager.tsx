@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { uploadMenuImage } from '@/lib/image-upload'
@@ -8,13 +9,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import BulkImportPanel from './bulk-import-panel'
 import { optionFromDeltas, optionToDeltas } from '@/lib/menu-options'
-import CombosPanel, { type VariantRow } from './combos-panel'
+import CombosPanel from './combos-panel'
 import OffersPanel from './offers-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
-import type { Combo, ComboSlot } from '@/lib/combos'
+
+// Code-split: only mounted while bulkOpen is true, and most Menu sessions
+// never open it — splitting it out of the main Menu bundle keeps that
+// bundle light on first load. ssr:false costs nothing since it's never
+// server-rendered (same pattern as pos-client.tsx's overlay imports).
+const BulkImportPanel = dynamic(() => import('./bulk-import-panel'), { ssr: false })
 
 // PostgREST's PGRST116 ("JSON object requested, multiple (or no) rows
 // returned") is what .update(...).select().single() throws when the update's
@@ -93,28 +98,12 @@ export default function MenuManager({
   role,
   initialCategories,
   initialItems,
-  initialCombos,
-  initialComboSlots,
-  variants,
-  stations,
-  inventoryAllowed,
-  kitchenStationsAllowed,
 }: {
   cafeId: string
   cafeName: string
   role: string
   initialCategories: MenuCategory[]
   initialItems: MenuItemRow[]
-  initialCombos: Combo[]
-  initialComboSlots: ComboSlot[]
-  variants: VariantRow[]
-  stations: { id: string; name: string }[]
-  /** Plan entitlement — see page.tsx. Recipe-costed margin (menu_item_effective_cost)
-   *  is inventory-tier data, same as the Recipes page it's computed from. */
-  inventoryAllowed: boolean
-  /** Plan entitlement — see page.tsx. No RPC choke point exists for station
-   *  routing (plain table writes under RLS), so this gates the picker itself. */
-  kitchenStationsAllowed: boolean
 }) {
   // Estimated cost + contribution are owner/manager information (spec §6).
   const canSeeCost = role === 'owner' || role === 'manager'
@@ -140,6 +129,19 @@ export default function MenuManager({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Plan entitlements + the station picker's own data — all fetched lazily
+  // once the panel that actually needs them opens, instead of on every Menu
+  // page load (see page.tsx). checkFeature mirrors lib/entitlements.ts'
+  // hasFeature() (same RPC, same fail-open-on-error behaviour) but callable
+  // from the browser client.
+  const [stations, setStations] = useState<{ id: string; name: string }[]>([])
+  const [kitchenStationsAllowed, setKitchenStationsAllowed] = useState(false)
+  const [inventoryAllowed, setInventoryAllowed] = useState(false)
+  async function checkFeature(feature: string): Promise<boolean> {
+    const { data, error: err } = await supabase.rpc('cafe_has_feature', { p_cafe_id: cafeId, p_feature: feature })
+    return err ? true : data === true
+  }
+
   // Category → category cross-sell rules (e.g. Pizza pairs with Dips, Drinks).
   // Cold-start: covers every item in a category without configuring each one.
   const [categoryPairs, setCategoryPairs] = useState<Record<string, string[]>>({})
@@ -160,6 +162,27 @@ export default function MenuManager({
     void loadCategoryPairs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Kitchen-station data (the "route this category to a station" picker) is
+  // only needed once the Categories panel is actually opened — see page.tsx.
+  useEffect(() => {
+    if (!manageCats) return
+    let cancelled = false
+    async function load() {
+      const [{ data: st }, allowed] = await Promise.all([
+        supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafeId).order('sort'),
+        checkFeature('kitchen_stations'),
+      ])
+      if (cancelled) return
+      setStations((st ?? []) as { id: string; name: string }[])
+      setKitchenStationsAllowed(allowed)
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manageCats])
 
   async function toggleCategoryPair(catId: string, otherId: string) {
     const current = categoryPairs[catId] ?? []
@@ -207,7 +230,12 @@ export default function MenuManager({
     toast(`Added pairings for ${toUpdate.length} categor${toUpdate.length === 1 ? 'y' : 'ies'} — review and adjust below.`)
   }
 
-  const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorised'
+  // A plain .find() per call was O(categories) per item, run for every
+  // visible item on every render (including the unrelated re-renders a
+  // keystroke in the edit modal triggers, since it lives in this same
+  // component) — memoized into a lookup instead.
+  const catNameById = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
+  const catName = (id: string | null) => (id ? catNameById.get(id) : undefined) ?? 'Uncategorised'
 
   // Bulk import can create many categories/items at once — a full refetch is
   // simpler and safer here than trying to merge an unbounded batch into state.
@@ -508,19 +536,22 @@ export default function MenuManager({
       variants: [],
       addons: [],
     })
-    const [{ data: vs }, { data: as }, { data: prs }, { data: baseCost }] = await Promise.all([
+    const [{ data: vs }, { data: as }, { data: prs }, inventoryNowAllowed] = await Promise.all([
       supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
-      // What the database itself considers this item to cost, recipe included.
       // Recipe-derived cost is inventory-tier data (same entitlement the
-      // Recipes page itself requires) — the RPC only checks cafe membership,
-      // not plan, so the gate has to happen here instead of skipping the call
-      // entirely when the plan doesn't include it.
-      inventoryAllowed
-        ? supabase.rpc('menu_item_effective_cost', { p_menu_item_id: item.id })
-        : Promise.resolve({ data: null }),
+      // Recipes page itself requires) — checked here, when an item is opened
+      // for editing, instead of on every Menu page load (see page.tsx).
+      checkFeature('inventory'),
     ])
+    setInventoryAllowed(inventoryNowAllowed)
+    // What the database itself considers this item to cost, recipe included.
+    // The RPC only checks cafe membership, not plan, so the entitlement check
+    // above still has to gate whether it's called at all.
+    const { data: baseCost } = inventoryNowAllowed
+      ? await supabase.rpc('menu_item_effective_cost', { p_menu_item_id: item.id })
+      : { data: null }
     // Recipe-costed items price their options against the recipe total; manual
     // ones against the Cost field, which may legitimately be blank.
     const base = item.cost_source === 'recipe' ? (typeof baseCost === 'number' ? baseCost : 0) : item.cost
@@ -539,6 +570,14 @@ export default function MenuManager({
           }
         : d,
     )
+  }
+
+  // "Add item" opens the same editor as Edit, so it needs the same inventory
+  // entitlement check (see checkFeature above) to gate the Recipe-costed
+  // toggle correctly for a brand-new item too.
+  async function openAdd() {
+    setDraft({ ...emptyDraft })
+    setInventoryAllowed(await checkFeature('inventory'))
   }
 
   async function onPickImage(file: File | undefined) {
@@ -633,7 +672,7 @@ export default function MenuManager({
           <Button variant="secondary" size="md" onClick={() => setManageOffers((v) => !v)}>
             Offers
           </Button>
-          <Button size="md" onClick={() => setDraft({ ...emptyDraft })}>
+          <Button size="md" onClick={openAdd}>
             Add item
           </Button>
         </div>
@@ -750,9 +789,6 @@ export default function MenuManager({
           canManage={canSeeCost}
           categories={categories}
           items={items}
-          variants={variants}
-          initialCombos={initialCombos}
-          initialSlots={initialComboSlots}
         />
       )}
 

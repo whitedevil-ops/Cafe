@@ -131,6 +131,10 @@ export default function FloorClient({
   const [, tick] = useState(0)
   const selectedRef = useRef<string | null>(null)
   selectedRef.current = selected
+  // True only through the very first poll() call — initialTables (already
+  // seeded into `tables` state above) is authoritative at mount, so that
+  // call skips the redundant cafe_tables re-fetch below.
+  const isFirstPollRef = useRef(true)
   const [quickAdding, setQuickAdding] = useState(false)
   const [quickAddSubmitting, setQuickAddSubmitting] = useState(false)
   // Stable per-attempt key so a network retry can never bill the same order
@@ -147,8 +151,16 @@ export default function FloorClient({
   const [appendTarget, setAppendTarget] = useState<SessionOrder | null>(null)
 
   const poll = useCallback(async () => {
+    // initialTables (seeded into `tables` state at mount) is already
+    // authoritative for the very first poll — skip re-fetching the identical
+    // cafe_tables query on that call only; every later poll (4s interval /
+    // realtime-triggered) still re-fetches since table status can change.
+    const skipTables = isFirstPollRef.current
+    isFirstPollRef.current = false
     const [{ data: tbls, error: tblErr }, { data: sess, error: sessErr }] = await Promise.all([
-      supabase.from('cafe_tables').select('id, label, capacity, status, area_id').eq('cafe_id', cafeId).eq('archived', false),
+      skipTables
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.from('cafe_tables').select('id, label, capacity, status, area_id').eq('cafe_id', cafeId).eq('archived', false),
       supabase
         .from('table_sessions')
         .select('id, table_id, status, started_at, guest_count')
@@ -170,16 +182,33 @@ export default function FloorClient({
       setOrders([])
       setItems([])
       setPayments([])
+      setAttention(new Set())
     } else {
-      const { data: ords } = await supabase
-        .from('orders')
-        .select('id, session_id, table_id, customer_id, short_code, status, payment_status, payment_method, phone, total, receipt_token, created_at')
-        .eq('cafe_id', cafeId)
-        .in('session_id', sessionIds)
-        .neq('status', 'cancelled')
-        .order('created_at', { ascending: true })
+      // Unacknowledged call-waiter flags — scoped to the table's CURRENT
+      // session only. Without this, a call-waiter notification from a table's
+      // earlier visit (already paid, session long closed) that was never
+      // explicitly acknowledged would keep flagging that table forever,
+      // including on a brand new order in a completely new session. Fetched
+      // alongside orders since both only depend on sessionIds/cafeId.
+      const [{ data: ords }, { data: unread }] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('id, session_id, table_id, customer_id, short_code, status, payment_status, payment_method, phone, total, receipt_token, created_at')
+          .eq('cafe_id', cafeId)
+          .in('session_id', sessionIds)
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('notifications')
+          .select('table_id')
+          .eq('cafe_id', cafeId)
+          .eq('type', 'call_waiter')
+          .eq('read', false)
+          .in('session_id', sessionIds),
+      ])
       const orderRows = (ords ?? []) as SessionOrder[]
       setOrders(orderRows)
+      setAttention(new Set((unread ?? []).map((n) => n.table_id).filter(Boolean) as string[]))
 
       // Payments attach to a session (split payments) OR a single order
       // (a settled order) — fetch both dimensions so a table's paid amount is
@@ -204,24 +233,6 @@ export default function FloorClient({
       const map: Record<string, string> = {}
       for (const c of custRes.data ?? []) if (c.name) map[c.id] = c.name
       setNames(map)
-    }
-
-    // Unacknowledged call-waiter flags — scoped to the table's CURRENT
-    // session only. Without this, a call-waiter notification from a table's
-    // earlier visit (already paid, session long closed) that was never
-    // explicitly acknowledged would keep flagging that table forever,
-    // including on a brand new order in a completely new session.
-    if (sessionIds.length === 0) {
-      setAttention(new Set())
-    } else {
-      const { data: unread } = await supabase
-        .from('notifications')
-        .select('table_id')
-        .eq('cafe_id', cafeId)
-        .eq('type', 'call_waiter')
-        .eq('read', false)
-        .in('session_id', sessionIds)
-      setAttention(new Set((unread ?? []).map((n) => n.table_id).filter(Boolean) as string[]))
     }
 
     const sel = selectedRef.current
@@ -306,7 +317,6 @@ export default function FloorClient({
   useEffect(() => {
     // poll() is async and only calls setState after its own network
     // round-trip completes — not a synchronous render-phase update.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void poll()
     const p = setInterval(poll, 4000)
     const t = setInterval(() => tick((n) => n + 1), 30000)

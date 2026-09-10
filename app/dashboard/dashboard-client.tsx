@@ -1,12 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Clock, Users, Ban, CheckCircle2, Wallet, PackageMinus, TrendingDown } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO } from '@/lib/datetime'
 import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist'
 import { Change } from './reports/_shared'
+
+export type MoneySummary = {
+  collected: number
+  outstanding: number
+  refunded: number
+  unpaid_orders: number
+  unpaid_dine_in: number
+  unpaid_takeaway: number
+}
 
 export type DailySummary = {
   netSales: number
@@ -54,6 +63,7 @@ export type CommandCenterData = {
   }
   crmAllowed: boolean
   inventoryAllowed: boolean
+  money: MoneySummary | null
 }
 
 export default function DashboardClient({
@@ -74,7 +84,14 @@ export default function DashboardClient({
   const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState(initialData)
   const [lastPolledAt, setLastPolledAt] = useState<Date | null>(null)
-  const [money, setMoney] = useState<{ collected: number; outstanding: number; refunded: number; unpaid_orders: number; unpaid_dine_in: number; unpaid_takeaway: number } | null>(null)
+  const [money, setMoney] = useState<MoneySummary | null>(initialData.money)
+
+  // Plan entitlements, not live counters — stable for the life of this tab
+  // (see the comment on atRiskCustomers/lowStockItems below), so poll() reads
+  // them from a ref rather than state to decide whether to fire these two
+  // queries at all, instead of firing then discarding the result.
+  const crmAllowedRef = useRef(initialData.crmAllowed)
+  const inventoryAllowedRef = useRef(initialData.inventoryAllowed)
 
   const poll = useCallback(async () => {
     const dayStart = businessDayStartISO(timezone)
@@ -90,11 +107,15 @@ export default function DashboardClient({
         supabase.from('table_sessions').select('table_id').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
         supabase.from('cafe_tables').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
         supabase.from('payments').select('method, amount').eq('cafe_id', cafeId).gte('created_at', dayStart),
-        supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false }),
+        crmAllowedRef.current
+          ? supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false })
+          : Promise.resolve({ data: [] as { name: string | null; total_spend: number }[] }),
         supabase.from('customers').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).gte('first_seen', dayStart),
         supabase.from('cash_shifts').select('id, status, difference, opened_at, closed_at').eq('cafe_id', cafeId).order('opened_at', { ascending: false }).limit(1),
         supabase.from('cafes').select('cash_management_enabled').eq('id', cafeId).maybeSingle(),
-        supabase.rpc('low_stock_items', { p_cafe_id: cafeId }),
+        inventoryAllowedRef.current
+          ? supabase.rpc('low_stock_items', { p_cafe_id: cafeId })
+          : Promise.resolve({ data: [] as CommandCenterData['lowStockItems'] }),
       ])
 
     const orders = todayOrders.data ?? []
@@ -142,6 +163,11 @@ export default function DashboardClient({
       checklist: prev.checklist,
       crmAllowed: prev.crmAllowed,
       inventoryAllowed: prev.inventoryAllowed,
+      // Not refetched here — the separate money state (seeded from
+      // initialData.money, kept fresh by its own effect below) is what
+      // actually renders; this field just keeps CommandCenterData's shape
+      // consistent for whoever reads data.money later.
+      money: prev.money,
     }))
     setLastPolledAt(new Date())
   }, [supabase, cafeId, timezone])
@@ -151,8 +177,11 @@ export default function DashboardClient({
     return () => clearInterval(p)
   }, [poll])
 
-  // Money today: collected vs still-outstanding vs refunded. Its own fetch so
-  // a payments RPC hiccup can never take down the rest of the command centre.
+  // Money today: collected vs still-outstanding vs refunded. Seeded from the
+  // server on first render now (see initialData.money) rather than fetched
+  // here on mount — this effect only keeps it fresh every 30s after that. Its
+  // own re-poll so a payments RPC hiccup can never take down the rest of the
+  // command centre.
   useEffect(() => {
     let alive = true
     const run = async () => {
@@ -160,9 +189,8 @@ export default function DashboardClient({
       const { data: sum } = await supabase.rpc('outstanding_summary', {
         p_cafe_id: cafeId, p_from: dayStart, p_to: new Date().toISOString(),
       })
-      if (alive && sum) setMoney(sum as typeof money)
+      if (alive && sum) setMoney(sum as MoneySummary)
     }
-    void run()
     const id = setInterval(run, 30000)
     return () => { alive = false; clearInterval(id) }
   }, [supabase, cafeId, timezone])

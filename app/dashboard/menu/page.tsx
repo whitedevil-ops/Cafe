@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
-import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
 import MenuManager from './menu-manager'
 import type { MenuCategory, MenuItemRow } from './types'
-import type { Combo, ComboSlot } from '@/lib/combos'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,37 +11,13 @@ export default async function MenuPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: categories }, { data: items }, { data: combos }, { data: stations }, inventoryAllowed, kitchenStationsAllowed] = await Promise.all([
+  // Categories and items are all the plain item list needs for first paint.
+  // Combos, kitchen stations, and item-editor-only data (variants, the
+  // inventory entitlement) are fetched lazily client-side once their own
+  // panel is actually opened — see menu-manager.tsx and combos-panel.tsx.
+  const [{ data: categories }, { data: items }] = await Promise.all([
     supabase.from('menu_categories').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase.from('menu_items').select('*').eq('cafe_id', cafe.cafeId).order('sort'),
-    // `margin` is included here and nowhere else — the POS and QR menu select
-    // combos without it so the owner's own figure never reaches a guest.
-    supabase.from('combos').select('id, name, description, price, margin, image_url, active, sort').eq('cafe_id', cafe.cafeId).order('sort'),
-    // For the "route this category to a kitchen station" picker — without
-    // this, kitchen_stations exists in the DB but a station-bound printer
-    // can never actually match any item (see kot-printing-panel.tsx).
-    supabase.from('kitchen_stations').select('id, name').eq('cafe_id', cafe.cafeId).order('sort'),
-    // Recipe-derived cost (menu_item_effective_cost RPC) is inventory-tier
-    // data — the Recipes page already gates on this same key. menu-manager.tsx
-    // needs it too so it can skip that RPC and hide the "Recipe calculated"
-    // cost source for a café whose plan doesn't include inventory.
-    hasFeature(cafe.cafeId, 'inventory'),
-    hasFeature(cafe.cafeId, 'kitchen_stations'),
-  ])
-
-  // Slots for every combo, and variants for every item, in one round each —
-  // the combo editor needs a size picker the moment a fixed item with sizes is
-  // chosen, and a café's whole variant set is small enough not to warrant a
-  // lazy per-item fetch here.
-  const itemIds = (items ?? []).map((i) => i.id)
-  const comboIds = (combos ?? []).map((c) => c.id)
-  const [{ data: comboSlots }, { data: variants }] = await Promise.all([
-    comboIds.length
-      ? supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
-      : Promise.resolve({ data: [] }),
-    itemIds.length
-      ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
-      : Promise.resolve({ data: [] }),
   ])
 
   return (
@@ -53,12 +27,6 @@ export default async function MenuPage() {
       role={cafe.role}
       initialCategories={(categories ?? []) as MenuCategory[]}
       initialItems={(items ?? []) as MenuItemRow[]}
-      initialCombos={(combos ?? []) as Combo[]}
-      initialComboSlots={(comboSlots ?? []) as ComboSlot[]}
-      variants={(variants ?? []) as { id: string; menu_item_id: string; name: string; price_delta: number }[]}
-      stations={(stations ?? []) as { id: string; name: string }[]}
-      inventoryAllowed={inventoryAllowed}
-      kitchenStationsAllowed={kitchenStationsAllowed}
     />
   )
 }
