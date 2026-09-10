@@ -89,18 +89,13 @@ export type CafeDetail = {
 // Every key here is actually checked by app code (see lib/entitlements.ts
 // callers, plus public_cafe_ordering_enabled for qr_ordering) — deliberately
 // excludes keys platform_plans.features still carries but nothing reads
-// (kds, multi_staff — see ALWAYS_INCLUDED/max_staff instead), and excludes
-// 'referral' — the Refer & Earn UI was removed from every customer/owner
-// surface (loyalty settings, customer wallet, login gate), so a toggle here
-// would control a feature nobody can see or use. Recipes, Purchases,
-// Suppliers, Profitability, and Recommendations are NOT listed separately —
-// each is real, but none has its own entitlement key (the first four ride on
-// 'inventory' or 'advanced_reports', Recommendations has no plan gate at
-// all, only a role check) — see each feature's own description below for
-// exactly what it bundles, rather than inventing a toggle that would
-// silently do nothing. Spin & Win used to be in that list; migration 0204
-// gave it a real 'spin' key of its own, enforced end to end (save_spin_wheel,
-// get_spin_wheel, spin_the_wheel), so its toggle below genuinely works.
+// (kds, multi_staff — see CATEGORIES' static entries / max_staff instead),
+// and excludes 'referral' — the Refer & Earn UI was removed from every
+// customer/owner surface (loyalty settings, customer wallet, login gate), so
+// a toggle here would control a feature nobody can see or use. Spin & Win
+// used to ride informally on 'loyalty'; migration 0204 gave it a real 'spin'
+// key of its own, enforced end to end (save_spin_wheel, get_spin_wheel,
+// spin_the_wheel), so its toggle below genuinely works.
 const FEATURES: { key: string; label: string; description: string }[] = [
   { key: 'qr_ordering', label: 'QR Ordering', description: 'Kill switch for the customer-facing QR menu & ordering flow.' },
   { key: 'crm', label: 'Customer Directory (CRM)', description: 'Saved customer profiles and order history.' },
@@ -114,38 +109,121 @@ const FEATURES: { key: string; label: string; description: string }[] = [
   { key: 'inventory', label: 'Inventory, Recipes & Purchases', description: 'Stock tracking, recipe costing, and supplier purchase orders.' },
   { key: 'expenses', label: 'Expenses Tracking', description: 'Manual expense entries feeding the Profitability report.' },
   { key: 'advanced_analytics', label: 'Advanced Analytics', description: 'The /dashboard/analytics deep-dive page.' },
-  { key: 'advanced_reports', label: 'Advanced Reports', description: 'GST invoice register and refund/adjustment reports beyond a single day.' },
+  { key: 'advanced_reports', label: 'Advanced Reports', description: 'GST invoice register, plus the Adjustments, Operations, Profitability and Recommendations report pages — everything beyond Core Reports’ single-day view.' },
   { key: 'online_payments', label: 'Online Payments (Razorpay)', description: 'Customer UPI/card payment at checkout, via this café\'s own Razorpay account.' },
 ]
 
-// Grouped by which paid plan first unlocks each feature (live platform_plans
-// rows: starter/pro/business, shown here by their real product names —
-// Starter/Growth/Scale), not by product category — this is what an operator
-// actually needs while deciding "does this café need to move up a tier for
-// X," which a category grouping doesn't answer. Trial isn't its own group:
-// every key below is already false on Trial, same as an empty plan, so it
-// has nothing to contribute that Starter doesn't already show. Order within
-// each group otherwise matches FEATURES above. Derived from the live
-// platform_plans.features composition — if a feature's plan floor is ever
-// repackaged, this hardcoded mapping needs updating to match, same as any
-// other snapshot of pricing/packaging decisions in this file.
-const FEATURE_GROUPS: { heading: string; keys: string[] }[] = [
-  { heading: 'Starter', keys: ['qr_ordering', 'crm'] },
-  { heading: 'Growth', keys: ['coupons', 'loyalty', 'spin', 'wallet', 'reservations', 'sms_bills', 'whatsapp_bills', 'expenses', 'advanced_analytics', 'online_payments'] },
-  { heading: 'Scale', keys: ['inventory', 'advanced_reports'] },
-]
+// Which paid plan first unlocks each toggle (live platform_plans.features
+// composition — starter/pro/business, shown by their real product names).
+// Shown inline per row now rather than as the primary grouping — see
+// CATEGORIES below for why the grouping itself changed. If a feature's plan
+// floor is ever repackaged, this hardcoded mapping needs updating to match,
+// same as any other snapshot of pricing/packaging decisions in this file.
+const PLAN_FLOOR: Record<string, string> = {
+  qr_ordering: 'Starter', crm: 'Starter',
+  coupons: 'Growth', loyalty: 'Growth', spin: 'Growth', wallet: 'Growth', reservations: 'Growth',
+  sms_bills: 'Growth', whatsapp_bills: 'Growth', expenses: 'Growth', advanced_analytics: 'Growth', online_payments: 'Growth',
+  inventory: 'Scale', advanced_reports: 'Scale',
+}
 
-// Not gated on anything — every café gets these regardless of plan, so
-// there's no toggle for them. Listed read-only so an operator sees the
-// café's full feature set in one place, not just the plan-gated subset.
-const ALWAYS_INCLUDED: string[] = [
-  'QR ordering', 'Digital menu builder', 'POS billing', 'Kitchen Display System (KDS)',
-  'Live Tables', 'Discounts, held orders, cancel with reason', 'Bills & GST invoicing',
-  'Digital receipts', 'Customer "My Orders"', 'Cash shift & drawer reconciliation',
-  'Waiter tableside quick-add', 'Real-time sync', 'Pay at Counter + customer UPI',
-  'Staff accounts & roles', 'Per-role screen access control', 'Café profile & settings',
-  'Sales report, Day Close, Item sales, Payments & aging, Operations', 'Recommendations (role-gated, not plan-gated)',
-  'Owner Command Center',
+// Full-product audit (2026-09-10): grouped by what an operator is actually
+// looking for ("what does this café's ordering flow look like") rather than
+// by which plan unlocks it — the plan tier is still shown per row via
+// PLAN_FLOOR, it's just no longer the thing the page is organised around.
+// "Operations" was considered as its own top-level section (a real Ops
+// Admin ask) but its contents — ordering, kitchen, billing — are exactly
+// Ordering + Kitchen + Billing & Payments below; a separate bucket would
+// only have duplicated rows already living in those three, so it was folded
+// in instead of invented as a fourth home for the same content.
+//
+// `static` entries are real, live capabilities with NO entitlement gate
+// anywhere in the code — confirmed by direct grep for hasFeature/
+// cafe_has_feature against every route, component and RPC that implements
+// them, not assumed. They render read-only (no switch) for exactly that
+// reason: a toggle here would control nothing. Two corrections against the
+// previous always-included list, both confirmed live: the Operations report
+// (app/dashboard/reports/operations/page.tsx:17) and the Recommendations
+// REPORT (app/dashboard/reports/recommendations/page.tsx:18) are both
+// actually gated behind 'advanced_reports' — they are not, and were wrongly
+// listed as, always-included. Only the live guest-facing upsell PROMPT
+// (shown while ordering, a completely different thing from that report) has
+// no gate at all.
+const CATEGORIES: { heading: string; toggleKeys: string[]; static: { label: string; description: string }[] }[] = [
+  {
+    heading: 'Ordering',
+    toggleKeys: ['qr_ordering', 'reservations'],
+    static: [
+      { label: 'Digital menu builder', description: 'One menu shared by the counter, QR ordering and the kitchen.' },
+      { label: 'Dine-in ordering', description: 'Owner-configured at onboarding (cafes.dine_in) — not plan-gated.' },
+      { label: 'Takeaway ordering', description: 'Owner-configured at onboarding (cafes.takeaway) — not plan-gated.' },
+      { label: 'Customer "My Orders"', description: 'Guest order history on their own device.' },
+    ],
+  },
+  {
+    heading: 'Kitchen',
+    toggleKeys: [],
+    static: [
+      { label: 'Kitchen Display System (KDS)', description: 'Live kitchen screen — confirmed nothing reads platform_plans.features’ old "kds" key.' },
+      { label: 'KOT / kitchen order tickets', description: 'The order ticket itself, printed or on-screen.' },
+      { label: 'Print bridge & automatic KOT printing', description: 'The desktop app’s background print bridge.' },
+      { label: 'Manual KOT reprint', description: 'reprint_kot() has no entitlement check of any kind.' },
+      { label: 'Print now on this device', description: 'Browser-triggered printing from the kitchen screen.' },
+      { label: 'Bluetooth printer', description: 'Direct Bluetooth printing from a phone/tablet.' },
+      { label: 'Direct desktop printing', description: 'Printing from the desktop app without the bridge.' },
+      { label: 'Kitchen stations', description: 'Routing tickets to specific prep stations.' },
+    ],
+  },
+  {
+    heading: 'Billing & Payments',
+    toggleKeys: ['online_payments'],
+    static: [
+      { label: 'POS billing', description: 'Core checkout/billing flow — no page-level gate.' },
+      { label: 'Live Tables', description: 'Floor view and table status.' },
+      { label: 'Discounts, held orders, cancel with reason', description: 'No dedicated feature key for any of the three.' },
+      { label: 'GST invoicing on the bill', description: 'Distinct from the GST *report* — see Advanced Reports.' },
+      { label: 'Digital receipts', description: 'app/r/[token] renders any valid receipt token, on every plan.' },
+      { label: 'Split payments', description: 'record_session_payment carries no entitlement check.' },
+      { label: 'Refunds', description: 'refund_order() is role-gated (owner/manager/cashier), not plan-gated.' },
+      { label: 'Pay at counter + customer UPI', description: 'Counter-side payment methods.' },
+      { label: 'Cash shift & drawer reconciliation', description: 'Owner on/off toggle (cash_management_enabled) — not a plan feature.' },
+      { label: 'Waiter tableside quick-add', description: 'Adding items to a table’s order from the floor.' },
+    ],
+  },
+  {
+    heading: 'Customers & Marketing',
+    toggleKeys: ['crm', 'coupons', 'loyalty', 'spin', 'wallet', 'sms_bills', 'whatsapp_bills'],
+    static: [
+      { label: 'Upsell prompt during ordering', description: 'The live guest-facing suggestion shown while ordering — genuinely ungated, unlike the separate Recommendations report (see Advanced Reports).' },
+    ],
+  },
+  {
+    heading: 'Management',
+    toggleKeys: ['expenses'],
+    static: [
+      { label: 'Owner Command Center', description: 'The dashboard home itself is ungated — only its CRM and inventory widgets are individually feature-checked.' },
+      { label: 'Café profile & settings', description: 'Business details, hours, and preferences.' },
+    ],
+  },
+  {
+    heading: 'Inventory',
+    toggleKeys: ['inventory'],
+    static: [],
+  },
+  {
+    heading: 'Reports & Analytics',
+    toggleKeys: ['advanced_analytics', 'advanced_reports'],
+    static: [
+      { label: 'Core reports', description: 'Sales, Day Close, Item sales, Payments & aging — the single-day reports every plan gets.' },
+    ],
+  },
+  {
+    heading: 'Staff & Access',
+    toggleKeys: [],
+    static: [
+      { label: 'Staff accounts & roles', description: 'Seat-capped by plan (platform_plans.max_staff — see Account & Subscription), not an on/off feature.' },
+      { label: 'Per-role screen access control', description: 'Which dashboard screens each role can see, configurable per café.' },
+    ],
+  },
 ]
 
 const STATUS_ACTIONS: { to: string; label: string; destructive: boolean; explain: string }[] = [
@@ -451,10 +529,22 @@ export default function CafeDetailClient({
       FEATURES.map((f) => supabase.rpc('op_set_feature_override', { p_cafe_id: cafeId, p_feature_key: f.key, p_enabled: enabled })),
     )
     setBulkSetting(false)
-    const failed = results.find((r) => r.error)
-    if (failed?.error) return toast(failed.error.message, 'error')
-    toast(enabled ? 'All features turned on.' : 'All features turned off.')
+    // FOUND (full-product audit, 2026-09-10): this used to report only the
+    // first failed RPC's message even though up to 14 run in parallel — a
+    // partial failure (say 12 of 14 succeed) read identically to "one thing
+    // went wrong", with no way to tell which features actually changed.
+    // refresh() below still re-reads real server state regardless, so a
+    // partial failure never shows a wrong toggle — it just wasn't ever
+    // reported as partial before.
+    const failures = FEATURES.map((f, i) => ({ key: f.key, error: results[i].error })).filter((r) => r.error)
     void refresh()
+    if (failures.length === 0) {
+      toast(enabled ? 'All features turned on.' : 'All features turned off.')
+    } else if (failures.length === FEATURES.length) {
+      toast(failures[0].error!.message, 'error')
+    } else {
+      toast(`${FEATURES.length - failures.length}/${FEATURES.length} updated — failed: ${failures.map((f) => f.key).join(', ')}`, 'error')
+    }
   }
 
   async function addNote() {
@@ -536,8 +626,9 @@ export default function CafeDetailClient({
     : 0
   const healthVerdict = health ? getHealthVerdict(health) : null
   const maxStaff = plans.find((p) => p.key === data.account.plan)?.max_staff ?? null
-  const filteredFeatures = featureSearch.trim()
-    ? FEATURES.filter((f) => f.label.toLowerCase().includes(featureSearch.trim().toLowerCase()))
+  const featureSearchTerm = featureSearch.trim().toLowerCase()
+  const filteredFeatures = featureSearchTerm
+    ? FEATURES.filter((f) => f.label.toLowerCase().includes(featureSearchTerm))
     : null
 
   return (
@@ -789,18 +880,25 @@ export default function CafeDetailClient({
               </div>
             )}
 
-            {/* One bordered Panel per plan tier — was a plain uppercase label
-                above a divider, which read as one continuous list once you'd
-                scrolled a screen or two; a real card boundary per tier makes
-                "where does Growth end and Scale begin" obvious at a glance. */}
+            {/* One bordered Panel per functional category — covers every real
+                capability KhaoPiyo has, not just the plan-gated subset: a
+                toggle row where a real entitlement exists, a plain read-only
+                row (an "Always included" badge instead of a switch) where it
+                genuinely doesn't. A category with nothing matching the
+                current search — in either its toggles or its static rows —
+                disappears entirely rather than showing an empty card. */}
             <div className="mt-4 space-y-4">
-              {FEATURE_GROUPS.map((g) => {
-                const keys = g.keys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
-                if (keys.length === 0) return null
+              {CATEGORIES.map((cat) => {
+                const toggleKeys = cat.toggleKeys.filter((k) => !filteredFeatures || filteredFeatures.some((f) => f.key === k))
+                const staticItems = featureSearchTerm
+                  ? cat.static.filter((s) => s.label.toLowerCase().includes(featureSearchTerm))
+                  : cat.static
+                const rowCount = toggleKeys.length + staticItems.length
+                if (rowCount === 0) return null
                 return (
-                  <Panel key={g.heading} title={g.heading} count={keys.length} tone="neutral">
+                  <Panel key={cat.heading} title={cat.heading} count={rowCount} tone="neutral">
                     <ul className="divide-y divide-border">
-                      {keys.map((key) => {
+                      {toggleKeys.map((key) => {
                         const f = FEATURES.find((x) => x.key === key)!
                         const included = data.features.plan_defaults[key] ?? false
                         const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
@@ -815,7 +913,7 @@ export default function CafeDetailClient({
                                   override (the exception, not the rule) gets the extra clause
                                   and the one action that actually matters: undo it. */}
                               <p className="mt-1 text-[11px] text-muted-foreground">
-                                Plan default: {included ? 'included' : 'not included'}
+                                Included from {PLAN_FLOOR[key]} · plan default here: {included ? 'included' : 'not included'}
                                 {override !== null && (
                                   <>
                                     {' · overridden for this café'}
@@ -850,18 +948,19 @@ export default function CafeDetailClient({
                           </li>
                         )
                       })}
+                      {staticItems.map((s) => (
+                        <li key={s.label} className="flex items-center justify-between gap-4 py-3 text-[13.5px]">
+                          <div className="min-w-0">
+                            <p className="text-foreground">{s.label}</p>
+                            <p className="mt-0.5 text-[12px] text-muted-foreground">{s.description}</p>
+                          </div>
+                          <Badge tone="neutral">Always included</Badge>
+                        </li>
+                      ))}
                     </ul>
                   </Panel>
                 )
               })}
-            </div>
-
-            <div className="mt-6 border-t border-border pt-4">
-              <p className="text-[13px] font-medium text-foreground">Always included</p>
-              <p className="mt-1 text-[12.5px] text-muted-foreground">Every café gets these regardless of plan — nothing to toggle.</p>
-              <ul className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-                {ALWAYS_INCLUDED.map((label) => <li key={label} className="text-[13px] text-muted-foreground">{label}</li>)}
-              </ul>
             </div>
           </section>
         )}
