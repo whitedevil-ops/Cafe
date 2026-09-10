@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { DesktopSessionBridge } from "@/components/desktop-session-bridge";
+import { DesktopRouteGuard } from "@/components/desktop-route-guard";
 import { DesktopExternalLinks } from "@/components/desktop-external-links";
 import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
@@ -177,6 +178,10 @@ export default function RootLayout({
             lands on /login, and that is exactly where the stored session has
             to be restored from. */}
         <DesktopSessionBridge />
+        {/* Keeps registration/onboarding out of the desktop app on every
+            navigation, not just the launch DesktopSessionBridge decides —
+            see that component's own comment for why the two are separate. */}
+        <DesktopRouteGuard />
         {/* Root for the same reason: _blank links sit on the bill drawer, Live
             tables, POS and the guest's own order page alike, and every one of
             them is inert in the webview without this. */}

@@ -180,7 +180,11 @@ function LoginForm() {
         </Button>
       </form>
 
-      {!isOps && (
+      {/* Registration happens on the web only — the desktop app is a
+          till, not a signup flow (2026-09-10). desktop-route-guard.tsx
+          backstops this by bouncing /get-started back here if reached
+          anyway, but there is no reason to even show the link. */}
+      {!isOps && !desktop && (
         <p className="mt-6 text-center text-sm text-muted-foreground">
           New here?{' '}
           <Link href="/get-started" className="font-medium text-primary hover:underline">
