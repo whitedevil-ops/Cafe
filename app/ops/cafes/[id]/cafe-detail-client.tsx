@@ -940,13 +940,19 @@ export default function CafeDetailClient({
           <section className="rounded-xl border border-border bg-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <p className="text-sm font-medium text-foreground">Payments &amp; billing</p>
-              {/* Only shown while the plan is actually active — matches the
-                  same restriction stated in the task this shipped for: an
-                  invoice for a lapsed/cancelled subscription isn't what
-                  "Generate Invoice" is for. Ops still reaches the underlying
-                  RPC for any café via the Invoices list if a backdated
-                  invoice is genuinely needed later. */}
-              {permissions['subscriptions.manage'] && data.account.billing_status === 'active' && (
+              {/* FOUND LIVE (2026-09-10): this used to check
+                  billing_status === 'active', which is driven entirely by
+                  the Razorpay webhook — and with no real gateway wired up
+                  for any plan (platform_plans.razorpay_plan_id is null
+                  everywhere), billing_status is 'none' for every café,
+                  forever, under the current manual-UPI reality this feature
+                  exists to serve. That made the button unreachable for any
+                  café, always. "The plan is active" means the café's own
+                  account status, not the gateway subscription lifecycle —
+                  account.status is what the badge in the header above
+                  literally shows as "Active", and what actually means this
+                  café is a live, paying (by personal UPI) customer. */}
+              {permissions['subscriptions.manage'] && data.account.status === 'active' && (
                 <button
                   onClick={() => setInvoiceModalOpen(true)}
                   className="flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] bg-primary px-3 text-[12.5px] font-medium text-primary-foreground hover:bg-primary-hover"
