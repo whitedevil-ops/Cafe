@@ -10,8 +10,8 @@ import { ReportsSubnav } from '../_shared'
 export type SalesReport = {
   summary: { revenue: number; orders: number; aov: number; discount: number; tax: number; refunds: number; expenses: number | null; net_profit: number | null }
   by_day: { date: string; revenue: number; orders: number }[]
-  top_items: { name: string; qty: number; revenue: number }[]
-  by_category: { category: string; revenue: number }[]
+  top_items: { name: string; qty: number; gross_sales: number }[]
+  by_category: { category: string; gross_sales: number }[]
   by_payment_method: { method: string; revenue: number }[]
   by_source: { source: string; orders: number; revenue: number }[]
   by_staff: { staff_name: string; orders: number; revenue: number }[]
@@ -141,13 +141,16 @@ export default function SalesReportClient({
         ],
       },
       {
-        name: 'Item sales', title: 'Item sales',
-        columns: [{ header: 'Item', key: 'name', kind: 'text' }, { header: 'Qty', key: 'qty', kind: 'qty' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        // 0230: gross sales (before discount), not net revenue — see the
+        // on-page caption next to these two sections for why this can be
+        // higher than the Revenue figure above when any discount applied.
+        name: 'Item sales', title: 'Item sales (gross, before discount)',
+        columns: [{ header: 'Item', key: 'name', kind: 'text' }, { header: 'Qty', key: 'qty', kind: 'qty' }, { header: 'Gross sales (₹)', key: 'gross_sales', kind: 'money' }],
         rows: r.top_items,
       },
       {
-        name: 'Category sales', title: 'Category sales',
-        columns: [{ header: 'Category', key: 'category', kind: 'text' }, { header: 'Revenue (₹)', key: 'revenue', kind: 'money' }],
+        name: 'Category sales', title: 'Category sales (gross, before discount)',
+        columns: [{ header: 'Category', key: 'category', kind: 'text' }, { header: 'Gross sales (₹)', key: 'gross_sales', kind: 'money' }],
         rows: r.by_category,
       },
       {
@@ -282,13 +285,18 @@ export default function SalesReportClient({
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
             {report.top_items.length > 0 && (
               <Section title="Top items">
-                <List rows={report.top_items.map((i) => ({ label: `${i.name} × ${i.qty}`, value: i.revenue }))} />
+                <List rows={report.top_items.map((i) => ({ label: `${i.name} × ${i.qty}`, value: i.gross_sales }))} />
               </Section>
             )}
             {report.by_category.length > 0 && (
               <Section title="By category">
-                <List rows={report.by_category.map((c) => ({ label: c.category, value: c.revenue }))} />
+                <List rows={report.by_category.map((c) => ({ label: c.category, value: c.gross_sales }))} />
               </Section>
+            )}
+            {(report.top_items.length > 0 || report.by_category.length > 0) && (
+              <p className="text-[11.5px] text-muted-foreground sm:col-span-2">
+                Gross — before any discount, so this can add up to more than the Revenue figure above when a coupon, staff discount, or combo bundle applied in this range.
+              </p>
             )}
             {report.by_payment_method.length > 0 && (
               <Section title="By payment method">

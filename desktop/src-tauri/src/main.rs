@@ -90,6 +90,23 @@ fn spawn_update_check(app: &tauri::AppHandle) {
             .show();
         if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
             applog::log_line(&handle, UPDATE_LOG, &format!("download/install failed: {e}"));
+            // FOUND LIVE (full-product audit, 2026-09-10): the toast above
+            // already promised staff a restart "in a moment" — if it never
+            // comes, that promise is the only thing anyone standing at the
+            // till saw, and it was simply never followed up on. This is the
+            // exact scenario already observed live on a real machine (Smart
+            // App Control silently blocking the installer): nothing told
+            // anyone anything went wrong, only updater.log, which nobody at
+            // a café is expected to open. A second notification doesn't fix
+            // whatever blocked the install, but it stops the failure from
+            // being invisible to the one person who could actually notice
+            // and ask for help.
+            let _ = handle
+                .notification()
+                .builder()
+                .title("KhaoPiyo update didn't finish")
+                .body("Still running the current version — nothing is broken, but this machine needs attention to get the latest update.")
+                .show();
         }
     });
 }
