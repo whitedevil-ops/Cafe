@@ -106,9 +106,23 @@ export function DesktopSessionBridge() {
         refresh_token: stored.refresh_token,
       })
       if (error) {
-        // Revoked or expired past recovery — drop it rather than retrying this
-        // on every launch forever.
-        void clearStoredSession()
+        // FOUND LIVE (full-product audit, 2026-09-10): setSession()
+        // internally refreshes the (almost certainly already-expired,
+        // freshly-loaded-from-disk) access token, and a pure network/offline
+        // failure during THAT refresh comes back as this exact same `error`
+        // shape — auth-js itself wraps it as AuthRetryableFetchError
+        // precisely so its own internal logic can tell "the refresh token is
+        // dead" apart from "could not reach the server this instant". This
+        // code used to treat every error identically as "revoked or expired
+        // past recovery" and permanently delete the one credential ("Keep me
+        // signed in") that exists for exactly this scenario: a till that
+        // autostarts with Windows before the router/internet is back up
+        // after a power cycle. Only clear the stored session on a genuine
+        // rejection; a retryable/network error leaves it alone so the next
+        // launch gets another chance instead of silently signing out.
+        if (error.name !== 'AuthRetryableFetchError') {
+          void clearStoredSession()
+        }
         applyLaunch({ hasSession: false, restored: false })
         return
       }

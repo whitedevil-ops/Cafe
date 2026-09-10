@@ -18,9 +18,15 @@ export default async function ExpensesPage() {
     return <UpgradeRequired feature="Expenses" plan={await getCafePlanName(cafe.cafeId)} />
   }
 
-  // RLS ("member all" on expenses, schema.sql) already lets any active café
-  // member manage expenses — that's an existing, deliberate product
-  // decision, not something introduced or narrowed here.
+  // FOUND LIVE (full-product audit, 2026-09-10): this comment was stale/
+  // incorrect — record_expense and delete_expense (supabase/migrations/
+  // 0167_fix_record_expense_method_cast.sql, 0166_phase1_security_
+  // lockdown_part4.sql) are both owner/manager-only at the RPC level, not
+  // "any active member." ExpensesClient never received the role prop this
+  // page's siblings (loyalty, coupons, reservations) all use to hide/disable
+  // admin-only controls, so any role granted this screen — 'accountant' gets
+  // it by default — saw a fully interactive "Log an expense" form and Delete
+  // buttons that always failed with an RPC exception.
   const since = businessDaysAgoStartISO(89, cafe.timezone).slice(0, 10)
   const { data } = await supabase
     .from('expenses')
@@ -29,5 +35,5 @@ export default async function ExpensesPage() {
     .gte('spent_on', since)
     .order('spent_on', { ascending: false })
 
-  return <ExpensesClient cafeId={cafe.cafeId} initialExpenses={(data ?? []) as Expense[]} />
+  return <ExpensesClient cafeId={cafe.cafeId} role={cafe.role} initialExpenses={(data ?? []) as Expense[]} />
 }

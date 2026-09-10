@@ -916,9 +916,18 @@ export default function PosClient({
         p_cafe_id: cafeId, p_customer_phone: customerPhone, p_reward_id: rewardId,
       })
       if (error) return toast(error.message, 'error')
-      const r = data as { reward: string; points_spent: number; remaining_balance: number }
-      toast(`Redeemed "${r.reward}" — ${r.remaining_balance} points left.`)
-      setCustomerLookup((c) => (c ? { ...c, points: r.remaining_balance } : c))
+      // FOUND LIVE (full-product audit, 2026-09-10): migration 0143 renamed
+      // this RPC's returned key from remaining_balance to new_balance when it
+      // added entitlement enforcement (matching how every other balance-
+      // returning RPC in this schema names it — see loyalty-client.tsx and
+      // menu-client.tsx, both already reading new_balance correctly). This
+      // call was never updated, so the redemption itself always succeeded
+      // server-side, but the toast and the locally-cached points shown for
+      // the rest of this POS session were both undefined/0 instead of the
+      // real balance.
+      const r = data as { reward: string; points_spent: number; new_balance: number }
+      toast(`Redeemed "${r.reward}" — ${r.new_balance} points left.`)
+      setCustomerLookup((c) => (c ? { ...c, points: r.new_balance } : c))
       return
     }
 

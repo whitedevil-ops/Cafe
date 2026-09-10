@@ -32,13 +32,16 @@ function todayLocal() {
 
 export default function ExpensesClient({
   cafeId,
+  role,
   initialExpenses,
 }: {
   cafeId: string
+  role: string
   initialExpenses: Expense[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
+  const isAdmin = role === 'owner' || role === 'manager'
   const [expenses, setExpenses] = useState(initialExpenses)
   const [category, setCategory] = useState(PRESET_CATEGORIES[0])
   const [customCategory, setCustomCategory] = useState('')
@@ -102,6 +105,13 @@ export default function ExpensesClient({
         Day-to-day operational spend — not an accounting system, just enough to see it deducted in the Sales report&apos;s Net profit figure.
       </p>
 
+      {!isAdmin && (
+        <p className="mt-4 rounded-[var(--radius)] bg-warning-subtle px-3 py-2.5 text-[13px] text-warning">
+          View only — your role ({role}) can’t log or delete expenses.
+        </p>
+      )}
+
+      {isAdmin && (
       <section className="mt-6 rounded-xl border border-border bg-surface p-5">
         <h2 className="text-sm font-medium text-foreground">Log an expense</h2>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -145,6 +155,7 @@ export default function ExpensesClient({
         {error && <p className="mt-3 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
         <Button onClick={addExpense} loading={saving} className="mt-4">Add expense</Button>
       </section>
+      )}
 
       <div className="mt-8 flex items-center justify-between">
         <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">Last 90 days</p>
@@ -167,13 +178,15 @@ export default function ExpensesClient({
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <span className="text-sm font-medium text-foreground">₹{e.amount.toLocaleString('en-IN')}</span>
-                <button
-                  onClick={() => (confirmingDelete === e.id ? removeExpense(e.id) : setConfirmingDelete(e.id))}
-                  onBlur={() => setConfirmingDelete(null)}
-                  className="min-h-9 px-2 text-[12px] font-medium text-destructive hover:underline"
-                >
-                  {confirmingDelete === e.id ? 'Confirm delete?' : 'Delete'}
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => (confirmingDelete === e.id ? removeExpense(e.id) : setConfirmingDelete(e.id))}
+                    onBlur={() => setConfirmingDelete(null)}
+                    className="min-h-9 px-2 text-[12px] font-medium text-destructive hover:underline"
+                  >
+                    {confirmingDelete === e.id ? 'Confirm delete?' : 'Delete'}
+                  </button>
+                )}
               </div>
             </li>
           ))}

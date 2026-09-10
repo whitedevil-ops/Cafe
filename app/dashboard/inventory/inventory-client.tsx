@@ -21,13 +21,19 @@ const REASON_PRESETS = ['Delivery received', 'Wastage', 'Used in kitchen', 'Stoc
 
 export default function InventoryClient({
   cafeId,
+  role,
   initialItems,
 }: {
   cafeId: string
+  role: string
   initialItems: InventoryItem[]
 }) {
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
+  // create_inventory_item is owner/manager-only server-side; record_inventory_
+  // movement (below) genuinely is open to any member, so only "Add item"
+  // gates on this.
+  const isAdmin = role === 'owner' || role === 'manager'
   const [items, setItems] = useState(initialItems)
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
@@ -94,15 +100,22 @@ export default function InventoryClient({
     <div className="mx-auto max-w-2xl px-6 py-10">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Inventory</h1>
-        <button onClick={() => setAdding((v) => !v)} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
-          {adding ? 'Cancel' : 'Add item'}
-        </button>
+        {isAdmin && (
+          <button onClick={() => setAdding((v) => !v)} className="min-h-10 rounded-[var(--radius)] bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+            {adding ? 'Cancel' : 'Add item'}
+          </button>
+        )}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Track what&apos;s on hand and log every delivery, use, and wastage against it.
       </p>
+      {!isAdmin && (
+        <p className="mt-3 rounded-[var(--radius)] bg-warning-subtle px-3 py-2.5 text-[13px] text-warning">
+          Your role ({role}) can log stock movements below but can’t add new inventory items.
+        </p>
+      )}
 
-      {adding && (
+      {isAdmin && adding && (
         <section className="mt-4 rounded-xl border border-border bg-surface p-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Item name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Milk" />

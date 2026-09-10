@@ -23,5 +23,12 @@ export default async function InventoryPage() {
     .eq('cafe_id', cafe.cafeId)
     .order('name')
 
-  return <InventoryClient cafeId={cafe.cafeId} initialItems={(data ?? []) as InventoryItem[]} />
+  // FOUND LIVE (full-product audit, 2026-09-10): create_inventory_item is
+  // owner/manager-only at the RPC level (0185_fix_create_inventory_item.sql)
+  // but InventoryClient never received the role prop to gate its "Add item"
+  // control — any role granted this screen saw a fully clickable button
+  // that always failed. record_inventory_movement genuinely is open to any
+  // member (0166_phase1_security_lockdown_part4.sql), so that control is
+  // correctly left ungated.
+  return <InventoryClient cafeId={cafe.cafeId} role={cafe.role} initialItems={(data ?? []) as InventoryItem[]} />
 }
