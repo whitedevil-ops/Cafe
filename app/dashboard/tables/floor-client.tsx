@@ -64,6 +64,7 @@ export default function FloorClient({
   areas,
   initialTables,
   smsBillsEnabled,
+  waiterQuickAddEnabled,
   menu,
 }: {
   cafeId: string
@@ -72,6 +73,7 @@ export default function FloorClient({
   areas: { id: string; name: string }[]
   initialTables: FloorTable[]
   smsBillsEnabled: boolean
+  waiterQuickAddEnabled: boolean
   menu: { categories: MenuCategory[]; items: MenuItem[]; variants: MenuVariant[]; addons: MenuAddon[] }
 }) {
   const canEditLayout = role === 'owner' || role === 'manager'
@@ -938,9 +940,11 @@ export default function FloorClient({
 
             {!selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => { setQuickAddError(null); quickAddRequestId.current = null; setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover">
-                  Take order
-                </button>
+                {waiterQuickAddEnabled && (
+                  <button onClick={() => { setQuickAddError(null); quickAddRequestId.current = null; setQuickAdding(true) }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+                    Take order
+                  </button>
+                )}
                 <button onClick={() => toggleReserve(selTable)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-sm font-medium text-foreground hover:bg-surface-subtle">
                   {selTable.status === 'reserved' ? 'Remove reservation' : 'Mark reserved'}
                 </button>
@@ -949,9 +953,11 @@ export default function FloorClient({
 
             {selSession && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => { void openQuickAdd() }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
-                  Add items
-                </button>
+                {waiterQuickAddEnabled && (
+                  <button onClick={() => { void openQuickAdd() }} className="min-h-11 flex-1 rounded-[var(--radius)] bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+                    Add items
+                  </button>
+                )}
                 <button onClick={() => setMoving((v) => !v)} className="min-h-11 flex-1 rounded-[var(--radius)] border border-border-strong text-[13px] font-medium text-foreground hover:bg-surface-subtle">
                   Move table
                 </button>

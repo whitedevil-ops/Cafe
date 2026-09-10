@@ -36,6 +36,9 @@ export default async function PosPage() {
     couponsAllowed,
     spinAllowed,
     { data: activeWheel },
+    dineInAllowed,
+    takeawayAllowed,
+    heldOrdersAllowed,
   ] = await Promise.all([
     supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled, gst_registered, tax_inclusive').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
@@ -77,6 +80,14 @@ export default async function PosPage() {
     // column. A café with no wheel, or an archived one, should not show a
     // spin-code box that can only ever say "no such code".
     supabase.from('spin_wheels').select('id').eq('cafe_id', cafe.cafeId).eq('active', true).maybeSingle(),
+    // AND'd with cafes.dine_in/takeaway below, same shape as loyaltyEnabled
+    // above — the plan decides whether the café MAY have the order type,
+    // the owner's own toggle decides whether they want it on. Both keys
+    // are seeded true on every plan (0233), so this changes nothing for
+    // any café until an Ops admin deliberately overrides one off.
+    hasFeature(cafe.cafeId, 'dine_in_ordering'),
+    hasFeature(cafe.cafeId, 'takeaway_ordering'),
+    hasFeature(cafe.cafeId, 'held_orders'),
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
@@ -153,8 +164,9 @@ export default async function PosPage() {
       taxInclusive={cafeRow?.tax_inclusive ?? false}
       itemTaxRates={itemTaxRates}
       serviceChargePercent={Number(cafeRow?.service_charge ?? 0)}
-      dineIn={cafeRow?.dine_in ?? true}
-      takeaway={cafeRow?.takeaway ?? true}
+      dineIn={dineInAllowed && (cafeRow?.dine_in ?? true)}
+      takeaway={takeawayAllowed && (cafeRow?.takeaway ?? true)}
+      heldOrdersEnabled={heldOrdersAllowed}
       categories={posCategories}
       items={posItems}
       variants={(variants ?? []) as PosVariant[]}

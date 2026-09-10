@@ -21,7 +21,7 @@ export default async function TablesFloorPage() {
   // it used to sit in the second Promise.all purely because it was written
   // next to variants/addons, which forced it to wait out a whole extra
   // round-trip (items) it never actually depended on.
-  const [{ data }, { data: areas }, { data: categories }, { data: items }, smsBillsEnabled] = await Promise.all([
+  const [{ data }, { data: areas }, { data: categories }, { data: items }, smsBillsEnabled, waiterQuickAddEnabled] = await Promise.all([
     supabase.from('cafe_tables').select('id, label, capacity, status, area_id').eq('cafe_id', cafe.cafeId).eq('archived', false),
     supabase.from('floor_areas').select('id, name').eq('cafe_id', cafe.cafeId).eq('archived', false).order('sort'),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
@@ -32,6 +32,7 @@ export default async function TablesFloorPage() {
       .eq('archived', false)
       .order('sort'),
     hasFeature(cafe.cafeId, 'sms_bills'),
+    hasFeature(cafe.cafeId, 'waiter_quick_add'),
   ])
 
   const itemIds = (items ?? []).map((i) => i.id)
@@ -52,6 +53,7 @@ export default async function TablesFloorPage() {
       areas={(areas ?? []) as { id: string; name: string }[]}
       initialTables={(data ?? []) as FloorTable[]}
       smsBillsEnabled={smsBillsEnabled}
+      waiterQuickAddEnabled={waiterQuickAddEnabled}
       menu={{
         categories: (categories ?? []) as MenuCategory[],
         items: (items ?? []) as MenuItem[],

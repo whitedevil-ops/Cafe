@@ -88,6 +88,7 @@ export default function PosClient({
   serviceChargePercent,
   dineIn,
   takeaway,
+  heldOrdersEnabled,
   categories,
   items,
   variants,
@@ -111,6 +112,7 @@ export default function PosClient({
   serviceChargePercent: number
   dineIn: boolean
   takeaway: boolean
+  heldOrdersEnabled: boolean
   categories: PosCategory[]
   items: FullItem[]
   variants: PosVariant[]
@@ -739,6 +741,12 @@ export default function PosClient({
 
   async function holdOrder() {
     if (cart.length === 0) return
+    // UI-only gate — held_orders has no RPC choke point (a plain insert
+    // under member RLS), so this is the one place available to enforce it.
+    if (!heldOrdersEnabled) {
+      toast('Holding orders is turned off for this café.', 'error')
+      return
+    }
     setHolding(true)
     const { error: holdErr } = await supabase.from('held_orders').insert({
       cafe_id: cafeId,
