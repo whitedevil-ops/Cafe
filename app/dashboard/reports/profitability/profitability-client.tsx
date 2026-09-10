@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
@@ -18,24 +18,41 @@ type Item = {
   has_cost: boolean
   cost_source: 'recipe' | 'manual' | 'mixed' | null
 }
-type Payload = {
+export type ProfitabilityPayload = {
   summary: { net_sales: number; cost: number; contribution: number; margin_pct: number; uncosted_sales: number }
   items: Item[]
 }
+type Payload = ProfitabilityPayload
 type Range = 'today' | '7d' | '30d' | 'custom'
 type OType = 'all' | 'dine_in' | 'takeaway'
 
 const money = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
-export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { cafeId: string; cafeName: string; timezone: string }) {
+export default function ProfitabilityClient({
+  cafeId,
+  cafeName,
+  timezone,
+  initialPayload,
+  initialError,
+}: {
+  cafeId: string
+  cafeName: string
+  timezone: string
+  initialPayload: ProfitabilityPayload | null
+  initialError?: string | null
+}) {
   const supabase = useMemo(() => createClient(), [])
-  const [payload, setPayload] = useState<Payload | null>(null)
+  // Seeded from the server's own prefetch of the same default view (30
+  // days, all order types) this component starts on — see page.tsx. No
+  // mount-time fetch here, matching sales-report-client's pattern, so this
+  // report shows real numbers on first paint instead of a "Loading…" row.
+  const [payload, setPayload] = useState<Payload | null>(initialPayload)
   const [range, setRange] = useState<Range>('30d')
   const [type, setType] = useState<OType>('all')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError ?? null)
   const { runExport, exporting } = useFileExport()
 
   const bounds = useCallback(
@@ -71,11 +88,6 @@ export default function ProfitabilityClient({ cafeId, cafeName, timezone }: { ca
     },
     [supabase, cafeId, bounds],
   )
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load('30d', 'all')
-  }, [load])
 
   const items = useMemo(() => payload?.items ?? [], [payload])
   const s = payload?.summary
