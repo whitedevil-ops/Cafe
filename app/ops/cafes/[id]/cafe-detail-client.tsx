@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ShieldCheck, ShieldOff, ArrowLeft, Key, StickyNote, Search, Users, CreditCard,
-  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2, Mail, Lock, CircleCheck,
+  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2, Mail, Lock,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -683,13 +683,14 @@ export default function CafeDetailClient({
       )
     : null
 
-  // Plan-preview derivation — see PLAN_SELECTOR_KEYS/previewPlanKey above.
-  // null previewPlanKey resolves to the café's own current plan here rather
-  // than in an effect, so a plan change elsewhere (Account tab + refresh())
-  // self-corrects with no extra wiring.
+  // Plan-tab derivation — see PLAN_SELECTOR_KEYS/previewPlanKey above. null
+  // previewPlanKey resolves to the café's own current plan here rather than
+  // in an effect, so a plan change elsewhere (Account tab + refresh())
+  // self-corrects with no extra wiring. This only decides which plan's
+  // defaults the "Plan default" column shows — every row stays live and
+  // editable regardless of which tab is selected.
   const selectablePlans = plans.filter((p) => PLAN_SELECTOR_KEYS.includes(p.key))
   const activePreviewKey = previewPlanKey ?? data.account.plan
-  const isOwnPlan = activePreviewKey === data.account.plan
   const previewPlan = selectablePlans.find((p) => p.key === activePreviewKey) ?? null
 
   return (
@@ -920,7 +921,7 @@ export default function CafeDetailClient({
                 <p className="text-sm font-medium text-foreground">Feature control</p>
                 <p className="mt-1 text-[12.5px] text-muted-foreground">
                   {featureSubTab === 'plans' ? (
-                    <>Follows the {planName(plans, data.account.plan)} plan by default. Toggle anything below to override it for this café only — everything else keeps working as normal.</>
+                    <>Grant or remove any feature for this café only — its subscription plan itself is never changed by anything below.</>
                   ) : (
                     <>Included on every plan by default. Toggle anything below to turn it off for this café only — everything else keeps working as normal.</>
                   )}
@@ -959,19 +960,19 @@ export default function CafeDetailClient({
               ))}
             </div>
 
-            {/* ── Plan preview ─────────────────────────────────────────────
+            {/* ── Plan tabs ────────────────────────────────────────────────
                 Only on the Plans sub-tab — Always Included rows are true on
-                every plan by construction, so there's nothing to preview.
-                The card matching this café's REAL plan is pre-selected and
-                fully live; clicking another card switches every row below
-                into a read-only preview of that plan's defaults. Effective
-                status and the override switch only ever reflect the café's
-                actual plan — cafe_has_feature() has no notion of "effective
-                under a plan I'm not on," so this deliberately never fakes
-                one. */}
+                every plan by construction, so there's no plan to select.
+                Selecting a plan changes ONLY the "Plan default" column below
+                (what that plan normally includes) — every row stays fully
+                editable regardless of which tab is showing, and Effective /
+                Manual override always reflect this café's real, current
+                state. Granting a Growth feature to a Starter café from the
+                Starter tab is exactly the intended use — it sets a per-café
+                override, never the café's actual subscription. */}
             {featureSubTab === 'plans' && (
               <div className="mt-4">
-                <div className="grid gap-2.5 sm:grid-cols-3">
+                <div className="flex gap-1 border-b border-border">
                   {selectablePlans.map((p) => {
                     const isCurrent = p.key === data.account.plan
                     const isSelected = p.key === activePreviewKey
@@ -979,44 +980,24 @@ export default function CafeDetailClient({
                       <button
                         key={p.key}
                         type="button"
-                        onClick={() => setPreviewPlanKey(isCurrent ? null : p.key)}
-                        className={`rounded-[var(--radius)] border p-3.5 text-left transition-colors ${
-                          isSelected ? 'border-primary bg-primary-subtle' : 'border-border-strong bg-surface hover:bg-surface-subtle'
+                        onClick={() => setPreviewPlanKey(p.key === data.account.plan ? null : p.key)}
+                        className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-[13px] font-medium ${
+                          isSelected ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[13.5px] font-semibold text-foreground">{p.name}</span>
-                          {isCurrent && (
-                            <span className="flex shrink-0 items-center gap-1 text-[10.5px] font-medium text-primary">
-                              <CircleCheck size={11} /> Current plan
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-[12px] text-muted-foreground">{planPrice(plans, p.key)}</p>
-                        <p className="mt-1.5 text-[11px] text-muted-foreground">
-                          {p.max_staff ?? 'Unlimited'} staff seat{p.max_staff === 1 ? '' : 's'} · {p.max_owned_cafes} café{p.max_owned_cafes === 1 ? '' : 's'}
-                        </p>
+                        {p.name}
+                        {isCurrent && <span className="rounded-full bg-primary-subtle px-1.5 py-0.5 text-[10px] font-medium text-primary">Current</span>}
                       </button>
                     )
                   })}
                 </div>
-                {!isOwnPlan && (
-                  <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
-                    <span>
-                      Previewing {previewPlan?.name} — this café is actually on {planName(plans, data.account.plan)}. This is read-only.
-                    </span>
-                    {/* A café on a plan not shown as a card (Trial, or the
-                        internal Android tier) has no card to click back to —
-                        this is the one way back to live editing that always
-                        works, regardless of which plan the café is really on. */}
-                    <button
-                      type="button"
-                      onClick={() => setPreviewPlanKey(null)}
-                      className="font-medium underline decoration-dotted underline-offset-2 hover:no-underline"
-                    >
-                      Back to live view
-                    </button>
-                  </p>
+                {previewPlan && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-[var(--radius)] bg-surface-subtle px-3.5 py-2.5 text-[12.5px]">
+                    <span className="font-semibold text-foreground">{previewPlan.name}</span>
+                    <span className="text-muted-foreground">{planPrice(plans, previewPlan.key)}</span>
+                    <span className="text-muted-foreground">{previewPlan.max_owned_cafes} café{previewPlan.max_owned_cafes === 1 ? '' : 's'}</span>
+                    <span className="text-muted-foreground">{previewPlan.max_staff ?? 'Unlimited'} staff seat{previewPlan.max_staff === 1 ? '' : 's'}</span>
+                  </div>
                 )}
               </div>
             )}
@@ -1030,16 +1011,14 @@ export default function CafeDetailClient({
                 <div className="flex gap-2">
                   <button
                     onClick={() => void setAllFeatures(true)}
-                    disabled={bulkSetting || (featureSubTab === 'plans' && !isOwnPlan)}
-                    title={featureSubTab === 'plans' && !isOwnPlan ? 'Select this café\'s own plan card to make live changes' : undefined}
+                    disabled={bulkSetting}
                     className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
                   >
                     Turn all on
                   </button>
                   <button
                     onClick={() => void setAllFeatures(false)}
-                    disabled={bulkSetting || (featureSubTab === 'plans' && !isOwnPlan)}
-                    title={featureSubTab === 'plans' && !isOwnPlan ? 'Select this café\'s own plan card to make live changes' : undefined}
+                    disabled={bulkSetting}
                     className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
                   >
                     Turn all off
@@ -1092,19 +1071,24 @@ export default function CafeDetailClient({
                         const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
                         const effective = override ?? included
 
-                        // ── Plans sub-tab: the new 3-field status layout,
-                        // with a preview-mode branch when a card other than
-                        // this café's own plan is selected. ──────────────
+                        // ── Plans sub-tab: the 3-field status layout. Every
+                        // row is always live and editable no matter which
+                        // plan tab is showing — only "Plan default" changes
+                        // with the tab (falls back to the café's own real
+                        // default when the selected plan doesn't carry the
+                        // key at all, e.g. an unlisted trial/android plan).
+                        // Effective and Manual override are never
+                        // tab-relative — they're this café's real state. ──
                         if (featureSubTab === 'plans') {
-                          const previewIncluded = isOwnPlan ? included : (previewPlan?.features?.[key] ?? false)
+                          const planDefaultIncluded = previewPlan?.features?.[key] ?? included
                           return (
                             <li key={key} className="flex flex-col gap-3 py-3 text-[13.5px] sm:flex-row sm:items-start sm:justify-between">
                               <div className="min-w-0 sm:max-w-[38%]">
                                 <p className="text-foreground">{f.label}</p>
                                 <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
-                                {isOwnPlan && override !== null && (
+                                {override !== null && (
                                   <p className="mt-1 text-[11px] text-muted-foreground">
-                                    Overridden for this café
+                                    Manual override for this café
                                     {permissions['cafes.edit'] && (
                                       <>
                                         {' — '}
@@ -1123,26 +1107,20 @@ export default function CafeDetailClient({
                               </div>
                               <div className="flex flex-wrap items-start gap-x-6 gap-y-2.5">
                                 <StatusField label="Plan default">
-                                  <Badge tone={previewIncluded ? 'success' : 'neutral'}>{previewIncluded ? 'Included' : 'Not included'}</Badge>
+                                  <Badge tone={planDefaultIncluded ? 'success' : 'neutral'}>{planDefaultIncluded ? 'Included' : 'Not included'}</Badge>
                                   <span className="mt-1 block text-[10.5px] text-muted-foreground">{previewPlan?.name ?? PLAN_FLOOR[key]}</span>
                                 </StatusField>
-                                {isOwnPlan ? (
-                                  <StatusField label="Effective">
-                                    <Badge tone={effective ? 'success' : 'neutral'}>{effective ? 'On' : 'Off'}</Badge>
-                                  </StatusField>
-                                ) : (
-                                  <StatusField label="Previewing">
-                                    <span className="block max-w-[200px] text-[11.5px] leading-snug text-muted-foreground">Not live — this café is on {planName(plans, data.account.plan)}.</span>
-                                  </StatusField>
-                                )}
+                                <StatusField label="Effective">
+                                  <Badge tone={effective ? 'success' : 'neutral'}>{effective ? 'On' : 'Off'}</Badge>
+                                </StatusField>
                                 <StatusField label="Manual override">
                                   <button
                                     onClick={() => toggleFeature(key, override)}
-                                    disabled={!isOwnPlan || !permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
+                                    disabled={!permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
                                     aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
-                                    className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${isOwnPlan && effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                                    className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${effective ? 'bg-primary' : 'bg-surface-subtle'}`}
                                   >
-                                    <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${isOwnPlan && effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
                                   </button>
                                 </StatusField>
                               </div>
