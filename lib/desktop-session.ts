@@ -82,7 +82,30 @@ export async function clearStoredSession(): Promise<void> {
  * the app opens, lands on /login, and destroys the session that was about to
  * be restored. When a stored session exists and the café asked to stay signed
  * in, arriving at /login is not a request to sign out; it is the app starting.
+ *
+ * FOUND LIVE ("keep me signed in" intermittently bypassed, 2026-09-10): this
+ * used to be `(await loadStoredSession()) !== null`, which conflates "checked
+ * and confirmed nothing stored" with "the check itself failed" — the Tauri
+ * bridge briefly not being ready on a cold launch, or a transient file-read
+ * hiccup on the Rust side, both land in loadStoredSession's catch-all and come
+ * back as a plain `null`, indistinguishable from a genuinely empty file. That
+ * false negative used to reach onSubmit-less code here as "skip = false",
+ * which signs the desktop session out — and the SIGNED_OUT handler in
+ * desktop-session-bridge.tsx reacts by permanently deleting the stored file,
+ * so one bad read during startup was enough to silently erase a valid "keep
+ * me signed in" credential the café never asked to remove. Treat "couldn't
+ * tell" the same as "found something" instead: skip signing out. Calling
+ * auth.signOut() on an already-signed-out session is a harmless no-op, so the
+ * only cost of guessing wrong the other way is nothing.
  */
 export async function shouldSkipLoginSignOut(): Promise<boolean> {
-  return (await loadStoredSession()) !== null
+  if (!isDesktopApp() || !keepSignedIn()) return false
+  try {
+    const raw = await invoke<string | null>('load_session')
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as StoredSession
+    return !!parsed?.refresh_token
+  } catch {
+    return true
+  }
 }
