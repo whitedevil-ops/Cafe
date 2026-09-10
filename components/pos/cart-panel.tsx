@@ -1,7 +1,17 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import type { HeldPrize } from '@/components/pos/spin-claim'
-import { OrderConfirmModal } from '@/components/pos/order-confirm-modal'
+
+// Code-split: this pulls in SpinClaim plus the full checkout UI (~33KB) that
+// most POS sessions never open a second time in a shift. Splitting it out of
+// the main POS bundle keeps the page's own JS light on first load; the
+// no-SSR flag matches the component's own client-only state (it renders
+// nothing server-side anyway, since `open` starts false).
+const OrderConfirmModal = dynamic(
+  () => import('@/components/pos/order-confirm-modal').then((m) => m.OrderConfirmModal),
+  { ssr: false },
+)
 
 export type CartLine = {
   key: string

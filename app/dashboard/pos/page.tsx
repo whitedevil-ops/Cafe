@@ -19,7 +19,24 @@ export default async function PosPage() {
   if (!cafe) redirect('/onboarding')
 
   const supabase = await createClient()
-  const [{ data: cafeRow }, { data: categories }, { data: items }, { data: tables }, { data: areas }, { data: rewards }] = await Promise.all([
+  // Everything below needs only cafe.cafeId, so it all fires in one round
+  // trip — combos and the four entitlement checks used to be split into
+  // their own later Promise.all batches (combos waited on items, the
+  // entitlement checks waited on combos/variants/addons) purely because of
+  // where they were written, not because of any real data dependency.
+  const [
+    { data: cafeRow },
+    { data: categories },
+    { data: items },
+    { data: tables },
+    { data: areas },
+    { data: rewards },
+    { data: combos },
+    loyaltyAllowed,
+    couponsAllowed,
+    spinAllowed,
+    { data: activeWheel },
+  ] = await Promise.all([
     supabase.from('cafes').select('tax_percent, service_charge, dine_in, takeaway, loyalty_enabled, gst_registered, tax_inclusive').eq('id', cafe.cafeId).single(),
     supabase.from('menu_categories').select('id, name, sort').eq('cafe_id', cafe.cafeId).order('sort'),
     supabase
@@ -43,41 +60,12 @@ export default async function PosPage() {
       .eq('cafe_id', cafe.cafeId)
       .eq('active', true)
       .order('points_cost'),
-  ])
-
-  const itemIds = (items ?? []).map((i) => i.id)
-  const [{ data: variants }, { data: addons }, { data: combos }] = await Promise.all([
-    itemIds.length
-      ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
-      : Promise.resolve({ data: [] }),
-    itemIds.length
-      ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
-      : Promise.resolve({ data: [] }),
     supabase.from('combos').select('id, name, description, price, image_url, active, sort')
       .eq('cafe_id', cafe.cafeId).eq('active', true).order('sort'),
-  ])
-
-  const comboIds = (combos ?? []).map((c) => c.id)
-  const { data: comboSlots } = comboIds.length
-    ? await supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
-    : { data: [] }
-
-  const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
-
-  // menu_item_id -> its own GST rate. Mirrors the snapshot trigger in 0106,
-  // which stamps each order line with coalesce(menu_items.tax_percent,
-  // cafes.tax_percent) — so the cart preview resolves the rate the same way
-  // the bill will, instead of applying one flat café rate to every line.
-  const itemTaxRates: Record<string, number | null> = {}
-  for (const i of items ?? []) {
-    itemTaxRates[i.id] = i.tax_percent === null || i.tax_percent === undefined ? null : Number(i.tax_percent)
-  }
-
-  // Plan entitlements, resolved server-side. hasFeature() applies the same
-  // override-beats-plan-default precedence the rest of the app uses, so a
-  // café granted loyalty by an operator override is treated as entitled even
-  // if its plan would not normally include it.
-  const [loyaltyAllowed, couponsAllowed, spinAllowed, { data: activeWheel }] = await Promise.all([
+    // Plan entitlements, resolved server-side. hasFeature() applies the same
+    // override-beats-plan-default precedence the rest of the app uses, so a
+    // café granted loyalty by an operator override is treated as entitled even
+    // if its plan would not normally include it.
     hasFeature(cafe.cafeId, 'loyalty'),
     hasFeature(cafe.cafeId, 'coupons'),
     // Spin has been its own entitlement since 0204, and this is where the
@@ -90,6 +78,31 @@ export default async function PosPage() {
     // spin-code box that can only ever say "no such code".
     supabase.from('spin_wheels').select('id').eq('cafe_id', cafe.cafeId).eq('active', true).maybeSingle(),
   ])
+
+  const itemIds = (items ?? []).map((i) => i.id)
+  const comboIds = (combos ?? []).map((c) => c.id)
+  const [{ data: variants }, { data: addons }, { data: comboSlots }] = await Promise.all([
+    itemIds.length
+      ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
+      : Promise.resolve({ data: [] }),
+    itemIds.length
+      ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')
+      : Promise.resolve({ data: [] }),
+    comboIds.length
+      ? supabase.from('combo_slots').select('*').in('combo_id', comboIds).order('sort')
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const withOptions = new Set([...(variants ?? []).map((v) => v.menu_item_id), ...(addons ?? []).map((a) => a.menu_item_id)])
+
+  // menu_item_id -> its own GST rate. Mirrors the snapshot trigger in 0106,
+  // which stamps each order line with coalesce(menu_items.tax_percent,
+  // cafes.tax_percent) — so the cart preview resolves the rate the same way
+  // the bill will, instead of applying one flat café rate to every line.
+  const itemTaxRates: Record<string, number | null> = {}
+  for (const i of items ?? []) {
+    itemTaxRates[i.id] = i.tax_percent === null || i.tax_percent === undefined ? null : Number(i.tax_percent)
+  }
 
   const posItems: (PosItem & { category_id: string | null })[] = (items ?? []).map((i) => ({
     id: i.id,

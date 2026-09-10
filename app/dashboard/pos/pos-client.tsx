@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { Search, TrendingUp, ClipboardList, Users, ChefHat, ArrowRight } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -11,14 +12,30 @@ import { ProductCard, type PosItem } from '@/components/pos/product-card'
 import { CartPanel, type CartLine, type PosTable, type PosArea, type CustomerLookup, type Tender } from '@/components/pos/cart-panel'
 import { TableSelector, type LiveTable } from '@/components/pos/table-selector'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
-import { HeldOrdersDrawer, type HeldOrder } from '@/components/pos/held-orders-drawer'
-import { ComboPicker } from '@/components/pos/combo-picker'
-import { Customizer } from '@/components/pos/customizer'
+import type { HeldOrder } from '@/components/pos/held-orders-drawer'
 import type { HeldPrize } from '@/components/pos/spin-claim'
 import { businessDayStartISO, businessDaysAgoStartISO, businessWeekday } from '@/lib/datetime'
 import { effectivePrice, isOfferActiveToday } from '@/lib/offers'
 import { comboCartKey, comboSelectionLabel, slotsOf, type Combo, type ComboSlot, type ComboSelection } from '@/lib/combos'
 import type { PosVariant, PosAddon } from './page'
+
+// Code-split: each of these is a full-screen overlay that most POS sessions
+// never open (held orders, combos, per-item customization) — splitting them
+// out of the main POS bundle keeps the page's own JS light on first load.
+// All three are already conditionally mounted only while their own open
+// flag is true, so ssr:false costs nothing (never needed server-rendered).
+const HeldOrdersDrawer = dynamic(
+  () => import('@/components/pos/held-orders-drawer').then((m) => m.HeldOrdersDrawer),
+  { ssr: false },
+)
+const ComboPicker = dynamic(
+  () => import('@/components/pos/combo-picker').then((m) => m.ComboPicker),
+  { ssr: false },
+)
+const Customizer = dynamic(
+  () => import('@/components/pos/customizer').then((m) => m.Customizer),
+  { ssr: false },
+)
 
 // Same freshness window as the customer QR menu (menu-client.tsx) — one
 // definition of "new" would be nicer as a shared constant, but duplicating a

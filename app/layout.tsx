@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { DesktopSessionBridge } from "@/components/desktop-session-bridge";
@@ -15,14 +15,6 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-// Marketing-only display face (applied via the `font-display` utility class
-// in globals.css) — Geist Sans stays the only font everywhere else
-// (dashboard, ops) so this never touches the product UI.
-const bricolageGrotesque = Bricolage_Grotesque({
-  variable: "--font-bricolage",
   subsets: ["latin"],
 });
 
@@ -174,7 +166,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${bricolageGrotesque.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <script
