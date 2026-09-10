@@ -133,6 +133,10 @@ export function Panel({
   children,
   count,
   tone,
+  collapsible,
+  defaultOpen = true,
+  open,
+  onToggle,
 }: {
   title: string
   action?: ReactNode
@@ -140,17 +144,41 @@ export function Panel({
   /** Shown as a badge beside the title — usually "how many need attention". */
   count?: number
   tone?: StripTone
+  /** Opt-in — every other caller leaves this unset and gets today's always-expanded panel. */
+  collapsible?: boolean
+  /** Only used when `open`/`onToggle` aren't passed — an uncontrolled panel's initial state. */
+  defaultOpen?: boolean
+  /** Controlled open state. Pass this + `onToggle` so a parent can drive "expand/collapse all". */
+  open?: boolean
+  onToggle?: () => void
 }) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen)
+  const isOpen = !collapsible || (open ?? uncontrolledOpen)
+  const toggle = onToggle ?? (() => setUncontrolledOpen((o) => !o))
+
   return (
     <section className="flex flex-col rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow-sm)]">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[13.5px] font-semibold text-foreground">{title}</h2>
-          {count !== undefined && count > 0 && <Badge tone={tone ?? 'warning'}>{count}</Badge>}
-        </div>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={isOpen}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            {isOpen ? <ChevronUp size={14} className="shrink-0 text-muted-foreground" /> : <ChevronDown size={14} className="shrink-0 text-muted-foreground" />}
+            <h2 className="text-[13.5px] font-semibold text-foreground">{title}</h2>
+            {count !== undefined && count > 0 && <Badge tone={tone ?? 'warning'}>{count}</Badge>}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h2 className="text-[13.5px] font-semibold text-foreground">{title}</h2>
+            {count !== undefined && count > 0 && <Badge tone={tone ?? 'warning'}>{count}</Badge>}
+          </div>
+        )}
         {action}
       </div>
-      <div className="flex-1 px-5 py-4">{children}</div>
+      {isOpen && <div className="flex-1 px-5 py-4">{children}</div>}
     </section>
   )
 }

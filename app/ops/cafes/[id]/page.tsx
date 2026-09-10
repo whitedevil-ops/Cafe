@@ -17,7 +17,7 @@ export default async function CafeDetailPage({ params }: { params: Promise<{ id:
   if (error || !data) notFound()
 
   const [{ data: plans }, { data: staff }, { data: sessions }] = await Promise.all([
-    supabase.from('platform_plans').select('key, name, price_monthly, price_yearly, max_staff').eq('active', true).order('sort'),
+    supabase.from('platform_plans').select('key, name, price_monthly, price_yearly, max_staff, features, max_owned_cafes').eq('active', true).order('sort'),
     permissions['cafes.view'] ? supabase.rpc('op_list_cafe_staff', { p_cafe_id: id }) : Promise.resolve({ data: [] }),
     permissions['cafes.view'] ? supabase.rpc('op_list_cafe_sessions', { p_cafe_id: id }) : Promise.resolve({ data: [] }),
   ])

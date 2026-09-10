@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ShieldCheck, ShieldOff, ArrowLeft, Key, StickyNote, Search, Users, CreditCard,
-  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2, Mail,
+  Activity, Settings, LayoutGrid, AlertTriangle, Copy, Building2, Mail, Lock, CircleCheck,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useToast } from '@/components/ui/toast'
@@ -146,6 +146,13 @@ const PLAN_FLOOR: Record<string, string> = {
   sms_bills: 'Growth', whatsapp_bills: 'Growth', expenses: 'Growth', advanced_analytics: 'Growth', online_payments: 'Growth',
   inventory: 'Scale', advanced_reports: 'Scale',
 }
+
+// The only 3 plans a Feature Control operator should ever see or preview —
+// 'trial' (the signup starting point) and the internal-only 'android' plan
+// (Ops-assignable, never shown to a café owner or the public) are both
+// active=true in platform_plans, so the `plans` prop passed to this
+// component is NOT already limited to these 3 and must be filtered here.
+const PLAN_SELECTOR_KEYS = ['starter', 'pro', 'business']
 
 // Full-product audit (2026-09-10): grouped by what an operator is actually
 // looking for ("what does this café's ordering flow look like") rather than
@@ -376,7 +383,15 @@ export default function CafeDetailClient({
 }: {
   cafeId: string
   detail: CafeDetail
-  plans: { key: string; name: string; price_monthly: number; price_yearly: number | null; max_staff: number | null }[]
+  plans: {
+    key: string
+    name: string
+    price_monthly: number
+    price_yearly: number | null
+    max_staff: number | null
+    features: Record<string, boolean>
+    max_owned_cafes: number
+  }[]
   permissions: Record<string, boolean>
   selfRole: string
   health: HealthRow | null
@@ -415,6 +430,14 @@ export default function CafeDetailClient({
   // 'always' is the ~20 items every plan includes by default, which now
   // carry real switches too (full-product audit, 2026-09-10).
   const [featureSubTab, setFeatureSubTab] = useState<'plans' | 'always'>('plans')
+  // Which plan card is being previewed on the Plans sub-tab — null means "no
+  // explicit click yet", which resolves to the café's own current plan at
+  // render time (see activePreviewKey below) rather than being reset via an
+  // effect whenever the café's real plan changes elsewhere on this page.
+  const [previewPlanKey, setPreviewPlanKey] = useState<string | null>(null)
+  // Collapsed category headings — empty means everything expanded, matching
+  // the panel's behavior before this was collapsible at all.
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
@@ -649,9 +672,25 @@ export default function CafeDetailClient({
   const healthVerdict = health ? getHealthVerdict(health) : null
   const maxStaff = plans.find((p) => p.key === data.account.plan)?.max_staff ?? null
   const featureSearchTerm = featureSearch.trim().toLowerCase()
+  // Matches the feature's own label/description, or the heading of any
+  // category it belongs to — a category lookup per feature (34 features ×
+  // 8 categories) is trivial at this size, no memoization needed.
   const filteredFeatures = featureSearchTerm
-    ? FEATURES.filter((f) => f.label.toLowerCase().includes(featureSearchTerm))
+    ? FEATURES.filter((f) =>
+        f.label.toLowerCase().includes(featureSearchTerm) ||
+        f.description.toLowerCase().includes(featureSearchTerm) ||
+        CATEGORIES.some((c) => (c.planKeys.includes(f.key) || c.alwaysKeys.includes(f.key)) && c.heading.toLowerCase().includes(featureSearchTerm)),
+      )
     : null
+
+  // Plan-preview derivation — see PLAN_SELECTOR_KEYS/previewPlanKey above.
+  // null previewPlanKey resolves to the café's own current plan here rather
+  // than in an effect, so a plan change elsewhere (Account tab + refresh())
+  // self-corrects with no extra wiring.
+  const selectablePlans = plans.filter((p) => PLAN_SELECTOR_KEYS.includes(p.key))
+  const activePreviewKey = previewPlanKey ?? data.account.plan
+  const isOwnPlan = activePreviewKey === data.account.plan
+  const previewPlan = selectablePlans.find((p) => p.key === activePreviewKey) ?? null
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -892,8 +931,8 @@ export default function CafeDetailClient({
                 <input
                   value={featureSearch}
                   onChange={(e) => setFeatureSearch(e.target.value)}
-                  placeholder="Search features…"
-                  className="h-8 w-48 rounded-[var(--radius)] border border-border-strong bg-surface pl-7 pr-2 text-[12.5px] text-foreground placeholder:text-muted-foreground"
+                  placeholder="Search name, description, category…"
+                  className="h-8 w-56 rounded-[var(--radius)] border border-border-strong bg-surface pl-7 pr-2 text-[12.5px] text-foreground placeholder:text-muted-foreground"
                 />
               </div>
             </div>
@@ -902,7 +941,7 @@ export default function CafeDetailClient({
                 Same visual idiom as the outer tab strip. Plans varies by plan
                 tier (PLAN_FLOOR); Always Included is everything every plan
                 carries by default — a real switch where batches 0-5 gave it
-                one, a fixed "Always included" badge where none exists. */}
+                one, a locked badge where none exists. */}
             <div className="mt-4 flex gap-1 border-b border-border">
               {([
                 { key: 'plans', label: 'Plans' },
@@ -920,21 +959,90 @@ export default function CafeDetailClient({
               ))}
             </div>
 
-            {permissions['cafes.edit'] && (
-              <div className="mt-3 flex justify-end gap-2">
-                <button onClick={() => void setAllFeatures(true)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all on</button>
-                <button onClick={() => void setAllFeatures(false)} disabled={bulkSetting} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40">Turn all off</button>
+            {/* ── Plan preview ─────────────────────────────────────────────
+                Only on the Plans sub-tab — Always Included rows are true on
+                every plan by construction, so there's nothing to preview.
+                The card matching this café's REAL plan is pre-selected and
+                fully live; clicking another card switches every row below
+                into a read-only preview of that plan's defaults. Effective
+                status and the override switch only ever reflect the café's
+                actual plan — cafe_has_feature() has no notion of "effective
+                under a plan I'm not on," so this deliberately never fakes
+                one. */}
+            {featureSubTab === 'plans' && (
+              <div className="mt-4">
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  {selectablePlans.map((p) => {
+                    const isCurrent = p.key === data.account.plan
+                    const isSelected = p.key === activePreviewKey
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setPreviewPlanKey(isCurrent ? null : p.key)}
+                        className={`rounded-[var(--radius)] border p-3.5 text-left transition-colors ${
+                          isSelected ? 'border-primary bg-primary-subtle' : 'border-border-strong bg-surface hover:bg-surface-subtle'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13.5px] font-semibold text-foreground">{p.name}</span>
+                          {isCurrent && (
+                            <span className="flex shrink-0 items-center gap-1 text-[10.5px] font-medium text-primary">
+                              <CircleCheck size={11} /> Current plan
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[12px] text-muted-foreground">{planPrice(plans, p.key)}</p>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          {p.max_staff ?? 'Unlimited'} staff seat{p.max_staff === 1 ? '' : 's'} · {p.max_owned_cafes} café{p.max_owned_cafes === 1 ? '' : 's'}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+                {!isOwnPlan && (
+                  <p className="mt-2.5 rounded-[var(--radius)] bg-warning-subtle px-3 py-2 text-[12px] text-warning">
+                    Previewing {previewPlan?.name} — this café is actually on {planName(plans, data.account.plan)}. This is read-only; select the {planName(plans, data.account.plan)} card to make live changes again.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* One bordered Panel per functional category — covers every real
-                capability KhaoPiyo has, not just the plan-gated subset: a
-                toggle row where a real entitlement exists, a plain read-only
-                row (an "Always included" badge instead of a switch) where it
-                genuinely doesn't. The same 8 category headings appear on
-                both tabs; a category with nothing on the active tab — in
-                toggles, static rows, or matching the current search —
-                disappears entirely rather than showing an empty card. */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-2">
+                <button onClick={() => setCollapsedCats(new Set())} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle">Expand all</button>
+                <button onClick={() => setCollapsedCats(new Set(CATEGORIES.map((c) => c.heading)))} className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle">Collapse all</button>
+              </div>
+              {permissions['cafes.edit'] && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void setAllFeatures(true)}
+                    disabled={bulkSetting || (featureSubTab === 'plans' && !isOwnPlan)}
+                    title={featureSubTab === 'plans' && !isOwnPlan ? 'Select this café\'s own plan card to make live changes' : undefined}
+                    className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
+                  >
+                    Turn all on
+                  </button>
+                  <button
+                    onClick={() => void setAllFeatures(false)}
+                    disabled={bulkSetting || (featureSubTab === 'plans' && !isOwnPlan)}
+                    title={featureSubTab === 'plans' && !isOwnPlan ? 'Select this café\'s own plan card to make live changes' : undefined}
+                    className="rounded-full border border-border-strong px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-surface-subtle disabled:opacity-40"
+                  >
+                    Turn all off
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* One collapsible Panel per functional category — covers every
+                real capability KhaoPiyo has, not just the plan-gated subset:
+                a toggle row where a real entitlement exists, a locked row
+                where it genuinely doesn't. The same 8 category headings
+                appear on both tabs; a category with nothing on the active
+                tab — in toggles, static rows, or matching the current
+                search — disappears entirely rather than showing an empty
+                card. */}
             <div className="mt-4 space-y-4">
               {CATEGORIES.map((cat) => {
                 const activeKeys = featureSubTab === 'plans' ? cat.planKeys : cat.alwaysKeys
@@ -943,33 +1051,102 @@ export default function CafeDetailClient({
                 // Included story, not the Plans one — they don't vary by
                 // plan either, they just never got a real switch.
                 const staticItems = featureSubTab !== 'always' ? [] : featureSearchTerm
-                  ? cat.static.filter((s) => s.label.toLowerCase().includes(featureSearchTerm))
+                  ? cat.static.filter((s) => s.label.toLowerCase().includes(featureSearchTerm) || s.description.toLowerCase().includes(featureSearchTerm) || cat.heading.toLowerCase().includes(featureSearchTerm))
                   : cat.static
                 const rowCount = toggleKeys.length + staticItems.length
                 if (rowCount === 0) return null
                 return (
-                  <Panel key={cat.heading} title={cat.heading} count={rowCount} tone="neutral">
+                  <Panel
+                    key={cat.heading}
+                    title={cat.heading}
+                    count={rowCount}
+                    tone="neutral"
+                    collapsible
+                    open={!collapsedCats.has(cat.heading)}
+                    onToggle={() =>
+                      setCollapsedCats((s) => {
+                        const next = new Set(s)
+                        if (next.has(cat.heading)) next.delete(cat.heading)
+                        else next.add(cat.heading)
+                        return next
+                      })
+                    }
+                  >
                     <ul className="divide-y divide-border">
                       {toggleKeys.map((key) => {
                         const f = FEATURES.find((x) => x.key === key)!
                         const included = data.features.plan_defaults[key] ?? false
                         const override = overrideByKey.has(key) ? overrideByKey.get(key)! : null
                         const effective = override ?? included
+
+                        // ── Plans sub-tab: the new 3-field status layout,
+                        // with a preview-mode branch when a card other than
+                        // this café's own plan is selected. ──────────────
+                        if (featureSubTab === 'plans') {
+                          const previewIncluded = isOwnPlan ? included : (previewPlan?.features?.[key] ?? false)
+                          return (
+                            <li key={key} className="flex flex-col gap-3 py-3 text-[13.5px] sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0 sm:max-w-[38%]">
+                                <p className="text-foreground">{f.label}</p>
+                                <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
+                                {isOwnPlan && override !== null && (
+                                  <p className="mt-1 text-[11px] text-muted-foreground">
+                                    Overridden for this café
+                                    {permissions['cafes.edit'] && (
+                                      <>
+                                        {' — '}
+                                        <button
+                                          type="button"
+                                          onClick={() => clearOverride(key)}
+                                          disabled={bulkSetting || togglingKeys.has(key)}
+                                          className="text-primary underline decoration-dotted underline-offset-2 hover:no-underline disabled:opacity-40"
+                                        >
+                                          reset to plan default
+                                        </button>
+                                      </>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-start gap-x-6 gap-y-2.5">
+                                <StatusField label="Plan default">
+                                  <Badge tone={previewIncluded ? 'success' : 'neutral'}>{previewIncluded ? 'Included' : 'Not included'}</Badge>
+                                  <span className="mt-1 block text-[10.5px] text-muted-foreground">{previewPlan?.name ?? PLAN_FLOOR[key]}</span>
+                                </StatusField>
+                                {isOwnPlan ? (
+                                  <StatusField label="Effective">
+                                    <Badge tone={effective ? 'success' : 'neutral'}>{effective ? 'On' : 'Off'}</Badge>
+                                  </StatusField>
+                                ) : (
+                                  <StatusField label="Previewing">
+                                    <span className="block max-w-[200px] text-[11.5px] leading-snug text-muted-foreground">Not live — this café is on {planName(plans, data.account.plan)}.</span>
+                                  </StatusField>
+                                )}
+                                <StatusField label="Manual override">
+                                  <button
+                                    onClick={() => toggleFeature(key, override)}
+                                    disabled={!isOwnPlan || !permissions['cafes.edit'] || bulkSetting || togglingKeys.has(key)}
+                                    aria-label={`Turn ${f.label} ${effective ? 'off' : 'on'}`}
+                                    className={`h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${isOwnPlan && effective ? 'bg-primary' : 'bg-surface-subtle'}`}
+                                  >
+                                    <span className={`block h-5 w-5 rounded-full bg-white shadow transition-transform ${isOwnPlan && effective ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                  </button>
+                                </StatusField>
+                              </div>
+                            </li>
+                          )
+                        }
+
+                        // ── Always Included sub-tab: every key here is true
+                        // on every plan by construction — no plan to preview,
+                        // so this keeps the simpler single-status layout. ──
                         return (
                           <li key={key} className="flex items-center justify-between gap-4 py-3 text-[13.5px]">
                             <div className="min-w-0">
                               <p className="text-foreground">{f.label}</p>
                               <p className="mt-0.5 text-[12px] text-muted-foreground">{f.description}</p>
-                              {/* One line of provenance instead of a second badge — most rows
-                                  match the plan and say nothing more; only a café with a real
-                                  override (the exception, not the rule) gets the extra clause
-                                  and the one action that actually matters: undo it. */}
                               <p className="mt-1 text-[11px] text-muted-foreground">
-                                {featureSubTab === 'plans' ? (
-                                  <>Included from {PLAN_FLOOR[key]} · plan default here: {included ? 'included' : 'not included'}</>
-                                ) : (
-                                  <>Included on every plan by default{included ? '' : ' (not currently included here)'}</>
-                                )}
+                                Included on every plan by default{included ? '' : ' (not currently included here)'}
                                 {override !== null && (
                                   <>
                                     {' · overridden for this café'}
@@ -1010,7 +1187,9 @@ export default function CafeDetailClient({
                             <p className="text-foreground">{s.label}</p>
                             <p className="mt-0.5 text-[12px] text-muted-foreground">{s.description}</p>
                           </div>
-                          <Badge tone="neutral">Always included</Badge>
+                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground">
+                            <Lock size={11} /> Locked
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -1461,6 +1640,19 @@ function Field({ label, value, capitalize, hint }: { label: string; value: strin
       <p className="text-[11.5px] text-muted-foreground">{label}</p>
       <p className={`mt-0.5 text-foreground ${capitalize ? 'capitalize' : ''}`}>{value || '—'}</p>
       {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/** A small labeled field for the Feature Control row's status columns (Plan
+ *  Default / Effective / Manual Override) — same label-above-value shape as
+ *  Field above, but the value is a node (a Badge, a switch) rather than plain
+ *  text. */
+function StatusField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
     </div>
   )
 }
