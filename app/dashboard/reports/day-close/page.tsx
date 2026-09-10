@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
+import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import DayCloseClient, { type DayCloseReports } from './day-close-client'
 import { businessDayStartISO } from '@/lib/datetime'
@@ -14,6 +16,10 @@ export const dynamic = 'force-dynamic'
 export default async function DayClosePage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
+
+  if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
+    return <FeatureDisabled feature="Day Close" />
+  }
 
   const from = businessDayStartISO(cafe.timezone)
   const to = new Date().toISOString() // "today so far" — mirrors every other report's "Today" preset

@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
+import { hasFeature } from '@/lib/entitlements'
+import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import SalesReportClient, { type SalesReport } from './sales-report-client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
@@ -9,6 +11,10 @@ export const dynamic = 'force-dynamic'
 export default async function SalesReportPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
+
+  if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
+    return <FeatureDisabled feature="Sales report" />
+  }
 
   // Default range: last 7 days, inclusive of today, in the café's own timezone.
   const from = businessDaysAgoStartISO(6, cafe.timezone)

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
+import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import OverviewClient from './overview-client'
 import { redactReport, type OverviewReport } from './redact-report'
@@ -11,6 +12,14 @@ export const dynamic = 'force-dynamic'
 export default async function ReportsOverviewPage() {
   const cafe = await getCurrentCafe()
   if (!cafe) redirect('/onboarding')
+
+  // Distinct from 'advanced_reports' (GST register, Adjustments, Operations,
+  // Profitability, Recommendations) — this gates the single-day-window
+  // reports every plan gets by default: Sales, Day Close, Item sales,
+  // Payments & aging, and this Overview page itself.
+  if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
+    return <FeatureDisabled feature="Reports" />
+  }
 
   // Default range: last 7 days, inclusive of today, in the café's own timezone.
   const from = businessDaysAgoStartISO(6, cafe.timezone)
