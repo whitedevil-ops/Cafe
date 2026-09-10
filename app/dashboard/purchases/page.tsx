@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import PurchasesClient, { type Supplier, type PurchaseOrder, type InventoryItemOption } from './purchases-client'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +19,7 @@ export default async function PurchasesPage() {
   // Suppliers/purchase orders are meaningless without stock tracking — same
   // gate recipes.tsx already reuses rather than inventing a separate key.
   if (!(await hasFeature(cafe.cafeId, 'inventory'))) {
-    return <UpgradeRequired feature="Purchases & Suppliers" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const [{ data: suppliers }, { data: orders, count: ordersCount }, { data: items }] = await Promise.all([

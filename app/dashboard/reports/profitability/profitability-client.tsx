@@ -34,12 +34,14 @@ export default function ProfitabilityClient({
   timezone,
   initialPayload,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
   timezone: string
   initialPayload: ProfitabilityPayload | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   // Seeded from the server's own prefetch of the same default view (30
@@ -109,7 +111,7 @@ export default function ProfitabilityClient({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
-      <ReportsSubnav active="/dashboard/reports/profitability" canSeeProfit={true} />
+      <ReportsSubnav active="/dashboard/reports/profitability" canSeeProfit={true} advancedReportsAllowed={advancedReportsAllowed} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

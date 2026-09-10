@@ -57,6 +57,7 @@ export default function OverviewClient({
   initialReport,
   crmAllowed,
   inventoryAllowed,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -68,6 +69,7 @@ export default function OverviewClient({
   todayStart: string
   crmAllowed: boolean
   inventoryAllowed: boolean
+  advancedReportsAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const canSeeProfit = role === 'owner' || role === 'manager'
@@ -193,7 +195,7 @@ export default function OverviewClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

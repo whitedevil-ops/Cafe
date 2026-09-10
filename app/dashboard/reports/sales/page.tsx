@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
-import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import SalesReportClient, { type SalesReport } from './sales-report-client'
 import { businessDayStartISO, businessDaysAgoStartISO } from '@/lib/datetime'
@@ -13,7 +12,7 @@ export default async function SalesReportPage() {
   if (!cafe) redirect('/onboarding')
 
   if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
-    return <FeatureDisabled feature="Sales report" />
+    redirect('/dashboard')
   }
 
   // Default range: last 7 days, inclusive of today, in the café's own timezone.
@@ -21,11 +20,14 @@ export default async function SalesReportPage() {
   const to = new Date().toISOString()
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('sales_report', {
-    p_cafe_id: cafe.cafeId,
-    p_from: from,
-    p_to: to,
-  })
+  const [{ data, error }, advancedReportsAllowed] = await Promise.all([
+    supabase.rpc('sales_report', {
+      p_cafe_id: cafe.cafeId,
+      p_from: from,
+      p_to: to,
+    }),
+    hasFeature(cafe.cafeId, 'advanced_reports'),
+  ])
 
   return (
     <SalesReportClient
@@ -38,6 +40,7 @@ export default async function SalesReportPage() {
       initialReport={(error ? null : (data as SalesReport)) ?? null}
       initialError={error?.message ?? null}
       todayStart={businessDayStartISO(cafe.timezone)}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

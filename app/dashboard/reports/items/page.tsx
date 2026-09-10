@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
-import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import ItemsClient, { type ItemsReport } from './items-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
@@ -13,14 +12,17 @@ export default async function ItemsReportPage() {
   if (!cafe) redirect('/onboarding')
 
   if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
-    return <FeatureDisabled feature="Item sales report" />
+    redirect('/dashboard')
   }
 
   const from = businessDaysAgoStartISO(6, cafe.timezone)
   const to = new Date().toISOString()
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('items_categories_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to })
+  const [{ data, error }, advancedReportsAllowed] = await Promise.all([
+    supabase.rpc('items_categories_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
+    hasFeature(cafe.cafeId, 'advanced_reports'),
+  ])
 
   return (
     <ItemsClient
@@ -32,6 +34,7 @@ export default async function ItemsReportPage() {
       initialTo={to}
       initialReport={(error ? null : (data as ItemsReport)) ?? null}
       initialError={error?.message ?? null}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { hasFeature } from '@/lib/entitlements'
-import { FeatureDisabled } from '@/components/feature-disabled'
 import { createClient } from '@/utils/supabase/server'
 import DayCloseClient, { type DayCloseReports } from './day-close-client'
 import { businessDayStartISO } from '@/lib/datetime'
@@ -18,19 +17,20 @@ export default async function DayClosePage() {
   if (!cafe) redirect('/onboarding')
 
   if (!(await hasFeature(cafe.cafeId, 'core_reports'))) {
-    return <FeatureDisabled feature="Day Close" />
+    redirect('/dashboard')
   }
 
   const from = businessDayStartISO(cafe.timezone)
   const to = new Date().toISOString() // "today so far" — mirrors every other report's "Today" preset
 
   const supabase = await createClient()
-  const [sales, gst, adjustments, payments, shifts] = await Promise.all([
+  const [sales, gst, adjustments, payments, shifts, advancedReportsAllowed] = await Promise.all([
     supabase.rpc('sales_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
     supabase.rpc('gst_invoice_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
     supabase.rpc('adjustments_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
     supabase.rpc('payments_outstanding_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
     supabase.rpc('recent_shifts', { p_cafe_id: cafe.cafeId, p_limit: 20 }),
+    hasFeature(cafe.cafeId, 'advanced_reports'),
   ])
 
   const initialReports: DayCloseReports = {
@@ -50,6 +50,7 @@ export default async function DayClosePage() {
       initialFrom={from}
       initialTo={to}
       initialReports={initialReports}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

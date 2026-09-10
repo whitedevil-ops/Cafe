@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { hasFeature } from '@/lib/entitlements'
-import { FeatureDisabled } from '@/components/feature-disabled'
 import { DEFAULT_TIMEZONE } from '@/lib/datetime'
 import KitchenClient from './kitchen-client'
 
@@ -16,7 +15,7 @@ export default async function KitchenPage() {
   // previously a confirmed-dead key nothing actually read (see the
   // full-product audit, 2026-09-10). This is the first real consumer.
   if (!(await hasFeature(cafe.cafeId, 'kds'))) {
-    return <FeatureDisabled feature="Kitchen Display System" />
+    redirect('/dashboard')
   }
 
   const supabase = await createClient()

@@ -29,10 +29,14 @@ const ALL_SCREEN_KEYS = new Set([
   'analytics', 'expenses', 'profile', 'qr_codes', 'billing', 'settings',
 ])
 
-// Reports keeps no featureKey on purpose — its index and most sub-pages
-// (sales, items, payments, recommendations) are baseline for every plan;
-// only 4 of its sub-pages gate on 'advanced_reports', so hiding the whole
-// nav entry behind that key would wrongly hide the baseline reports too.
+// Reports gates on 'core_reports' (batch 1 of the entitlement project,
+// 2026-09-10) — every one of its baseline sub-pages (index, day-close,
+// sales, items, payments) now checks that same key server-side, so hiding
+// the nav entry behind it is correct, not the over-hiding this comment used
+// to warn about. 'advanced_reports' (its 5 sub-pages: gst, adjustments,
+// operations, profitability, recommendations) has no nav item of its own —
+// those are reached from the in-page ReportsSubnav strip, which does its
+// own 'advanced_reports' filtering independently of this file.
 //
 // screenKey is the second, independent gate: which screens the CURRENT
 // STAFF MEMBER's role is allowed to see (owner/manager-configurable in
@@ -42,10 +46,10 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
   const overview: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={ICON} />, screenKey: 'dashboard' },
     { label: 'POS', href: '/dashboard/pos', icon: <ShoppingCart size={ICON} />, screenKey: 'pos' },
-    { label: 'Live tables', href: '/dashboard/tables', icon: <Grid2x2 size={ICON} />, screenKey: 'tables' },
+    { label: 'Live tables', href: '/dashboard/tables', icon: <Grid2x2 size={ICON} />, featureKey: 'live_tables', screenKey: 'tables' },
     { label: 'Bills', href: '/dashboard/bills', icon: <ReceiptText size={ICON} />, badge: 'New', screenKey: 'bills' },
     ...(cashEnabled ? [{ label: 'Shift & cash', href: '/dashboard/shift', icon: <Banknote size={ICON} />, screenKey: 'shift' }] : []),
-    { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} />, screenKey: 'kitchen' },
+    { label: 'Kitchen', href: '/dashboard/kitchen', icon: <ChefHat size={ICON} />, featureKey: 'kds', screenKey: 'kitchen' },
   ]
   const groups: NavGroup[] = [
     { heading: 'Operations', items: overview },
@@ -68,7 +72,7 @@ function buildNav(cashEnabled: boolean, features: Record<string, boolean>, scree
         { label: 'Wallet', href: '/dashboard/wallet', icon: <PiggyBank size={ICON} />, featureKey: 'wallet', screenKey: 'wallet' },
         { label: 'Reservations', href: '/dashboard/reservations', icon: <CalendarClock size={ICON} />, featureKey: 'reservations', screenKey: 'reservations' },
         { label: 'Analytics', href: '/dashboard/analytics', icon: <TrendingUp size={ICON} />, featureKey: 'advanced_analytics', screenKey: 'analytics' },
-        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} />, screenKey: 'reports' },
+        { label: 'Reports', href: '/dashboard/reports', icon: <ChartBar size={ICON} />, featureKey: 'core_reports', screenKey: 'reports' },
         { label: 'Expenses', href: '/dashboard/expenses', icon: <Wallet size={ICON} />, featureKey: 'expenses', screenKey: 'expenses' },
       ],
     },

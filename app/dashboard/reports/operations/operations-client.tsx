@@ -18,6 +18,7 @@ export default function OperationsClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -27,6 +28,7 @@ export default function OperationsClient({
   initialTo: string
   initialReport: OperationsReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
@@ -65,7 +67,7 @@ export default function OperationsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/operations" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/operations" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="Operations"
         subtitle="How fast orders actually get done, and how quickly tables turn over — the two things nothing else in Reports shows."

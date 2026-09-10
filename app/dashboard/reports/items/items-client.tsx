@@ -19,6 +19,7 @@ export default function ItemsClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -28,6 +29,7 @@ export default function ItemsClient({
   initialTo: string
   initialReport: ItemsReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
@@ -73,7 +75,7 @@ export default function ItemsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/items" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/items" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="Items & Categories"
         subtitle="What's selling, what isn't, and how your menu's categories split — volume and mix, not margin. Paid or refunded orders only, net of item-level refunds."

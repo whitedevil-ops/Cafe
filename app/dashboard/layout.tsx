@@ -67,7 +67,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // and that the wheel editor lived on the Loyalty page. Both stopped being
   // true when Spin moved to /dashboard/spin, and a stale comment on an
   // entitlement list is the kind that gets believed.
-  for (const key of ['crm', 'inventory', 'coupons', 'loyalty', 'spin', 'expenses', 'wallet', 'reservations', 'advanced_analytics']) {
+  //
+  // 'kds' / 'live_tables' / 'core_reports' added alongside their nav items'
+  // new featureKeys (Kitchen/Live tables/Reports) — without these, buildNav's
+  // `features[featureKey]` would read `undefined` (falsy) for every café
+  // regardless of real entitlement, hiding those nav items for everyone.
+  for (const key of ['crm', 'inventory', 'coupons', 'loyalty', 'spin', 'expenses', 'wallet', 'reservations', 'advanced_analytics', 'kds', 'live_tables', 'core_reports']) {
     navFeatures[key] = overrideMap.has(key) ? overrideMap.get(key)! : (planFeatures[key] ?? false)
   }
 

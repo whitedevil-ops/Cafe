@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
 import { hasFeature } from '@/lib/entitlements'
-import { FeatureDisabled } from '@/components/feature-disabled'
 import FloorClient, { type FloorTable } from './floor-client'
 import type { MenuCategory, MenuItem, MenuVariant, MenuAddon } from '@/components/waiter/quick-add-sheet'
 
@@ -13,7 +12,7 @@ export default async function TablesFloorPage() {
   if (!cafe) redirect('/onboarding')
 
   if (!(await hasFeature(cafe.cafeId, 'live_tables'))) {
-    return <FeatureDisabled feature="Live Tables" />
+    redirect('/dashboard')
   }
 
   const supabase = await createClient()

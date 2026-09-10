@@ -46,6 +46,7 @@ export default function DayCloseClient({
   initialFrom,
   initialTo,
   initialReports,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -54,6 +55,7 @@ export default function DayCloseClient({
   initialFrom: string
   initialTo: string
   initialReports: DayCloseReports
+  advancedReportsAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const canSeeProfit = role === 'owner' || role === 'manager'
@@ -113,7 +115,7 @@ export default function DayCloseClient({
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 print:px-0 print:py-0">
       <div className="print:hidden">
-        <ReportsSubnav active="/dashboard/reports/day-close" canSeeProfit={canSeeProfit} />
+        <ReportsSubnav active="/dashboard/reports/day-close" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-3">

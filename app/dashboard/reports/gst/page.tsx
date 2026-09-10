@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import GstClient, { type GstReport } from './gst-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 
@@ -14,8 +13,9 @@ export default async function GstReportPage() {
 
   const supabase = await createClient()
 
-  if (!(await hasFeature(cafe.cafeId, 'advanced_reports'))) {
-    return <UpgradeRequired feature="GST reporting" plan={await getCafePlanName(cafe.cafeId)} />
+  const advancedReportsAllowed = await hasFeature(cafe.cafeId, 'advanced_reports')
+  if (!advancedReportsAllowed) {
+    redirect('/dashboard')
   }
 
   const from = businessDaysAgoStartISO(6, cafe.timezone)
@@ -33,6 +33,7 @@ export default async function GstReportPage() {
       initialTo={to}
       initialReport={(error ? null : (data as GstReport)) ?? null}
       initialError={error?.message ?? null}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

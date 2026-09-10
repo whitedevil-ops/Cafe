@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import WalletClient, { type Tier, type WalletOverview } from './wallet-client'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +13,7 @@ export default async function WalletPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'wallet'))) {
-    return <UpgradeRequired feature="Customer wallet" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const [{ data: tiers }, { data: overview }] = await Promise.all([

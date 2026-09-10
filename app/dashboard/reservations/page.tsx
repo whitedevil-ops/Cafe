@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import { businessDayStartISO } from '@/lib/datetime'
 import ReservationsClient, { type Reservation, type TableOption } from './reservations-client'
 
@@ -15,7 +14,7 @@ export default async function ReservationsPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'reservations'))) {
-    return <UpgradeRequired feature="Table Reservations" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const from = businessDayStartISO(cafe.timezone)

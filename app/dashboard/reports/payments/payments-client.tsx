@@ -24,6 +24,7 @@ export default function PaymentsClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -33,6 +34,7 @@ export default function PaymentsClient({
   initialTo: string
   initialReport: PaymentsReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
@@ -90,7 +92,7 @@ export default function PaymentsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/payments" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/payments" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="Payments & Outstanding"
         subtitle="What actually came in, by method — plus every bill still owed, aged by how long it's been open."

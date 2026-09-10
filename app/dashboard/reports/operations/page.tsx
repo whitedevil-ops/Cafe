@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import OperationsClient, { type OperationsReport } from './operations-client'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 
@@ -14,8 +13,9 @@ export default async function OperationsReportPage() {
 
   const supabase = await createClient()
 
-  if (!(await hasFeature(cafe.cafeId, 'advanced_reports'))) {
-    return <UpgradeRequired feature="Operations reporting" plan={await getCafePlanName(cafe.cafeId)} />
+  const advancedReportsAllowed = await hasFeature(cafe.cafeId, 'advanced_reports')
+  if (!advancedReportsAllowed) {
+    redirect('/dashboard')
   }
 
   const from = businessDaysAgoStartISO(6, cafe.timezone)
@@ -33,6 +33,7 @@ export default async function OperationsReportPage() {
       initialTo={to}
       initialReport={(error ? null : (data as OperationsReport)) ?? null}
       initialError={error?.message ?? null}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

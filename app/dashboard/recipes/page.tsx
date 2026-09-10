@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import RecipesClient, { type CostRow, type RecipeRow, type InventoryOption } from './recipes-client'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +15,7 @@ export default async function RecipesPage() {
   // Recipes/costing are meaningless without inventory, so they share its
   // entitlement rather than introducing a second flag nobody configured.
   if (!(await hasFeature(cafe.cafeId, 'inventory'))) {
-    return <UpgradeRequired feature="Recipes & food cost" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const [{ data: costs }, { data: recipes }, { data: inventory }, { data: cafeRow }] = await Promise.all([

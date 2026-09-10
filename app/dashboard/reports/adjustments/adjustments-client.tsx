@@ -30,6 +30,7 @@ export default function AdjustmentsClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -39,6 +40,7 @@ export default function AdjustmentsClient({
   initialTo: string
   initialReport: AdjustmentsReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const [tab, setTab] = useState<Tab>('discounts')
@@ -95,7 +97,7 @@ export default function AdjustmentsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/adjustments" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/adjustments" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="Adjustments"
         subtitle="Every discount, refund and cancellation in this range, with who did it and why — for accountability review."

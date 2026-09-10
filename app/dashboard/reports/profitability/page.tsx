@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import { createClient } from '@/utils/supabase/server'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 import ProfitabilityClient, { type ProfitabilityPayload } from './profitability-client'
@@ -15,8 +14,9 @@ export default async function ProfitabilityPage() {
   // profitability_report RPC re-checks this server-side regardless of the UI.
   if (cafe.role !== 'owner' && cafe.role !== 'manager') redirect('/dashboard/reports')
 
-  if (!(await hasFeature(cafe.cafeId, 'advanced_reports'))) {
-    return <UpgradeRequired feature="Profitability reporting" plan={await getCafePlanName(cafe.cafeId)} />
+  const advancedReportsAllowed = await hasFeature(cafe.cafeId, 'advanced_reports')
+  if (!advancedReportsAllowed) {
+    redirect('/dashboard')
   }
 
   // Prefetches the client's own default view (30 days, all order types) —
@@ -44,6 +44,7 @@ export default async function ProfitabilityPage() {
       timezone={cafe.timezone}
       initialPayload={(error ? null : (data as ProfitabilityPayload)) ?? null}
       initialError={error?.message ?? null}
+      advancedReportsAllowed={advancedReportsAllowed}
     />
   )
 }

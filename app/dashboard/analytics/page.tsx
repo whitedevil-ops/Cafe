@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import { businessDaysAgoStartISO } from '@/lib/datetime'
 import AnalyticsClient, { type AnalyticsReport } from './analytics-client'
 
@@ -15,7 +14,7 @@ export default async function AnalyticsPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'advanced_analytics'))) {
-    return <UpgradeRequired feature="Advanced Analytics" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const from = businessDaysAgoStartISO(29, cafe.timezone)

@@ -19,6 +19,7 @@ export default function RecommendationsClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -28,6 +29,7 @@ export default function RecommendationsClient({
   initialTo: string
   initialReport: RecommendationsReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
@@ -67,7 +69,7 @@ export default function RecommendationsClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/recommendations" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/recommendations" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="Smart recommendations"
         subtitle="See which suggestions actually get added — remove anything that doesn't convert."

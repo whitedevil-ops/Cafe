@@ -26,6 +26,7 @@ export default function GstClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -35,6 +36,7 @@ export default function GstClient({
   initialTo: string
   initialReport: GstReport | null
   initialError?: string | null
+  advancedReportsAllowed: boolean
 }) {
   const canSeeProfit = role === 'owner' || role === 'manager'
   const { report, loading, error, preset, choosePreset, customFrom, setCustomFrom, customTo, setCustomTo, applyCustom, activeRange } =
@@ -111,7 +113,7 @@ export default function GstClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/gst" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/gst" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
       <ReportHeader
         title="GST"
         subtitle="Invoice-basis, not accrual — only orders that were actually issued a GST invoice, exactly as it read at the time."

@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentCafe } from '@/lib/cafe'
 import { createClient } from '@/utils/supabase/server'
-import { hasFeature, getCafePlanName } from '@/lib/entitlements'
-import { UpgradeRequired } from '@/components/upgrade-required'
+import { hasFeature } from '@/lib/entitlements'
 import InventoryClient, { type InventoryItem } from './inventory-client'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +13,7 @@ export default async function InventoryPage() {
   const supabase = await createClient()
 
   if (!(await hasFeature(cafe.cafeId, 'inventory'))) {
-    return <UpgradeRequired feature="Inventory" plan={await getCafePlanName(cafe.cafeId)} />
+    redirect('/dashboard')
   }
 
   const { data } = await supabase

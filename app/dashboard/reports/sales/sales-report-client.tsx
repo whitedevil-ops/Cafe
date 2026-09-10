@@ -52,6 +52,7 @@ export default function SalesReportClient({
   initialTo,
   initialReport,
   initialError,
+  advancedReportsAllowed,
 }: {
   cafeId: string
   cafeName: string
@@ -62,6 +63,7 @@ export default function SalesReportClient({
   initialReport: SalesReport | null
   initialError?: string | null
   todayStart: string
+  advancedReportsAllowed: boolean
 }) {
   const supabase = useMemo(() => createClient(), [])
   const canSeeProfit = role === 'owner' || role === 'manager'
@@ -188,7 +190,7 @@ export default function SalesReportClient({
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <ReportsSubnav active="/dashboard/reports/sales" canSeeProfit={canSeeProfit} />
+      <ReportsSubnav active="/dashboard/reports/sales" canSeeProfit={canSeeProfit} advancedReportsAllowed={advancedReportsAllowed} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
