@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import Link from 'next/link'
 import { Zap, Heart, Layers, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,6 +13,23 @@ import { ComparisonSection } from '@/components/marketing/comparison-section'
 import { TestimonialSpotlight } from '@/components/marketing/testimonial-spotlight'
 import { PricingCards } from '@/components/marketing/pricing-cards'
 import { Reveal } from '@/components/marketing/reveal'
+
+// Read the real shipped version straight from the Tauri config rather than
+// hardcoding it here — the two are in separate subprojects with separate
+// release processes, and a hand-typed copy is exactly the kind of number
+// that quietly goes stale the next time someone cuts a desktop release
+// without remembering the website also quotes it.
+function desktopVersion(): string | undefined {
+  try {
+    const raw = fs.readFileSync(
+      path.join(process.cwd(), 'desktop', 'src-tauri', 'tauri.conf.json'),
+      'utf8'
+    )
+    return JSON.parse(raw).version
+  } catch {
+    return undefined
+  }
+}
 
 const VALUE_PROPS = [
   { icon: Zap, title: 'Faster orders', body: 'Less time at the counter' },
@@ -70,7 +89,7 @@ export default function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <SiteHeader />
 
-      <Hero />
+      <Hero desktopVersion={desktopVersion()} />
 
       {/* Value strip */}
       <section className="border-y border-border bg-surface">

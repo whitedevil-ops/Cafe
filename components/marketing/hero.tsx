@@ -110,7 +110,7 @@ function FloatingChip({
   )
 }
 
-export function Hero() {
+export function Hero({ desktopVersion }: { desktopVersion?: string }) {
   const reduceMotion = useReducedMotion()
 
   return (
@@ -183,6 +183,9 @@ export function Hero() {
                 Download for Mac
               </a>
             </div>
+            {desktopVersion && (
+              <p className="mt-2 text-[12px] text-muted-foreground/70">Version {desktopVersion} for Windows &amp; macOS</p>
+            )}
           </Reveal>
         </div>
 
