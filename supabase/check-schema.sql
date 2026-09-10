@@ -901,7 +901,11 @@ with expected(kind, name, fix) as (values
   -- new rows for it.
   -- internal Android plan tier (0222)
   ('column', 'platform_plans.internal_only', '0222'),
-  ('column', 'platform_plans.android_only', '0222')
+  ('column', 'platform_plans.android_only', '0222'),
+  -- T&C consent-flow audit (0231)
+  ('table', 'legal_acceptances', '0231'),
+  ('function', 'record_legal_acceptance', '0231'),
+  ('function', 'has_accepted_legal_doc', '0231')
 )
 select
   e.kind,

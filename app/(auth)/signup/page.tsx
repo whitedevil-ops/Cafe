@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { TermsModal } from '@/components/legal/terms-modal'
+import { legalDocVersion } from '@/lib/legal-content'
 
 export default function SignupPage() {
   // useSearchParams needs a Suspense boundary for the static shell (Next build rule).
@@ -37,6 +39,7 @@ function SignupForm() {
   const [step, setStep] = useState<'details' | 'code'>('details')
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', password: '', confirm_password: '' })
   const [agreed, setAgreed] = useState(false)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -126,6 +129,10 @@ function SignupForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           email, code, full_name: form.full_name, phone: form.phone, password: form.password, token,
+          // Recorded server-side against the account once it's created — see
+          // this route's own comment for why the acceptance has to happen
+          // there rather than from this still-unauthenticated page.
+          terms_version: legalDocVersion('terms'),
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -287,25 +294,42 @@ function SignupForm() {
           value={form.confirm_password}
           onChange={set('confirm_password')}
         />
-        <label className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
-          />
-          <span>
-            I agree to the{' '}
-            <Link href="/legal/terms" target="_blank" className="font-medium text-primary hover:underline">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/legal/privacy" target="_blank" className="font-medium text-primary hover:underline">
-              Privacy Policy
-            </Link>
-            .
+        <div className="flex items-start gap-2.5 text-[13px] text-muted-foreground">
+          <span
+            aria-hidden
+            className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border ${
+              agreed ? 'border-primary bg-primary text-primary-foreground' : 'border-border-strong'
+            }`}
+          >
+            {agreed && (
+              <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 8.5l3 3 7-7" />
+              </svg>
+            )}
           </span>
-        </label>
+          <span>
+            {agreed ? (
+              <>
+                You&apos;ve agreed to the{' '}
+                <button type="button" onClick={() => setTermsModalOpen(true)} className="font-medium text-primary hover:underline">
+                  Terms of Service
+                </button>
+                .
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => setTermsModalOpen(true)} className="font-medium text-primary hover:underline">
+                  Read &amp; agree to the Terms of Service
+                </button>{' '}
+                to continue. See also our{' '}
+                <Link href="/legal/privacy" target="_blank" className="font-medium text-primary hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </>
+            )}
+          </span>
+        </div>
         {error && (
           <p className="rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
             {error}
@@ -322,6 +346,20 @@ function SignupForm() {
           Sign in
         </Link>
       </p>
+
+      <TermsModal
+        open={termsModalOpen}
+        docType="terms"
+        onClose={() => setTermsModalOpen(false)}
+        onAgree={() => {
+          // No session exists yet at this point in signup — there is nothing
+          // to record acceptance against until the account itself is
+          // created, so the actual database write happens server-side in
+          // verify-code once that account exists (see the fetch above).
+          setAgreed(true)
+          setTermsModalOpen(false)
+        }}
+      />
     </div>
   )
 }

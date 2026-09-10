@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Check, CreditCard } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { loadRazorpayCheckout } from '@/lib/razorpay-client'
@@ -8,6 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
 import { PageHeader } from '@/components/ui/page-header'
 import { useToast } from '@/components/ui/toast'
+import { TermsModal } from '@/components/legal/terms-modal'
+import { legalDocVersion } from '@/lib/legal-content'
+
+const TERMS_VERSION = legalDocVersion('terms')
 
 export type BillingState = {
   plan: string
@@ -45,9 +50,56 @@ export default function BillingClient({
   const [error, setError] = useState<string | null>(null)
   const isOwner = role === 'owner'
 
+  // null = still checking. Consent is per-account (legal_acceptances is
+  // keyed on auth.uid(), not per-café), so this only needs checking once
+  // regardless of which plan the owner ends up switching to.
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState<boolean | null>(null)
+  const [termsModalOpen, setTermsModalOpen] = useState(false)
+  const [pendingPlanKey, setPendingPlanKey] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isOwner) return
+    void (async () => {
+      const { data } = await supabase.rpc('has_accepted_legal_doc', {
+        p_doc_type: 'terms',
+        p_doc_version: TERMS_VERSION,
+      })
+      setHasAcceptedTerms(data === true)
+    })()
+  }, [isOwner, supabase])
+
   async function refresh() {
     const { data } = await supabase.rpc('platform_billing_state', { p_cafe_id: cafeId })
     if (data) setState(data as BillingState)
+  }
+
+  // Gate in front of the real subscribe flow — only proceeds once consent is
+  // confirmed on record, opening the modal first if it isn't yet.
+  function requestSubscribe(planKey: string) {
+    if (hasAcceptedTerms === false) {
+      setPendingPlanKey(planKey)
+      setTermsModalOpen(true)
+      return
+    }
+    void subscribe(planKey)
+  }
+
+  async function onAgreeToTerms() {
+    const { error: rpcErr } = await supabase.rpc('record_legal_acceptance', {
+      p_doc_type: 'terms',
+      p_doc_version: TERMS_VERSION,
+    })
+    if (rpcErr) {
+      setError('Could not record your agreement — please try again.')
+      return
+    }
+    setHasAcceptedTerms(true)
+    setTermsModalOpen(false)
+    if (pendingPlanKey) {
+      const plan = pendingPlanKey
+      setPendingPlanKey(null)
+      void subscribe(plan)
+    }
   }
 
   async function subscribe(planKey: string) {
@@ -165,8 +217,8 @@ export default function BillingClient({
                       <Button
                         className="mt-4 w-full"
                         variant="primary"
-                        loading={busyPlan === p.key}
-                        onClick={() => subscribe(p.key)}
+                        loading={busyPlan === p.key || hasAcceptedTerms === null}
+                        onClick={() => requestSubscribe(p.key)}
                       >
                         Switch to this plan
                       </Button>
@@ -185,8 +237,37 @@ export default function BillingClient({
           ) : (
             <p className="text-[13px] text-muted-foreground">Only the café owner can change the billing plan.</p>
           )}
+
+          {isOwner && (
+            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+              By continuing, you confirm that you have read and agree to the KhaoPiyo{' '}
+              <button
+                type="button"
+                onClick={() => setTermsModalOpen(true)}
+                className="font-medium text-primary hover:underline"
+              >
+                Terms &amp; Conditions
+              </button>
+              . See also our{' '}
+              <Link href="/legal/privacy" target="_blank" className="font-medium text-primary hover:underline">
+                Privacy Policy
+              </Link>{' '}
+              and{' '}
+              <Link href="/legal/refunds" target="_blank" className="font-medium text-primary hover:underline">
+                Refund &amp; Cancellation terms
+              </Link>
+              .
+            </p>
+          )}
         </>
       )}
+
+      <TermsModal
+        open={termsModalOpen}
+        docType="terms"
+        onClose={() => { setTermsModalOpen(false); setPendingPlanKey(null) }}
+        onAgree={onAgreeToTerms}
+      />
     </div>
   )
 }
