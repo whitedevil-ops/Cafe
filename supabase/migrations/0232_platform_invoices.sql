@@ -25,6 +25,7 @@ create table if not exists platform_invoice_counters (
   next_seq integer not null default 1
 );
 alter table platform_invoice_counters enable row level security;
+drop policy if exists "admin all" on platform_invoice_counters;
 create policy "admin all" on platform_invoice_counters for all using (is_platform_admin()) with check (is_platform_admin());
 revoke all on platform_invoice_counters from public, anon, authenticated;
 
@@ -75,6 +76,7 @@ alter table platform_invoices enable row level security;
 -- admin", same layered pattern as cafe_feature_overrides: the specific
 -- has_platform_permission() check for subscriptions.view/manage happens
 -- inside each RPC below, not in this policy.
+drop policy if exists "admin all" on platform_invoices;
 create policy "admin all" on platform_invoices for all using (is_platform_admin()) with check (is_platform_admin());
 revoke all on platform_invoices from public, anon, authenticated;
 
