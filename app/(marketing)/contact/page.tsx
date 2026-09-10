@@ -94,6 +94,10 @@ export default function ContactPage() {
           </p>
           <div className="mt-8 space-y-3 text-[14.5px] text-muted-foreground">
             <p>
+              <strong className="font-medium text-foreground">General &amp; billing support:</strong>{' '}
+              <a href="mailto:support@ventron.in" className="text-primary hover:underline">support@ventron.in</a>
+            </p>
+            <p>
               <strong className="font-medium text-foreground">Privacy and data requests:</strong>{' '}
               <a href="mailto:privacy@ventron.in" className="text-primary hover:underline">privacy@ventron.in</a>
             </p>
