@@ -205,12 +205,18 @@ export function AppShell({
 
   const railWidth = effectiveCollapsed ? 'lg:w-[68px]' : 'lg:w-64'
 
-  const rail = (
+  // A function of an explicit `isCollapsed` rather than reading
+  // effectiveCollapsed directly — the mobile drawer always renders fully
+  // expanded (see below): it's an overlay with its own fixed width, not a
+  // fixed-width page rail, so POS's "collapse for extra width" rationale
+  // (which effectiveCollapsed encodes) doesn't apply there at all.
+  function renderRail(isCollapsed: boolean) {
+    return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Brand */}
-      <div className={`flex items-center gap-2.5 px-4 py-4 ${effectiveCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+      <div className={`flex items-center gap-2.5 px-4 py-4 ${isCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
         <Image src="/logo-mark.png" alt="" width={36} height={36} className="h-9 w-9 shrink-0" priority />
-        {!effectiveCollapsed && (
+        {!isCollapsed && (
           <div className="min-w-0">
             <p className="text-[15px] font-semibold leading-tight tracking-tight">KhaoPiyo</p>
             <p className="truncate text-[11.5px] text-sidebar-muted">{cafeName}</p>
@@ -218,7 +224,7 @@ export function AppShell({
         )}
       </div>
 
-      {!effectiveCollapsed && (cafes.length > 1 || canAddCafe || upgradeTo) && (
+      {!isCollapsed && (cafes.length > 1 || canAddCafe || upgradeTo) && (
         <div className="px-3 pb-1">
           <CafeSwitcher cafes={cafes} activeCafeId={cafeId} canAddCafe={canAddCafe} upgradeTo={upgradeTo} />
         </div>
@@ -227,7 +233,7 @@ export function AppShell({
       <nav className="flex-1 overflow-y-auto px-3 py-2">
         {groups.map((group) => (
           <div key={group.heading} className="mb-4 last:mb-0">
-            {!effectiveCollapsed && (
+            {!isCollapsed && (
               <p className="px-2.5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-sidebar-muted">
                 {group.heading}
               </p>
@@ -239,10 +245,10 @@ export function AppShell({
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      title={effectiveCollapsed ? item.label : undefined}
+                      title={isCollapsed ? item.label : undefined}
                       aria-current={on ? 'page' : undefined}
                       className={`group relative flex items-center rounded-[var(--radius)] text-[13.5px] font-medium transition-colors ${
-                        effectiveCollapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-2.5 px-2.5 py-2'
+                        isCollapsed ? 'lg:justify-center lg:px-0 lg:py-2.5' : 'gap-2.5 px-2.5 py-2'
                       } ${
                         on
                           ? 'bg-sidebar-active text-sidebar-active-foreground'
@@ -250,14 +256,14 @@ export function AppShell({
                       }`}
                     >
                       <NavPendingGlow />
-                      {on && !effectiveCollapsed && (
+                      {on && !isCollapsed && (
                         <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
                       )}
                       <span className={on ? 'text-sidebar-active-foreground' : 'text-sidebar-muted group-hover:text-sidebar-foreground'}>
                         {item.icon}
                       </span>
-                      {!effectiveCollapsed && <span className="flex-1 truncate">{item.label}</span>}
-                      {!effectiveCollapsed && item.badge && (
+                      {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+                      {!isCollapsed && item.badge && (
                         <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
                           {item.badge}
                         </span>
@@ -275,27 +281,30 @@ export function AppShell({
       <div className="hidden border-t border-sidebar-border p-2 lg:block">
         <button
           onClick={toggleCollapsed}
-          className={`flex w-full items-center gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-[12.5px] font-medium text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-foreground ${effectiveCollapsed ? 'justify-center px-0' : ''}`}
-          title={effectiveCollapsed ? 'Expand' : 'Collapse'}
+          className={`flex w-full items-center gap-2.5 rounded-[var(--radius)] px-2.5 py-2 text-[12.5px] font-medium text-sidebar-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-foreground ${isCollapsed ? 'justify-center px-0' : ''}`}
+          title={isCollapsed ? 'Expand' : 'Collapse'}
         >
-          {effectiveCollapsed ? <PanelLeft size={16} /> : <><PanelLeftClose size={16} /> Collapse</>}
+          {isCollapsed ? <PanelLeft size={16} /> : <><PanelLeftClose size={16} /> Collapse</>}
         </button>
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <div className="flex min-h-dvh w-full bg-background">
       {/* Desktop sidebar */}
       <aside className={`sticky top-0 hidden h-dvh shrink-0 lg:block ${railWidth} transition-[width] duration-200`}>
-        {rail}
+        {renderRail(effectiveCollapsed)}
       </aside>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — always fully expanded (icon + label). It's an
+          overlay, not a fixed-width page rail, so it never needs the
+          icon-only collapse desktop uses to save horizontal space. */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-72 max-w-[82vw]">{rail}</div>
+          <div className="absolute left-0 top-0 h-full w-72 max-w-[82vw]">{renderRail(false)}</div>
         </div>
       )}
 
