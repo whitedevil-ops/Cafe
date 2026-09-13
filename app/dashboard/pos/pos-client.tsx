@@ -176,6 +176,7 @@ export default function PosClient({
   // Stable per-attempt key so a network retry can never bill the same order
   // twice — see migration 0056. Cleared once an order actually succeeds.
   const requestId = useRef<string | null>(null)
+  const tablesPollErrored = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ code: string; total: number; token: string; paid: boolean; appended: boolean } | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
@@ -482,11 +483,23 @@ export default function PosClient({
   // Reads the SAME canonical tables/floor_areas + ledger the Live Tables screen
   // uses (no separate POS table source), so status is consistent everywhere.
   const pollTables = useCallback(async () => {
-    const [{ data: tbls }, { data: sess }, { data: unread }] = await Promise.all([
+    const [{ data: tbls, error: tblErr }, { data: sess, error: sessErr }, { data: unread }] = await Promise.all([
       supabase.from('cafe_tables').select('id, label, status, area_id, capacity').eq('cafe_id', cafeId).eq('archived', false),
       supabase.from('table_sessions').select('id, table_id, status, started_at').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
       supabase.from('notifications').select('table_id').eq('cafe_id', cafeId).eq('type', 'call_waiter').eq('read', false),
     ])
+    // A transient failure here must never wipe a grid that's showing real
+    // occupied tables with unpaid bills down to "everything's free" — keep
+    // whatever was last known good instead. Toast once per outage, not once
+    // per 5s poll.
+    if (tblErr || sessErr) {
+      if (!tablesPollErrored.current) {
+        tablesPollErrored.current = true
+        toast('Live tables sync failed — showing the last known state.', 'error')
+      }
+      return
+    }
+    tablesPollErrored.current = false
     const sessions = (sess ?? []) as { id: string; table_id: string; status: string; started_at: string }[]
     const sessionIds = sessions.map((s) => s.id)
 
@@ -557,7 +570,7 @@ export default function PosClient({
       }
     })
     setLiveTables(next)
-  }, [supabase, cafeId])
+  }, [supabase, cafeId, toast])
 
   useEffect(() => {
     void pollTables()
@@ -579,11 +592,14 @@ export default function PosClient({
   const pollStats = useCallback(async () => {
     const dayStart = businessDayStartISO(timezone)
     const yesterdayStart = businessDaysAgoStartISO(1, timezone)
-    const [{ data: ords }, { data: yOrds }, { data: kitchen }] = await Promise.all([
+    const [{ data: ords, error: ordsErr }, { data: yOrds }, { data: kitchen }] = await Promise.all([
       supabase.from('orders').select('total').eq('cafe_id', cafeId).neq('status', 'cancelled').gte('created_at', dayStart),
       supabase.from('orders').select('total').eq('cafe_id', cafeId).neq('status', 'cancelled').gte('created_at', yesterdayStart).lt('created_at', dayStart),
       supabase.from('orders').select('status').eq('cafe_id', cafeId).in('status', ['preparing', 'ready']),
     ])
+    // Match the comment above: a failed fetch leaves the strip showing its
+    // last value, it does not overwrite a real "today: ₹4,500" with zeros.
+    if (ordsErr) return
     const rows = ords ?? []
     const collected = rows.reduce((s, o) => s + (o.total ?? 0), 0)
     const orderCount = rows.length

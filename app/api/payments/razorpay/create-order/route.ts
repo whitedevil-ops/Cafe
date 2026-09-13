@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { createRazorpayOrder } from '@/lib/razorpay'
 import { encryptionConfigured, decryptSecret } from '@/lib/crypto'
 
@@ -89,7 +90,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not start the payment. Please pay at the counter.' }, { status: 502 })
   }
 
-  await admin.from('payment_attempts').insert({
+  // This row is the ONLY link the webhook has back to this order (it matches
+  // purely on provider_order_id) — if the insert silently fails, Razorpay
+  // still captures a real payment that can never be reconciled to an order.
+  // A failed local write must mean the payment never starts.
+  const { error: attemptError } = await admin.from('payment_attempts').insert({
     cafe_id: order.cafe_id,
     order_id: order.id,
     amount: due,
@@ -98,6 +103,13 @@ export async function POST(req: Request) {
     provider: 'razorpay',
     provider_order_id: rzp.id,
   })
+  if (attemptError) {
+    Sentry.captureException(new Error(`payment_attempts insert failed: ${attemptError.message}`), {
+      tags: { route: 'payments/razorpay/create-order', operation: 'payment_attempt_insert' },
+      extra: { cafeId: order.cafe_id, orderId: order.id, providerOrderId: rzp.id },
+    })
+    return NextResponse.json({ error: 'Could not start the payment. Please pay at the counter.' }, { status: 500 })
+  }
 
   return NextResponse.json({
     key_id: cafe.razorpay_key_id,

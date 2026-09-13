@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ShoppingBag, ReceiptText, BellRing, PackageX, CreditCard, Undo2, Clock3, Bell } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { formatTime } from '@/lib/datetime'
@@ -33,14 +33,26 @@ export function NotificationBell({
   const supabase = useMemo(() => createClient(), [])
   const [notices, setNotices] = useState<Notice[]>([])
   const [open, setOpen] = useState(false)
+  // This is the only channel that surfaces payment_failed/low_stock/etc. —
+  // a sustained fetch failure must not just silently stop gaining badges.
+  // Flag it only after a few consecutive misses, not on one blip.
+  const [degraded, setDegraded] = useState(false)
+  const failCount = useRef(0)
 
   const load = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('notifications')
       .select('id, type, message, read, created_at')
       .eq('cafe_id', cafeId)
       .order('created_at', { ascending: false })
       .limit(30)
+    if (error) {
+      failCount.current += 1
+      if (failCount.current >= 3) setDegraded(true)
+      return
+    }
+    failCount.current = 0
+    setDegraded(false)
     if (data) setNotices((inventoryAllowed ? data : data.filter((n) => n.type !== 'low_stock')) as Notice[])
   }, [supabase, cafeId, inventoryAllowed])
 
@@ -77,7 +89,8 @@ export function NotificationBell({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="Notifications"
+        aria-label={degraded ? 'Notifications (feed degraded)' : 'Notifications'}
+        title={degraded ? "Notifications feed isn't updating" : undefined}
         className="relative grid h-11 w-11 place-items-center rounded-[var(--radius)] text-muted-foreground hover:bg-surface-subtle hover:text-foreground"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -88,6 +101,9 @@ export function NotificationBell({
           <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-medium text-white">
             {unread > 9 ? '9+' : unread}
           </span>
+        )}
+        {degraded && unread === 0 && (
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warning" />
         )}
       </button>
       {open && (

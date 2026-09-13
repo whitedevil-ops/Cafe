@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { createRazorpayOrder } from '@/lib/razorpay'
 import { encryptionConfigured, decryptSecret } from '@/lib/crypto'
 
@@ -76,7 +77,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Could not start the top-up. Please try again.' }, { status: 502 })
   }
 
-  await admin.from('payment_attempts').update({ provider: 'razorpay', provider_order_id: rzp.id }).eq('id', attempt.id)
+  // Same failure mode as the order-payment route: this is the only link the
+  // webhook has back to this attempt (matched purely on provider_order_id) —
+  // a silently-failed update means a captured payment can never be credited.
+  const { error: attemptError } = await admin
+    .from('payment_attempts')
+    .update({ provider: 'razorpay', provider_order_id: rzp.id })
+    .eq('id', attempt.id)
+  if (attemptError) {
+    Sentry.captureException(new Error(`payment_attempts update failed: ${attemptError.message}`), {
+      tags: { route: 'wallet/topup/create-order', operation: 'payment_attempt_update' },
+      extra: { cafeId: attempt.cafe_id, attemptId: attempt.id, providerOrderId: rzp.id },
+    })
+    return NextResponse.json({ error: 'Could not start the top-up. Please try again.' }, { status: 500 })
+  }
 
   return NextResponse.json({
     key_id: cafe.razorpay_key_id,

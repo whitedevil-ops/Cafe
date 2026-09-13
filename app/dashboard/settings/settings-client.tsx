@@ -171,11 +171,10 @@ export default function SettingsClient({
       destructive: true,
     })
     if (!ok) return
-    const { error } = await supabase
-      .from('cafe_members')
-      .delete()
-      .eq('cafe_id', cafeId)
-      .eq('user_id', m.userId)
+    const { error } = await supabase.rpc('remove_staff_member', {
+      p_cafe_id: cafeId,
+      p_user_id: m.userId,
+    })
     if (error) return setStaffError(error.message)
     setStaff((list) => list.filter((x) => x.userId !== m.userId))
     toast(`${label} removed.`)

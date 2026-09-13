@@ -164,6 +164,7 @@ export default function KitchenClient({
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [items, setItems] = useState<Item[]>(initialItems)
+  const [pollError, setPollError] = useState<string | null>(null)
   const [, tick] = useState(0)
   const known = useRef<Set<string>>(new Set())
   // On by default: an alarm nobody has asked to silence is the safe side of
@@ -365,13 +366,20 @@ export default function KitchenClient({
   )
 
   const poll = useCallback(async () => {
-    const { data: ords } = await supabase
+    const { data: ords, error: ordsErr } = await supabase
       .from('orders')
       .select('id, short_code, table_id, type, status, total, payment_method, payment_status, created_at')
       .eq('cafe_id', cafeId)
       .in('status', ['placed', 'preparing', 'ready'])
       .order('created_at', { ascending: true })
-    if (!ords) return
+    // A board that's meant to run unattended all day must never go silently
+    // stale on a transient query failure — keep the last-known-good orders on
+    // screen and surface it, rather than looking like a quiet (empty) café.
+    if (ordsErr || !ords) {
+      setPollError(ordsErr?.message ?? 'could not load orders')
+      return
+    }
+    setPollError(null)
 
     const fresh = ords.filter((o) => !known.current.has(o.id))
     // known is empty on the very first poll after a mount, so a page refresh
@@ -545,6 +553,12 @@ export default function KitchenClient({
       </header>
 
       <PrinterBanner health={printerHealth} />
+
+      {pollError && (
+        <p className="mb-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">
+          Board isn&apos;t syncing: {pollError} — new orders may not appear until this is resolved.
+        </p>
+      )}
 
       {printingEnabled && (
         <div className={`mb-5 rounded-[var(--radius)] border bg-surface px-3 py-2.5 ${autoPrint ? 'border-warning' : 'border-border'}`}>
