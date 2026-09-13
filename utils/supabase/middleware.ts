@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Refreshes the auth session on every request and guards dashboard routes.
@@ -33,6 +34,7 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser()
 
   const path = request.nextUrl.pathname
@@ -41,7 +43,15 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/onboarding') ||
     path.startsWith('/ops')
 
-  if (isProtected && !user) {
+  // getUser() swallows a transient network/timeout failure reaching
+  // Supabase Auth and returns { user: null } for it exactly like a genuine
+  // "not signed in" — there is no retry cushioning in the SDK for this. Left
+  // unguarded, a single connectivity blip would force-redirect an
+  // already-signed-in café staffer to /login, which itself clears the real
+  // session on arrival (by design, for the actual "sign in fresh" case) —
+  // turning a momentary hiccup into a real, disruptive logout. Only redirect
+  // on a confirmed absence of a session, not an inability to check right now.
+  if (isProtected && !user && !isAuthRetryableFetchError(userError)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', path)

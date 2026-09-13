@@ -303,9 +303,36 @@ export default function MenuManager({
 
   async function deleteCategory(id: string) {
     const name = categories.find((c) => c.id === id)?.name ?? 'this category'
+    // Deleting a category cascades away any combo "choice" slot or coupon
+    // scope built on it — both silently, with no error anywhere else. Name
+    // what's actually affected here, at the one point the owner can still
+    // decide not to.
+    const [{ data: comboRefs }, { data: couponRefs }] = await Promise.all([
+      supabase.from('combo_slots').select('combos(name, active)').eq('category_id', id),
+      supabase.from('coupon_categories').select('coupons(code)').eq('category_id', id),
+    ])
+    const affectedCombos = [...new Set(
+      (comboRefs ?? [])
+        .map((r) => r.combos as unknown as { name: string; active: boolean } | null)
+        .filter((c): c is { name: string; active: boolean } => Boolean(c?.active))
+        .map((c) => c.name),
+    )]
+    const affectedCoupons = [...new Set(
+      (couponRefs ?? [])
+        .map((r) => r.coupons as unknown as { code: string } | null)
+        .filter((c): c is { code: string } => Boolean(c))
+        .map((c) => c.code),
+    )]
+    let warning = ''
+    if (affectedCombos.length) {
+      warning += ` The combo${affectedCombos.length === 1 ? '' : 's'} "${affectedCombos.join('", "')}" ${affectedCombos.length === 1 ? 'lets' : 'let'} guests choose from this category and will break.`
+    }
+    if (affectedCoupons.length) {
+      warning += ` The coupon${affectedCoupons.length === 1 ? '' : 's'} "${affectedCoupons.join('", "')}" ${affectedCoupons.length === 1 ? 'is' : 'are'} restricted to this category and will silently become valid cafe-wide.`
+    }
     const ok = await confirm({
       title: `Delete "${name}"?`,
-      description: 'Items in it become uncategorised. This can\'t be undone.',
+      description: `Items in it become uncategorised. This can't be undone.${warning}`,
       confirmLabel: 'Delete',
       destructive: true,
     })
@@ -601,9 +628,22 @@ export default function MenuManager({
   }
 
   async function deleteItem(item: MenuItemRow) {
+    // combo_slots cascade-deletes any combo component pointing at this item —
+    // silently, with no price/status update on the combo itself. Name the
+    // affected combo(s) here, the one point the owner can still reconsider.
+    const { data: refs } = await supabase.from('combo_slots').select('combos(name, active)').eq('menu_item_id', item.id)
+    const affectedCombos = [...new Set(
+      (refs ?? [])
+        .map((r) => r.combos as unknown as { name: string; active: boolean } | null)
+        .filter((c): c is { name: string; active: boolean } => Boolean(c?.active))
+        .map((c) => c.name),
+    )]
+    const comboWarning = affectedCombos.length
+      ? ` The combo${affectedCombos.length === 1 ? '' : 's'} "${affectedCombos.join('", "')}" ${affectedCombos.length === 1 ? 'uses' : 'use'} this item and will break.`
+      : ''
     const ok = await confirm({
       title: `Delete "${item.name}"?`,
-      description: 'It will disappear from the QR menu and menu manager immediately. This can\'t be undone.',
+      description: `It will disappear from the QR menu and menu manager immediately. This can't be undone.${comboWarning}`,
       confirmLabel: 'Delete',
       destructive: true,
     })
@@ -627,9 +667,19 @@ export default function MenuManager({
   }
 
   async function bulkDelete(ids: string[]) {
+    const { data: refs } = await supabase.from('combo_slots').select('combos(name, active)').in('menu_item_id', ids)
+    const affectedCombos = [...new Set(
+      (refs ?? [])
+        .map((r) => r.combos as unknown as { name: string; active: boolean } | null)
+        .filter((c): c is { name: string; active: boolean } => Boolean(c?.active))
+        .map((c) => c.name),
+    )]
+    const comboWarning = affectedCombos.length
+      ? ` The combo${affectedCombos.length === 1 ? '' : 's'} "${affectedCombos.join('", "')}" ${affectedCombos.length === 1 ? 'uses' : 'use'} one of these items and will break.`
+      : ''
     const ok = await confirm({
       title: `Delete ${ids.length} item${ids.length === 1 ? '' : 's'}?`,
-      description: 'They will disappear from the QR menu and menu manager immediately. This can\'t be undone.',
+      description: `They will disappear from the QR menu and menu manager immediately. This can't be undone.${comboWarning}`,
       confirmLabel: 'Delete',
       destructive: true,
     })
