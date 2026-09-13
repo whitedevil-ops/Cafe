@@ -63,7 +63,10 @@ describe.skipIf(!hasAdmin)('cafe_members privilege escalation is closed (live)',
     ownerBClient = ownerB.client
 
     const { data: a, error: aErr } = await admin
-      .from('cafes').insert({ owner_id: ownerAId, slug: `test-cma-a-${Date.now()}`, name: 'Escalation test A' }).select('id').single()
+      // plan: 'business' — the default (trial) plan's 1-staff seat cap would
+      // reject create_staff_member's legitimate re-add of the waiter below,
+      // for a reason unrelated to what this file actually tests.
+      .from('cafes').insert({ owner_id: ownerAId, slug: `test-cma-a-${Date.now()}`, name: 'Escalation test A', plan: 'business' }).select('id').single()
     if (aErr || !a) throw new Error(`fixture: could not create café A — ${aErr?.message}`)
     cafeAId = a.id as string
 
