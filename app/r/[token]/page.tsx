@@ -115,44 +115,44 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
         </div>
 
         <div className="relative z-10 p-4 sm:p-5 print:p-0">
-          <header className="border-b border-border pb-3 text-center print:pb-2.5">
+          <header className="border-b border-border pb-3 text-center print:pb-1.5">
             {r.cafe.logo_url && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={r.cafe.logo_url} alt="" className="mx-auto mb-2 h-11 w-11 rounded-xl object-cover shadow-sm print:mb-1.5 print:h-9 print:w-9" />
+              <img src={r.cafe.logo_url} alt="" className="mx-auto mb-2 h-11 w-11 rounded-xl object-cover shadow-sm print:mb-1 print:h-8 print:w-8" />
             )}
-            <h1 className="text-lg font-bold tracking-tight text-foreground print:text-[15px]" style={{ fontFamily: 'var(--font-display)' }}>
+            <h1 className="text-lg font-bold tracking-tight text-foreground print:text-[14px]" style={{ fontFamily: 'var(--font-display)' }}>
               {r.cafe.name}
             </h1>
             {r.cafe.gst_registered && r.cafe.legal_name && r.cafe.legal_name !== r.cafe.name && (
-              <p className="mt-0.5 text-[12px] text-muted-foreground print:text-[10px]">{r.cafe.legal_name}</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground print:mt-0 print:text-[9px] print:leading-tight">{r.cafe.legal_name}</p>
             )}
             {(r.cafe.address || r.cafe.city) && (
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground print:text-[10px]">
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground print:mt-0 print:text-[9px] print:leading-tight">
                 {[r.cafe.address, r.cafe.city, r.cafe.state, r.cafe.pincode].filter(Boolean).join(', ')}
               </p>
             )}
-            {r.cafe.phone && <p className="text-[12px] text-muted-foreground print:text-[10px]">{r.cafe.phone}</p>}
+            {r.cafe.phone && <p className="text-[12px] text-muted-foreground print:text-[9px] print:leading-tight">{r.cafe.phone}</p>}
             {/* Only meaningful for a registered café — never shown otherwise. */}
             {r.cafe.gst_registered && r.cafe.gstin && (
-              <p className="text-[12px] text-muted-foreground print:text-[10px]">GSTIN: {r.cafe.gstin}</p>
+              <p className="text-[12px] text-muted-foreground print:text-[9px] print:leading-tight">GSTIN: {r.cafe.gstin}</p>
             )}
-            <p className="mt-2 inline-block rounded-full bg-surface-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground print:mt-1.5 print:px-0 print:py-0 print:text-[10px]">
+            <p className="mt-2 inline-block rounded-full bg-surface-subtle px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground print:mt-1 print:px-0 print:py-0 print:text-[9px]">
               {r.gst_invoice ? 'Tax Invoice' : 'Bill'}
             </p>
           </header>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2 text-[12.5px] text-muted-foreground print:py-2 print:text-[10.5px]">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2 text-[12.5px] text-muted-foreground print:py-1 print:text-[9.5px]">
             <span>Bill No. <span className="font-medium text-foreground">{billNumber}</span></span>
             <span>{when}</span>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2 text-[12.5px] print:py-2 print:text-[10.5px]">
-            <span className="rounded-full border border-border-strong px-2.5 py-1 font-medium uppercase tracking-wide text-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2 text-[12.5px] print:py-1 print:text-[9.5px]">
+            <span className="rounded-full border border-border-strong px-2.5 py-1 font-medium uppercase tracking-wide text-foreground print:rounded-none print:border-0 print:px-0 print:py-0">
               {r.order.order_type === 'takeaway' ? 'Takeaway' : r.order.table_label ? `Table ${r.order.table_label}` : 'Dine-in'}
             </span>
             {r.order.order_type !== 'takeaway' && <span className="text-muted-foreground">Dine-in</span>}
           </div>
           {r.gst_invoice && (
-            <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-border py-2.5 text-[12px] text-muted-foreground">
+            <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-border py-2.5 text-[12px] text-muted-foreground print:py-1 print:text-[9.5px]">
               <span>Place of supply: {r.gst_invoice.place_of_supply}</span>
             </div>
           )}
@@ -161,7 +161,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
               itself, and only the details already surfaced elsewhere in the
               app (masked phone, first name) — nothing extra collected here. */}
           {(r.order.customer_name || phoneShown || r.order.staff_name || r.order.notes) && (
-            <div className="space-y-0.5 border-b border-border py-2 text-[12px] text-muted-foreground print:py-1.5 print:text-[10px]">
+            <div className="space-y-0.5 border-b border-border py-2 text-[12px] text-muted-foreground print:space-y-0 print:py-1 print:text-[9px] print:leading-tight">
               {(r.order.customer_name || phoneShown) && (
                 <p>{[r.order.customer_name, phoneShown].filter(Boolean).join(' · ')}</p>
               )}
@@ -181,9 +181,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
                 <span className="w-16 text-right">Total</span>
               </span>
             </div>
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-border print:divide-y-0">
               {r.items.map((it, i) => (
-                <li key={i} className="flex justify-between gap-3 py-2 text-[13.5px] print:block print:py-1.5 print:text-[11.5px]">
+                <li key={i} className="flex justify-between gap-3 py-2 text-[13.5px] print:block print:py-0.5 print:text-[10.5px] print:leading-tight">
                   <div className="min-w-0 print:w-full">
                     {/* First component of a combo carries the bundle heading, so
                         the guest reads "Meal for Two" rather than a loose list of
@@ -191,18 +191,18 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
                         their real prices so the subtotal still adds up and the
                         saving shows on the Discount line. */}
                     {it.combo_group && it.combo_group !== r.items[i - 1]?.combo_group && (
-                      <p className="mb-0.5 text-[12px] font-medium text-primary">
+                      <p className="mb-0.5 text-[12px] font-medium text-primary print:mb-0 print:text-[10px]">
                         {it.combo_name ?? 'Combo'}{it.combo_price != null ? ` · ₹${it.combo_price}` : ''}
                       </p>
                     )}
                     <p className={it.combo_group ? 'pl-2.5 font-medium text-foreground' : 'font-medium text-foreground'}>{it.name}</p>
                     {it.modifiers?.length > 0 && (
-                      <p className={`${it.combo_group ? 'pl-2.5' : ''} text-[11.5px] text-muted-foreground`}>
+                      <p className={`${it.combo_group ? 'pl-2.5' : ''} text-[11.5px] text-muted-foreground print:text-[9.5px] print:leading-tight`}>
                         {it.modifiers.map((m) => `+ ${m.name}`).join('  ')}
                       </p>
                     )}
                     {r.gst_invoice && (
-                      <p className={`${it.combo_group ? 'pl-2.5' : ''} text-[10.5px] text-muted-foreground`}>
+                      <p className={`${it.combo_group ? 'pl-2.5' : ''} text-[10.5px] text-muted-foreground print:text-[8.5px] print:leading-tight`}>
                         {[
                           it.hsn_sac ? `HSN/SAC ${it.hsn_sac}` : null,
                           it.tax_percent != null ? `GST ${it.tax_percent}%` : null,
@@ -216,7 +216,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
                         mid-word. Stacked, the name gets the full width and the
                         figures read the way a till receipt normally does:
                         "4 × ₹129" on the left, the line total on the right. */}
-                    <p className={`hidden tabular-nums print:mt-0.5 print:flex print:justify-between print:gap-2 ${it.combo_group ? 'print:pl-2.5' : ''}`}>
+                    <p className={`hidden tabular-nums print:flex print:justify-between print:gap-2 ${it.combo_group ? 'print:pl-2.5' : ''}`}>
                       <span className="text-muted-foreground">{it.qty} × ₹{it.price}</span>
                       <span className="font-medium text-foreground">₹{it.price * it.qty}</span>
                     </p>
@@ -231,7 +231,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           </div>
 
           {/* ── Summary ───────────────────────────────────────────────── */}
-          <div className="space-y-1 border-t border-border pt-2.5 text-[13.5px] print:space-y-0.5 print:pt-2 print:text-[11.5px]">
+          <div className="space-y-1 border-t border-border pt-2.5 text-[13.5px] print:space-y-0 print:pt-1 print:text-[10px]">
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal</span><span className="tabular-nums">₹{r.order.subtotal}</span>
             </div>
@@ -251,7 +251,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
                 <div className="flex justify-between text-muted-foreground"><span>CGST</span><span className="tabular-nums">₹{r.gst_invoice.cgst}</span></div>
                 <div className="flex justify-between text-muted-foreground"><span>SGST</span><span className="tabular-nums">₹{r.gst_invoice.sgst}</span></div>
                 {r.cafe.tax_inclusive && (
-                  <p className="text-[11px] text-muted-foreground">(GST included in the prices above)</p>
+                  <p className="text-[11px] text-muted-foreground print:text-[9px]">(GST included in the prices above)</p>
                 )}
               </>
             ) : r.order.tax > 0 ? (
@@ -260,17 +260,17 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             {r.order.service_charge > 0 && (
               <div className="flex justify-between text-muted-foreground"><span>Service charge</span><span className="tabular-nums">₹{r.order.service_charge}</span></div>
             )}
-            <div className="flex items-baseline justify-between border-t border-border pt-2 text-foreground">
-              <span className="text-[13.5px] font-semibold">Total</span>
-              <span className="text-xl font-bold tabular-nums" style={{ fontFamily: 'var(--font-display)' }}>₹{r.order.total}</span>
+            <div className="flex items-baseline justify-between border-t border-border pt-2 text-foreground print:pt-1">
+              <span className="text-[13.5px] font-semibold print:text-[11px]">Total</span>
+              <span className="text-xl font-bold tabular-nums print:text-[13px]" style={{ fontFamily: 'var(--font-display)' }}>₹{r.order.total}</span>
             </div>
           </div>
 
           {/* ── Payment section ───────────────────────────────────────── */}
-          <div className="mt-3 rounded-xl border border-border bg-surface-subtle p-3 print:mt-2 print:rounded-none print:border-0 print:border-t print:bg-transparent print:p-0 print:pt-2">
+          <div className="mt-3 rounded-xl border border-border bg-surface-subtle p-3 print:mt-1.5 print:rounded-none print:border-0 print:border-t print:bg-transparent print:p-0 print:pt-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Payment status</span>
-              <span className={`text-[12.5px] font-bold uppercase tracking-wide ${
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground print:text-[9px]">Payment status</span>
+              <span className={`text-[12.5px] font-bold uppercase tracking-wide print:text-[10px] ${
                 state === 'paid' ? 'text-success' : state === 'partial' ? 'text-warning' : state === 'refunded' ? 'text-muted-foreground' : 'text-destructive'
               }`}>
                 {stateLabel}
@@ -278,7 +278,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
             </div>
 
             {state === 'paid' && shownPayment && (
-              <div className="mt-2 space-y-1 text-[12.5px] text-muted-foreground print:mt-1 print:space-y-0 print:text-[10.5px]">
+              <div className="mt-2 space-y-1 text-[12.5px] text-muted-foreground print:mt-0.5 print:space-y-0 print:text-[9px] print:leading-tight">
                 <p className="flex items-center gap-1.5 text-success"><span aria-hidden="true">✓</span> Payment successful</p>
                 <p>Payment method: <span className="font-medium text-foreground">{methodLabel(shownPayment.method)}</span></p>
                 {shownPayment.reference && <p>Transaction ID: <span className="font-medium text-foreground">{shownPayment.reference}</span></p>}
@@ -325,7 +325,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
 
           <ReceiptDownloadButton receipt={r} />
 
-          <div className="mt-4 border-t border-border pt-3 text-center text-[12px] text-muted-foreground print:mt-2.5 print:pt-2 print:text-[10px]">
+          <div className="mt-4 border-t border-border pt-3 text-center text-[12px] text-muted-foreground print:mt-1.5 print:pt-1 print:text-[9px]">
             Thank you for visiting!
             <BillLinkCta url={r.cafe.bill_link_url} label={r.cafe.bill_link_label} />
             <p className="mt-3 text-[10.5px] text-muted-foreground/70 print:mt-1 print:text-[9px]">Powered by KhaoPiyo</p>
