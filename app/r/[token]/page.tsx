@@ -7,6 +7,7 @@ import { BillLinkCta } from '@/components/receipt/bill-link-cta'
 import { ReceiptDownloadButton } from '@/components/receipt/download-button'
 import { AutoPrint } from '@/components/receipt/auto-print'
 import { SpinWheel } from '@/components/qr/spin-wheel'
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt'
 import type { ReceiptData } from '@/lib/pdf-export'
 
 export const dynamic = 'force-dynamic'
@@ -339,6 +340,13 @@ export default async function ReceiptPage({ params }: { params: Promise<{ token:
           unless this café runs a wheel and the bill is settled. */}
       <div className="mt-4 print:hidden">
         <SpinWheel receiptToken={token} />
+      </div>
+
+      {/* After the bill, not during it — a guest deciding whether to add
+          this to their phone is the last thing on their mind mid-checkout,
+          and this page only ever renders once the order already exists. */}
+      <div className="mt-4 print:hidden">
+        <PwaInstallPrompt />
       </div>
     </main>
   )

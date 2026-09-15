@@ -10,6 +10,10 @@ const OUT = 'public/icons'
 await sharp(SRC).resize(192, 192).png().toFile(`${OUT}/icon-192.png`)
 await sharp(SRC).resize(512, 512).png().toFile(`${OUT}/icon-512.png`)
 
+// No apple-touch-icon generated here — app/apple-icon.png (180x180) already
+// covers that via Next's file-based icon convention; a second copy under
+// public/icons would just be dead weight nothing points at.
+
 // Maskable icon: the source logo bleeds close to all four edges with no
 // margin (confirmed by inspection), which Android's adaptive-icon masks
 // (circle/squircle/rounded-square — none of them are the full square) would

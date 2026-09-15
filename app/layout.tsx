@@ -54,6 +54,26 @@ export const metadata: Metadata = {
     url: siteUrl,
   },
   twitter: { card: "summary_large_image" },
+  // apple-touch-icon itself needs no entry here — app/apple-icon.png (180x180,
+  // already the real logo) is picked up automatically by Next's file-based
+  // icon convention; an explicit icons.apple pointing anywhere else would
+  // just add a second, redundant <link> tag.
+  //
+  // "KhaoPiyo" — the standalone home-screen icon's label on iOS falls back to
+  // the page <title> (long, includes "POS & Billing Software for...") without
+  // this. capable:true is required for iOS to treat an Add-to-Home-Screen
+  // launch as standalone at all, not just a bookmark that opens Safari's
+  // chrome around it.
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "KhaoPiyo" },
+  other: {
+    // Next's appleWebApp.capable only emits the modern, non-prefixed
+    // "mobile-web-app-capable" tag (confirmed in its own compiled
+    // metadata.js) — iOS Safari didn't honor that until 17.4 (Mar 2024).
+    // Older iOS versions only respect this legacy prefixed one; without it
+    // they'd add the icon to the Home Screen but still open it inside
+    // Safari's own chrome instead of standalone, defeating the point.
+    "apple-mobile-web-app-capable": "yes",
+  },
   // Set NEXT_PUBLIC_GSC_VERIFICATION / NEXT_PUBLIC_BING_VERIFICATION at
   // deploy time to add the Google Search Console / Bing Webmaster Tools
   // ownership meta tag without a code change — same pattern as ventron.in's

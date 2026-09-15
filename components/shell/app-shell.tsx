@@ -14,6 +14,7 @@ import type { CafeOption } from '@/lib/cafe'
 import { CafeSwitcher } from '@/components/cafe-switcher'
 import { NotificationBell } from '@/components/notification-bell'
 import { PrintBridgeStatus } from '@/components/shell/print-bridge-status'
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt'
 
 type NavItem = { label: string; href: string; icon: React.ReactNode; badge?: string; featureKey?: string; screenKey: string }
 type NavGroup = { heading: string; items: NavItem[] }
@@ -380,6 +381,19 @@ export function AppShell({
             </div>
           </div>
         </header>
+
+        {/* Skipped on the highest-intensity live-service screens (POS,
+            Kitchen, Live Tables) — every other dashboard page (Dashboard
+            home, Settings, Reports, Menu, Customers, Billing…) can afford
+            the one-time mobile banner; those three can't afford anything
+            competing for attention or scroll space during a rush. */}
+        {!pathname.startsWith('/dashboard/pos') &&
+          !pathname.startsWith('/dashboard/kitchen') &&
+          !pathname.startsWith('/dashboard/tables') && (
+            <div className="px-3 pt-3 sm:px-5">
+              <PwaInstallPrompt />
+            </div>
+          )}
 
         <main className="min-w-0 flex-1">
           {blocked ? (
