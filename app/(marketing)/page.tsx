@@ -13,6 +13,7 @@ import { ComparisonSection } from '@/components/marketing/comparison-section'
 import { TestimonialSpotlight } from '@/components/marketing/testimonial-spotlight'
 import { PricingCards } from '@/components/marketing/pricing-cards'
 import { Reveal } from '@/components/marketing/reveal'
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt'
 
 // Read the real shipped version straight from the Tauri config rather than
 // hardcoding it here — the two are in separate subprojects with separate
@@ -90,6 +91,13 @@ export default function Home() {
       <SiteHeader />
 
       <Hero desktopVersion={desktopVersion()} />
+
+      {/* Mobile-only "Add to Home Screen" nudge — same component mounted on
+          the staff dashboard and guest bill page; renders nothing on
+          desktop, once installed, or while dismissed. */}
+      <div className="mx-auto w-full max-w-6xl px-6 pt-6">
+        <PwaInstallPrompt />
+      </div>
 
       {/* Value strip */}
       <section className="border-y border-border bg-surface">
