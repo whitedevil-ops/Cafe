@@ -5,6 +5,31 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Refreshes the auth session on every request and guards dashboard routes.
 // Invoked from proxy.ts (Next 16's renamed middleware).
 export async function updateSession(request: NextRequest) {
+  const path = request.nextUrl.pathname
+  const isProtected =
+    path.startsWith('/dashboard') ||
+    path.startsWith('/onboarding') ||
+    path.startsWith('/ops')
+
+  // Everything below this point (constructing a Supabase server client and
+  // paying for a getUser() round trip) exists ONLY to answer one question:
+  // "is this signed-out visitor allowed past a protected route?" — the
+  // redirect check further down never even looks at `user`/`userError`
+  // unless `isProtected` is true. Every other route proxy.ts's matcher lets
+  // through — /api/print/poll (bare per-café bridge token, never a cookie),
+  // /kds/* and its /api/orders backing route (deliberately no-login kitchen
+  // display, see lib/db.ts's own comment), Razorpay/other webhooks
+  // (signature-verified, not cookie-verified), /login, /signup, /r/[token]
+  // and /t/[token] (guest-token pages, no Supabase session at all) — none
+  // of them consume this. Found in the 2026-09 Vercel Active CPU audit:
+  // /api/print/poll alone is hit every 4 seconds, per café, all day by the
+  // desktop print bridge, so this was a guaranteed-wasted Supabase Auth
+  // client build + getUser() call on the single highest-volume route in the
+  // app, repeated forever, for a result nothing downstream ever reads.
+  if (!isProtected) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -37,12 +62,6 @@ export async function updateSession(request: NextRequest) {
     error: userError,
   } = await supabase.auth.getUser()
 
-  const path = request.nextUrl.pathname
-  const isProtected =
-    path.startsWith('/dashboard') ||
-    path.startsWith('/onboarding') ||
-    path.startsWith('/ops')
-
   // getUser() swallows a transient network/timeout failure reaching
   // Supabase Auth and returns { user: null } for it exactly like a genuine
   // "not signed in" — there is no retry cushioning in the SDK for this. Left
@@ -51,7 +70,9 @@ export async function updateSession(request: NextRequest) {
   // session on arrival (by design, for the actual "sign in fresh" case) —
   // turning a momentary hiccup into a real, disruptive logout. Only redirect
   // on a confirmed absence of a session, not an inability to check right now.
-  if (isProtected && !user && !isAuthRetryableFetchError(userError)) {
+  // (`isProtected` is already known true here — the early return above
+  // handles every non-protected route.)
+  if (!user && !isAuthRetryableFetchError(userError)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', path)
