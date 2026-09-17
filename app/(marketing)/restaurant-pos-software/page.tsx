@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
 
 export const metadata: Metadata = {
   title: 'Restaurant POS Software in India — Billing, QR, KDS',
@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/restaurant-pos-software' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Restaurant POS Software in India · KhaoPiyo',
     description:
       'Billing, GST invoicing, QR ordering, kitchen display, tables and inventory in one restaurant POS. Built and running in India.',

@@ -28,11 +28,11 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://khaopiyo.ventron.in"
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "KhaoPiyo — POS & Billing Software for Cafés and Restaurants",
+    default: "KhaoPiyo — Café POS & Operations Software",
     template: "%s · KhaoPiyo",
   },
   description:
-    "Cloud POS billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty. A modern alternative to traditional restaurant POS systems, built in India.",
+    "KhaoPiyo is a café POS and operations platform — billing, QR ordering, GST invoicing, kitchen display (KOT/KDS), inventory, CRM and loyalty in one connected system. Built for cafés and restaurants in India.",
   keywords: [
     "POS SaaS", "restaurant POS SaaS", "POS billing software", "billing SaaS India",
     "restaurant billing software", "cafe billing software", "cafe POS software",
@@ -46,9 +46,9 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   openGraph: {
     siteName: "KhaoPiyo",
-    title: "KhaoPiyo — POS & Billing Software for Cafés and Restaurants",
+    title: "KhaoPiyo — Café POS & Operations Software",
     description:
-      "Cloud POS SaaS for cafés and restaurants — billing, QR ordering, GST invoicing, inventory, CRM and loyalty. Built for Indian cafés and restaurants.",
+      "KhaoPiyo is a café POS and operations platform — billing, QR ordering, GST invoicing, kitchen display (KOT/KDS), inventory, CRM and loyalty in one connected system.",
     type: "website",
     locale: "en_IN",
     url: siteUrl,
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   // just add a second, redundant <link> tag.
   //
   // "KhaoPiyo" — the standalone home-screen icon's label on iOS falls back to
-  // the page <title> (long, includes "POS & Billing Software for...") without
+  // the page <title> (long, includes "Café POS & Operations Software") without
   // this. capable:true is required for iOS to treat an Add-to-Home-Screen
   // launch as standalone at all, not just a bookmark that opens Safari's
   // chrome around it.
@@ -107,19 +107,24 @@ const jsonLd = {
   "@graph": [
     {
       // This node is what Google reads for the SITE NAME — the label shown
-      // above the URL in a search result. It currently renders "ventron.in",
-      // because Google resolves site names against the registrable domain and
-      // only grants a subdomain its own name once it is convinced the
-      // subdomain is a separate site. og:site_name, <title> and this `name`
-      // all already say KhaoPiyo; `url` is the documented homepage form
-      // (trailing slash, matching Google's own example) so the node
-      // unambiguously describes the subdomain root rather than a path under
-      // it, and alternateName offers the spaced spelling people also search.
-      // Google chooses in the end — none of this forces the label.
+      // above the URL in a search result. Confirmed live (2026-09) it was
+      // rendering "ventron.in" instead, because Google resolves site names
+      // against the registrable domain and only grants a subdomain its own
+      // name once it is convinced the subdomain is a separate site.
+      // og:site_name, <title> and this `name` all already say KhaoPiyo;
+      // `description` restates the exact tagline used in the title/OG tags
+      // so every signal Google might draw a site-name+tagline pair from
+      // agrees; `url` is the documented homepage form (trailing slash,
+      // matching Google's own example) so the node unambiguously describes
+      // the subdomain root rather than a path under it, and alternateName
+      // offers the spaced spelling people also search. Google chooses in the
+      // end — none of this forces the label, and a change can take weeks to
+      // recrawl and show up.
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
       name: "KhaoPiyo",
       alternateName: "Khao Piyo",
+      description: "Café POS & Operations Software",
       url: `${siteUrl}/`,
       inLanguage: "en-IN",
       // Names what this site is ABOUT, rather than leaving Google to infer it.
@@ -140,7 +145,7 @@ const jsonLd = {
       operatingSystem: "Web, Windows, macOS",
       url: siteUrl,
       description:
-        "Cloud POS SaaS and billing software for cafés and restaurants — QR ordering, GST invoicing, inventory, CRM and loyalty in one platform.",
+        "KhaoPiyo is a café POS and operations platform — billing, QR ordering, GST invoicing, kitchen display (KOT/KDS), inventory, CRM and loyalty in one connected system.",
       publisher: { "@id": `${siteUrl}/#organization` },
       offers: {
         "@type": "AggregateOffer",

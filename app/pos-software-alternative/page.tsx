@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { breadcrumbJsonLd, jsonLdGraph, SITE_NAME } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -13,6 +13,7 @@ export const metadata: Metadata = {
     'Looking for an alternative to traditional restaurant POS systems? KhaoPiyo is cloud-first café POS billing — flat monthly pricing, no bundled hardware, GST invoicing and QR ordering built in.',
   alternates: { canonical: '/pos-software-alternative' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'POS Software Alternative — Simpler Billing for Cafés · KhaoPiyo',
     description:
       'Cloud-first café POS billing with flat monthly pricing, GST invoicing and QR ordering — an alternative to traditional restaurant POS platforms.',

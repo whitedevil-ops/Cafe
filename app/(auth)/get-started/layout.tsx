@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { SITE_NAME } from '@/lib/seo'
 
 // The page itself is a client component, so its metadata has to live here.
 // It matters: /get-started is the destination of every public CTA and the only
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/get-started' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Start with KhaoPiyo — Restaurant POS Software',
     description:
       'Tell us about your café and get set up on KhaoPiyo. No setup fee, no commission on sales.',

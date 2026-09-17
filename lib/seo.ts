@@ -8,6 +8,14 @@
 
 export const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
+// Next only deep-merges top-level Metadata fields across route segments —
+// nested objects like `openGraph` are shallow-replaced (confirmed in this
+// repo's own bundled docs), so every page below that declares its own
+// `openGraph` was silently dropping the root layout's `siteName: "KhaoPiyo"`
+// and shipping with no og:site_name tag at all. One shared constant so every
+// page restates it explicitly instead of each retyping the literal string.
+export const SITE_NAME = 'KhaoPiyo'
+
 export type Faq = { q: string; a: string }
 
 export function faqJsonLd(faqs: Faq[]) {

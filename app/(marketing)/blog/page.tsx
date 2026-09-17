@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { articlesByDate } from '@/lib/blog'
-import { SITE_URL, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
 
 export const metadata: Metadata = {
   // No brand suffix here — the root layout's title template already appends
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/blog' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Restaurant Operations Blog · KhaoPiyo',
     description:
       'Guides on POS software, GST billing, food costing, QR ordering and kitchen workflow for Indian cafés.',

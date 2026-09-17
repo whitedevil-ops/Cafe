@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { breadcrumbJsonLd, jsonLdGraph, SITE_NAME } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/digital-menu-software' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Digital Menu Software for Cafés and Restaurants · KhaoPiyo',
     description:
       'A digital menu that stays current everywhere — sold-out syncs instantly, bulk import from a spreadsheet, size variants, add-ons and cart recommendations.',

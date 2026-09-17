@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { breadcrumbJsonLd, jsonLdGraph, SITE_NAME } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/gst-billing-software-for-restaurants' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'GST Billing Software for Restaurants & Cafés · KhaoPiyo',
     description:
       'Sequential GST invoice numbering, automatic CGST/SGST split, HSN/SAC per item, and place of supply — generated the moment an order settles, not reconstructed later.',

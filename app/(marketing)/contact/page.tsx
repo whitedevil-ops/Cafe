@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
 
 export const metadata: Metadata = {
   title: 'Contact KhaoPiyo — Restaurant POS Software Support',
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/contact' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Contact KhaoPiyo — Restaurant POS Software',
     description:
       'Questions about setup, pricing or migrating your menu? Tell us about your café and we will get back to you.',

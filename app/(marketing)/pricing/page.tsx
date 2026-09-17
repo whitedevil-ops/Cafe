@@ -4,7 +4,7 @@ import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { PricingCards } from '@/components/marketing/pricing-cards'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
 
 export const metadata: Metadata = {
   title: 'Pricing — Restaurant POS Software Price in India',
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/pricing' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Restaurant POS Software Pricing · KhaoPiyo',
     description:
       'Three plans from ₹999/month for café and restaurant POS billing, QR ordering, GST invoicing and inventory. Start free while you set up.',

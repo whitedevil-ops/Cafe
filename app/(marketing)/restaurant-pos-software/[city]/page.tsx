@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
 
 // Location pages, and the line this stays on the right side of.
 //
@@ -258,6 +258,7 @@ export async function generateMetadata({
     ],
     alternates: { canonical: path },
     openGraph: {
+      siteName: SITE_NAME,
       title: `Restaurant POS Software in ${c.name} · KhaoPiyo`,
       description: `POS billing, GST invoicing, QR ordering and inventory for cafés and restaurants in ${c.name}.`,
       url: `${SITE_URL}${path}`,

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { breadcrumbJsonLd, jsonLdGraph, SITE_NAME } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/restaurant-inventory-management-software' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Restaurant & Café Inventory Management Software · KhaoPiyo',
     description:
       'Recipe-linked stock deduction, low-stock alerts, purchase orders and per-item food costing — inventory that updates itself when a bill is cut.',

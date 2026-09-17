@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
-import { breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { breadcrumbJsonLd, jsonLdGraph, SITE_NAME } from '@/lib/seo'
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://khaopiyo.ventron.in'
 
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/cloud-kitchen-pos-software' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Cloud Kitchen POS Software — Billing & Kitchen Display · KhaoPiyo',
     description:
       'Cloud kitchen POS: counter billing, one kitchen display queue, GST-correct invoices and per-dish food costing for takeaway and delivery-only operations.',

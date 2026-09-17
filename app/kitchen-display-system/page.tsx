@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, faqJsonLd, breadcrumbJsonLd, jsonLdGraph, type Faq } from '@/lib/seo'
 
 export const metadata: Metadata = {
   title: 'Kitchen Display System (KDS) for Restaurants',
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: '/kitchen-display-system' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Kitchen Display System (KDS) · KhaoPiyo',
     description:
       'Every order — counter or QR — on one kitchen screen, in the order it arrived, with timers that flag what is running late.',

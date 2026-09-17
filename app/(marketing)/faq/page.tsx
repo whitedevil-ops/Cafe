@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { Button } from '@/components/ui/button'
-import { SITE_URL, faqJsonLd, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
+import { SITE_URL, SITE_NAME, faqJsonLd, breadcrumbJsonLd, jsonLdGraph } from '@/lib/seo'
 import { FAQ_CATEGORIES, ALL_FAQS } from '@/lib/faq-data'
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     '100 answered questions on restaurant and café POS software — billing, GST, QR ordering, KDS, tables, CRM, loyalty, inventory, reports, payments and choosing software.',
   alternates: { canonical: '/faq' },
   openGraph: {
+    siteName: SITE_NAME,
     title: 'Restaurant & Café POS — Frequently Asked Questions · KhaoPiyo',
     description:
       'Direct answers to real questions café and restaurant owners search — POS, GST billing, QR ordering, kitchen display, CRM, loyalty, inventory and more.',

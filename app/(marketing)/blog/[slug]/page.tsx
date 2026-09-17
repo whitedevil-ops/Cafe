@@ -8,6 +8,7 @@ import { ARTICLES, getArticle, type Block } from '@/lib/blog'
 import { richText, plainText } from '@/lib/rich-text'
 import {
   SITE_URL,
+  SITE_NAME,
   articleJsonLd,
   breadcrumbJsonLd,
   faqJsonLd,
@@ -33,6 +34,7 @@ export async function generateMetadata({
     keywords: article.keywords,
     alternates: { canonical: `/blog/${article.slug}` },
     openGraph: {
+      siteName: SITE_NAME,
       title: article.title,
       description: article.description,
       url: `${SITE_URL}/blog/${article.slug}`,
