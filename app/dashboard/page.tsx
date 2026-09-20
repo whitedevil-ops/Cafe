@@ -15,6 +15,7 @@ export async function loadCommandCenterData(
 ): Promise<CommandCenterData> {
   const supabase = await createClient()
   const dayStart = businessDayStartISO(timezone)
+  const nowIso = new Date().toISOString()
   const lateThreshold = new Date(Date.now() - 8 * 60 * 1000).toISOString()
 
   // Fired once, up front, so it runs concurrently with the rest of the
@@ -26,14 +27,13 @@ export async function loadCommandCenterData(
 
   const [
     { count: itemCount },
-    todayOrders,
+    todayTotals,
     cancelledToday,
     lateTickets,
     billRequested,
     callWaiter,
     occupiedSessions,
     { count: totalTables },
-    payments,
     atRisk,
     { count: newCustomers },
     latestShift,
@@ -46,14 +46,27 @@ export async function loadCommandCenterData(
     outstandingSummary,
   ] = await Promise.all([
     supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
-    supabase.from('orders').select('total, status').eq('cafe_id', cafeId).gte('created_at', dayStart).neq('status', 'cancelled'),
+    // Today's revenue/order count/collections-by-method: was two unbounded
+    // row fetches (all of today's orders, all of today's payments) summed in
+    // JS on every dashboard visit — for a busy café that's hundreds of rows
+    // pulled into the serverless function just to compute a handful of
+    // numbers. dashboard_today_totals (0245) does the same SUM/COUNT/GROUP
+    // BY in Postgres and returns one small object; a hiccup here degrades to
+    // zeros exactly like an empty `.data` array did before, rather than
+    // taking down the rest of the command centre.
+    supabase.rpc('dashboard_today_totals', { p_cafe_id: cafeId, p_from: dayStart, p_to: nowIso }).then(
+      ({ data, error }) =>
+        error || !data
+          ? { revenue: 0, order_count: 0, collections_by_method: {} as Record<string, number> }
+          : (data as { revenue: number; order_count: number; collections_by_method: Record<string, number> }),
+      () => ({ revenue: 0, order_count: 0, collections_by_method: {} as Record<string, number> }),
+    ),
     supabase.from('orders').select('id, short_code, cancel_reason').eq('cafe_id', cafeId).eq('status', 'cancelled').gte('created_at', dayStart),
     supabase.from('orders').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).in('status', ['placed', 'preparing', 'ready']).lt('created_at', lateThreshold),
     supabase.from('table_sessions').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId).eq('status', 'bill_requested'),
     supabase.from('notifications').select('table_id').eq('cafe_id', cafeId).eq('type', 'call_waiter').eq('read', false),
     supabase.from('table_sessions').select('table_id').eq('cafe_id', cafeId).in('status', ['active', 'bill_requested']),
     supabase.from('cafe_tables').select('*', { count: 'exact', head: true }).eq('cafe_id', cafeId),
-    supabase.from('payments').select('method, amount').eq('cafe_id', cafeId).gte('created_at', dayStart),
     crmCheck.then(async (allowed) =>
       allowed
         ? await supabase.from('v_customer_stats').select('name, total_spend').eq('cafe_id', cafeId).eq('segment', 'at_risk').order('total_spend', { ascending: false })
@@ -82,19 +95,16 @@ export async function loadCommandCenterData(
     // a payments RPC hiccup must still never take down the rest of the
     // command centre, so an error (or an outright rejection) here resolves
     // to null rather than rejecting the whole batch.
-    supabase.rpc('outstanding_summary', { p_cafe_id: cafeId, p_from: dayStart, p_to: new Date().toISOString() }).then(
+    supabase.rpc('outstanding_summary', { p_cafe_id: cafeId, p_from: dayStart, p_to: nowIso }).then(
       ({ data, error }) => (error ? null : (data as MoneySummary | null)),
       () => null,
     ),
   ])
 
-  const orders = todayOrders.data ?? []
-  const revenue = orders.reduce((s, o) => s + (o.total ?? 0), 0)
-  const orderCount = orders.length
+  const revenue = todayTotals.revenue
+  const orderCount = todayTotals.order_count
   const aov = orderCount ? Math.round(revenue / orderCount) : 0
-
-  const collectionsByMethod: Record<string, number> = {}
-  for (const p of payments.data ?? []) collectionsByMethod[p.method] = (collectionsByMethod[p.method] ?? 0) + p.amount
+  const collectionsByMethod = todayTotals.collections_by_method
 
   const attentionTables = new Set((callWaiter.data ?? []).map((n) => n.table_id).filter(Boolean))
   const occupiedTables = new Set((occupiedSessions.data ?? []).map((s) => s.table_id)).size

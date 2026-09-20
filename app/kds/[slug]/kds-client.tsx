@@ -59,12 +59,18 @@ export default function KdsClient({ slug }: { slug: string }) {
 
         setRows(next)
       } catch {
-        // Cafe wifi drops. Keep the last board on screen and try again in 2s.
+        // Cafe wifi drops. Keep the last board on screen and try again shortly.
       }
     }
 
     void poll()
-    const poller = setInterval(poll, 2000)
+    // No Supabase Realtime backstop on this screen (deliberately no-login,
+    // see lib/db.ts's own comment) — this interval alone determines how
+    // fast a new order appears on an unattended kitchen tablet. Widened
+    // from 2s to 5s (2026-09, Vercel Active CPU audit) to cut invocation
+    // volume on the single highest-frequency endpoint in the app; the
+    // user explicitly accepted the resulting worst-case latency increase.
+    const poller = setInterval(poll, 5000)
     // Re-render once a minute so the elapsed-time counters keep climbing.
     const ticker = setInterval(() => forceTick((n) => n + 1), 30000)
     return () => {

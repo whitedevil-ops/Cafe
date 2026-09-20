@@ -64,6 +64,7 @@ describe('tenant isolation & RLS (live anon)', () => {
       ['record_payment', { p_order_id: zero, p_amount: 1, p_method: 'cash' }],
       ['record_session_payment', { p_session_id: zero, p_amount: 1, p_method: 'cash' }],
       ['outstanding_summary', { p_cafe_id: zero, p_from: '2026-01-01', p_to: '2027-01-01' }],
+      ['dashboard_today_totals', { p_cafe_id: zero, p_from: '2026-01-01', p_to: '2027-01-01' }],
       ['refund_order', { p_order_id: zero, p_reason: 'x', p_method: 'cash' }],
       ['list_bills', { p_cafe_id: zero, p_from: '2026-01-01', p_to: '2027-01-01' }],
       // 0137/0138/0141/0140 (this session's audit): these are internal-only
