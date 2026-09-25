@@ -23,9 +23,11 @@ export type QrItem = {
 
 // One shared sizes string for every grid card. It must mirror the grid column
 // counts in the menu exactly — get this wrong and phones download desktop-sized
-// images, which is the single biggest data cost on a 300-item menu.
+// images, which is the single biggest data cost on a 300-item menu. The grid
+// is 2 columns for the entire sub-768px range (see menu-client.tsx's Grid),
+// so every mobile width — 320px included — gets the same ~50vw card.
 const GRID_SIZES =
-  '(max-width: 379px) 100vw, (max-width: 767px) 50vw, (max-width: 1023px) 33vw, (max-width: 1279px) 25vw, 20vw'
+  '(max-width: 767px) 50vw, (max-width: 1023px) 33vw, (max-width: 1279px) 25vw, 20vw'
 
 export function FoodCard({
   item,

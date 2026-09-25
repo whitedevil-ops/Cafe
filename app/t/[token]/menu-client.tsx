@@ -1226,11 +1226,20 @@ export default function MenuClient({
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
-  // Single column below 380px: at 360px a 2-up grid leaves ~160px per card,
-  // which crushes the name, price and Add button together. Everywhere else
-  // scales up to 5 columns rather than stretching phone cards across a desktop.
+  // Two columns from the smallest phone up (2026-09 fix — see FoodCard's own
+  // comment). The previous `min-[380px]:grid-cols-2` forced a single column
+  // below 380px, which read as an "Android bug": common Android widths
+  // (360px, 393px on some devices) sat just under that threshold while
+  // common iPhone widths (390, 414, 430) sat at or above it, so the same
+  // layout bug looked OS-specific without actually being one — it was a
+  // plain width threshold. At 320px a 2-up grid leaves ~138px per card,
+  // which this card design (fixed-size 40px Add button, line-clamped
+  // name/description, a 4:3 image box that doesn't distort) handles fine —
+  // matching common food-ordering apps at the same width. Everywhere else
+  // scales up to 5 columns rather than stretching phone cards across a
+  // desktop; the md/lg/xl tiers are unchanged.
   return (
-    <div className="mt-3 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {children}
     </div>
   )

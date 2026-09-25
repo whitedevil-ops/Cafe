@@ -35,7 +35,7 @@ export default function TablePageLoading() {
 
       <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6">
         <Bar className="h-3 w-20" />
-        <div className="mt-3 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="overflow-hidden rounded-2xl border border-border bg-surface">
               <Bar className="aspect-[4/3] w-full rounded-none" />
