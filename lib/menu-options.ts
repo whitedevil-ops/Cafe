@@ -49,8 +49,47 @@ export function optionFromDeltas(
   return { price, margin: cost == null ? null : price - cost }
 }
 
+/** The cheapest size's delta from the item's price, or null when it has no sizes. */
+export function minOptionDelta(variants: { price_delta: number }[] | null | undefined): number | null {
+  if (!variants || variants.length === 0) return null
+  return Math.min(...variants.map((v) => v.price_delta))
+}
+
+/**
+ * Sizes cheapest first, whatever they are called — Small/Medium/Large,
+ * Small/Regular/Large, "6 Slice", or anything else an owner invents. A guest
+ * reads a size list as a ladder, so the lowest price goes on top.
+ *
+ * Every size of one item shares the same base price, so ordering by price_delta
+ * IS ordering by price. Stable: equal prices keep the order they already had.
+ */
+export function sortOptionsByPrice<T extends { price_delta: number }>(variants: readonly T[]): T[] {
+  return variants
+    .map((v, i) => ({ v, i }))
+    .sort((a, b) => a.v.price_delta - b.v.price_delta || a.i - b.i)
+    .map(({ v }) => v)
+}
+
 /** A size/choice row as the item editor holds it — strings, straight from inputs. */
 export type VariantInput = { id?: string; name: string; price: string; margin: string }
+
+/**
+ * The editor's size rows, cheapest first. A row with no usable price yet (a new
+ * row still being filled in) stays at the bottom instead of jumping to the top
+ * as a phantom ₹0. Stable for equal prices, and never mutates its input.
+ */
+export function sortDraftSizesByPrice<T extends { price: string }>(rows: readonly T[]): T[] {
+  const priceOf = (r: T) => (r.price.trim() === '' || !Number.isFinite(Number(r.price)) ? Infinity : Number(r.price))
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const pa = priceOf(a.r)
+      const pb = priceOf(b.r)
+      if (pa === pb) return a.i - b.i
+      return pa < pb ? -1 : 1
+    })
+    .map(({ r }) => r)
+}
 /** An add-on row as the item editor holds it. */
 export type AddonInput = { id?: string; name: string; price: string }
 
@@ -74,8 +113,10 @@ export type AddonRow = { menu_item_id: string; name: string; price: number; sort
  * delete and upsert steps before it had already run, so the item was left half
  * saved). Building new rows without the key is the only correct shape.
  *
- * Sizes that were left unnamed are dropped, and `sort` follows the order the
- * owner sees, counted over the rows that remain.
+ * Sizes that were left unnamed are dropped. `sort` is stored cheapest-first
+ * (equal prices keep the order they were typed in), counted over the rows that
+ * remain, so the POS, the QR menu and the waiter screen all list a ladder from
+ * the lowest price down without each having to re-sort it.
  */
 export function planOptionWrites(args: {
   itemId: string
@@ -91,8 +132,12 @@ export function planOptionWrites(args: {
 
   const variantUpdate: (VariantRow & { id: string })[] = []
   const variantInsert: VariantRow[] = []
+  const priceOf = (v: VariantInput) => Math.round(Number(v.price) || 0)
   args.variants
     .filter((v) => v.name.trim())
+    .map((v, typedAt) => ({ v, typedAt }))
+    .sort((a, b) => priceOf(a.v) - priceOf(b.v) || a.typedAt - b.typedAt)
+    .map(({ v }) => v)
     .forEach((v, i) => {
       const row: VariantRow = {
         menu_item_id: itemId,

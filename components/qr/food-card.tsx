@@ -34,6 +34,7 @@ export function FoodCard({
   qty,
   isNew,
   isOfferActiveToday,
+  fromDelta = null,
   priority,
   onOpen,
   onAdd,
@@ -45,12 +46,23 @@ export function FoodCard({
   /** Precomputed by the caller (which owns the café's timezone) — see
    *  lib/offers.ts. */
   isOfferActiveToday: boolean
+  /**
+   * The cheapest size's price_delta, or null when the item has no sizes. An
+   * item sold in sizes is priced at its LOWEST size — showing the base price
+   * instead put ₹179 on a card whose cheapest size is ₹9, and a price below
+   * every size on one whose cheapest size costs more. The POS grid already
+   * did this.
+   */
+  fromDelta?: number | null
   priority: boolean
   onOpen: () => void
   onAdd: () => void
   onDecrement: () => void
 }) {
   const soldOut = !item.available
+  const delta = fromDelta ?? 0
+  const fromLabel =
+    fromDelta === null ? null : <span className="text-[11.5px] font-medium text-muted-foreground">From</span>
 
   return (
     <article
@@ -151,11 +163,15 @@ export function FoodCard({
 
         {isOfferActiveToday ? (
           <p className="mt-1 flex items-baseline gap-1.5 leading-none">
-            <span className="text-[15px] font-semibold text-special">₹{item.offer_price}</span>
-            <span className="text-[12px] text-muted-foreground line-through">₹{item.price}</span>
+            {fromLabel}
+            <span className="text-[15px] font-semibold text-special">₹{(item.offer_price ?? 0) + delta}</span>
+            <span className="text-[12px] text-muted-foreground line-through">₹{item.price + delta}</span>
           </p>
         ) : (
-          <p className="mt-1 text-[15px] font-semibold leading-none text-foreground">₹{item.price}</p>
+          <p className="mt-1 flex items-baseline gap-1.5 leading-none">
+            {fromLabel}
+            <span className="text-[15px] font-semibold text-foreground">₹{item.price + delta}</span>
+          </p>
         )}
 
         {item.description && (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Minus, Plus, X } from 'lucide-react'
 import { type QrItem } from './food-card'
 import { FoodImage, VegDot } from '@/components/ui/food-image'
+import { minOptionDelta } from '@/lib/menu-options'
 
 export type QrVariant = { id: string; menu_item_id: string; name: string; price_delta: number }
 export type QrAddon = { id: string; menu_item_id: string; name: string; price: number }
@@ -53,6 +54,7 @@ export function ItemSheet({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const lowestDelta = minOptionDelta(variants)
   const variant = variants.find((v) => v.id === variantId) ?? null
   const chosen = addons.filter((a) => addonIds.includes(a.id))
   const unit = basePrice + (variant?.price_delta ?? 0) + chosen.reduce((s, a) => s + a.price, 0)
@@ -103,14 +105,21 @@ export function ItemSheet({
               <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{item.description}</p>
             )}
 
+            {/* An item sold in sizes is headlined at its LOWEST size ("From ₹9"),
+                the same number its card shows — not the base price the sizes are
+                stored against, which is usually none of the choices below. */}
             {isOfferActiveToday ? (
               <p className="mt-3 flex items-baseline gap-2">
-                <span className="text-[18px] font-semibold text-special">₹{basePrice}</span>
-                <span className="text-[14px] text-muted-foreground line-through">₹{item.price}</span>
+                {lowestDelta !== null && <span className="text-[13px] font-medium text-muted-foreground">From</span>}
+                <span className="text-[18px] font-semibold text-special">₹{basePrice + (lowestDelta ?? 0)}</span>
+                <span className="text-[14px] text-muted-foreground line-through">₹{item.price + (lowestDelta ?? 0)}</span>
                 <span className="rounded-full bg-special-subtle px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-special">Today&apos;s Offer</span>
               </p>
             ) : (
-              <p className="mt-3 text-[18px] font-semibold text-foreground">₹{item.price}</p>
+              <p className="mt-3 flex items-baseline gap-2">
+                {lowestDelta !== null && <span className="text-[13px] font-medium text-muted-foreground">From</span>}
+                <span className="text-[18px] font-semibold text-foreground">₹{item.price + (lowestDelta ?? 0)}</span>
+              </p>
             )}
 
             {variants.length > 0 && (

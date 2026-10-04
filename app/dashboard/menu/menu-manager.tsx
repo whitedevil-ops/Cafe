@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { optionFromDeltas, planOptionWrites } from '@/lib/menu-options'
+import { minOptionDelta, optionFromDeltas, planOptionWrites, sortDraftSizesByPrice } from '@/lib/menu-options'
 import { invalidateMenuCaches } from '@/lib/menu-revalidate'
 import CombosPanel from './combos-panel'
 import OffersPanel from './offers-panel'
@@ -84,6 +84,13 @@ type ItemDraft = {
   optionsReady: boolean
 }
 
+/** item id -> its sizes' price deltas, from the rows the list query embedded them in. */
+function deltasByItem(rows: MenuItemRow[]): Record<string, number[]> {
+  const out: Record<string, number[]> = {}
+  for (const r of rows) out[r.id] = (r.menu_item_variants ?? []).map((v) => v.price_delta)
+  return out
+}
+
 const emptyDraft: ItemDraft = {
   name: '',
   description: '',
@@ -123,6 +130,10 @@ export default function MenuManager({
   const confirm = useConfirm()
   const [categories, setCategories] = useState(initialCategories)
   const [items, setItems] = useState(initialItems)
+  // Each item's sizes as price deltas, kept apart from `items` because a row
+  // coming back from an insert/update carries no embedded sizes and would
+  // otherwise silently drop an item's "from" price back to its base price.
+  const [sizeDeltas, setSizeDeltas] = useState<Record<string, number[]>>(() => deltasByItem(initialItems))
 
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all')
@@ -252,10 +263,13 @@ export default function MenuManager({
   async function refetchMenu() {
     const [{ data: cats }, { data: its }] = await Promise.all([
       supabase.from('menu_categories').select('*').eq('cafe_id', cafeId).order('sort'),
-      supabase.from('menu_items').select('*').eq('cafe_id', cafeId).order('sort'),
+      supabase.from('menu_items').select('*, menu_item_variants(price_delta)').eq('cafe_id', cafeId).order('sort'),
     ])
     if (cats) setCategories(cats as MenuCategory[])
-    if (its) setItems(its as MenuItemRow[])
+    if (its) {
+      setItems(its as MenuItemRow[])
+      setSizeDeltas(deltasByItem(its as MenuItemRow[]))
+    }
   }
 
   const visible = useMemo(() => {
@@ -402,6 +416,14 @@ export default function MenuManager({
       if (!Number.isFinite(m) || m < 0) return setError('Enter a valid margin in rupees.')
       if (m > price) return setError("Margin can't be more than the selling price.")
     }
+    // A size with a name but no price used to save as ₹0 — a free size nobody
+    // meant, and now one that would also show up as the item's "from ₹0".
+    for (const v of draft.variants) {
+      if (!v.name.trim()) continue
+      if (v.price.trim() === '' || !Number.isFinite(Number(v.price)) || Number(v.price) < 0) {
+        return setError(`"${v.name.trim()}" needs a price.`)
+      }
+    }
     for (const v of draft.variants) {
       if (!v.name.trim() || v.margin.trim() === '') continue
       const vp = Math.round(Number(v.price) || 0)
@@ -481,6 +503,11 @@ export default function MenuManager({
     // Sync variants + add-ons: delete what was removed, upsert what already
     // had an id, insert what is new (see planOptionWrites).
     const err = await syncModifiers(itemId!, draft)
+    if (!err) {
+      // Keep the list's "from" price in step with what was just saved.
+      const sizePrices = draft.variants.filter((v) => v.name.trim()).map((v) => Math.round(Number(v.price) || 0))
+      setSizeDeltas((m) => ({ ...m, [itemId!]: sizePrices.map((p) => p - price) }))
+    }
 
     // Smart add-ons (cross-sell) — owner/manager only, saved through the
     // validated RPC (replace-all). Failure here never blocks the item save.
@@ -599,7 +626,7 @@ export default function MenuManager({
     })
     setError(null)
     const [{ data: vs, error: vsErr }, { data: as, error: asErr }, { data: prs, error: prsErr }, inventoryNowAllowed] = await Promise.all([
-      supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
+      supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('price_delta').order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
       // Recipe-derived cost is inventory-tier data (same entitlement the
@@ -1021,7 +1048,13 @@ export default function MenuManager({
                   )}
                 </div>
                 <p className="truncate text-[13px] text-muted-foreground">
-                  ₹{item.price} · {catName(item.category_id)}
+                  {(() => {
+                    // An item sold in sizes is shown at its LOWEST price — the
+                    // base price is only the anchor the sizes are stored against.
+                    const lowest = minOptionDelta((sizeDeltas[item.id] ?? []).map((price_delta) => ({ price_delta })))
+                    return lowest === null ? `₹${item.price}` : `from ₹${item.price + lowest}`
+                  })()}{' '}
+                  · {catName(item.category_id)}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1">
@@ -1329,7 +1362,20 @@ export default function MenuManager({
                   </div>
                 )}
                 {draft.variants.map((v, idx) => (
-                  <div key={idx} className="mt-1.5 flex gap-2">
+                  <div
+                    key={idx}
+                    className="mt-1.5 flex gap-2"
+                    // Sizes arrange themselves cheapest-first once focus leaves a
+                    // row — Small/Medium/Large, Small/Regular/Large or anything
+                    // else, the lowest price ends up on top. Deliberately not
+                    // while typing (the row would jump on every digit) and not
+                    // between a row's own fields (focus would land on a
+                    // different row's margin).
+                    onBlur={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                      setDraft((d) => (d ? { ...d, variants: sortDraftSizesByPrice(d.variants) } : d))
+                    }}
+                  >
                     <input
                       value={v.name}
                       onChange={(e) => setDraft({ ...draft, variants: draft.variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)) })}

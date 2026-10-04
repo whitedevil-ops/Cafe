@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { fetchRecommendations, logRecommendationEvent, type Recommendation } from '@/lib/recommend'
 import { businessWeekday } from '@/lib/datetime'
 import { effectivePrice, isOfferActiveToday } from '@/lib/offers'
+import { minOptionDelta } from '@/lib/menu-options'
 import { FoodCard, type QrItem } from '@/components/qr/food-card'
 import { OfflineBanner } from '@/components/offline-banner'
 import { ItemSheet, type QrVariant, type QrAddon } from '@/components/qr/item-sheet'
@@ -168,6 +169,16 @@ export default function MenuClient({
     addons.forEach((a) => m.set(a.menu_item_id, [...(m.get(a.menu_item_id) ?? []), a]))
     return m
   }, [addons])
+  // The cheapest size per item, so a card can say "From ₹9" instead of showing
+  // the base price the sizes are stored against.
+  const lowestDeltaByItem = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const [id, vs] of variantsByItem) {
+      const d = minOptionDelta(vs)
+      if (d !== null) m.set(id, d)
+    }
+    return m
+  }, [variantsByItem])
 
   const hasOptions = useCallback(
     (id: string) => variantsByItem.has(id) || addonsByItem.has(id),
@@ -1114,6 +1125,7 @@ export default function MenuClient({
                     qty={plainQty(item.id)}
                     isNew={newItemIds.has(item.id)}
                     isOfferActiveToday={offerActiveIds.has(item.id)}
+                    fromDelta={lowestDeltaByItem.get(item.id) ?? null}
                     priority={i < 4}
                     onOpen={() => setDetail(item)}
                     onAdd={() => onCardAdd(item)}
@@ -1162,6 +1174,7 @@ export default function MenuClient({
                     qty={plainQty(item.id)}
                     isNew={newItemIds.has(item.id)}
                     isOfferActiveToday={offerActiveIds.has(item.id)}
+                    fromDelta={lowestDeltaByItem.get(item.id) ?? null}
                     priority={i < 4}
                     onOpen={() => setDetail(item)}
                     onAdd={() => onCardAdd(item)}

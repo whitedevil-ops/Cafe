@@ -78,7 +78,7 @@ export function getCachedCafeMenu(cafeId: string): Promise<CachedCafeMenu> {
       const comboIds = (combos ?? []).map((c) => c.id)
       const [{ data: variants }, { data: addons }, { data: comboSlots }, { data: popular }] = await Promise.all([
         itemIds.length
-          ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('sort')
+          ? supabase.from('menu_item_variants').select('id, menu_item_id, name, price_delta').in('menu_item_id', itemIds).order('price_delta').order('sort')
           : Promise.resolve({ data: [] }),
         itemIds.length
           ? supabase.from('menu_item_addons').select('id, menu_item_id, name, price').in('menu_item_id', itemIds).order('sort')

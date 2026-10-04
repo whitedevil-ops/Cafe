@@ -29,4 +29,10 @@ export type MenuItemRow = {
    *  gated by hasFeature(). offer_days is 0=Sunday..6=Saturday. */
   offer_price: number | null
   offer_days: number[] | null
+  /**
+   * Only the sizes' price deltas, embedded by the list query (see
+   * app/dashboard/menu/page.tsx) so the list can show an item's LOWEST price
+   * without a request per item. Absent on a row returned by an insert/update.
+   */
+  menu_item_variants?: { price_delta: number }[]
 }

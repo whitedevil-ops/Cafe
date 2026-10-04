@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { PostgrestClient } from '@supabase/postgrest-js'
-import { planOptionWrites, type AddonInput, type VariantInput } from '@/lib/menu-options'
+import {
+  minOptionDelta,
+  planOptionWrites,
+  sortDraftSizesByPrice,
+  sortOptionsByPrice,
+  type AddonInput,
+  type VariantInput,
+} from '@/lib/menu-options'
 
 // Regression guard for the bug where NO new size or add-on could be saved from
 // the item editor (introduced 2026-09-09 in 3d6ca22, found 2026-10-04).
@@ -107,11 +114,12 @@ describe('planOptionWrites — existing rows keep their ids', () => {
       variants: [v('REG', '149', { id: 'v-1' }), v('LARGE', '259', { id: 'v-2' }), v('SMALL', '99')],
     addons: [],
     })
+    // stored cheapest-first: the new ₹99 size takes sort 0, the others follow it
     expect(variants.update.map((r) => [r.id, r.name, r.price_delta, r.sort])).toEqual([
-      ['v-1', 'REG', 0, 0],
-      ['v-2', 'LARGE', 110, 1],
+      ['v-1', 'REG', 0, 1],
+      ['v-2', 'LARGE', 110, 2],
     ])
-    expect(variants.insert.map((r) => [r.name, r.price_delta, r.sort])).toEqual([['SMALL', -50, 2]])
+    expect(variants.insert.map((r) => [r.name, r.price_delta, r.sort])).toEqual([['SMALL', -50, 0]])
     expect(columnsParam(variants.insert)).not.toContain('id')
     // …and the update rows DO carry theirs, uniformly, so the upsert's column list is stable
     expect(columnsParam(variants.update)).toContain('id')
@@ -145,5 +153,75 @@ describe('planOptionWrites — what gets dropped or clamped', () => {
     const snapshot = JSON.stringify(input)
     planOptionWrites({ itemId: ITEM, basePrice: 179, baseCost: 0, variants: input, addons: [] })
     expect(JSON.stringify(input)).toBe(snapshot)
+  })
+})
+
+describe('sizes are arranged cheapest-first, whatever they are called', () => {
+  it('stores Small/Medium/Large typed in any order from the lowest price up', () => {
+    const { variants } = planOptionWrites({
+      itemId: ITEM, basePrice: 179, baseCost: 0,
+      variants: [v('LARGE', '269'), v('SMALL', '129'), v('MEDIUM', '199')], addons: [],
+    })
+    expect(variants.insert.map((r) => [r.name, r.sort])).toEqual([['SMALL', 0], ['MEDIUM', 1], ['LARGE', 2]])
+  })
+
+  it('does the same for Small/Regular/Large and for names that mean nothing as sizes', () => {
+    const a = planOptionWrites({ itemId: ITEM, basePrice: 100, baseCost: 0, variants: [v('LARGE', '150'), v('REGULAR', '100'), v('SMALL', '80')], addons: [] })
+    expect(a.variants.insert.map((r) => r.name)).toEqual(['SMALL', 'REGULAR', 'LARGE'])
+    const b = planOptionWrites({ itemId: ITEM, basePrice: 100, baseCost: 0, variants: [v('12 Slice', '320'), v('Steam', '90'), v('6 Slice', '170')], addons: [] })
+    expect(b.variants.insert.map((r) => r.name)).toEqual(['Steam', '6 Slice', '12 Slice'])
+  })
+
+  it('puts the owner\'s ₹9 test size on top of ₹179 and ₹269 (the reported case)', () => {
+    const { variants } = planOptionWrites({
+      itemId: ITEM, basePrice: 179, baseCost: 0,
+      variants: [v('REGULAR', '179', { id: 'v-1' }), v('LARGE', '269', { id: 'v-2' }), v('ssssssssss', '9')], addons: [],
+    })
+    const all = [...variants.update, ...variants.insert].sort((a, b) => a.sort - b.sort)
+    expect(all.map((r) => [r.name, 179 + r.price_delta])).toEqual([['ssssssssss', 9], ['REGULAR', 179], ['LARGE', 269]])
+  })
+
+  it('keeps equal prices in the order they were typed', () => {
+    const { variants } = planOptionWrites({
+      itemId: ITEM, basePrice: 100, baseCost: 0, variants: [v('B', '120'), v('A', '120'), v('C', '110')], addons: [],
+    })
+    expect(variants.insert.map((r) => r.name)).toEqual(['C', 'B', 'A'])
+  })
+})
+
+describe('sortOptionsByPrice / minOptionDelta — what readers use', () => {
+  it('orders stored sizes lowest first and is stable', () => {
+    const rows = [{ n: 'L', price_delta: 90 }, { n: 'S', price_delta: -170 }, { n: 'R', price_delta: 0 }, { n: 'R2', price_delta: 0 }]
+    expect(sortOptionsByPrice(rows).map((r) => r.n)).toEqual(['S', 'R', 'R2', 'L'])
+    expect(rows.map((r) => r.n)).toEqual(['L', 'S', 'R', 'R2']) // input untouched
+  })
+
+  it('the lowest price an item with sizes is sold at: ₹9 for REGULAR 179 / LARGE 269 / a ₹9 size', () => {
+    const deltas = [{ price_delta: 0 }, { price_delta: 90 }, { price_delta: 9 - 179 }]
+    expect(179 + (minOptionDelta(deltas) as number)).toBe(9)
+  })
+
+  it('is null when the item has no sizes, so callers fall back to the plain price', () => {
+    expect(minOptionDelta([])).toBeNull()
+    expect(minOptionDelta(undefined)).toBeNull()
+    expect(minOptionDelta(null)).toBeNull()
+  })
+})
+
+describe('sortDraftSizesByPrice — the editor rearranging itself', () => {
+  const rows = (...p: string[]) => p.map((price, i) => ({ name: `r${i}`, price }))
+
+  it('sorts cheapest first', () => {
+    expect(sortDraftSizesByPrice(rows('179', '269', '9')).map((r) => r.price)).toEqual(['9', '179', '269'])
+  })
+
+  it('leaves a row with no price yet at the bottom rather than jumping it to the top as ₹0', () => {
+    expect(sortDraftSizesByPrice(rows('', '50', 'abc', '20')).map((r) => r.price)).toEqual(['20', '50', '', 'abc'])
+  })
+
+  it('is stable for equal prices and does not mutate its input', () => {
+    const input = rows('100', '100', '90')
+    expect(sortDraftSizesByPrice(input).map((r) => r.name)).toEqual(['r2', 'r0', 'r1'])
+    expect(input.map((r) => r.name)).toEqual(['r0', 'r1', 'r2'])
   })
 })
