@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { parseMenuFile, markUpdatesVsInserts, type ParseResult } from '@/lib/menu-import'
 import { effectiveOptionCost, optionToDeltas } from '@/lib/menu-options'
 import { savedFileHint } from '@/lib/is-desktop'
+import { invalidateMenuCaches } from '@/lib/menu-revalidate'
 import { suggestCategoryPairings, type CategorySuggestion } from '@/lib/recommend'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -370,6 +371,9 @@ export default function BulkImportPanel({
         if (failed?.error) throw new Error(failed.error.message)
       }
 
+      // Categories, items, sizes and add-ons all just changed — expire the POS
+      // and QR menu caches before the owner goes to look at either.
+      await invalidateMenuCaches(cafeId)
       toast(`Menu imported — ${inserts.length} new, ${updates.length} updated.`)
       onImported()
 

@@ -19,15 +19,18 @@
 // offer_price/offer_days are already anon-read in production via this exact
 // table through lib/menu-cache.ts's own select.
 //
-// revalidate: 30s is the same deliberate bounded-staleness tradeoff
-// lib/menu-cache.ts already uses for this identical category of data — a
-// menu edit reaches POS within 30s worst case, in exchange for not needing
-// tag-based invalidation wired through every menu-editing mutation site
-// (which are all direct client-to-Supabase writes, not Server
-// Actions/Route Handlers — revalidateTag only works from those).
+// Freshness is the same two layers lib/menu-cache.ts documents (read that one
+// for the measurements): the entry carries a per-café tag that the dashboard's
+// menu writes expire through app/api/menu/revalidate — the menu editors are
+// direct client-to-Supabase writes, so they call that endpoint afterwards,
+// since revalidateTag only works from a Route Handler or Server Action — and
+// `revalidate: 30` remains the backstop for writes that bypass it. Without the
+// tag, a menu edit could sit unseen at the till for far longer than 30s,
+// because unstable_cache serves the stale entry once before refreshing it.
 import { unstable_cache } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import type { Combo, ComboSlot } from '@/lib/combos'
+import { menuCacheTag } from '@/lib/menu-cache-tag'
 
 function createAnonClient() {
   return createSupabaseClient(
@@ -91,6 +94,6 @@ export function getCachedPosCatalog(cafeId: string): Promise<CachedPosCatalog> {
       }
     },
     ['pos-catalog', cafeId],
-    { revalidate: 30 },
+    { revalidate: 30, tags: [menuCacheTag(cafeId)] },
   )()
 }

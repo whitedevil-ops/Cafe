@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { X } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { optionFromDeltas, optionToDeltas } from '@/lib/menu-options'
+import { optionFromDeltas, planOptionWrites } from '@/lib/menu-options'
+import { invalidateMenuCaches } from '@/lib/menu-revalidate'
 import CombosPanel from './combos-panel'
 import OffersPanel from './offers-panel'
 import { suggestCategoryPairings } from '@/lib/recommend'
@@ -73,6 +74,14 @@ type ItemDraft = {
   addons: AddonDraft[]
   // Cross-sell suggestions (other menu item ids) shown when this item is added.
   pairings: string[]
+  /**
+   * False from the moment an existing item's editor opens until its sizes,
+   * add-ons and cross-sells have actually loaded. Saving replaces all three
+   * wholesale, so an editor that is still empty — or whose load failed — would
+   * wipe every size the item has. Save stays disabled until this is true.
+   * A brand-new item has nothing to load.
+   */
+  optionsReady: boolean
 }
 
 const emptyDraft: ItemDraft = {
@@ -90,6 +99,7 @@ const emptyDraft: ItemDraft = {
   variants: [],
   addons: [],
   pairings: [],
+  optionsReady: true,
 }
 
 export default function MenuManager({
@@ -299,6 +309,7 @@ export default function MenuManager({
     if (error) return setError(friendlyWriteError(error))
     setCategories((c) => [...c, data as MenuCategory])
     setNewCat('')
+    void invalidateMenuCaches(cafeId)
   }
 
   async function deleteCategory(id: string) {
@@ -342,6 +353,7 @@ export default function MenuManager({
     setCategories((c) => c.filter((x) => x.id !== id))
     setItems((list) => list.map((i) => (i.category_id === id ? { ...i, category_id: null } : i)))
     if (categoryFilter === id) setCategoryFilter('all')
+    void invalidateMenuCaches(cafeId)
   }
 
   // Routes every item in this category to a kitchen printer bound to that
@@ -359,8 +371,26 @@ export default function MenuManager({
   }
 
   // ── Item CRUD ──────────────────────────────────────────────────────────────
+  // Re-entrancy guard. The Save button disables itself while `busy`, but that
+  // only lands on the next render — clicks that arrive before it (scripted
+  // input, a held key) all ran saveItem on a stale `draft`, and on a new item
+  // each one inserted its own copy of it (three quick clicks made three items).
+  // A ref flips synchronously, so only the first call proceeds.
+  const saveInFlight = useRef(false)
   async function saveItem() {
+    if (saveInFlight.current) return
+    saveInFlight.current = true
+    try {
+      await saveItemOnce()
+    } finally {
+      saveInFlight.current = false
+    }
+  }
+
+  async function saveItemOnce() {
     if (!draft) return
+    // Defensive — the Save button is disabled until then. See ItemDraft.optionsReady.
+    if (!draft.optionsReady) return
     const name = draft.name.trim()
     const price = Math.round(Number(draft.price))
     if (!name) return setError('Item name is required.')
@@ -439,12 +469,17 @@ export default function MenuManager({
         setBusy(false)
         return setError(friendlyWriteError(error))
       }
-      itemId = (data as MenuItemRow).id
+      const createdId = (data as MenuItemRow).id
+      itemId = createdId
       setItems((list) => [...list, data as MenuItemRow])
+      // The row exists from here on. Point the editor at it, so that if the
+      // sizes/add-ons below fail and the owner presses Save again, the retry
+      // UPDATES this item rather than inserting a second copy of it.
+      setDraft((d) => (d ? { ...d, id: createdId } : d))
     }
 
-    // Sync variants + add-ons: simplest correct approach at this scale is
-    // replace-all (delete then insert the current set).
+    // Sync variants + add-ons: delete what was removed, upsert what already
+    // had an id, insert what is new (see planOptionWrites).
     const err = await syncModifiers(itemId!, draft)
 
     // Smart add-ons (cross-sell) — owner/manager only, saved through the
@@ -457,8 +492,15 @@ export default function MenuManager({
       })
     }
 
+    // The item row changed even if the sizes below it did not — make the POS
+    // and the QR menu drop their cached copy now, so the next time either is
+    // opened it is rebuilt from what was just saved (see lib/menu-cache.ts).
+    await invalidateMenuCaches(cafeId)
+
     setBusy(false)
-    if (err) return setError(err)
+    // The editor stays open on a partial save, so say which part landed —
+    // "the item saved but its sizes didn't" is the whole story the owner needs.
+    if (err) return setError(`Saved the item, but couldn't save its sizes or add-ons: ${err}. Press Save to try again.`)
     toast(draft.id ? 'Item updated.' : 'Item added to menu.')
     setDraft(null)
   }
@@ -490,21 +532,15 @@ export default function MenuManager({
           ? 0
           : Math.max(0, basePrice - Math.round(Number(d.margin) || 0))
 
-    const variants = d.variants
-      .filter((v) => v.name.trim())
-      .map((v, i) => ({
-        id: v.id,
-        menu_item_id: itemId,
-        name: v.name.trim(),
-        ...optionToDeltas(basePrice, baseCost, {
-          price: Math.round(Number(v.price) || 0),
-          margin: v.margin.trim() === '' ? null : Math.round(Number(v.margin) || 0),
-        }),
-        sort: i,
-      }))
-    const variantsToUpdate = variants.filter((v): v is typeof v & { id: string } => Boolean(v.id))
-    const variantsToInsert = variants.filter((v) => !v.id).map((v) => ({ ...v, id: undefined }))
-    const keptVariantIds = variantsToUpdate.map((v) => v.id)
+    // planOptionWrites builds the rows — in particular, rows that are new carry
+    // no `id` key at all. (They used to be `{ ...v, id: undefined }`, which
+    // PostgREST reads as "insert NULL into the primary key": every save that
+    // added a size or an add-on failed, after the delete/upsert steps below had
+    // already run. See lib/menu-options.ts.)
+    const plan = planOptionWrites({ itemId, basePrice, baseCost, variants: d.variants, addons: d.addons })
+    const variantsToUpdate = plan.variants.update
+    const variantsToInsert = plan.variants.insert
+    const keptVariantIds = plan.variants.keepIds
 
     const deleteVariants = supabase.from('menu_item_variants').delete().eq('menu_item_id', itemId)
     const { error: deleteVariantsError } = keptVariantIds.length
@@ -521,12 +557,9 @@ export default function MenuManager({
       if (error) return error.message
     }
 
-    const addons = d.addons
-      .filter((a) => a.name.trim())
-      .map((a, i) => ({ id: a.id, menu_item_id: itemId, name: a.name.trim(), price: Math.max(0, Math.round(Number(a.price) || 0)), sort: i }))
-    const addonsToUpdate = addons.filter((a): a is typeof a & { id: string } => Boolean(a.id))
-    const addonsToInsert = addons.filter((a) => !a.id).map((a) => ({ ...a, id: undefined }))
-    const keptAddonIds = addonsToUpdate.map((a) => a.id)
+    const addonsToUpdate = plan.addons.update
+    const addonsToInsert = plan.addons.insert
+    const keptAddonIds = plan.addons.keepIds
 
     const deleteAddons = supabase.from('menu_item_addons').delete().eq('menu_item_id', itemId)
     const { error: deleteAddonsError } = keptAddonIds.length
@@ -562,8 +595,10 @@ export default function MenuManager({
       effectiveCost: null,
       variants: [],
       addons: [],
+      optionsReady: false,
     })
-    const [{ data: vs }, { data: as }, { data: prs }, inventoryNowAllowed] = await Promise.all([
+    setError(null)
+    const [{ data: vs, error: vsErr }, { data: as, error: asErr }, { data: prs, error: prsErr }, inventoryNowAllowed] = await Promise.all([
       supabase.from('menu_item_variants').select('id, name, price_delta, cost_delta').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_item_addons').select('id, name, price').eq('menu_item_id', item.id).order('sort'),
       supabase.from('menu_pairings').select('suggested_item_id, sort').eq('item_id', item.id).order('sort'),
@@ -572,6 +607,13 @@ export default function MenuManager({
       // for editing, instead of on every Menu page load (see page.tsx).
       checkFeature('inventory'),
     ])
+    // A failed read must never pass for "this item has no sizes": the editor
+    // would show an empty list and Save would then delete the real ones. Leave
+    // Save disabled (optionsReady stays false) and say why.
+    if (vsErr || asErr || prsErr) {
+      setError("Couldn't load this item's sizes and add-ons, so it can't be saved safely right now. Close this and open it again.")
+      return
+    }
     setInventoryAllowed(inventoryNowAllowed)
     // What the database itself considers this item to cost, recipe included.
     // The RPC only checks cafe membership, not plan, so the entitlement check
@@ -594,6 +636,7 @@ export default function MenuManager({
             }),
             addons: (as ?? []).map((a) => ({ id: a.id, name: a.name, price: String(a.price) })),
             pairings: (prs ?? []).map((p) => p.suggested_item_id as string),
+            optionsReady: true,
           }
         : d,
     )
@@ -603,6 +646,7 @@ export default function MenuManager({
   // entitlement check (see checkFeature above) to gate the Recipe-costed
   // toggle correctly for a brand-new item too.
   async function openAdd() {
+    setError(null)
     setDraft({ ...emptyDraft })
     setInventoryAllowed(await checkFeature('inventory'))
   }
@@ -624,6 +668,8 @@ export default function MenuManager({
     if (error) {
       setError(error.message)
       setItems((list) => list.map((i) => (i.id === item.id ? { ...i, available: item.available } : i)))
+    } else {
+      void invalidateMenuCaches(cafeId)
     }
   }
 
@@ -651,6 +697,7 @@ export default function MenuManager({
     const { error } = await supabase.from('menu_items').delete().eq('id', item.id)
     if (error) return setError(error.message)
     setItems((list) => list.filter((i) => i.id !== item.id))
+    void invalidateMenuCaches(cafeId)
     toast(`"${item.name}" deleted.`)
   }
 
@@ -663,6 +710,7 @@ export default function MenuManager({
     const failed = results.filter((r) => r.error)
     if (failed.length) setError(failed[0].error!.message)
     setSelectedIds(new Set())
+    void invalidateMenuCaches(cafeId)
     toast(`${ids.length - failed.length} item${ids.length - failed.length === 1 ? '' : 's'} marked ${available ? 'available' : 'sold out'}.`)
   }
 
@@ -687,6 +735,7 @@ export default function MenuManager({
     const { error } = await supabase.from('menu_items').delete().in('id', ids)
     if (error) return setError(error.message)
     setItems((list) => list.filter((i) => !ids.includes(i.id)))
+    void invalidateMenuCaches(cafeId)
     setSelectedIds(new Set())
     toast(`${ids.length} item${ids.length === 1 ? '' : 's'} deleted.`)
   }
@@ -843,7 +892,16 @@ export default function MenuManager({
       )}
 
       {manageOffers && (
-        <OffersPanel canManage={canSeeCost} items={items} onItemsChange={setItems} />
+        <OffersPanel
+          canManage={canSeeCost}
+          items={items}
+          // Only called after an offer was written or cleared, and an offer
+          // changes the price the QR menu and POS charge — expire their caches.
+          onItemsChange={(next) => {
+            setItems(next)
+            void invalidateMenuCaches(cafeId)
+          }}
+        />
       )}
 
       {/* Toolbar */}
@@ -1254,6 +1312,9 @@ export default function MenuManager({
                   Only if this is sold more than one way — Small/Medium/Large, 6 Slice, Steam/Fried. Give each one the
                   price a guest pays{canSeeCost && ' and the ₹ you keep'}. Leave empty if there&apos;s just one.
                 </p>
+                {!draft.optionsReady && !error && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">Loading this item&apos;s sizes and add-ons…</p>
+                )}
                 {/* px-3 mirrors the inputs' own padding so each label sits over
                     its value instead of 12px to the left of it, and the money
                     columns are right-aligned to match the figures beneath them
@@ -1336,11 +1397,26 @@ export default function MenuManager({
             </div>
 
           </div>
+          {/* The save error is shown HERE, inside the editor. It used to appear
+              only in the page-level banner, which sits behind this overlay — so
+              a save that failed left the editor open with nothing visibly wrong
+              (a retry on a new item then created a second copy of it). */}
+          {error && (
+            <p role="alert" className="shrink-0 border-t border-border bg-destructive-subtle px-6 py-2.5 text-[13px] text-destructive">
+              {error}
+            </p>
+          )}
           <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">
-            <Button variant="ghost" onClick={() => setDraft(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setDraft(null)
+                setError(null)
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={saveItem} loading={busy}>
+            <Button onClick={saveItem} loading={busy} disabled={!draft.optionsReady}>
               {draft.id ? 'Save' : 'Add item'}
             </Button>
           </div>

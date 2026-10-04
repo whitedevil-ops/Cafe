@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import type { ComboExportRow } from '@/lib/menu-workbook'
 import { savedFileHint } from '@/lib/is-desktop'
+import { invalidateMenuCaches } from '@/lib/menu-revalidate'
 import type { Combo, ComboSlot } from '@/lib/combos'
 import type { MenuCategory, MenuItemRow } from './types'
 
@@ -233,6 +234,7 @@ export default function CombosPanel({
         })
     setBusy(false)
     if (err) return setError(err.message)
+    void invalidateMenuCaches(cafeId)
 
     // Slots are replaced wholesale server-side, so re-read them rather than
     // reconstructing the new ids locally.
@@ -278,6 +280,8 @@ export default function CombosPanel({
     if (err) {
       setCombos((list) => list.map((x) => (x.id === c.id ? { ...x, active: c.active } : x)))
       toast(err.message, 'error')
+    } else {
+      void invalidateMenuCaches(cafeId)
     }
   }
 
@@ -291,6 +295,7 @@ export default function CombosPanel({
     if (!ok) return
     const { error: err } = await supabase.rpc('delete_combo', { p_combo_id: c.id })
     if (err) return toast(err.message, 'error')
+    void invalidateMenuCaches(cafeId)
     setCombos((list) => list.filter((x) => x.id !== c.id))
     setSlots((list) => list.filter((s) => s.combo_id !== c.id))
     toast(`"${c.name}" deleted.`)
