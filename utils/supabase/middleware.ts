@@ -57,22 +57,35 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+  // getClaims(), not getUser(): this project signs its tokens with an
+  // asymmetric key (ES256, published at /auth/v1/.well-known/jwks.json), so the
+  // token's signature and expiry can be verified HERE, against a key the
+  // library caches for the whole server process — no network round trip.
+  // getUser() asked Supabase Auth over the wire on every request, and a
+  // dashboard page load fires ~20 of them (the sidebar's prefetches each pass
+  // through this proxy), each a ~100ms trip that every page switch waited on.
+  // An expiring token is still refreshed here and the cookie rewritten
+  // (getClaims() goes through getSession()), and a token the library cannot
+  // verify locally (an older HS256 one) falls back to the network check on its
+  // own — so the only thing given up is noticing a REVOKED session before its
+  // access token expires (at most an hour). RLS never noticed that either: the
+  // database trusts the same signed token, so nothing the revoked session could
+  // still read was ever protected by this call. /ops and every sensitive
+  // route handler keep getUser().
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims()
+  const signedIn = Boolean(claimsData?.claims?.sub)
 
-  // getUser() swallows a transient network/timeout failure reaching
-  // Supabase Auth and returns { user: null } for it exactly like a genuine
-  // "not signed in" — there is no retry cushioning in the SDK for this. Left
-  // unguarded, a single connectivity blip would force-redirect an
-  // already-signed-in café staffer to /login, which itself clears the real
-  // session on arrival (by design, for the actual "sign in fresh" case) —
-  // turning a momentary hiccup into a real, disruptive logout. Only redirect
-  // on a confirmed absence of a session, not an inability to check right now.
-  // (`isProtected` is already known true here — the early return above
-  // handles every non-protected route.)
-  if (!user && !isAuthRetryableFetchError(userError)) {
+  // A transient network/timeout failure reaching Supabase Auth (only possible
+  // now on the HS256 fallback or a refresh) comes back as an error with no
+  // claims, exactly like a genuine "not signed in" — there is no retry
+  // cushioning in the SDK for this. Left unguarded, a single connectivity blip
+  // would force-redirect an already-signed-in café staffer to /login, which
+  // itself clears the real session on arrival (by design, for the actual "sign
+  // in fresh" case) — turning a momentary hiccup into a real, disruptive
+  // logout. Only redirect on a confirmed absence of a session, not an
+  // inability to check right now. (`isProtected` is already known true here —
+  // the early return above handles every non-protected route.)
+  if (!signedIn && !isAuthRetryableFetchError(claimsError)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', path)

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link, { useLinkStatus } from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, ShoppingCart, Grid2x2, ReceiptText, ChefHat, Banknote,
   BookOpenText, Users, ChartBar, Wallet, PiggyBank, Package, Soup, Tag, Gift, Truck,
@@ -152,6 +152,22 @@ export function AppShell({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const router = useRouter()
+  // Sidebar links used to prefetch on sight. With ~23 of them always visible,
+  // every dashboard page load fired ~23 prefetch requests — each one a trip
+  // through the auth proxy (a Supabase Auth round trip) plus a serverless
+  // invocation of its own — before a single click, competing with the page the
+  // person was actually waiting for. Measured on a populated café: a plain
+  // reload of /dashboard produced 20+ auth checks in under a second. The pages
+  // are all dynamic, so a prefetch only ever fetched the loading shell anyway.
+  // Now a link is prefetched only when someone shows intent — hover, keyboard
+  // focus, or a touch — which is the one request that can actually be saved.
+  const prefetched = useRef<Set<string>>(new Set())
+  const prefetchOnIntent = (href: string) => {
+    if (prefetched.current.has(href)) return
+    prefetched.current.add(href)
+    router.prefetch(href)
+  }
   const screenSet = useMemo(() => new Set(screenAccess), [screenAccess])
   const groups = useMemo(() => buildNav(cashEnabled, features, screenSet), [cashEnabled, features, screenSet])
   // Unfiltered-by-role nav, used only to identify which item a URL belongs
@@ -246,6 +262,10 @@ export function AppShell({
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      prefetch={false}
+                      onMouseEnter={() => prefetchOnIntent(item.href)}
+                      onFocus={() => prefetchOnIntent(item.href)}
+                      onTouchStart={() => prefetchOnIntent(item.href)}
                       title={isCollapsed ? item.label : undefined}
                       aria-current={on ? 'page' : undefined}
                       className={`group relative flex items-center rounded-[var(--radius)] text-[13.5px] font-medium transition-colors ${

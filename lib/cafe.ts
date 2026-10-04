@@ -88,15 +88,19 @@ function isUsable(row: MembershipRow): boolean {
 const getMemberships = cache(
   async (): Promise<{ userId: string; rows: MembershipRow[] } | null> => {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return null
+    // The signed-in user's id, from the token's VERIFIED claims — no network
+    // round trip (see utils/supabase/middleware.ts for why getClaims() rather
+    // than getUser()). Every query below runs as this user through RLS, which
+    // trusts the same signed token, so this is no weaker a gate than the
+    // database itself.
+    const { data: claimsData } = await supabase.auth.getClaims()
+    const userId = claimsData?.claims?.sub
+    if (!userId) return null
 
     const { data } = await supabase
       .from('cafe_members')
       .select(SELECT_COLS)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     let rows = (data ?? []) as MembershipRow[]
@@ -109,13 +113,13 @@ const getMemberships = cache(
         const { data: refetched } = await supabase
           .from('cafe_members')
           .select(SELECT_COLS)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', { ascending: false })
         rows = (refetched ?? []) as MembershipRow[]
       }
     }
 
-    return { userId: user.id, rows: rows.filter(isUsable) }
+    return { userId, rows: rows.filter(isUsable) }
   },
 )
 
