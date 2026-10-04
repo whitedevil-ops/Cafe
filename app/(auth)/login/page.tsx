@@ -7,6 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { keepSignedIn, setKeepSignedIn, clearStoredSession, shouldSkipLoginSignOut } from '@/lib/desktop-session'
+import { useDesktopAuthPending } from '@/lib/desktop-auth-phase'
 import { isDesktopApp } from '@/lib/is-desktop'
 
 export default function LoginPage() {
@@ -42,6 +43,10 @@ function LoginForm() {
   // project's shared cookie config for every login, a bigger change than an
   // audit fix pass should make unilaterally.
   const [desktop, setDesktop] = useState(false)
+  // Desktop only: true while the app is still working out whether a stored
+  // session can be restored (lib/desktop-auth-phase). The form must not appear
+  // in that gap — "not restored yet" is not "signed out".
+  const restoring = useDesktopAuthPending()
 
   useEffect(() => {
     // Read after mount — localStorage/window do not exist while this renders
@@ -63,7 +68,14 @@ function LoginForm() {
       // session already in this browser so switching accounts doesn't depend
       // on finding Sign out in the dashboard first, and a saved-password
       // autofill can't silently resume the old account.
-      void createClient().auth.signOut()
+      //
+      // scope 'local': THIS browser only. supabase-js's default is 'global',
+      // which revokes every session the account has anywhere — so opening the
+      // login page on a phone or a second tab signed the café out of the till
+      // in the next room, and the desktop app's stored refresh token with it,
+      // and the till's next reload landed on a login form for no reason it
+      // could show.
+      void createClient().auth.signOut({ scope: 'local' })
     })()
   }, [])
 
@@ -111,6 +123,15 @@ function LoginForm() {
     }
     router.push(next)
     router.refresh()
+  }
+
+  if (restoring) {
+    return (
+      <div role="status" aria-live="polite" className="flex flex-col items-center py-20 text-center">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden />
+        <p className="mt-4 text-sm text-muted-foreground">Restoring your session…</p>
+      </div>
+    )
   }
 
   return (

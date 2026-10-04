@@ -48,8 +48,10 @@ function SignupForm() {
 
   useEffect(() => {
     // Same reasoning as /login: arriving here should always be a clean
-    // slate, not a continuation of whatever account was signed in before.
-    void createClient().auth.signOut()
+    // slate, not a continuation of whatever account was signed in before —
+    // and, as there, only in THIS browser (scope 'local'): the default,
+    // 'global', revokes the account's sessions on every other device too.
+    void createClient().auth.signOut({ scope: 'local' })
   }, [])
 
   useEffect(() => {
