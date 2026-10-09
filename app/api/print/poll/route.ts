@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, adminConfigured } from '@/utils/supabase/admin'
 
-// The local KhaoPiyo Print Bridge polls this for work.
+// The local KhaoPiyo Print Bridge polls this for work — but since desktop
+// 1.2.2 only as a FALLBACK. The bridge now calls bridge_claim_jobs directly
+// on the database (migration 0246), because this route was a Vercel Function
+// Invocation every 4 seconds per paired PC: ~648K a month from one café, 65%
+// of the Hobby plan's 1M quota. Keep this route: installs older than 1.2.2
+// still use it, and a current install falls back to it when its network can't
+// reach the database. See docs/print-bridge.md ("Direct polling").
 //
-// SECURITY SHAPE: the bridge holds a per-café bridge token and nothing else.
-// It never sees a Supabase URL, anon key, or service-role key. This route is
-// the only thing that touches Supabase, it runs server-side, and the RPC it
-// calls resolves the token to exactly one cafe_id and filters every query by
-// it — so a leaked bridge token exposes one café's kitchen tickets and cannot
-// reach another café's data at all.
+// SECURITY SHAPE: the bridge's only secret is its per-café bridge token. It
+// never holds the service-role key; this route does the privileged call
+// server-side. The RPC resolves the token to exactly one cafe_id and filters
+// every query by it — so a leaked bridge token exposes one café's kitchen
+// tickets and cannot reach another café's data at all. (The direct path is
+// gated by the same token check inside the function, not by the caller's role.)
 export async function POST(req: NextRequest) {
   const { token, limit, app_version } = (await req.json().catch(() => ({}))) as {
     token?: string

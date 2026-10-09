@@ -29,9 +29,15 @@ sign-in session — signing out at end of shift does not un-pair the printer.
 
 It never receives:
 
-- the Supabase URL, anon key, or service-role key
-- any database credential
+- the service-role key, or any other database credential
 - any other café's data
+
+Since desktop 1.2.2 the app does contain the Supabase URL and the **public
+(publishable) API key** — the same two values every visitor's browser already
+downloads with the website. They are not secrets and grant nothing on their own;
+they only let the bridge call the `bridge_claim_jobs` function directly (see
+"Claim jobs" below). That function checks the bridge token itself, so the token
+is still the only thing that opens anything.
 
 The token maps to exactly one `cafe_id` server-side, and every query is filtered
 by it. A leaked token exposes one café's kitchen tickets and cannot be used to
@@ -107,6 +113,38 @@ reclaimable automatically, up to 5 attempts, with exponential backoff — the
 bridge does not need its own retry logic, just keep polling normally.
 
 Poll every ~4 seconds. A job moves to `printing` the moment it is claimed.
+
+#### Direct polling (desktop 1.2.2+) and why `/api/print/poll` is now a fallback
+
+One paired PC polling every 4 seconds is ~21,600 requests a day. Through the
+route above every one of them is a Vercel Function Invocation — about 648K of the
+Hobby plan's 1,000,000 a month for a single café. On 2026-10-09 the team reached
+100% of that quota (exceeding it pauses the projects), so the bridge now makes
+this call itself:
+
+```
+POST https://<project>.supabase.co/rest/v1/rpc/bridge_claim_jobs
+apikey: <publishable key>
+Content-Type: application/json
+
+{ "p_token": "<bridge token>", "p_limit": 10, "p_app_version": "1.2.2" }
+```
+
+It returns the same `{ "cafe_id", "jobs" }` body as the route, because the route
+only forwards to this function. This works because migration 0246 lets the
+public key execute it. **Any future migration that re-creates
+`bridge_claim_jobs` must keep that grant** (0150, 0201 and 0228 each ended by
+revoking it from `anon`) — if it is lost nothing breaks, but every bridge falls
+back to the Vercel route and the saving silently disappears.
+
+The bridge falls back to `POST /api/print/poll` when the direct call is
+unavailable (no route to the database, a timeout, an HTTP error, the migration
+not run yet, a reply that isn't ours), and then stays on the route for 5
+minutes before trying direct again. A final answer from the database — an
+`invalid bridge token` — is **not** retried through the route: it would say the
+same thing and spend an invocation to do it. `bridge.log` records the switch in
+each direction ("polling the database directly", "direct poll unavailable …").
+The route stays in place for installs older than 1.2.2.
 
 ### 2. Report the outcome
 

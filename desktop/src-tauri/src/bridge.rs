@@ -11,6 +11,11 @@
 //! is why KOT printing only ever worked while a browser tab stayed open on the
 //! Kitchen page.
 //!
+//! Since 1.2.2 the poll goes straight to the database's `bridge_claim_jobs`
+//! function (migration 0246) and only falls back to `POST /api/print/poll`
+//! when that path is unavailable — see the "Direct polling" block below for
+//! why: the poll alone was ~65% of the host's monthly invocation quota.
+//!
 //! Handles LAN printers (direct TCP) and USB printers (via the Windows print
 //! spooler, see `winspool.rs`) — see `target_for()` below for the exact
 //! routing. A job routed to a bluetooth printer is left alone rather than
@@ -29,6 +34,31 @@ use crate::printing::{self, Target};
 const POLL_URL: &str = "https://khaopiyo.ventron.in/api/print/poll";
 const REPORT_URL: &str = "https://khaopiyo.ventron.in/api/print/report";
 const POLL_INTERVAL: Duration = Duration::from_secs(4);
+
+// ── Direct polling ──────────────────────────────────────────────────────────
+//
+// The poll is the highest-volume call in the whole product: one per 4 seconds,
+// per paired PC, forever — ~21,600 a day. Sent through POST /api/print/poll it
+// is also a Vercel Function Invocation each time, and one always-on bridge
+// alone used ~65% of the Hobby plan's 1,000,000 a month (the team hit 100% on
+// 2026-10-09; exceeding it pauses the projects). That route does nothing but
+// forward to the `bridge_claim_jobs` database function, so the bridge now
+// calls that function itself (migration 0246 lets the public API key execute
+// it) and only uses the Vercel route as a fallback.
+//
+// DIRECT_API_KEY is the PUBLISHABLE key — the same one every visitor's browser
+// already receives in the website's JavaScript. It is not a secret and grants
+// nothing by itself: `bridge_claim_jobs` authenticates the caller by the
+// bridge token alone, exactly as the Vercel route did.
+const DIRECT_POLL_URL: &str = "https://zfoewekgwtvbykyitpig.supabase.co/rest/v1/rpc/bridge_claim_jobs";
+const DIRECT_API_KEY: &str = "sb_publishable_toxT-6hL67Py9PXqLdA2SQ_AZiEthl5";
+/// Shorter than the client's blanket 10s: if the database is unreachable the
+/// fallback should start promptly, not after a long stall.
+const DIRECT_TIMEOUT: Duration = Duration::from_secs(6);
+/// After the direct path fails, go straight to the Vercel route for this long
+/// before trying direct again — otherwise a network that blocks the database
+/// would add a failed attempt (up to `DIRECT_TIMEOUT`) to every 4-second cycle.
+const DIRECT_RETRY_AFTER: Duration = Duration::from_secs(300);
 
 // ── Pairing token storage ───────────────────────────────────────────────────
 //
@@ -403,6 +433,92 @@ fn interpret_poll_response(status: u16, body: &str) -> Result<Vec<Job>, String> 
         .map_err(|e| e.to_string())
 }
 
+/// What a direct-to-database poll turned out to be. Three outcomes, not two,
+/// because "try the other route" is only the right answer for one of them.
+enum DirectOutcome {
+    /// The database answered and handed back a (possibly empty) batch.
+    Jobs(Vec<Job>),
+    /// The database answered and the answer is final — a revoked or malformed
+    /// bridge token, or a batch that arrived but could not be read. The Vercel
+    /// route would call the same function and say the same thing, so falling
+    /// back would only spend an invocation to hear it again — every 4 seconds,
+    /// forever, for a revoked token.
+    Rejected(String),
+    /// The direct path itself did not work: no network to the database, a
+    /// timeout, a gateway error, the migration not run yet (a "permission
+    /// denied" comes back as HTTP 401), or a reply that is not ours at all.
+    /// The Vercel route may still work, so use it.
+    Unavailable(String),
+}
+
+/// Cuts server text down before it goes in the (size-capped) log — an ISP
+/// block page can be a whole HTML document.
+fn clip(text: &str) -> String {
+    const MAX: usize = 200;
+    if text.chars().count() <= MAX {
+        text.to_string()
+    } else {
+        let head: String = text.chars().take(MAX).collect();
+        format!("{head}…")
+    }
+}
+
+/// Status + body in, outcome out — pure, like `interpret_poll_response`, so
+/// the fallback decision can be tested without a network.
+fn interpret_direct_response(status: u16, body: &str) -> DirectOutcome {
+    if (200..300).contains(&status) {
+        // The function always answers `{"cafe_id": …, "jobs": [ … ]}`. Insist
+        // on the `jobs` array rather than leaning on `PollResponse`'s
+        // `#[serde(default)]`: a 2xx from a captive portal or proxy that
+        // happens to be JSON must not read as "connected fine, nothing to
+        // print" — the same trap `interpret_poll_response` guards against.
+        let value: serde_json::Value = match serde_json::from_str(body) {
+            Ok(v) => v,
+            Err(e) => return DirectOutcome::Unavailable(format!("HTTP {status}: not JSON ({e}): {}", clip(body))),
+        };
+        if !value.get("jobs").is_some_and(|j| j.is_array()) {
+            return DirectOutcome::Unavailable(format!("HTTP {status}: no jobs array: {}", clip(body)));
+        }
+        return match serde_json::from_value::<PollResponse>(value) {
+            Ok(parsed) => DirectOutcome::Jobs(parsed.jobs),
+            Err(e) => DirectOutcome::Rejected(format!("HTTP {status}: could not read the job batch: {e}")),
+        };
+    }
+    // PostgREST reports the function's `raise exception 'invalid bridge token'`
+    // as HTTP 400. Matched on the message because that is all the function
+    // sends; anything else with a 400 (a malformed request, a signature
+    // mismatch) is a problem with THIS path, not a verdict on the token.
+    if status == 400 && body.contains("invalid bridge token") {
+        return DirectOutcome::Rejected(format!("HTTP {status}: {}", clip(body)));
+    }
+    DirectOutcome::Unavailable(format!("HTTP {status}: {}", clip(body)))
+}
+
+/// One poll straight against the database's REST endpoint. Never returns an
+/// `Err` — every failure is classified into `DirectOutcome` for the caller.
+async fn poll_direct(client: &reqwest::Client, token: &str) -> DirectOutcome {
+    let resp = match client
+        .post(DIRECT_POLL_URL)
+        .header("apikey", DIRECT_API_KEY)
+        .timeout(DIRECT_TIMEOUT)
+        .json(&serde_json::json!({
+            "p_token": token,
+            "p_limit": 10,
+            "p_app_version": env!("CARGO_PKG_VERSION"),
+        }))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => return DirectOutcome::Unavailable(clip(&e.to_string())),
+    };
+    let status = resp.status().as_u16();
+    match resp.text().await {
+        Ok(body) => interpret_direct_response(status, &body),
+        Err(e) => DirectOutcome::Unavailable(format!("HTTP {status}: could not read body: {e}")),
+    }
+}
+
 /// The actual bug behind a day's worth of "the bridge silently isn't
 /// working": this used to deserialize the response body straight into
 /// `PollResponse` with no status check at all. `PollResponse.jobs` is
@@ -499,6 +615,13 @@ pub async fn run(app: tauri::AppHandle) {
     // observation isn't reported as a transition into a state it started in.
     let mut was_paired: Option<bool> = None;
 
+    // Direct-poll bookkeeping (see DIRECT_POLL_URL). `direct_blocked_until` is
+    // set when the direct path fails; until it passes, polls go to the Vercel
+    // route. `direct_working` is only there so the log records TRANSITIONS —
+    // "now polling directly", "fell back" — rather than a line every 4s.
+    let mut direct_blocked_until: Option<std::time::Instant> = None;
+    let mut direct_working: Option<bool> = None;
+
     loop {
         tick += 1;
         let verbose = tick <= 5;
@@ -534,7 +657,37 @@ pub async fn run(app: tauri::AppHandle) {
                 if verbose {
                     log_line(&app, &format!("tick {tick}: calling poll_once"));
                 }
-                match poll_once(&client, &token).await {
+                let direct_allowed = direct_blocked_until
+                    .map_or(true, |until| std::time::Instant::now() >= until);
+                let polled = if direct_allowed {
+                    match poll_direct(&client, &token).await {
+                        DirectOutcome::Jobs(jobs) => {
+                            if direct_working != Some(true) {
+                                log_line(&app, "polling the database directly (no server hop)");
+                                direct_working = Some(true);
+                            }
+                            Ok(jobs)
+                        }
+                        // A final answer from the database — do not ask the
+                        // server the same question again.
+                        DirectOutcome::Rejected(e) => Err(e),
+                        DirectOutcome::Unavailable(e) => {
+                            log_line(
+                                &app,
+                                &format!(
+                                    "direct poll unavailable ({e}) — using the server route for {}s",
+                                    DIRECT_RETRY_AFTER.as_secs()
+                                ),
+                            );
+                            direct_working = Some(false);
+                            direct_blocked_until = Some(std::time::Instant::now() + DIRECT_RETRY_AFTER);
+                            poll_once(&client, &token).await
+                        }
+                    }
+                } else {
+                    poll_once(&client, &token).await
+                };
+                match polled {
                     Ok(jobs) => {
                         if !polled_yet {
                             polled_yet = true;
@@ -757,5 +910,118 @@ mod tests {
     #[test]
     fn surfaces_a_malformed_body_on_a_200_rather_than_printing_nothing() {
         assert!(interpret_poll_response(200, "not json at all").is_err());
+    }
+
+    // ── Direct polling: when to fall back to the Vercel route ───────────────
+    //
+    // The whole point of direct polling is to stop spending a Vercel
+    // invocation every 4 seconds, so the decision that matters is the one
+    // that is easy to get subtly wrong in either direction: falling back too
+    // eagerly (savings vanish, or a revoked token costs an invocation per
+    // poll forever) or too reluctantly (the kitchen stops printing because
+    // the database is unreachable from one café's network).
+
+    #[test]
+    fn direct_poll_returns_the_batch_from_a_successful_call() {
+        let outcome = interpret_direct_response(
+            200,
+            r#"{"cafe_id":"c1","jobs":[{"job_id":"j1","kind":"kot","printer":{"connection_type":"lan"},"document":{}}]}"#,
+        );
+        let DirectOutcome::Jobs(jobs) = outcome else { panic!("a 200 with a batch is a success") };
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].job_id, "j1");
+    }
+
+    #[test]
+    fn direct_poll_accepts_a_quiet_kitchen() {
+        let outcome = interpret_direct_response(200, r#"{"cafe_id":"c1","jobs":[]}"#);
+        assert!(matches!(outcome, DirectOutcome::Jobs(ref j) if j.is_empty()));
+    }
+
+    #[test]
+    fn direct_poll_treats_a_revoked_token_as_final_not_as_a_reason_to_fall_back() {
+        // PostgREST's rendering of `raise exception 'invalid bridge token'`.
+        // Falling back would cost a Vercel invocation every 4 seconds for as
+        // long as a revoked bridge stays running.
+        let outcome = interpret_direct_response(
+            400,
+            r#"{"code":"P0001","details":null,"hint":null,"message":"invalid bridge token"}"#,
+        );
+        assert!(matches!(outcome, DirectOutcome::Rejected(ref e) if e.contains("invalid bridge token")));
+    }
+
+    #[test]
+    fn direct_poll_falls_back_when_the_migration_has_not_run_yet() {
+        // Observed live before 0246: the public key is refused with HTTP 401
+        // (not 403) and code 42501. A new build installed before the
+        // migration must keep printing, via the server route.
+        let outcome = interpret_direct_response(
+            401,
+            r#"{"code":"42501","details":null,"hint":null,"message":"permission denied for function bridge_claim_jobs"}"#,
+        );
+        assert!(matches!(outcome, DirectOutcome::Unavailable(_)));
+    }
+
+    #[test]
+    fn direct_poll_falls_back_on_gateway_and_rate_limit_errors() {
+        for status in [403_u16, 404, 429, 500, 502, 503, 504] {
+            assert!(
+                matches!(interpret_direct_response(status, "gateway said no"), DirectOutcome::Unavailable(_)),
+                "HTTP {status} must fall back"
+            );
+        }
+    }
+
+    #[test]
+    fn direct_poll_does_not_mistake_another_400_for_a_verdict_on_the_token() {
+        // A signature mismatch / malformed request is a problem with the
+        // direct path, not proof the token is bad — the server route can
+        // still serve it.
+        let outcome = interpret_direct_response(
+            400,
+            r#"{"code":"PGRST202","details":null,"hint":null,"message":"Could not find the function"}"#,
+        );
+        assert!(matches!(outcome, DirectOutcome::Unavailable(_)));
+    }
+
+    #[test]
+    fn direct_poll_falls_back_on_a_block_page_that_answers_200() {
+        // Some networks answer for a site they filter with a 200 HTML page.
+        assert!(matches!(
+            interpret_direct_response(200, "<html><body>This site is blocked</body></html>"),
+            DirectOutcome::Unavailable(_)
+        ));
+    }
+
+    #[test]
+    fn direct_poll_does_not_read_a_jobs_less_200_as_a_quiet_kitchen() {
+        // The silent-401 trap again, on the new path: `PollResponse.jobs` is
+        // `#[serde(default)]`, so an unrelated JSON 200 would parse as "no
+        // jobs" and the kitchen would look merely quiet. The real function
+        // always sends a `jobs` array, so its absence means it was not us.
+        assert!(matches!(interpret_direct_response(200, "{}"), DirectOutcome::Unavailable(_)));
+        assert!(matches!(
+            interpret_direct_response(200, r#"{"message":"proxy error"}"#),
+            DirectOutcome::Unavailable(_)
+        ));
+        assert!(matches!(
+            interpret_direct_response(200, r#"{"jobs":"nope"}"#),
+            DirectOutcome::Unavailable(_)
+        ));
+    }
+
+    #[test]
+    fn direct_poll_does_not_fall_back_for_an_unreadable_batch() {
+        // The jobs were already claimed server-side; asking again would claim
+        // nothing and burn an invocation. Surface it instead.
+        let outcome = interpret_direct_response(200, r#"{"jobs":[{"job_id":"j1"}]}"#);
+        assert!(matches!(outcome, DirectOutcome::Rejected(_)));
+    }
+
+    #[test]
+    fn clip_keeps_a_block_page_from_flooding_the_log() {
+        let long = "x".repeat(5000);
+        assert!(clip(&long).chars().count() <= 201);
+        assert_eq!(clip("short"), "short");
     }
 }
