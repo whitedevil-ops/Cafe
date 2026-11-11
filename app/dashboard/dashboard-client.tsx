@@ -258,11 +258,27 @@ export default function DashboardClient({
     neutral: 'border-border bg-surface-subtle text-muted-foreground',
   }
 
+  // Revenue and Collected are shown NET of today's refunds; Billed stays GROSS.
+  // A refund never edits the order or its payments (refund_order writes its own
+  // `refunds` row), so the database keeps the gross figures and this is where
+  // the subtraction happens. Why the split: a bill that was issued stays issued
+  // (Billed doesn't move), but money handed back is no longer revenue or cash
+  // in hand — a ₹200 order fully refunded must not still read ₹200 under both.
+  //
+  // "Net" matches the daily summary's net sales: what came in minus refunds
+  // ISSUED today, whenever the refunded order was placed. Signed, so a day that
+  // refunded more than it sold reads as a loss rather than hiding at ₹0. The
+  // small line under each card shows the sum, so the figure can be checked.
+  const refundedToday = money?.refunded ?? 0
+  const rupees = (n: number) => `${n < 0 ? '−' : ''}₹${Math.abs(n).toLocaleString('en-IN')}`
+  const netBreakdown = (gross: number, noun: string) =>
+    refundedToday > 0 ? `${rupees(gross)} ${noun} − ${rupees(refundedToday)} refunded` : null
+
   const metrics = [
-    ['Today’s revenue', `₹${data.revenue.toLocaleString('en-IN')}`],
-    ['Today’s orders', data.orderCount],
-    ['Avg order value', `₹${data.aov.toLocaleString('en-IN')}`],
-    ['New customers today', data.newCustomersToday],
+    ['Today’s revenue', rupees(data.revenue - refundedToday), netBreakdown(data.revenue, 'sales')],
+    ['Today’s orders', data.orderCount, null],
+    ['Avg order value', `₹${data.aov.toLocaleString('en-IN')}`, null],
+    ['New customers today', data.newCustomersToday, null],
   ] as const
 
   const methodLabel: Record<string, string> = { cash: 'Cash', card: 'Card', counter: 'Pending', upi: 'UPI' }
@@ -286,10 +302,11 @@ export default function DashboardClient({
       <OnboardingChecklist cafeId={cafeId} flags={data.checklist} />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metrics.map(([label, value]) => (
+        {metrics.map(([label, value, note]) => (
           <Link key={label} href="/dashboard/bills" className="rounded-xl border border-border bg-surface p-5 transition-colors hover:bg-surface-subtle">
             <p className="text-[13px] text-muted-foreground">{label}</p>
             <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+            {note && <p className="mt-1 text-[12px] text-muted-foreground">{note}</p>}
           </Link>
         ))}
       </div>
@@ -302,7 +319,10 @@ export default function DashboardClient({
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-[12.5px] text-muted-foreground">Collected today</p>
-            <p className="mt-0.5 text-xl font-semibold text-success">₹{money.collected.toLocaleString('en-IN')}</p>
+            <p className="mt-0.5 text-xl font-semibold text-success">{rupees(money.collected - refundedToday)}</p>
+            {netBreakdown(money.collected, 'collected') && (
+              <p className="text-[11px] text-muted-foreground">{netBreakdown(money.collected, 'collected')}</p>
+            )}
           </div>
           <Link href="/dashboard/bills?payment=unpaid" className="rounded-xl border border-border bg-surface p-4 transition-colors hover:bg-surface-subtle">
             <p className="text-[12.5px] text-muted-foreground">Outstanding</p>
