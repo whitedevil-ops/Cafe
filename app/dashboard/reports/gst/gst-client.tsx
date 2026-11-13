@@ -128,7 +128,7 @@ export default function GstClient({
         <TallyExportPanel cafeId={cafeId} timezone={timezone} activeRange={activeRange} rates={report.by_rate.map((r) => r.tax_percent)} />
       )}
 
-      {error &&<p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
+      {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
 
       {loading ? (
         <p className="mt-8 text-sm text-muted-foreground">Loading…</p>
