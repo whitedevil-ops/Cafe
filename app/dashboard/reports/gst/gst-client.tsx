@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/datetime'
 import type { SheetSpec } from '@/lib/xlsx-export'
 import { ReportsSubnav, ReportHeader, RangePicker, useReportRange } from '../_shared'
+import TallyExportPanel from './tally-export-panel'
 
 export type GstReport = {
   gst_registered: boolean
@@ -123,7 +124,11 @@ export default function GstClient({
       />
       <RangePicker preset={preset} choosePreset={choosePreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} applyCustom={applyCustom} />
 
-      {error && <p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
+      {report?.gst_registered && (
+        <TallyExportPanel cafeId={cafeId} timezone={timezone} activeRange={activeRange} rates={report.by_rate.map((r) => r.tax_percent)} />
+      )}
+
+      {error &&<p className="mt-4 rounded-[var(--radius)] bg-destructive-subtle px-3 py-2 text-[13px] text-destructive">{error}</p>}
 
       {loading ? (
         <p className="mt-8 text-sm text-muted-foreground">Loading…</p>
