@@ -25,11 +25,20 @@ export default async function ReportsOverviewPage() {
   const to = new Date().toISOString()
 
   const supabase = await createClient()
-  const [{ data, error }, crmAllowed, inventoryAllowed, advancedReportsAllowed] = await Promise.all([
+  const [{ data, error }, crmAllowed, inventoryAllowed, advancedReportsAllowed, billed] = await Promise.all([
     supabase.rpc('business_overview_report', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }),
     hasFeature(cafe.cafeId, 'crm'),
     hasFeature(cafe.cafeId, 'inventory'),
     hasFeature(cafe.cafeId, 'advanced_reports'),
+    // "Billed": the total of every non-cancelled bill in the range, tax included,
+    // before refunds — the same figure the dashboard's Billed today card shows.
+    // The overview report has no such total (its gross is pre-discount, pre-tax),
+    // and dashboard_today_totals already answers it for any range. A failure here
+    // must not take the report down, so it degrades to "unknown".
+    supabase.rpc('dashboard_today_totals', { p_cafe_id: cafe.cafeId, p_from: from, p_to: to }).then(
+      ({ data: t, error: e }) => (e || !t ? null : Number((t as { revenue: number }).revenue)),
+      () => null,
+    ),
   ])
 
   return (
@@ -41,6 +50,7 @@ export default async function ReportsOverviewPage() {
       initialFrom={from}
       initialTo={to}
       initialReport={error ? null : redactReport(data as OverviewReport, crmAllowed, inventoryAllowed)}
+      initialBilled={billed}
       todayStart={businessDayStartISO(cafe.timezone)}
       crmAllowed={crmAllowed}
       inventoryAllowed={inventoryAllowed}

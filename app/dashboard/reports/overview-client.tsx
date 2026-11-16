@@ -10,6 +10,10 @@ import { redactReport, type OverviewReport } from './redact-report'
 
 export type { OverviewReport }
 
+// Signed, so a range that refunded more than it took reads as a loss instead of
+// hiding at ₹0 (same helper shape as the dashboard's money cards).
+const rupees = (n: number) => `${n < 0 ? '−' : ''}₹${Math.abs(n).toLocaleString('en-IN')}`
+
 type Preset = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'custom'
 
 const TYPE_LABEL: Record<string, string> = { dine_in: 'Dine-In', takeaway: 'Takeaway' }
@@ -55,6 +59,7 @@ export default function OverviewClient({
   initialFrom,
   initialTo,
   initialReport,
+  initialBilled,
   crmAllowed,
   inventoryAllowed,
   advancedReportsAllowed,
@@ -66,6 +71,8 @@ export default function OverviewClient({
   initialFrom: string
   initialTo: string
   initialReport: OverviewReport | null
+  /** Total of every non-cancelled bill in the initial range (tax included, before refunds); null if unknown. */
+  initialBilled: number | null
   todayStart: string
   crmAllowed: boolean
   inventoryAllowed: boolean
@@ -77,6 +84,7 @@ export default function OverviewClient({
   const [customFrom, setCustomFrom] = useState(businessDayKey(initialFrom, timezone))
   const [customTo, setCustomTo] = useState(businessDayKey(initialTo, timezone))
   const [report, setReport] = useState<OverviewReport | null>(initialReport)
+  const [billed, setBilled] = useState<number | null>(initialBilled)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { runExport, exporting } = useFileExport()
@@ -85,10 +93,16 @@ export default function OverviewClient({
     async (from: string, to: string) => {
       setLoading(true)
       setError(null)
-      const { data, error: err } = await supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to })
+      // Billed comes from a second call over the SAME range (see page.tsx). It is
+      // best-effort: if it fails the card shows "—" and the report still renders.
+      const [{ data, error: err }, billedRes] = await Promise.all([
+        supabase.rpc('business_overview_report', { p_cafe_id: cafeId, p_from: from, p_to: to }),
+        supabase.rpc('dashboard_today_totals', { p_cafe_id: cafeId, p_from: from, p_to: to }),
+      ])
       setLoading(false)
       if (err) return setError(err.message)
       setReport(redactReport(data as OverviewReport, crmAllowed, inventoryAllowed))
+      setBilled(billedRes.error || !billedRes.data ? null : Number((billedRes.data as { revenue: number }).revenue))
     },
     [supabase, cafeId, crmAllowed, inventoryAllowed],
   )
@@ -133,8 +147,10 @@ export default function OverviewClient({
           { k: 'Discounts', v: r.summary.discounts },
           { k: 'Refunds', v: r.summary.refunds },
           { k: 'Net Sales', v: r.summary.net_sales },
+          // Same as the screen: Billed is gross, Collected is net of refunds.
+          ...(billed === null ? [] : [{ k: 'Billed (before refunds)', v: billed }]),
           { k: 'Tax', v: r.summary.tax },
-          { k: 'Collected', v: r.summary.collected },
+          { k: 'Collected (net of refunds)', v: r.summary.collected - r.summary.refunds },
           { k: 'Outstanding', v: r.summary.outstanding },
           { k: 'Orders', v: r.summary.orders },
           { k: 'Average Order Value', v: r.summary.aov },
@@ -248,13 +264,47 @@ export default function OverviewClient({
       ) : (
         <>
           {/* Headline KPIs with vs-previous-period comparison */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Same refund rule as the dashboard: Net Sales and Collected are NET of refunds, Billed stays gross. Three rows
+              of three — money in, money out / tax, then activity. */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground" title="Every non-cancelled order regardless of payment status, tax-exclusive. The Sales report's Revenue counts only paid/refunded orders and includes tax — the two won't match.">
+              <p className="text-[12.5px] text-muted-foreground" title="Every non-cancelled order regardless of payment status, tax-exclusive, after discounts and refunds. The Sales report's Revenue counts only paid/refunded orders and includes tax — the two won't match.">
                 Net Sales
               </p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.net_sales.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{rupees(report.summary.net_sales)}</p>
               <Change current={report.summary.net_sales} previous={report.compare.net_sales} />
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground" title="The total of every non-cancelled bill in this range, tax included, before any refund. A refund never reduces it — a bill that was issued stays issued.">
+                Billed
+              </p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{billed === null ? '—' : rupees(billed)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground" title="Payments received in this range (including payments on older bills), minus refunds paid out in the same range.">
+                Collected
+              </p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-success">{rupees(report.summary.collected - report.summary.refunds)}</p>
+              {report.summary.refunds > 0 && (
+                <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  {rupees(report.summary.collected)} collected − {rupees(report.summary.refunds)} refunded
+                </p>
+              )}
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Outstanding</p>
+              <p className={`mt-1 text-xl font-semibold tracking-tight ${report.summary.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                {rupees(report.summary.outstanding)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Refunds</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{rupees(report.summary.refunds)}</p>
+              <Change current={report.summary.refunds} previous={report.compare.refunds} higherIsBetter={false} />
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <p className="text-[12.5px] text-muted-foreground">Tax</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{rupees(report.summary.tax)}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Orders</p>
@@ -263,41 +313,21 @@ export default function OverviewClient({
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Average Order Value</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.aov.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{rupees(report.summary.aov)}</p>
             </div>
             <div className="rounded-xl border border-border bg-surface p-4">
               <p className="text-[12.5px] text-muted-foreground">Customers</p>
               <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">{report.summary.customers}</p>
             </div>
-            <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Collected</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-success">₹{report.summary.collected.toLocaleString('en-IN')}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Outstanding</p>
-              <p className={`mt-1 text-xl font-semibold tracking-tight ${report.summary.outstanding > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                ₹{report.summary.outstanding.toLocaleString('en-IN')}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Refunds</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.refunds.toLocaleString('en-IN')}</p>
-              <Change current={report.summary.refunds} previous={report.compare.refunds} higherIsBetter={false} />
-            </div>
-            <div className="rounded-xl border border-border bg-surface p-4">
-              <p className="text-[12.5px] text-muted-foreground">Tax</p>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-foreground">₹{report.summary.tax.toLocaleString('en-IN')}</p>
-            </div>
           </div>
 
-          {/* Waterfall */}
-          <Section title="Gross Sales → Net Sales">
+          {/* Build-up to the Net Sales card above. It deliberately stops short of a "Net Sales" total row: that figure was
+              printed twice on the same screen (card + total) and read as a duplicate. */}
+          <Section title="How Net Sales is worked out">
             <ul className="space-y-1.5 text-sm">
               <Row label="Gross Sales" value={report.summary.gross_sales} />
               <Row label="Discounts" value={-report.summary.discounts} />
               <Row label="Refunds" value={-report.summary.refunds} />
-              <li className="my-1 h-px bg-border" />
-              <Row label="Net Sales" value={report.summary.net_sales} bold />
             </ul>
           </Section>
 
